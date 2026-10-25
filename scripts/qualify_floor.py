@@ -21,7 +21,10 @@ def main() -> None:
         *(("neocogi-com-tests", name, ABI_TESTS[name]) for name in ("checked_values", "output_buffers", "output_completion")),
         ("neocogi-idl", "unit_values", "unit_values_use_checked_storage_in_copied_calls"),
         ("neocogi-idl", "parser", ("rejects_explicit_receiver_lifetimes",
-                                  "receiver_lifetime_diagnostics_preserve_source_parts")),
+                                  "receiver_lifetime_diagnostics_preserve_source_parts",
+                                  "rejects_unsupported_argument_attributes",
+                                  "rejects_unrepresented_type_and_integer_syntax",
+                                  "unsupported_syntax_diagnostics_preserve_source_parts")),
     ]
     evidence = []
     for package, name, sentinel in rows:

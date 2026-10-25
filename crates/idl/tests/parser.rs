@@ -7,18 +7,30 @@ use neocogi_idl::{
 
 /// Checks owned source coordinates after the parser's syntax worker has returned.
 fn assert_receiver_lifetime_diagnostic(error: ParseError, module: &str, path: &Path, source: &str, lifetime: &str) {
+    assert_syntax_diagnostic(
+        error,
+        module,
+        path,
+        source,
+        lifetime,
+        "IDL receivers cannot declare lifetimes; use `&self` or `&mut self`",
+    );
+}
+
+/// All syntax failures own the authored range after their syntax worker returns.
+fn assert_syntax_diagnostic(error: ParseError, module: &str, path: &Path, source: &str, syntax: &str, message: &str) {
     let ParseError::Source(diagnostic) = error else {
         panic!("expected an authored syntax error: {error}");
     };
     assert_eq!(diagnostic.code, "EIDL001");
-    assert_eq!(diagnostic.message, "IDL receivers cannot declare lifetimes; use `&self` or `&mut self`");
+    assert_eq!(diagnostic.message, message);
     assert_eq!(diagnostic.labels.len(), 1);
     let label = &diagnostic.labels[0];
     assert_eq!(label.style, LabelStyle::Primary);
     assert_eq!(label.span.module(), module);
     assert_eq!(label.span.path(), path.to_str().unwrap());
 
-    let prefix = &source[..source.find(lifetime).unwrap()];
+    let prefix = &source[..source.find(syntax).unwrap()];
     let line = prefix.bytes().filter(|&byte| byte == b'\n').count() + 1;
     let column = prefix.rsplit('\n').next().unwrap().chars().count() + 1;
     assert_eq!(label.span.start(), SourcePosition { line, column });
@@ -26,9 +38,223 @@ fn assert_receiver_lifetime_diagnostic(error: ParseError, module: &str, path: &P
         label.span.end(),
         SourcePosition {
             line,
-            column: column + lifetime.chars().count(),
+            column: column + syntax.chars().count(),
         }
     );
+}
+
+/// Unsupported annotations cannot disappear even when a template is never used.
+#[test]
+fn rejects_unsupported_argument_attributes() {
+    let path = Path::new("proof/admission.ncidl");
+    let mut accepted = Vec::new();
+    for (index, attribute) in ["#[cfg(any())]", "#[unknown]", "#[doc = \"ignored\"]"].iter().enumerate() {
+        let mut cases = Vec::new();
+        for receiver in ["&self", "&mut self"] {
+            cases.push((format!("fn read({attribute} {receiver}) -> Result<u32>;"), "", ""));
+        }
+        let (parameters, consumer) = match index {
+            0 => ("", ""),
+            1 => ("<T>", ""),
+            _ => ("<T>", "#[version(1)] interface Consumer: Probe<u32> {}"),
+        };
+        cases.push((format!("fn read(&self, {attribute} value: u32) -> Result<u32>;"), parameters, consumer));
+        for (method, parameters, consumer) in cases {
+            let source = format!("#[version(1)] interface Probe{parameters} {{ {method} }} {consumer}");
+            match parse_module(path, &source) {
+                Ok(_) => accepted.push(method),
+                Err(error) => assert_syntax_diagnostic(
+                    error,
+                    "proof.admission",
+                    path,
+                    &source,
+                    attribute,
+                    "attributes are not supported in this IDL position",
+                ),
+            }
+        }
+    }
+    let source = "#[version(1)] interface Probe { fn read(#[cfg(any())] &self, #[unknown] value: u32) -> Result<u32>; }";
+    match parse_module(path, source) {
+        Ok(_) => accepted.push(source.to_owned()),
+        Err(error) => assert_syntax_diagnostic(
+            error,
+            "proof.admission",
+            path,
+            source,
+            "#[cfg(any())]",
+            "attributes are not supported in this IDL position",
+        ),
+    }
+    assert!(accepted.is_empty(), "unsupported argument syntax was erased: {accepted:?}");
+    for attribute in ["#[cfg(any())]", "#[unknown]"] {
+        let source = format!("#[version(1)] interface Probe {{ {attribute} fn read(&self) -> Result<u32>; }}");
+        assert!(parse_module(path, &source).unwrap_err().to_string().contains("only documentation attributes"));
+    }
+}
+
+/// Cover each shared lowering owner without multiplying source-coordinate cases.
+#[test]
+fn rejects_unrepresented_type_and_integer_syntax() {
+    let path = Path::new("proof/admission.ncidl");
+    let mut accepted = Vec::new();
+    for (source, syntax, message) in [
+        (
+            "#[version(1)] struct Data { value: ::u32 }",
+            "::",
+            "IDL paths are module-qualified without a leading ::",
+        ),
+        (
+            "#[version(1)] struct Data { value: ::String }",
+            "::",
+            "IDL paths are module-qualified without a leading ::",
+        ),
+        (
+            "#[version(1)] struct Data { value: ::Vec<u8> }",
+            "::",
+            "IDL paths are module-qualified without a leading ::",
+        ),
+        (
+            "#[version(1)] interface Probe { fn read(&self) -> ::Result<u32>; }",
+            "::",
+            "IDL paths are module-qualified without a leading ::",
+        ),
+        (
+            "#[version(1)] struct Data { value: [u8; #[cfg(any())] 2] }",
+            "#[cfg(any())]",
+            "attributes are not supported in this IDL position",
+        ),
+        (
+            "#[version(1)] enum Code: i8 { Item = #[unknown] 1 }",
+            "#[unknown]",
+            "attributes are not supported in this IDL position",
+        ),
+        (
+            "#[version(1)] enum Code: i8 { Item = #[unknown] -1 }",
+            "#[unknown]",
+            "attributes are not supported in this IDL position",
+        ),
+        (
+            "#[version(1)] enum Code: i8 { Item = -#[unknown] 1 }",
+            "#[unknown]",
+            "attributes are not supported in this IDL position",
+        ),
+        (
+            "#[version(1)] bitenum Flags: u8 { ENABLED = #[doc = \"ignored\"] 1 }",
+            "#[doc = \"ignored\"]",
+            "attributes are not supported in this IDL position",
+        ),
+    ] {
+        match parse_module(path, source) {
+            Ok(_) => accepted.push(source),
+            Err(error) => assert_syntax_diagnostic(error, "proof.admission", path, source, syntax, message),
+        }
+    }
+    assert!(accepted.is_empty(), "unsupported type/integer syntax was erased: {accepted:?}");
+    let source = "#[version(1)] struct Data<T> { value: T } #[version(1)] struct Holder { value: ::Data<u32> }";
+    assert_syntax_diagnostic(
+        parse_module(path, source).unwrap_err(),
+        "proof.admission",
+        path,
+        source,
+        "::",
+        "IDL paths are module-qualified without a leading ::",
+    );
+}
+
+/// Every newly checked owner reports the actual part with Unicode-aware columns.
+#[test]
+fn unsupported_syntax_diagnostics_preserve_source_parts() {
+    let directory = Path::new("proof/admission");
+    let path = directory.join("z_invalid.ncidl");
+    let valid = ModuleSource {
+        path: Path::new("proof/admission/a_valid.ncidl"),
+        text: "#[version(1)] struct Earlier { value: u32 }",
+    };
+    for (declaration, syntax, message) in [
+        (
+            "interface Probe { /* café */ fn read(#[unknown] &self) -> Result<u32>; }",
+            "#[unknown]",
+            "attributes are not supported in this IDL position",
+        ),
+        (
+            "interface Probe { /* café */ fn read(&self, #[doc = \"ignored\"] value: u32) -> Result<u32>; }",
+            "#[doc = \"ignored\"]",
+            "attributes are not supported in this IDL position",
+        ),
+        (
+            "struct Probe { /* café */ value: [u8; #[cfg(any())] 2] }",
+            "#[cfg(any())]",
+            "attributes are not supported in this IDL position",
+        ),
+        (
+            "struct Probe { /* café */ value: ::u32 }",
+            "::",
+            "IDL paths are module-qualified without a leading ::",
+        ),
+    ] {
+        let source = format!("#[version(1)]\n{declaration}\n");
+        let invalid = ModuleSource { path: &path, text: &source };
+        assert_syntax_diagnostic(
+            parse_module(&path, &source).unwrap_err(),
+            "proof.admission.z_invalid",
+            &path,
+            &source,
+            syntax,
+            message,
+        );
+        for parts in [[valid, invalid], [invalid, valid]] {
+            assert_syntax_diagnostic(
+                parse_module_parts(directory, &parts).unwrap_err(),
+                "proof.admission",
+                &path,
+                &source,
+                syntax,
+                message,
+            );
+        }
+    }
+}
+
+/// Punctuation normalization and supported docs must preserve the same contract.
+#[test]
+fn syntax_normalization_preserves_valid_contracts() {
+    let prefix = "#[version(1)] struct Data<T> { value: T } #[version(1)] interface Base { fn value(&self) -> Result<u32>; }";
+    let plain = format!("{prefix} #[version(1)] interface Probe: Base {{ fn read(&self, value: Data<u32>) -> Result<u32>; }}");
+    let punctuation = format!("{prefix} #[version(1)] interface Probe: (Base) {{ #[doc = \"kept\"] fn read<>(&self, value: Data::<u32>) -> Result::<u32>; }}");
+    let graph = |source: &str| resolve_modules(vec![parse_module(Path::new("proof/admission.ncidl"), source).unwrap()]).unwrap();
+    let plain = graph(&plain);
+    let punctuation = graph(&punctuation);
+    assert_eq!(
+        plain.module("proof.admission").unwrap().abi_fingerprint,
+        punctuation.module("proof.admission").unwrap().abi_fingerprint
+    );
+    let plain_rust = syn::parse_file(&generate_rust(&plain, "proof.admission").unwrap()).unwrap();
+    let documented_rust = syn::parse_file(&generate_rust(&punctuation, "proof.admission").unwrap()).unwrap();
+    for file in [&plain_rust, &documented_rust] {
+        let provider = file
+            .items
+            .iter()
+            .find_map(|item| match item {
+                syn::Item::Trait(item) if item.ident == "Probe" => Some(item),
+                _ => None,
+            })
+            .unwrap();
+        let syn::TraitItem::Fn(method) = &provider.items[0] else {
+            panic!("expected method")
+        };
+        assert_eq!(method.sig.inputs.len(), 2);
+        let syn::FnArg::Typed(argument) = &method.sig.inputs[1] else {
+            panic!("expected argument")
+        };
+        assert!(argument.attrs.is_empty());
+        assert!(method.sig.generics.params.is_empty());
+    }
+    let documented = punctuation.module("proof.admission").unwrap().source.declaration("Probe").unwrap();
+    let DeclarationKind::Interface(interface) = &documented.kind else {
+        panic!("expected interface")
+    };
+    assert_eq!(interface.methods[0].docs, ["kept"]);
 }
 
 /// Eager syntax admission rejects lifetimes even on templates that are never used.

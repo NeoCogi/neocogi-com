@@ -498,6 +498,7 @@ fn lower_method(source: TraitItemFn) -> syn::Result<Method> {
     let mut inputs = signature.inputs.into_iter();
     let receiver = match inputs.next() {
         Some(FnArg::Receiver(receiver)) if receiver.reference.is_some() && receiver.colon_token.is_none() => {
+            reject_attributes(&receiver.attrs)?;
             // Reject before narrowing Syn's receiver to its lifetime-free dispatch mode.
             if let Some((_, Some(lifetime))) = &receiver.reference {
                 return Err(syn::Error::new_spanned(
@@ -516,6 +517,7 @@ fn lower_method(source: TraitItemFn) -> syn::Result<Method> {
         let FnArg::Typed(argument) = input else {
             return Err(syn::Error::new_spanned(input, "a method can have only one receiver"));
         };
+        reject_attributes(&argument.attrs)?;
         let Pat::Ident(pattern) = argument.pat.as_ref() else {
             return Err(syn::Error::new_spanned(argument.pat, "IDL parameters require simple identifier patterns"));
         };
@@ -557,6 +559,7 @@ fn lower_result_output(output: &Type) -> syn::Result<AbiType> {
     let Type::Path(path) = output else {
         return Err(syn::Error::new_spanned(output, "IDL methods must return `Result<T>`"));
     };
+    require_relative_path(&path.path)?;
     if path.qself.is_some() || path.path.segments.len() != 1 || path.path.segments[0].ident != "Result" {
         return Err(syn::Error::new_spanned(output, "IDL methods must return `Result<T>`"));
     }
@@ -602,6 +605,7 @@ fn lower_type(source: &Type) -> syn::Result<AbiType> {
 
 /// Lowers a built-in, optional, or named path type.
 fn lower_path_type(path: &syn::Path) -> syn::Result<AbiType> {
+    require_relative_path(path)?;
     if path.segments.len() == 1 {
         let segment = &path.segments[0];
         let name = segment.ident.to_string();
@@ -665,11 +669,17 @@ fn lower_path_type(path: &syn::Path) -> syn::Result<AbiType> {
     Ok(AbiType::Named(named_path(path)?))
 }
 
+/// Admits module-relative names before built-in, Result or named classification.
+fn require_relative_path(path: &syn::Path) -> syn::Result<()> {
+    if let Some(qualifier) = &path.leading_colon {
+        return Err(syn::Error::new_spanned(qualifier, "IDL paths are module-qualified without a leading ::"));
+    }
+    Ok(())
+}
+
 /// Parses named type arguments without accepting lifetime, const, or associated-type syntax.
 fn named_path(path: &syn::Path) -> syn::Result<NamedType> {
-    if path.leading_colon.is_some() {
-        return Err(syn::Error::new_spanned(path, "IDL paths are module-qualified without a leading ::"));
-    }
+    require_relative_path(path)?;
     let mut segments = Vec::new();
     let mut arguments = Vec::new();
     for (index, segment) in path.segments.iter().enumerate() {
@@ -827,19 +837,24 @@ fn parse_bit_flag(input: ParseStream<'_>) -> syn::Result<Parsed<BitFlag>> {
     })
 }
 
-/// Parses a nonnegative integer expression used as a fixed array length.
+/// Parses an attribute-free nonnegative literal for array lengths and bit flags.
 fn parse_unsigned_integer(expression: &Expr) -> syn::Result<u64> {
-    let Expr::Lit(ExprLit { lit: Lit::Int(value), .. }) = expression else {
+    let Expr::Lit(ExprLit { attrs, lit: Lit::Int(value), .. }) = expression else {
         return Err(syn::Error::new_spanned(expression, "expected an integer literal"));
     };
+    reject_attributes(attrs)?;
     value.base10_parse::<u64>()
 }
 
-/// Parses a signed integer literal without accepting computed expressions.
+/// Parses an attribute-free enum discriminant without accepting computed expressions.
 fn parse_signed_integer(expression: &Expr) -> syn::Result<i64> {
     match expression {
-        Expr::Lit(ExprLit { lit: Lit::Int(value), .. }) => value.base10_parse::<i64>(),
-        Expr::Unary(ExprUnary { op: UnOp::Neg(_), expr, .. }) => {
+        Expr::Lit(ExprLit { attrs, lit: Lit::Int(value), .. }) => {
+            reject_attributes(attrs)?;
+            value.base10_parse::<i64>()
+        }
+        Expr::Unary(ExprUnary { attrs, op: UnOp::Neg(_), expr, .. }) => {
+            reject_attributes(attrs)?;
             let magnitude = parse_unsigned_integer(expr)?;
             let magnitude = i64::try_from(magnitude).map_err(|_| syn::Error::new_spanned(expression, "negative discriminant magnitude exceeds i64"))?;
             Ok(-magnitude)
@@ -1215,6 +1230,18 @@ fn parse_threading(attribute: &Attribute) -> syn::Result<Threading> {
         "shared" => Ok(Threading::Shared),
         _ => Err(syn::Error::new_spanned(capability, "threading capability must be `local` or `shared`")),
     }
+}
+
+/// Rejects annotations at syntax positions whose compact model has no such meaning.
+///
+/// Receivers, parameters and admitted integer expressions support no attributes,
+/// including docs. Check before narrowing the syntax so cfg/unknown meaning can
+/// never silently disappear. Supported method/field docs use their own admission.
+fn reject_attributes(attributes: &[Attribute]) -> syn::Result<()> {
+    if let Some(attribute) = attributes.first() {
+        return Err(syn::Error::new_spanned(attribute, "attributes are not supported in this IDL position"));
+    }
+    Ok(())
 }
 
 /// Extracts documentation while rejecting all other method or field attributes.

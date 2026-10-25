@@ -16,6 +16,12 @@ typed interface methods handle parameterized construction.
 Methods begin with ordinary `&self` or `&mut self` receivers. Explicit receiver
 lifetimes (including `'static` and `'_`), typed-self syntax and method lifetime
 parameters are rejected during parsing, even in unused generic declarations.
+Methods and fields accept documentation attributes at their own declaration.
+Receivers, parameters and integer expressions accept no attributes, including
+documentation or Rust `cfg`; unsupported annotations are rejected before lowering.
+Type paths are module-relative without a leading `::`, including built-in types
+and the required `Result<T>` return spelling. Plain integer spelling and equivalent
+collection/type punctuation normalize without adding Rust attribute semantics.
 
 A suffix such as `interface Button: IWidget + IActions` gives one physical vtable
 prefix (the first entry) and required sibling projections (later entries). All
