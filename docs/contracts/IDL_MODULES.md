@@ -547,18 +547,22 @@ filesystem enumeration order, or a hand-maintained part list.
 
 The merged model is canonicalized as follows:
 
-- source parts are retained by normalized relative path for diagnostics only;
+- source parts are retained by normalized relative path for diagnostics and
+  generated source provenance;
 - external dependencies are sorted by their canonical module name;
 - equivalent imports are merged, and imported modules and names are sorted;
 - top-level declarations are sorted by their exact identifier;
 - field, enum-case, base-interface, method, and parameter order is retained
   exactly because those sequences are ABI-significant.
 
-The canonical ABI encoder excludes part paths, comments, and formatting. Moving
-or renaming a part, splitting one file, combining files, or changing discovery
-order consequently preserves the module fingerprint and produces byte-identical
-Rust bindings. Changing an ABI-significant member
-sequence still changes the fingerprint.
+The canonical ABI encoder excludes part paths, comments, and formatting.
+Reordering the same source parts preserves deterministic generated output.
+Within the same logical module, moving or renaming parts, splitting a file, or
+combining files without changing the contract preserves the module fingerprint
+and executable binding behavior. Generated origin comments and source-map
+locations follow the authored source, so complete Rust bindings need not remain
+byte-identical. See the [source-map guide](../guides/IDL_SOURCE_MAPS.md).
+Changing an ABI-significant member sequence still changes the fingerprint.
 
 ### Type and ownership rules
 
