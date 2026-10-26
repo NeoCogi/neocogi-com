@@ -86,6 +86,9 @@ jobs:
       - run: cargo fetch --locked
       - name: Native linked qualification
         run: python3 scripts/compatibility.py --suite linked --report "${{ runner.temp }}/com-linked-macos.json"
+      - name: Native inspector argument tests
+        if: ${{ !cancelled() }}
+        run: cargo test -p neocogi-inspect --bin neocogi-inspect --locked
       - name: Retain native qualification receipt
         if: ${{ always() }}
         uses: actions/upload-artifact@v7
@@ -103,6 +106,9 @@ jobs:
       - run: cargo fetch --locked
       - name: Native linked qualification
         run: python3 scripts/compatibility.py --suite linked --report "${{ runner.temp }}/com-linked-windows.json"
+      - name: Native inspector argument tests
+        if: ${{ !cancelled() }}
+        run: cargo test -p neocogi-inspect --bin neocogi-inspect --locked
       - name: Retain native qualification receipt
         if: ${{ always() }}
         uses: actions/upload-artifact@v7

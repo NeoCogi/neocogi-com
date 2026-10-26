@@ -3,6 +3,7 @@
 use std::ffi::{OsStr, OsString};
 use std::path::PathBuf;
 
+/// Documents split value arguments; output paths remain literal native values.
 pub(crate) const USAGE: &str = "\
 Usage:
   neocogi-inspect dump <LIBRARY> [--format json|text] [--output <PATH>]
@@ -15,6 +16,8 @@ Commands:
   check   Validate that descriptor metadata can be extracted
   plan    Inspect artifacts and compute a dependency-first load order
   diff    Compare artifacts exactly or check old-to-new compatibility
+
+Option values use separate arguments: --output PATH, --format FORMAT.
 ";
 
 pub(crate) enum Command {
@@ -69,11 +72,11 @@ pub(crate) fn parse_args(args: impl IntoIterator<Item = OsString>) -> Result<Com
     }
 }
 
-fn parse_plan(args: impl Iterator<Item = OsString>) -> Result<Command, String> {
+/// Parses multiple libraries while split output values retain native path identity.
+fn parse_plan(mut args: impl Iterator<Item = OsString>) -> Result<Command, String> {
     let mut libraries = Vec::new();
     let mut format = OutputFormat::Json;
     let mut output = None;
-    let mut args = args.peekable();
 
     while let Some(arg) = args.next() {
         if arg == OsStr::new("--format") || arg == OsStr::new("-f") {
@@ -81,12 +84,6 @@ fn parse_plan(args: impl Iterator<Item = OsString>) -> Result<Command, String> {
             format = parse_format(&value)?;
         } else if arg == OsStr::new("--output") || arg == OsStr::new("-o") {
             let value = args.next().ok_or_else(|| "missing value for --output".to_string())?;
-            if output.replace(PathBuf::from(value)).is_some() {
-                return Err("duplicate --output".to_string());
-            }
-        } else if let Some(value) = option_value(&arg, "--format=") {
-            format = parse_format(&value)?;
-        } else if let Some(value) = option_value(&arg, "--output=") {
             if output.replace(PathBuf::from(value)).is_some() {
                 return Err("duplicate --output".to_string());
             }
@@ -103,11 +100,11 @@ fn parse_plan(args: impl Iterator<Item = OsString>) -> Result<Command, String> {
     Ok(Command::Plan { libraries, format, output })
 }
 
-fn parse_dump(args: impl Iterator<Item = OsString>) -> Result<Command, String> {
+/// Parses one library; option recognition never reinterprets a consumed output path.
+fn parse_dump(mut args: impl Iterator<Item = OsString>) -> Result<Command, String> {
     let mut library = None;
     let mut format = OutputFormat::Json;
     let mut output = None;
-    let mut args = args.peekable();
 
     while let Some(arg) = args.next() {
         if arg == OsStr::new("--format") || arg == OsStr::new("-f") {
@@ -115,12 +112,6 @@ fn parse_dump(args: impl Iterator<Item = OsString>) -> Result<Command, String> {
             format = parse_format(&value)?;
         } else if arg == OsStr::new("--output") || arg == OsStr::new("-o") {
             let value = args.next().ok_or_else(|| "missing value for --output".to_string())?;
-            if output.replace(PathBuf::from(value)).is_some() {
-                return Err("duplicate --output".to_string());
-            }
-        } else if let Some(value) = option_value(&arg, "--format=") {
-            format = parse_format(&value)?;
-        } else if let Some(value) = option_value(&arg, "--output=") {
             if output.replace(PathBuf::from(value)).is_some() {
                 return Err("duplicate --output".to_string());
             }
@@ -185,11 +176,6 @@ fn parse_diff(args: impl Iterator<Item = OsString>) -> Result<Command, String> {
     })
 }
 
-fn option_value(arg: &OsString, prefix: &str) -> Option<OsString> {
-    let value = arg.to_string_lossy();
-    value.strip_prefix(prefix).map(|value| OsString::from(value.to_owned()))
-}
-
 fn parse_format(value: &OsString) -> Result<OutputFormat, String> {
     match value.to_string_lossy().as_ref() {
         "json" => Ok(OutputFormat::Json),
@@ -201,6 +187,115 @@ fn parse_format(value: &OsString) -> Result<OutputFormat, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Parses the same opaque split value through both commands and spellings.
+    fn split_output(command: &str, option: &str, path: &OsStr) -> PathBuf {
+        let args = [
+            OsString::from("neocogi-inspect"),
+            OsString::from(command),
+            OsString::from("plugin.so"),
+            OsString::from(option),
+            path.to_owned(),
+        ];
+        match parse_args(args).expect("split native output") {
+            Command::Dump { library, output, .. } => {
+                assert_eq!(library, PathBuf::from("plugin.so"));
+                output.unwrap()
+            }
+            Command::Plan { libraries, output, .. } => {
+                assert_eq!(libraries, [PathBuf::from("plugin.so")]);
+                output.unwrap()
+            }
+            _ => panic!("expected output command"),
+        }
+    }
+
+    /// ASCII, Unicode and option-looking filenames remain literal split values.
+    #[test]
+    fn split_output_keeps_literal_native_values() {
+        for command in ["dump", "plan"] {
+            for option in ["--output", "-o"] {
+                for value in ["report.json", "report-é.json", "--format=json"] {
+                    assert_eq!(split_output(command, option, OsStr::new(value)), PathBuf::from(value));
+                }
+            }
+        }
+    }
+
+    /// Only documented split values are accepted in an option position.
+    #[test]
+    fn equals_options_are_usage_errors() {
+        for command in ["dump", "plan"] {
+            for option in ["--output=report.json", "--output=", "--format=json", "--format="] {
+                assert!(parse_args(["neocogi-inspect", command, "plugin.so", option].map(OsString::from)).is_err());
+            }
+        }
+    }
+
+    /// Missing values, repeated output and command cardinality retain their owners.
+    #[test]
+    fn output_options_preserve_errors_and_library_cardinality() {
+        for command in ["dump", "plan"] {
+            for option in ["--output", "-o", "--format", "-f"] {
+                assert!(parse_args(["neocogi-inspect", command, "plugin.so", option].map(OsString::from)).is_err());
+            }
+            assert!(parse_args(["neocogi-inspect", command, "plugin.so", "--output", "one", "-o", "two"].map(OsString::from)).is_err());
+            assert!(parse_args(["neocogi-inspect", command].map(OsString::from)).is_err());
+            for option in ["--format", "-f"] {
+                let parsed = parse_args(["neocogi-inspect", command, "plugin.so", option, "text"].map(OsString::from)).unwrap();
+                match parsed {
+                    Command::Dump { format, .. } | Command::Plan { format, .. } => assert!(matches!(format, OutputFormat::Text)),
+                    _ => panic!("expected output command"),
+                }
+            }
+        }
+        assert!(parse_args(["neocogi-inspect", "dump", "one.so", "two.so"].map(OsString::from)).is_err());
+        let parsed = parse_args(["neocogi-inspect", "plan", "one.so", "two.so", "-o", "report"].map(OsString::from)).unwrap();
+        match parsed {
+            Command::Plan { libraries, output, .. } => {
+                assert_eq!(libraries, [PathBuf::from("one.so"), PathBuf::from("two.so")]);
+                assert_eq!(output, Some(PathBuf::from("report")));
+            }
+            _ => panic!("expected plan"),
+        }
+    }
+
+    /// Native filename bytes survive parsing; removed inline aliases never decode them.
+    #[cfg(unix)]
+    #[test]
+    fn unix_output_preserves_non_utf8_bytes() {
+        use std::os::unix::ffi::{OsStrExt, OsStringExt};
+        let path = OsString::from_vec(b"report-\xff.json".to_vec());
+        for command in ["dump", "plan"] {
+            for option in ["--output", "-o"] {
+                assert_eq!(split_output(command, option, &path).as_os_str().as_bytes(), b"report-\xff.json");
+            }
+            for prefix in ["--output=", "--format="] {
+                let mut inline = OsString::from(prefix);
+                inline.push(&path);
+                assert!(parse_args([OsString::from("neocogi-inspect"), OsString::from(command), OsString::from("plugin.so"), inline]).is_err());
+            }
+        }
+    }
+
+    /// Windows paths retain code units, including parser-only unpaired surrogates.
+    #[cfg(windows)]
+    #[test]
+    fn windows_output_preserves_native_code_units() {
+        use std::os::windows::ffi::{OsStrExt, OsStringExt};
+        let units = [0x72, 0x65, 0x70, 0x6f, 0x72, 0x74, 0x2d, 0xd800, 0x2e, 0x6a, 0x73, 0x6f, 0x6e];
+        let path = OsString::from_wide(&units);
+        for command in ["dump", "plan"] {
+            for option in ["--output", "-o"] {
+                assert_eq!(split_output(command, option, &path).as_os_str().encode_wide().collect::<Vec<_>>(), units);
+            }
+            for prefix in ["--output=", "--format="] {
+                let mut inline = OsString::from(prefix);
+                inline.push(&path);
+                assert!(parse_args([OsString::from("neocogi-inspect"), OsString::from(command), OsString::from("plugin.so"), inline]).is_err());
+            }
+        }
+    }
 
     #[test]
     fn dump_defaults_to_json() {
