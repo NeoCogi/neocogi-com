@@ -84,9 +84,12 @@ output preserves checked wire encoding, early admission, and grouped publication
 while removing the input direction and provider scratch. It does not pass Rust
 enums, vectors, allocator ownership, or writer layout across a plugin boundary.
 
-The output migration includes real generated thunks, owner failure injection, malformed
-outputs, native C, and independently compiled host/plugin checks. Core generation
-17 and revised output-bearing fingerprints prevent mixing retired signatures.
+The output migration includes real generated thunks, owner failure injection,
+malformed outputs, native C, and independently compiled host/plugin checks.
+Output-bearing interfaces use exact contract signatures. The current
+[ABI compatibility rule](../abi-v1.md) also requires rebuilding peers
+from the same checkout; equal discovery versions alone do not establish
+pre-release compatibility.
 
 `NcOutputWriter::forward` lends untouched raw storage through a synchronous
 provider-to-provider call, with no intermediate vector. Partial writers cannot
