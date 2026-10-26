@@ -47,6 +47,14 @@ fn printed_bindings_preserve_authored_values_and_arguments() {
         String::from_utf8_lossy(&result.stdout),
         String::from_utf8_lossy(&result.stderr)
     );
+    // Archives and floor runs must execute this case, even if others still pass.
+    assert!(
+        String::from_utf8_lossy(&result.stdout)
+            .lines()
+            .any(|line| line == "test keyword_dispatch::weak_and_near_keyword_members_execute ... ok"),
+        "legal keyword member case did not execute: {}",
+        String::from_utf8_lossy(&result.stdout)
+    );
 }
 
 /// Object expansion must survive printing with authored support names in both ownership modes.

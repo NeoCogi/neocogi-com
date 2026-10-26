@@ -43,6 +43,106 @@ fn assert_syntax_diagnostic(error: ParseError, module: &str, path: &Path, source
     );
 }
 
+/// Rust-2024 keywords reject at member admission without restricting legal names.
+#[test]
+fn rejects_rust_2024_keyword_members() {
+    let path = Path::new("proof/keywords.ncidl");
+    for name in ["union", "safe", "raw", "macro_rules", "generation", "gen_value"] {
+        let source = format!(
+            "#[version(1)] struct Data {{ {name}: u32 }} \
+             #[version(1)] enum Choice {{ Named {{ {name}: u32 }} }} \
+             #[version(1)] interface Probe {{ fn {name}(&self, {name}: u32) -> Result<u32>; }}"
+        );
+        let graph = resolve_modules(vec![parse_module(path, &source).unwrap()]).unwrap();
+        generate_rust(&graph, "proof.keywords").unwrap();
+    }
+    // A metadata path limit is not an authored member-name limit.
+    let long_name = "a".repeat(neocogi_com_core::NC_DESCRIPTOR_RUST_PATH_MAX_LEN + 1);
+    let source = format!("#[version(1)] struct Data {{ {long_name}: u32 }}");
+    let parsed = parse_module(path, &source).unwrap();
+    let DeclarationKind::Struct(data) = &parsed.declaration("Data").unwrap().kind else {
+        panic!("expected record")
+    };
+    assert_eq!(data.fields[0].name, long_name);
+    let source = "#[version(1)] struct Data<T> { value: T } #[version(1)] struct Closed { item: Data<u32> } \
+                  #[version(1)] interface Probe<T> { fn read(&self, value: T) -> Result<T>; } \
+                  #[version(1)] interface ClosedReader: Probe<u32> {}";
+    resolve_modules(vec![parse_module(path, source).unwrap()]).unwrap();
+
+    // Raw IDL names stay excluded; older strict keywords may reject inside Syn.
+    for name in ["r#gen", "r#union", "type", "async", "self", "try"] {
+        for source in [
+            format!("#[version(1)] struct Data {{ {name}: u32 }}"),
+            format!("#[version(1)] enum Choice {{ Named {{ {name}: u32 }} }}"),
+            format!("#[version(1)] interface Probe {{ fn {name}(&self) -> Result<u32>; }}"),
+            format!("#[version(1)] interface Probe {{ fn read(&self, {name}: u32) -> Result<u32>; }}"),
+        ] {
+            assert!(parse_module(path, &source).is_err(), "{source}");
+        }
+    }
+
+    let mut accepted = Vec::new();
+    for (source, role) in [
+        ("#[version(1)] struct Data { gen: u32 }", "field"),
+        ("#[version(1)] enum Choice { Named { gen: u32 } }", "field"),
+        ("#[version(1)] interface Probe { fn gen(&self) -> Result<u32>; }", "method"),
+        ("#[version(1)] interface Probe { fn read(&self, gen: u32) -> Result<u32>; }", "parameter"),
+        ("#[version(1)] struct Unused<T> { gen: T }", "field"),
+        ("#[version(1)] interface Unused<T> { fn gen(&self) -> Result<T>; }", "method"),
+        (
+            "#[version(1)] struct Used<T> { value: T } #[version(1)] struct Closed { item: Used<u32> } \
+             #[version(1)] interface Unused<T> { fn read(&self, gen: T) -> Result<T>; }",
+            "parameter",
+        ),
+    ] {
+        match parse_module(path, source) {
+            Ok(_) => accepted.push(source),
+            Err(error) => assert_syntax_diagnostic(
+                error,
+                "proof.keywords",
+                path,
+                source,
+                "gen",
+                &format!("IDL {role} name \"gen\" is a reserved Rust 2024 keyword"),
+            ),
+        }
+    }
+    assert!(accepted.is_empty(), "reserved member names survived source admission: {accepted:?}");
+}
+
+/// Keyword diagnostics retain the exact part and Unicode scalar range after parsing.
+#[test]
+fn keyword_member_diagnostics_preserve_source_parts() {
+    let directory = Path::new("proof/keywords");
+    let path = directory.join("z_invalid.ncidl");
+    let valid = ModuleSource {
+        path: Path::new("proof/keywords/a_valid.ncidl"),
+        text: "#[version(1)] struct Earlier { value: u32 }",
+    };
+    let mut accepted = Vec::new();
+    for (declaration, role) in [
+        ("struct Probe<T> { /* café */ gen: T }", "field"),
+        ("enum Probe { Named { /* café */ gen: u32 } }", "field"),
+        ("interface Probe<T> { /* café */ fn gen(&self) -> Result<T>; }", "method"),
+        ("interface Probe { /* café */ fn read(&self, gen: u32) -> Result<u32>; }", "parameter"),
+    ] {
+        let source = format!("#[version(1)]\n{declaration}\n");
+        let message = format!("IDL {role} name \"gen\" is a reserved Rust 2024 keyword");
+        match parse_module(&path, &source) {
+            Ok(_) => accepted.push(declaration),
+            Err(error) => assert_syntax_diagnostic(error, "proof.keywords.z_invalid", &path, &source, "gen", &message),
+        }
+        let invalid = ModuleSource { path: &path, text: &source };
+        for parts in [[valid, invalid], [invalid, valid]] {
+            match parse_module_parts(directory, &parts) {
+                Ok(_) => accepted.push(declaration),
+                Err(error) => assert_syntax_diagnostic(error, "proof.keywords", &path, &source, "gen", &message),
+            }
+        }
+    }
+    assert!(accepted.is_empty(), "reserved member names survived part admission: {accepted:?}");
+}
+
 /// Unsupported annotations cannot disappear even when a template is never used.
 #[test]
 fn rejects_unsupported_argument_attributes() {

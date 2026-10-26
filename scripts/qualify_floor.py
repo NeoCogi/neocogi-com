@@ -24,7 +24,9 @@ def main() -> None:
                                   "receiver_lifetime_diagnostics_preserve_source_parts",
                                   "rejects_unsupported_argument_attributes",
                                   "rejects_unrepresented_type_and_integer_syntax",
-                                  "unsupported_syntax_diagnostics_preserve_source_parts")),
+                                  "unsupported_syntax_diagnostics_preserve_source_parts",
+                                  "rejects_rust_2024_keyword_members",
+                                  "keyword_member_diagnostics_preserve_source_parts")),
     ]
     evidence = []
     for package, name, sentinel in rows:

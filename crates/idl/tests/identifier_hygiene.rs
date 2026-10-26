@@ -80,4 +80,12 @@ fn authored_names_preserve_values_across_generated_com() {
         String::from_utf8_lossy(&result.stdout),
         String::from_utf8_lossy(&result.stderr)
     );
+    // A green child suite must include the specific legal-name COM proof.
+    assert!(
+        String::from_utf8_lossy(&result.stdout)
+            .lines()
+            .any(|line| line == "test keyword_dispatch::weak_and_near_keyword_members_execute ... ok"),
+        "legal keyword member case did not execute: {}",
+        String::from_utf8_lossy(&result.stdout)
+    );
 }

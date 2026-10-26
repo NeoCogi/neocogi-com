@@ -27,3 +27,12 @@
     fn raw_value(&self) -> Result<u32>;
     fn helper_names(&self, clone: u32, downgrade: u32, query: u32) -> Result<u32>;
 }
+
+/// Weak keywords and names containing reserved words remain ordinary value fields.
+#[version(1)] struct KeywordRecord { union: bool, generation: u32, gen_value: u32 }
+/// Named payload fields preserve weak keywords through checked enum conversion.
+#[version(1)] enum KeywordChoice { Named { safe: bool, raw: u32 } }
+/// Member legality is shared with Rust 2024 without rejecting its weak keywords.
+#[version(1)] interface IKeywordNames {
+    fn raw(&self, macro_rules: KeywordRecord, union: KeywordChoice) -> Result<KeywordRecord>;
+}

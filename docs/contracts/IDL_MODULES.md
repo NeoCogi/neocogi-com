@@ -346,6 +346,11 @@ silently rewrites them. The parser enforces the corresponding conventions:
 - Struct fields, named enum payload fields, methods, and parameters use
   `snake_case`.
 
+Rust 2024 strict and reserved keywords, including `gen`, are rejected at the
+authored identifier before generation, even in unused templates. Weak keywords
+such as `union` remain valid names. Raw identifiers are outside the IDL member
+grammar; generation does not add raw prefixes or silently rename members.
+
 Public generated names share the declaration/import namespace. The resolver
 checks interface companions and codec helper names before emission; collisions
 report `EIDL021`. Dense enum variants also cannot duplicate their generated public

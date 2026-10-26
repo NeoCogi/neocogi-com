@@ -1021,7 +1021,7 @@ fn require_upper_camel_case(identifier: &Ident, role: &str) -> syn::Result<()> {
     }
 }
 
-/// Requires the Rust convention used by generated fields, methods, and parameters.
+/// Admits unchanged Rust-2024 member names without imposing metadata path bounds.
 fn require_snake_case(identifier: &Ident, role: &str) -> syn::Result<()> {
     let value = identifier.to_string();
     let bytes = value.as_bytes();
@@ -1029,10 +1029,22 @@ fn require_snake_case(identifier: &Ident, role: &str) -> syn::Result<()> {
         && bytes.last().is_some_and(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit())
         && bytes.iter().all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || *byte == b'_')
         && !bytes.windows(2).any(|pair| pair == b"__");
-    if valid {
-        Ok(())
+    if !valid {
+        return Err(syn::Error::new_spanned(identifier, format!("IDL {role} name {value:?} must use snake_case")));
+    }
+    // Casing already proves one nonraw ASCII identifier. Share only the keyword
+    // rejection: metadata's length bound does not constrain member names, and
+    // every reserved word is shorter than that bound.
+    if matches!(
+        neocogi_com_core::validate_rust_path(&value),
+        Err(neocogi_com_core::NcRustPathError::ReservedIdentifier { .. })
+    ) {
+        Err(syn::Error::new_spanned(
+            identifier,
+            format!("IDL {role} name {value:?} is a reserved Rust 2024 keyword"),
+        ))
     } else {
-        Err(syn::Error::new_spanned(identifier, format!("IDL {role} name {value:?} must use snake_case")))
+        Ok(())
     }
 }
 

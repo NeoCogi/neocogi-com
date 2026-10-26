@@ -4,6 +4,40 @@ mod shadow;
 mod values;
 
 #[cfg(test)]
+mod keyword_dispatch {
+    //! Weak keywords remain unchanged through generated value codecs and calls.
+    use super::values::*;
+    use neocogi_com::*;
+
+    /// Bool fields force checked conversion on both sides of the COM call.
+    #[com_object(IKeywordNames)]
+    struct Keywords;
+
+    impl IKeywordNames for Keywords {
+        fn raw(&self, macro_rules: KeywordRecord, union: KeywordChoice) -> Result<KeywordRecord, NcStatus> {
+            assert!(macro_rules.union);
+            assert_eq!((macro_rules.generation, macro_rules.gen_value), (11, 101));
+            let KeywordChoice::Named { safe, raw } = union;
+            assert!(safe);
+            assert_eq!(raw, 1009);
+            Ok(KeywordRecord { union: safe, generation: macro_rules.generation + raw, gen_value: macro_rules.gen_value + 1 })
+        }
+    }
+
+    /// Distinct sentinels prove fields, enum payload, method and parameter survived.
+    #[test]
+    fn weak_and_near_keyword_members_execute() {
+        let provider = Keywords::from_value(Keywords).query::<IKeywordNamesAbi>().unwrap();
+        let result = provider.raw(
+            KeywordRecord { union: true, generation: 11, gen_value: 101 },
+            KeywordChoice::Named { safe: true, raw: 1009 },
+        ).unwrap();
+        assert!(result.union);
+        assert_eq!((result.generation, result.gen_value), (1020, 102));
+    }
+}
+
+#[cfg(test)]
 mod capability_dispatch {
     //! Ordinary handle syntax must enter each legal generated provider method.
     use super::values::*;
