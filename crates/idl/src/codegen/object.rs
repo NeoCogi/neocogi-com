@@ -134,7 +134,8 @@ pub fn expand_com_object(args: ObjectArgs, input: ItemStruct) -> proc_macro2::To
         impl #impl_generics #object_type #where_clause {
             /// Number of queryable contracts, including canonical IUnknown.
             /// The expression depends on contract types, never implementation generics.
-            pub const COM_INTERFACE_COUNT: usize = #interface_count;
+            /// The count type remains primitive even when a generic is named usize.
+            pub const COM_INTERFACE_COUNT: ::core::primitive::usize = #interface_count;
 
             #constructors
 

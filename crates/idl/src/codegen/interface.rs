@@ -309,7 +309,7 @@ pub fn expand_interface_parts(plan: InterfacePlan) -> Result<InterfaceExpansion>
                 let values = buffer_values_ident(ident);
                 let written = buffer_written_ident(ident);
                 quote! {
-                    if #written.is_null() || #written.align_offset(::core::mem::align_of::<u64>()) != 0 {
+                    if #written.is_null() || #written.align_offset(::core::mem::align_of::<::core::primitive::u64>()) != 0 {
                         return #nc::NC_E_POINTER;
                     }
                     // SAFETY: raw caller grants a separate writable count slot;
@@ -1072,6 +1072,7 @@ fn return_type_descriptor(nc: &syn::Path, method: &AbiMethod) -> proc_macro2::To
 }
 
 /// Expands one logical argument into its raw vtable parameter list.
+/// Buffer counts always use core's u64, independent of application type aliases.
 fn raw_vtable_arg_params(arg: &crate::codegen::model::AbiArg) -> Vec<proc_macro2::TokenStream> {
     let ident = &arg.binding;
     match &arg.kind {
@@ -1083,10 +1084,14 @@ fn raw_vtable_arg_params(arg: &crate::codegen::model::AbiArg) -> Vec<proc_macro2
             let offset_ident = buffer_offset_ident(ident);
             let len_ident = buffer_len_ident(ident);
             let ptr_ident = buffer_ptr_ident(ident);
-            vec![quote! { #offset_ident: u64 }, quote! { #len_ident: u64 }, {
-                let ty = &arg.abi_ty;
-                quote! { #ptr_ident: #ty }
-            }]
+            vec![
+                quote! { #offset_ident: ::core::primitive::u64 },
+                quote! { #len_ident: ::core::primitive::u64 },
+                {
+                    let ty = &arg.abi_ty;
+                    quote! { #ptr_ident: #ty }
+                },
+            ]
         }
         AbiArgKind::OutputBuffer { .. } => {
             let offset_ident = buffer_offset_ident(ident);
@@ -1094,13 +1099,13 @@ fn raw_vtable_arg_params(arg: &crate::codegen::model::AbiArg) -> Vec<proc_macro2
             let ptr_ident = buffer_ptr_ident(ident);
             let written_ident = buffer_written_ident(ident);
             vec![
-                quote! { #offset_ident: u64 },
-                quote! { #len_ident: u64 },
+                quote! { #offset_ident: ::core::primitive::u64 },
+                quote! { #len_ident: ::core::primitive::u64 },
                 {
                     let ty = &arg.abi_ty;
                     quote! { #ptr_ident: #ty }
                 },
-                quote! { #written_ident: *mut u64 },
+                quote! { #written_ident: *mut ::core::primitive::u64 },
             ]
         }
     }

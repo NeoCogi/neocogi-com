@@ -812,8 +812,8 @@ pub struct IPersistenceFactoryVTable {
     pub validate: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
         __nc_arg_0: <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
-        __nc_arg_1_offset: u64,
-        __nc_arg_1_len: u64,
+        __nc_arg_1_offset: ::core::primitive::u64,
+        __nc_arg_1_len: ::core::primitive::u64,
         __nc_arg_1_ptr: *const <::core::primitive::u8 as ::neocogi_com::ComValue>::Wire,
         __nc_arg_2: <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
     ) -> ::neocogi_com::NcStatus,
@@ -839,8 +839,8 @@ pub struct IPersistenceFactoryVTable {
     pub restore: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
         __nc_arg_0_0: <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
-        __nc_arg_1_0_offset: u64,
-        __nc_arg_1_0_len: u64,
+        __nc_arg_1_0_offset: ::core::primitive::u64,
+        __nc_arg_1_0_len: ::core::primitive::u64,
         __nc_arg_1_0_ptr: *const <::core::primitive::u8 as ::neocogi_com::ComValue>::Wire,
         __nc_arg_2_0: ::neocogi_com::ComRaw<self::IObjectChildrenAbi>,
         __nc_out: *mut ::neocogi_com::ComRaw<::neocogi_com::IUnknown>,

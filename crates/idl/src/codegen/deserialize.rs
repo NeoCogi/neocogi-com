@@ -35,6 +35,7 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream> {
 }
 
 /// Wraps one ordered constructor in the single concrete persistence trait.
+/// Its field-index primitive belongs to core; projected field types belong to Self.
 fn implementation(
     ident: &Ident,
     nc: &Path,
@@ -47,7 +48,7 @@ fn implementation(
     let field_scope = (!owners.is_empty()).then(|| {
         quote! {
             /// Private native-field resolution preserves Self and field visibility.
-            trait #native_fields<const INDEX: usize> {
+            trait #native_fields<const INDEX: ::core::primitive::usize> {
                 /// Authored native field type, with application Self and visibility.
                 type Value;
             }

@@ -57,12 +57,19 @@ pub(super) fn ambient_binding_constants(authored: &str, generated: &syn::File) -
 /// Runs several complete source selections in one real SDK consumer.
 /// The scratch target is removed with the consumer after every child has exited.
 pub(super) fn run_consumers(name: &str, cases: impl IntoIterator<Item = (String, String)>) {
-    run_consumers_with_files(super::test_consumer::Consumer::new(name), cases, &[]);
+    run_consumers_with_files(super::test_consumer::Consumer::new(name), cases, &[], &[]);
 }
 
 /// Additional integration targets compile as separate crates, so public wires
 /// must remain usable without access to the native field-resolution scope.
-pub(super) fn run_consumers_with_files(consumer: super::test_consumer::Consumer, cases: impl IntoIterator<Item = (String, String)>, files: &[(&str, &str)]) {
+/// Each required child must report success for every ordinary/printed selection;
+/// unrelated callers pass an empty slice and retain their full existing suites.
+pub(super) fn run_consumers_with_files(
+    consumer: super::test_consumer::Consumer,
+    cases: impl IntoIterator<Item = (String, String)>,
+    files: &[(&str, &str)],
+    required_children: &[&str],
+) {
     for (path, source) in files {
         let path = consumer.directory.path().join(path);
         fs::create_dir_all(path.parent().unwrap()).unwrap();
@@ -81,6 +88,14 @@ pub(super) fn run_consumers_with_files(consumer: super::test_consumer::Consumer,
             String::from_utf8_lossy(&result.stdout),
             String::from_utf8_lossy(&result.stderr)
         );
+        // Process success alone does not prove the regression body was selected.
+        let stdout = String::from_utf8_lossy(&result.stdout);
+        for name in required_children {
+            assert!(
+                stdout.lines().any(|line| line == format!("test {name} ... ok")),
+                "{label}: required child {name} did not execute:\n{stdout}"
+            );
+        }
     }
 }
 
@@ -191,6 +206,22 @@ fn object_bindings_preserve_owned_generic_state_after_printing() {
             };
         }
         implement!(Object); implement!(Exclusive);
+        // The binder belongs to the application; only the generated count is primitive usize.
+        #[neocogi_com::com_object(interfaces(IValue))]
+        struct Generic<usize: Copy + From<::core::primitive::u32> + Into<::core::primitive::u32> + 'static> { saved: usize }
+        #[neocogi_com::com_object(interfaces(IValue), ownership = exclusive)]
+        struct GenericExclusive<usize: Copy + From<::core::primitive::u32> + Into<::core::primitive::u32> + 'static> { saved: usize }
+        macro_rules! generic {
+            ($object:ident) => {
+                impl<usize: Copy + From<::core::primitive::u32> + Into<::core::primitive::u32> + 'static> IValue for $object<usize> {
+                    fn value(&self) -> Result<::core::primitive::u32, neocogi_com::NcStatus> { Ok(self.saved.into()) }
+                    fn replace(&mut self, replacement: ::core::primitive::u32) -> Result<(), neocogi_com::NcStatus> {
+                        self.saved = replacement.into(); Ok(())
+                    }
+                }
+            };
+        }
+        generic!(Generic); generic!(GenericExclusive);
     "#;
     let cases = [false, true].map(|expand| {
         let definitions = source_items(implementations, expand);
@@ -198,7 +229,7 @@ fn object_bindings_preserve_owned_generic_state_after_printing() {
             format!("printed={expand}"),
             format!(
                 r#"
-            #![allow(dead_code, non_upper_case_globals)]
+            #![allow(dead_code, non_upper_case_globals, non_camel_case_types)]
             {bindings}
             {definitions}
             #[test] fn real_shared_and_exclusive_calls() {{
@@ -208,12 +239,26 @@ fn object_bindings_preserve_owned_generic_state_after_printing() {
                 shared.replace(17).unwrap(); exclusive.replace(29).unwrap();
                 assert_eq!(shared.value().unwrap(),17); assert_eq!(exclusive.value().unwrap(),29);
                 assert_eq!(Object::<1,2,3>::COM_VTABLES,91); assert_eq!(Exclusive::<1,2,3>::COM_VTABLES,91);
+                let mut shared = Generic::<::core::primitive::u32>::from_value(Generic {{saved:107}}).query::<IValueAbi>().unwrap();
+                let mut exclusive = GenericExclusive::<::core::primitive::u32>::into_box(GenericExclusive {{saved:109}}).query::<IValueAbi>().unwrap();
+                assert_eq!(shared.value(), Ok(107)); assert_eq!(exclusive.value(), Ok(109));
+                shared.replace(127).unwrap(); exclusive.replace(131).unwrap();
+                assert_eq!(shared.value(), Ok(127)); assert_eq!(exclusive.value(), Ok(131));
+                let weak_shared = shared.downgrade().unwrap(); let weak_exclusive = exclusive.downgrade();
+                drop(shared); drop(exclusive);
+                assert!(weak_shared.upgrade().unwrap().is_none());
+                assert_eq!(weak_exclusive.value(), Err(neocogi_com::NC_E_DROPPED));
             }}
         "#
             ),
         )
     });
-    run_consumers("object-name-ownership-proof", cases);
+    run_consumers_with_files(
+        super::test_consumer::Consumer::new("object-name-ownership-proof"),
+        cases,
+        &[],
+        &["real_shared_and_exclusive_calls"],
+    );
 }
 
 /// Private descriptor items cannot capture an authored acquisition or dependency
@@ -281,6 +326,7 @@ fn plugin_implementation_items_have_private_lexical_ownership() {
     run_consumers_with_files(
         super::test_consumer::Consumer::new("plugin-item-ownership-proof").with_runtime_owner(),
         cases,
+        &[],
         &[],
     );
 }
@@ -359,16 +405,33 @@ fn field_types_keep_application_self_and_opaque_macro_scope() {
             Envelope { inner: Tree { bytes: [3, 17], children: vec![] }, tag: 17 }
         }
     "#;
+    // Expand top-level derives before wrapping: source_items is deliberately non-recursive.
+    // Isolation keeps the existing authored Self/usize array expressions valid.
+    let aliases = r#"
+        #[allow(non_camel_case_types)] type u32 = ::core::primitive::u64;
+        #[allow(non_camel_case_types)] type usize = ::core::primitive::u8;
+        #[derive(neocogi_com::ComSerialize, neocogi_com::ComDeserialize)]
+        struct Aliased { large: u32, small: usize }
+        pub(super) fn round_trip() {
+            let large = ::core::primitive::u64::from(::core::primitive::u32::MAX) + 73;
+            let bytes = neocogi_com::binary::to_vec(&Aliased { large, small: 17 }).unwrap();
+            let decoded = neocogi_com::binary::from_slice::<Aliased>(&bytes).unwrap();
+            assert_eq!(decoded.large, large); assert_eq!(decoded.small, 17);
+        }
+    "#;
     let cases = [false, true].map(|expand| {
         let declaration = source_items(declaration, expand);
+        let aliases = source_items(aliases, expand);
         (
             format!("printed={expand}"),
             format!(
                 r#"
                 #![allow(non_upper_case_globals)]
                 #![deny(private_interfaces)]
+                mod native_aliases {{ {aliases} }}
                 {declaration}
                 #[test] fn native_type_identity_survives_conversion_and_persistence() {{
+                    native_aliases::round_trip();
                     let fixed = Fixed {{ direct: [1, 73], opaque: [2, 91] }};
                     let bytes = neocogi_com::binary::to_vec(&fixed).unwrap();
                     let decoded = neocogi_com::binary::from_slice::<Fixed>(&bytes).unwrap();
@@ -403,6 +466,10 @@ fn field_types_keep_application_self_and_opaque_macro_scope() {
         }
     "#,
         )],
+        &[
+            "native_type_identity_survives_conversion_and_persistence",
+            "public_wires_do_not_require_native_field_visibility",
+        ],
     );
 }
 

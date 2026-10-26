@@ -21,6 +21,7 @@ pub struct ValueCase {
 }
 
 /// Generates a complete checked codec without altering the application type.
+/// Wire/support primitives name core; authored field types keep their native owner.
 pub(crate) fn expand(
     name: &Ident,
     visibility: &Visibility,
@@ -157,7 +158,7 @@ pub(crate) fn expand(
         maximum_costs.push(quote! { #nc::ValueCost::aggregate(&[#(<#field_types as #nc::ComValue>::MAX_COST),*]) });
         if raw_fields.is_empty() {
             raw_fields.push(quote! { /// Initialized placeholder for an empty raw record.
-            pub empty: u8 });
+            pub empty: ::core::primitive::u8 });
             raw_values.push(quote! { empty: 0 });
         }
         wires.push(quote! {
@@ -224,7 +225,7 @@ pub(crate) fn expand(
             /// Explicit integer tag and recursively lowered active payload.
             #visibility struct #wire_name {
                 /// Declared variant discriminant; unknown values fail conversion.
-                pub tag: i64,
+                pub tag: ::core::primitive::i64,
                 /// Storage for the alternative selected by tag.
                 pub payload: #union_name,
             }
@@ -277,7 +278,7 @@ pub(crate) fn expand(
             let raw = field.ident.clone().unwrap_or_else(|| format_ident!("field_{index}"));
             quote! { ::core::mem::offset_of!(Self, #application) == ::core::mem::offset_of!(<Self as #nc::ComValue>::Wire, #raw) }
         });
-        quote! { const BORROW_WIRE: bool = true #(&& <#fields as #nc::ComValue>::BORROW_WIRE)*
+        quote! { const BORROW_WIRE: ::core::primitive::bool = true #(&& <#fields as #nc::ComValue>::BORROW_WIRE)*
         && ::core::mem::size_of::<Self>() == ::core::mem::size_of::<<Self as #nc::ComValue>::Wire>()
         && ::core::mem::align_of::<Self>() == ::core::mem::align_of::<<Self as #nc::ComValue>::Wire>()
         #(&& #offsets)*; }
@@ -338,7 +339,7 @@ pub(crate) fn expand(
     let field_scope = (!field_owners.is_empty()).then(|| {
         quote! {
             /// Native field syntax belongs to this application; it is not public API.
-            trait #native_fields<const INDEX: usize> {
+            trait #native_fields<const INDEX: ::core::primitive::usize> {
                 /// The native field type before any private conversion bindings exist.
                 type Value;
             }

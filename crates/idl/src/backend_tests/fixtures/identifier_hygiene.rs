@@ -432,3 +432,177 @@ mod semantic_primitive_shadow {
         assert_eq!(result, 0xf000_005a);
     }
 }
+
+/// The same fresh IDL output executes under ordinary and hostile type lookup.
+#[cfg(test)]
+#[allow(dead_code)]
+mod primitive_shadow {
+    macro_rules! body {
+        () => {
+            use ::core::primitive as p;
+            use ::neocogi_com::*;
+            include!("support.rs");
+
+            /// All provider types are independent expectations of the IDL contract.
+            #[com_object(IPrimitives)]
+            struct Echo;
+            macro_rules! echo {
+                ($method:ident, $ty:ty) => {
+                    fn $method(&self, value: $ty) -> ::core::result::Result<$ty, NcStatus> { Ok(value) }
+                };
+            }
+            impl IPrimitives for Echo {
+                echo!(boolean, p::bool);
+                echo!(signed_byte, p::i8);
+                echo!(signed_short, p::i16);
+                echo!(signed_word, p::i32);
+                echo!(signed_wide, p::i64);
+                echo!(unsigned_byte, p::u8);
+                echo!(unsigned_short, p::u16);
+                echo!(unsigned_word, p::u32);
+                echo!(unsigned_wide, p::u64);
+                echo!(float_word, p::f32);
+                echo!(float_wide, p::f64);
+                fn buffers(&self, text: NcCopyFromBufferOffset<'_, p::u8>, input: NcCopyFromBufferOffset<'_, p::bool>,
+                    mut output: NcOutputWriter<'_, p::bool>) -> ::core::result::Result<p::u32, NcStatus>
+                {
+                    assert_eq!(text.offset(), 7);
+                    assert_eq!(text.as_slice(), b"COM");
+                    assert_eq!(input.offset(), 11);
+                    assert_eq!(output.offset(), 0);
+                    output.extend_from_slice(input.as_slice())?;
+                    Ok(0xf000_0049)
+                }
+                fn record(&self, value: PrimitiveRecord) -> ::core::result::Result<PrimitiveRecord, NcStatus> { Ok(value) }
+                fn choice(&self, value: PrimitiveChoice) -> ::core::result::Result<PrimitiveChoice, NcStatus> { Ok(value) }
+            }
+
+            /// Metadata, widths and real dispatch all select compiler-owned types.
+            pub(super) fn exercise() {
+                let _: [p::u8; 32] = ABI_FINGERPRINT;
+                let _: &p::str = MODULE_NAME;
+                let empty = encode_inline(&PrimitiveChoice::Empty).unwrap();
+                // SAFETY: encoding Empty initialized its active third alternative.
+                // Access public wire fields through ComValue, without a private type name.
+                let empty = unsafe { empty.payload.case_2 };
+                let byte: p::u8 = empty.empty;
+                assert_eq!(byte, 0);
+                assert_eq!(::core::mem::size_of_val(&empty), 1);
+                assert_eq!(IPrimitivesAbi::METHOD_DESCRIPTORS.len(), 14);
+                let tags = [NC_ABI_TYPE_BOOL, NC_ABI_TYPE_I8, NC_ABI_TYPE_I16, NC_ABI_TYPE_I32,
+                    NC_ABI_TYPE_I64, NC_ABI_TYPE_U8, NC_ABI_TYPE_U16, NC_ABI_TYPE_U32,
+                    NC_ABI_TYPE_U64, NC_ABI_TYPE_F32, NC_ABI_TYPE_F64];
+                for (method, expected) in IPrimitivesAbi::METHOD_DESCRIPTORS.iter().zip(tags) {
+                    assert_eq!(method.param_count, 1);
+                    // SAFETY: this generated static descriptor has one permanent parameter.
+                    let parameter = unsafe { &*method.params };
+                    assert_eq!(parameter.ty.tag, expected);
+                    assert_eq!(parameter.passing.tag, NC_ABI_PASSING_VALUE);
+                    assert_eq!(method.returns.ty.tag, expected);
+                    assert_eq!(method.returns.passing.tag, NC_ABI_PASSING_OUT);
+                }
+                let buffers = &IPrimitivesAbi::METHOD_DESCRIPTORS[11];
+                assert_eq!(buffers.param_count, 3);
+                // SAFETY: the generated static descriptor declares three permanent parameters.
+                let parameters = unsafe { ::core::slice::from_raw_parts(buffers.params, 3) };
+                for (parameter, kind, passing) in [
+                    (&parameters[0], NC_ABI_TYPE_U8, NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET),
+                    (&parameters[1], NC_ABI_TYPE_BOOL, NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET),
+                    (&parameters[2], NC_ABI_TYPE_BOOL, NC_ABI_PASSING_OUTPUT_BUFFER),
+                ] {
+                    assert_eq!(parameter.ty.tag, kind);
+                    assert_eq!(parameter.passing.tag, passing);
+                }
+                let client = Echo::from_value(Echo).query::<IPrimitivesAbi>().unwrap();
+                assert!(client.boolean(true).unwrap());
+                assert_eq!(client.signed_byte(-101).unwrap(), -101);
+                assert_eq!(client.signed_short(-30001).unwrap(), -30001);
+                assert_eq!(client.signed_word(-2_000_000_001).unwrap(), -2_000_000_001);
+                assert_eq!(client.signed_wide(-9_000_000_000_000_001).unwrap(), -9_000_000_000_000_001);
+                assert_eq!(client.unsigned_byte(201).unwrap(), 201);
+                assert_eq!(client.unsigned_short(60001).unwrap(), 60001);
+                assert_eq!(client.unsigned_word(0xf000_0049).unwrap(), 0xf000_0049);
+                assert_eq!(client.unsigned_wide(0xf000_0000_0000_0049).unwrap(), 0xf000_0000_0000_0049);
+                assert_eq!(client.float_word(1.25).unwrap(), 1.25);
+                assert_eq!(client.float_wide(-9.5).unwrap(), -9.5);
+                let input = [true, false, true];
+                let mut output = NcOutputBuffer::new();
+                assert_eq!(client.buffers(NcCopyFromBufferOffset::new(7, b"COM"),
+                    NcCopyFromBufferOffset::new(11, &input), output.output(0, 3)).unwrap(), 0xf000_0049);
+                assert_eq!(output.as_slice(), input);
+                let record = client.record(PrimitiveRecord { enabled: true, value: 0xf000_0049 }).unwrap();
+                assert!(record.enabled);
+                assert_eq!(record.value, 0xf000_0049);
+                let choices = [PrimitiveChoice::Named { value: 73 },
+                    PrimitiveChoice::Tuple(PrimitiveRecord { enabled: true, value: 91 }), PrimitiveChoice::Empty];
+                for (index, choice) in choices.into_iter().enumerate() {
+                    let wire = encode_inline(&choice).unwrap();
+                    let tag: p::i64 = wire.tag;
+                    assert_eq!(tag, index as p::i64);
+                    match client.choice(choice).unwrap() {
+                        PrimitiveChoice::Named { value } => assert_eq!(value, 73),
+                        PrimitiveChoice::Tuple(value) => { assert!(value.enabled); assert_eq!(value.value, 91); }
+                        PrimitiveChoice::Empty => assert_eq!(index, 2),
+                    }
+                }
+                macro_rules! representation {
+                    ($ty:ident, $member:ident, $repr:ty, $value:expr) => {
+                        let raw: $repr = $ty::$member.raw();
+                        let wire: $repr = encode_inline(&$ty::$member).unwrap();
+                        assert_eq!(raw, $value);
+                        assert_eq!(wire, $value);
+                    };
+                }
+                representation!(UnsignedByte, High, p::u8, 255);
+                representation!(UnsignedShort, High, p::u16, 65535);
+                representation!(UnsignedWord, High, p::u32, 4294967295);
+                representation!(SignedByte, Low, p::i8, -128);
+                representation!(SignedShort, Low, p::i16, -32768);
+                representation!(SignedWord, Low, p::i32, -2147483648);
+                let count: p::usize = Dense::COUNT;
+                let names: &[&p::str] = &Dense::NAMES;
+                assert_eq!(count, 2);
+                assert_eq!(Dense::ALL, [Dense::First, Dense::Second]);
+                assert_eq!(names, ["first", "second"]);
+                assert_eq!(Dense::Second.canonical_name(), Some("second"));
+                assert_eq!(Dense::from_raw(2).canonical_name(), None);
+                assert!(Dense::from_raw(2).is_unknown());
+                assert_eq!(encode_inline(&Dense::from_raw(2)), Err(NC_E_INVALID_TAG));
+                let flags = Bits::LOW | Bits::HIGH;
+                assert!(flags.contains(Bits::LOW));
+                assert!(flags.intersects(Bits::HIGH));
+                assert!(!flags.is_empty());
+                assert_eq!(encode_inline(&flags), Ok(32769));
+                assert!(!Bits::from_raw(2).is_valid());
+            }
+        };
+    }
+    mod ordinary { body!(); }
+    #[allow(dead_code, non_camel_case_types)]
+    mod hostile {
+        type bool = ::core::primitive::u8;
+        type i8 = ::core::primitive::u8;
+        type i16 = ::core::primitive::u16;
+        type i32 = ::core::primitive::u32;
+        type i64 = ::core::primitive::u64;
+        type u8 = ::core::primitive::u16;
+        type u16 = ::core::primitive::u32;
+        type u32 = ::core::primitive::u64;
+        type u64 = ::core::primitive::u32;
+        type f32 = ::core::primitive::u32;
+        type f64 = ::core::primitive::u64;
+        type usize = ::core::primitive::u8;
+        type str = ::core::primitive::u8;
+        body!();
+    }
+
+    /// Both environments execute independently through their own compatible tables.
+    #[test]
+    fn primitives_and_helpers_keep_owned_types() {
+        use neocogi_com::ComInterface;
+        assert_eq!(ordinary::IPrimitivesAbi::INTERFACE_ID, hostile::IPrimitivesAbi::INTERFACE_ID);
+        assert_eq!(ordinary::ABI_FINGERPRINT, hostile::ABI_FINGERPRINT);
+        ordinary::exercise();
+        hostile::exercise();
+    }
+}

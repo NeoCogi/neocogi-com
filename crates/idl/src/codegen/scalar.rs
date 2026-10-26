@@ -88,6 +88,7 @@ fn enumeration_patterns(members: &[ScalarMember]) -> Vec<TokenStream> {
 
 /// Emits the complete wrapper, public operations, live codecs and eligible persistence.
 /// All implementation bindings have lexical owners so printed Rust retains hygiene.
+/// Helper primitives name core directly; the semantic owner already selected repr.
 pub fn emit_scalar(plan: &ScalarPlan, nc: &syn::Path) -> TokenStream {
     let ScalarPlan {
         name,
@@ -134,7 +135,7 @@ pub fn emit_scalar(plan: &ScalarPlan, nc: &syn::Path) -> TokenStream {
                 validation,
                 quote! {
                     /// Returns whether this raw value lies outside the declared live domain.
-                    pub const fn is_unknown(self) -> bool { !self.is_known() }
+                    pub const fn is_unknown(self) -> ::core::primitive::bool { !self.is_known() }
                 },
             )
         }
@@ -157,11 +158,11 @@ pub fn emit_scalar(plan: &ScalarPlan, nc: &syn::Path) -> TokenStream {
                 validation,
                 quote! {
                 /// Returns whether the bit set is empty.
-                pub const fn is_empty(self) -> bool { self.0 == 0 }
+                pub const fn is_empty(self) -> ::core::primitive::bool { self.0 == 0 }
                 /// Returns whether every requested bit is present.
-                pub const fn contains(self, #rhs: Self) -> bool { self.0 & #rhs.0 == #rhs.0 }
+                pub const fn contains(self, #rhs: Self) -> ::core::primitive::bool { self.0 & #rhs.0 == #rhs.0 }
                 /// Returns whether at least one requested bit is present.
-                pub const fn intersects(self, #rhs: Self) -> bool { self.0 & #rhs.0 != 0 }
+                pub const fn intersects(self, #rhs: Self) -> ::core::primitive::bool { self.0 & #rhs.0 != 0 }
                 },
             )
         }
@@ -177,10 +178,10 @@ pub fn emit_scalar(plan: &ScalarPlan, nc: &syn::Path) -> TokenStream {
                 let canonical = Ident::new(DenseMember::CanonicalName.name(), name.span());
                 quote! {
                     /// Canonical text in the same order as the complete dense value table.
-                    pub const #names_member: [&'static str; Self::#count] = [#(#names),*];
+                    pub const #names_member: [&'static ::core::primitive::str; Self::#count] = [#(#names),*];
                     /// Returns the canonical name, or None for raw values outside the domain.
-                    pub const fn #canonical(self) -> ::core::option::Option<&'static str> {
-                        let #ordinal = self.raw() as usize;
+                    pub const fn #canonical(self) -> ::core::option::Option<&'static ::core::primitive::str> {
+                        let #ordinal = self.raw() as ::core::primitive::usize;
                         if #ordinal < Self::#count {
                             ::core::option::Option::Some(Self::#names_member[#ordinal])
                         } else {
@@ -191,7 +192,7 @@ pub fn emit_scalar(plan: &ScalarPlan, nc: &syn::Path) -> TokenStream {
             });
             quote! {
                 /// Number of values in the resolved zero-based contiguous domain.
-                pub const #count: usize = #len;
+                pub const #count: ::core::primitive::usize = #len;
                 /// Every declared value in normative discriminant order.
                 pub const #all: [Self; Self::#count] = [#(Self::#member_names),*];
                 #canonical
@@ -270,7 +271,7 @@ pub fn emit_scalar(plan: &ScalarPlan, nc: &syn::Path) -> TokenStream {
             /// Returns the complete underlying integer.
             pub const fn raw(self) -> #repr { self.0 }
             /// Checks the declared integer domain or union of known flag bits.
-            pub const fn #predicate(self) -> bool { #validation }
+            pub const fn #predicate(self) -> ::core::primitive::bool { #validation }
             #operations
             #dense
         }

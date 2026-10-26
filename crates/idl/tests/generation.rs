@@ -152,9 +152,9 @@ fn generates_rust_bindings_for_a_module_graph() {
     assert!(generated.contains("pub struct Filter("));
     assert!(generated.contains("/// Texture sampling filter."));
     assert!(generated.contains("/// Uses the nearest texel."));
-    assert!(generated.contains("pub const COUNT: usize = 2"));
+    assert!(generated.contains("pub const COUNT: ::core::primitive::usize = 2"));
     assert!(generated.contains("pub const ALL: [Self; Self::COUNT]"));
-    assert!(generated.contains("pub const NAMES: [&'static str; Self::COUNT]"));
+    assert!(generated.contains("&'static ::core::primitive::str; Self::COUNT"));
     assert!(generated.contains("pub const fn canonical_name"));
     assert!(!generated.contains("fn index"));
     assert!(generated.contains("trait UiFactory"));

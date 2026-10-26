@@ -95,4 +95,11 @@ fn authored_names_preserve_values_across_generated_com() {
         "IDL primitive ABI case did not execute: {}",
         String::from_utf8_lossy(&result.stdout)
     );
+    assert!(
+        String::from_utf8_lossy(&result.stdout)
+            .lines()
+            .any(|line| line == "test primitive_shadow::primitives_and_helpers_keep_owned_types ... ok"),
+        "primitive/helper ownership case did not execute: {}",
+        String::from_utf8_lossy(&result.stdout)
+    );
 }

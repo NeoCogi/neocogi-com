@@ -1,3 +1,31 @@
 #[version(1)]
 /// Generator support never resolves through ambient Rust type aliases.
 interface IShadow { fn echo(&self, value: u32, other: bool) -> Result<u32>; }
+
+/// Every built-in has a distinct descriptor, even for same-width wrong-kind aliases.
+#[version(1)] interface IPrimitives {
+    fn boolean(&self, value: bool) -> Result<bool>;
+    fn signed_byte(&self, value: i8) -> Result<i8>;
+    fn signed_short(&self, value: i16) -> Result<i16>;
+    fn signed_word(&self, value: i32) -> Result<i32>;
+    fn signed_wide(&self, value: i64) -> Result<i64>;
+    fn unsigned_byte(&self, value: u8) -> Result<u8>;
+    fn unsigned_short(&self, value: u16) -> Result<u16>;
+    fn unsigned_word(&self, value: u32) -> Result<u32>;
+    fn unsigned_wide(&self, value: u64) -> Result<u64>;
+    fn float_word(&self, value: f32) -> Result<f32>;
+    fn float_wide(&self, value: f64) -> Result<f64>;
+    fn buffers(&self, text: &str, input: &[bool], output: &mut [bool]) -> Result<u32>;
+    fn record(&self, value: PrimitiveRecord) -> Result<PrimitiveRecord>;
+    fn choice(&self, value: PrimitiveChoice) -> Result<PrimitiveChoice>;
+}
+#[version(1)] struct PrimitiveRecord { enabled: bool, value: u32 }
+#[version(1)] enum PrimitiveChoice { Named { value: u32 }, Tuple(PrimitiveRecord), Empty }
+#[version(1)] enum UnsignedByte: u8 { High = 255 }
+#[version(1)] enum UnsignedShort: u16 { High = 65535 }
+#[version(1)] enum UnsignedWord: u32 { High = 4294967295 }
+#[version(1)] enum SignedByte: i8 { Low = -128 }
+#[version(1)] enum SignedShort: i16 { Low = -32768 }
+#[version(1)] enum SignedWord: i32 { Low = -2147483648 }
+#[version(1)] #[dense] #[names(snake_case)] enum Dense: u8 { First = 0, Second = 1 }
+#[version(1)] bitenum Bits: u16 { LOW = 1, HIGH = 32768 }

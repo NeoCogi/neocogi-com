@@ -78,6 +78,24 @@ allocation, so there is no cyclic-constructor binder or promotion state.
 ## Support lookup and plugins
 
 Support types/variants are qualified through `::core` and the explicit COM facade.
+Compiler-selected primitives also name their owner: IDL `u32` emits
+`::core::primitive::u32`, and generated counts use `::core::primitive::usize`.
+This applies to scalar/enum representations, wire bytes/tags, buffer counts,
+casts, predicates and module/dense metadata helpers. A primitive-looking Rust
+alias or generic binder must not change those types or their physical ABI while
+the canonical IDL identity stays fixed. Per-expansion imports and type aliases do
+not establish this ownership because inner application generics can shadow them.
+
+Application-authored Rust types retain their original resolution. For example,
+under `type u32 = ::core::primitive::u64`, a native persistence field declared as
+`u32` remains a 64-bit field. The compiler qualifies types it selects itself;
+it does not rewrite supplied field syntax, `Self`, generics or opaque type macros.
+The shared identifier fixture checks every IDL scalar's exact descriptors and
+real calls under hostile aliases, plus representation/buffer/dense helpers.
+The existing object/native-field consumers check primitive-named generics and
+native alias preservation in ordinary and printed/reparsed expansions. Their
+parents require the actual child cases to execute, including shipped archives.
+
 `Option`, `Some` and `None` remain legal IDL type names. Generated standard derives,
 assertions and other macros name their actual owner. Direct scalar enum/flag emission
 selects `ComValue` operations explicitly and inlines the declared flag-bit union

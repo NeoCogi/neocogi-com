@@ -62,6 +62,13 @@ fn printed_bindings_preserve_authored_values_and_arguments() {
         "IDL primitive ABI case did not execute: {}",
         String::from_utf8_lossy(&result.stdout)
     );
+    assert!(
+        String::from_utf8_lossy(&result.stdout)
+            .lines()
+            .any(|line| line == "test primitive_shadow::primitives_and_helpers_keep_owned_types ... ok"),
+        "primitive/helper ownership case did not execute: {}",
+        String::from_utf8_lossy(&result.stdout)
+    );
 }
 
 /// Object expansion must survive printing with authored support names in both ownership modes.
