@@ -28,7 +28,7 @@ fn assert_syntax_diagnostic(error: ParseError, module: &str, path: &Path, source
     let label = &diagnostic.labels[0];
     assert_eq!(label.style, LabelStyle::Primary);
     assert_eq!(label.span.module(), module);
-    assert_eq!(label.span.path(), path.to_str().unwrap());
+    assert_eq!(label.span.path(), path.to_str().unwrap().replace('\\', "/"));
 
     let prefix = &source[..source.find(syntax).unwrap()];
     let line = prefix.bytes().filter(|&byte| byte == b'\n').count() + 1;
