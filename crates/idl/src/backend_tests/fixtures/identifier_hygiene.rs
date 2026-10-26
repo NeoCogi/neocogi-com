@@ -401,3 +401,34 @@ mod support_shadow {
         assert_eq!(IShadowAbi::IDL_INTERFACE.chain, &[identity]);
     }
 }
+
+/// The IDL u32 contract keeps the same physical ABI beside a Rust u32 alias.
+#[cfg(test)]
+#[allow(dead_code, non_camel_case_types)]
+mod semantic_primitive_shadow {
+    type u32 = ::core::primitive::u64;
+    include!("support.rs");
+
+    #[neocogi_com::com_object(IShadow)]
+    struct Echo;
+    impl IShadow for Echo {
+        fn echo(&self, value: ::core::primitive::u32, other: ::core::primitive::bool)
+            -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus>
+        {
+            assert!(other);
+            Ok(value + 17)
+        }
+    }
+
+    /// Independent primitive expectations accompany an actual generated ABI call.
+    #[test]
+    fn idl_u32_keeps_identity_and_physical_abi() {
+        use neocogi_com::{ComInterface, NC_ABI_TYPE_U32};
+        assert_eq!(IShadowAbi::INTERFACE_ID, super::support_shadow::IShadowAbi::INTERFACE_ID);
+        assert_eq!(ABI_FINGERPRINT, super::support_shadow::ABI_FINGERPRINT);
+        assert_eq!(IShadowAbi::METHOD_DESCRIPTORS[0].returns.ty.tag, NC_ABI_TYPE_U32);
+        let client = Echo::from_value(Echo).query::<IShadowAbi>().unwrap();
+        let result: ::core::primitive::u32 = client.echo(0xf000_0049, true).unwrap();
+        assert_eq!(result, 0xf000_005a);
+    }
+}

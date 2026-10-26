@@ -88,4 +88,11 @@ fn authored_names_preserve_values_across_generated_com() {
         "legal keyword member case did not execute: {}",
         String::from_utf8_lossy(&result.stdout)
     );
+    assert!(
+        String::from_utf8_lossy(&result.stdout)
+            .lines()
+            .any(|line| line == "test semantic_primitive_shadow::idl_u32_keeps_identity_and_physical_abi ... ok"),
+        "IDL primitive ABI case did not execute: {}",
+        String::from_utf8_lossy(&result.stdout)
+    );
 }

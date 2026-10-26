@@ -76,7 +76,7 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn count_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_out: *mut <u32 as ::neocogi_com::ComValue>::Wire,
+            __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
         ) -> ::neocogi_com::NcStatus {
             if __nc_this.is_null() || __nc_out.is_null() {
                 return ::neocogi_com::NC_E_POINTER;
@@ -123,7 +123,7 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn get_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_arg_0: <u32 as ::neocogi_com::ComValue>::Wire,
+            __nc_arg_0: <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
             __nc_out: *mut ::neocogi_com::ComRaw<::neocogi_com::IUnknown>,
         ) -> ::neocogi_com::NcStatus {
             if __nc_this.is_null() || __nc_out.is_null() {
@@ -134,7 +134,7 @@ const _: () = {
                 return ::neocogi_com::NC_E_POINTER;
             }
             let __nc_arg_0 = match unsafe {
-                ::neocogi_com::decode_inline::<u32>(__nc_arg_0)
+                ::neocogi_com::decode_inline::<::core::primitive::u32>(__nc_arg_0)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
@@ -294,7 +294,7 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn schema_version_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_out: *mut <u32 as ::neocogi_com::ComValue>::Wire,
+            __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
         ) -> ::neocogi_com::NcStatus {
             if __nc_this.is_null() || __nc_out.is_null() {
                 return ::neocogi_com::NC_E_POINTER;
@@ -384,7 +384,7 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn child_count_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_out: *mut <u32 as ::neocogi_com::ComValue>::Wire,
+            __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
         ) -> ::neocogi_com::NcStatus {
             if __nc_this.is_null() || __nc_out.is_null() {
                 return ::neocogi_com::NC_E_POINTER;
@@ -431,7 +431,7 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn child_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_arg_0: <u32 as ::neocogi_com::ComValue>::Wire,
+            __nc_arg_0: <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
             __nc_out: *mut ::neocogi_com::ComRaw<::neocogi_com::IUnknown>,
         ) -> ::neocogi_com::NcStatus {
             if __nc_this.is_null() || __nc_out.is_null() {
@@ -442,7 +442,7 @@ const _: () = {
                 return ::neocogi_com::NC_E_POINTER;
             }
             let __nc_arg_0 = match unsafe {
-                ::neocogi_com::decode_inline::<u32>(__nc_arg_0)
+                ::neocogi_com::decode_inline::<::core::primitive::u32>(__nc_arg_0)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
@@ -564,11 +564,11 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn validate_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_arg_0: <u32 as ::neocogi_com::ComValue>::Wire,
+            __nc_arg_0: <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
             __nc_arg_1_offset: u64,
             __nc_arg_1_len: u64,
-            __nc_arg_1_ptr: *const <u8 as ::neocogi_com::ComValue>::Wire,
-            __nc_arg_2: <u32 as ::neocogi_com::ComValue>::Wire,
+            __nc_arg_1_ptr: *const <::core::primitive::u8 as ::neocogi_com::ComValue>::Wire,
+            __nc_arg_2: <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
         ) -> ::neocogi_com::NcStatus {
             if __nc_this.is_null() {
                 return ::neocogi_com::NC_E_POINTER;
@@ -578,14 +578,14 @@ const _: () = {
                 return ::neocogi_com::NC_E_POINTER;
             }
             let __nc_arg_0 = match unsafe {
-                ::neocogi_com::decode_inline::<u32>(__nc_arg_0)
+                ::neocogi_com::decode_inline::<::core::primitive::u32>(__nc_arg_0)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
             let __nc_arg_1_values = match unsafe {
                 ::neocogi_com::DecodedInput::<
-                    u8,
+                    ::core::primitive::u8,
                 >::from_raw(__nc_arg_1_ptr, __nc_arg_1_len)
             } {
                 ::core::result::Result::Ok(__nc_values) => __nc_values,
@@ -596,7 +596,7 @@ const _: () = {
                 __nc_arg_1_values.as_slice(),
             );
             let __nc_arg_2 = match unsafe {
-                ::neocogi_com::decode_inline::<u32>(__nc_arg_2)
+                ::neocogi_com::decode_inline::<::core::primitive::u32>(__nc_arg_2)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
@@ -634,10 +634,10 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn restore_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_arg_0_0: <u32 as ::neocogi_com::ComValue>::Wire,
+            __nc_arg_0_0: <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
             __nc_arg_1_0_offset: u64,
             __nc_arg_1_0_len: u64,
-            __nc_arg_1_0_ptr: *const <u8 as ::neocogi_com::ComValue>::Wire,
+            __nc_arg_1_0_ptr: *const <::core::primitive::u8 as ::neocogi_com::ComValue>::Wire,
             __nc_arg_2_0: ::neocogi_com::ComRaw<self::IObjectChildrenAbi>,
             __nc_out: *mut ::neocogi_com::ComRaw<::neocogi_com::IUnknown>,
         ) -> ::neocogi_com::NcStatus {
@@ -649,14 +649,14 @@ const _: () = {
                 return ::neocogi_com::NC_E_POINTER;
             }
             let __nc_arg_0_0 = match unsafe {
-                ::neocogi_com::decode_inline::<u32>(__nc_arg_0_0)
+                ::neocogi_com::decode_inline::<::core::primitive::u32>(__nc_arg_0_0)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
             let __nc_arg_1_0_values = match unsafe {
                 ::neocogi_com::DecodedInput::<
-                    u8,
+                    ::core::primitive::u8,
                 >::from_raw(__nc_arg_1_0_ptr, __nc_arg_1_0_len)
             } {
                 ::core::result::Result::Ok(__nc_values) => __nc_values,

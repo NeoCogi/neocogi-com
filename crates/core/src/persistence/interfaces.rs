@@ -9,24 +9,26 @@ pub const MODULE_ID: ::neocogi_com::NcGuid = ::neocogi_com::NcGuid::from_fields(
     [140u8, 82u8, 62u8, 53u8, 229u8, 28u8, 242u8, 16u8],
 );
 /// Transitive canonical ABI fingerprint of this generated module.
-pub const ABI_FINGERPRINT: [u8; 32] = [
+pub const ABI_FINGERPRINT: [::core::primitive::u8; 32] = [
     33u8, 81u8, 246u8, 243u8, 125u8, 56u8, 133u8, 202u8, 30u8, 147u8, 202u8, 41u8, 37u8,
     62u8, 129u8, 194u8, 191u8, 148u8, 242u8, 247u8, 144u8, 113u8, 167u8, 228u8, 197u8,
     22u8, 157u8, 140u8, 99u8, 107u8, 123u8, 101u8,
 ];
 /// Exact dotted module name derived from the normalized IDL path.
-pub const MODULE_NAME: &str = "neocogi.com.persistence";
+pub const MODULE_NAME: &::core::primitive::str = "neocogi.com.persistence";
 /// An ordered, owning list used only while constructing a persistent parent.
 /// IDL source: `neocogi/com/persistence/objects.ncidl:3:11` (module `neocogi.com.persistence`).
 pub trait IObjectChildren {
     /// Returns the number of fully initialized child objects.
     /// IDL source: `neocogi/com/persistence/objects.ncidl:5:8` (module `neocogi.com.persistence`).
-    fn count(&self) -> ::core::result::Result<u32, ::neocogi_com::NcStatus>;
+    fn count(
+        &self,
+    ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus>;
     /// Returns an owned reference; indices must be less than count.
     /// IDL source: `neocogi/com/persistence/objects.ncidl:7:8` (module `neocogi.com.persistence`).
     fn get(
         &self,
-        index: u32,
+        index: ::core::primitive::u32,
     ) -> ::core::result::Result<
         ::neocogi_com::ComPtr<::neocogi_com::IUnknown>,
         ::neocogi_com::NcStatus,
@@ -49,14 +51,14 @@ pub struct IObjectChildrenVTable {
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
-    ///On success, `out` receives `< u32 as :: neocogi_com :: ComValue > :: Wire`.
+    ///On success, `out` receives `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: Wire`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub count: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_out: *mut <u32 as ::neocogi_com::ComValue>::Wire,
+        __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
     ) -> ::neocogi_com::NcStatus,
     /// Returns an owned reference; indices must be less than count.
     /// IDL source: `neocogi/com/persistence/objects.ncidl:7:8` (module `neocogi.com.persistence`).
@@ -67,7 +69,7 @@ pub struct IObjectChildrenVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `index` uses ABI storage `< u32 as :: neocogi_com :: ComValue > :: Wire` for `u32`. Passed by value.
+    ///- `index` uses ABI storage `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: Wire` for `:: core :: primitive :: u32`. Passed by value.
     ///
     ///On success, `out` receives `:: neocogi_com :: ComRaw < :: neocogi_com :: IUnknown >` for `:: neocogi_com :: ComPtr < :: neocogi_com :: IUnknown >`. The caller receives one shared owner and releases it when finished.
     #[allow(
@@ -76,7 +78,7 @@ pub struct IObjectChildrenVTable {
     )]
     pub get: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_arg_0: <u32 as ::neocogi_com::ComValue>::Wire,
+        __nc_arg_0: <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
         __nc_out: *mut ::neocogi_com::ComRaw<::neocogi_com::IUnknown>,
     ) -> ::neocogi_com::NcStatus,
 }
@@ -154,10 +156,12 @@ const _: () = {
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
         ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
         ///
-        ///On success, returns `u32` from the ABI out slot.
-        pub fn count(&self) -> ::core::result::Result<u32, ::neocogi_com::NcStatus> {
+        ///On success, returns `:: core :: primitive :: u32` from the ABI out slot.
+        pub fn count(
+            &self,
+        ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus> {
             let mut __nc_out_0 = ::core::mem::MaybeUninit::<
-                <u32 as ::neocogi_com::ComValue>::Wire,
+                <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
             >::uninit();
             let __nc_this_0 = self.__nc_pointer.as_raw();
             let __nc_status_0 = unsafe {
@@ -168,7 +172,9 @@ const _: () = {
                 return ::core::result::Result::Err(__nc_status_0);
             }
             let __nc_result_0 = (unsafe {
-                ::neocogi_com::decode_inline::<u32>(__nc_out_0.assume_init())
+                ::neocogi_com::decode_inline::<
+                    ::core::primitive::u32,
+                >(__nc_out_0.assume_init())
             })?;
             ::core::result::Result::Ok(__nc_result_0)
         }
@@ -179,12 +185,12 @@ const _: () = {
         ///
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
         ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
-        ///- `index` is passed by value as `u32`.
+        ///- `index` is passed by value as `:: core :: primitive :: u32`.
         ///
         ///On success, returns `:: neocogi_com :: ComPtr < :: neocogi_com :: IUnknown >`. The caller receives one shared owner and releases it when finished.
         pub fn get(
             &self,
-            __nc_arg_0: u32,
+            __nc_arg_0: ::core::primitive::u32,
         ) -> ::core::result::Result<
             ::neocogi_com::ComPtr<::neocogi_com::IUnknown>,
             ::neocogi_com::NcStatus,
@@ -227,7 +233,7 @@ impl IObjectChildrenAbi {
                     ::neocogi_com::NcAbiPassing::Out,
                 ),
                 ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::__nc_abi_type::<u32>(),
+                    ::neocogi_com::__nc_abi_type::<::core::primitive::u32>(),
                 ),
             },
         },
@@ -242,7 +248,7 @@ impl IObjectChildrenAbi {
                         ::neocogi_com::NcAbiPassing::Value,
                     ),
                     ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                        ::neocogi_com::__nc_abi_type::<u32>(),
+                        ::neocogi_com::__nc_abi_type::<::core::primitive::u32>(),
                     ),
                 },
             ] as &'static [::neocogi_com::NcMethodParamDescriptor])
@@ -284,7 +290,9 @@ pub trait IPersistable {
     ) -> ::core::result::Result<::neocogi_com::NcGuid, ::neocogi_com::NcStatus>;
     /// Identifies the persistent initialization schema, independently of COM ABI.
     /// IDL source: `neocogi/com/persistence/objects.ncidl:16:8` (module `neocogi.com.persistence`).
-    fn schema_version(&self) -> ::core::result::Result<u32, ::neocogi_com::NcStatus>;
+    fn schema_version(
+        &self,
+    ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus>;
     /// Exports initialization data only: no receivers, runtime pointers or caches.
     /// IDL source: `neocogi/com/persistence/objects.ncidl:18:8` (module `neocogi.com.persistence`).
     fn save_state(
@@ -295,12 +303,14 @@ pub trait IPersistable {
     >;
     /// Returns the number of owned persistent children; parent links are excluded.
     /// IDL source: `neocogi/com/persistence/objects.ncidl:20:8` (module `neocogi.com.persistence`).
-    fn child_count(&self) -> ::core::result::Result<u32, ::neocogi_com::NcStatus>;
+    fn child_count(
+        &self,
+    ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus>;
     /// Returns one child in the order described by the parent's initialization.
     /// IDL source: `neocogi/com/persistence/objects.ncidl:22:8` (module `neocogi.com.persistence`).
     fn child(
         &self,
-        index: u32,
+        index: ::core::primitive::u32,
     ) -> ::core::result::Result<
         ::neocogi_com::ComPtr<::neocogi_com::IUnknown>,
         ::neocogi_com::NcStatus,
@@ -342,14 +352,14 @@ pub struct IPersistableVTable {
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
-    ///On success, `out` receives `< u32 as :: neocogi_com :: ComValue > :: Wire`.
+    ///On success, `out` receives `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: Wire`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub schema_version: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_out: *mut <u32 as ::neocogi_com::ComValue>::Wire,
+        __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
     ) -> ::neocogi_com::NcStatus,
     /// Exports initialization data only: no receivers, runtime pointers or caches.
     /// IDL source: `neocogi/com/persistence/objects.ncidl:18:8` (module `neocogi.com.persistence`).
@@ -380,14 +390,14 @@ pub struct IPersistableVTable {
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
-    ///On success, `out` receives `< u32 as :: neocogi_com :: ComValue > :: Wire`.
+    ///On success, `out` receives `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: Wire`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub child_count: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_out: *mut <u32 as ::neocogi_com::ComValue>::Wire,
+        __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
     ) -> ::neocogi_com::NcStatus,
     /// Returns one child in the order described by the parent's initialization.
     /// IDL source: `neocogi/com/persistence/objects.ncidl:22:8` (module `neocogi.com.persistence`).
@@ -398,7 +408,7 @@ pub struct IPersistableVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `index` uses ABI storage `< u32 as :: neocogi_com :: ComValue > :: Wire` for `u32`. Passed by value.
+    ///- `index` uses ABI storage `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: Wire` for `:: core :: primitive :: u32`. Passed by value.
     ///
     ///On success, `out` receives `:: neocogi_com :: ComRaw < :: neocogi_com :: IUnknown >` for `:: neocogi_com :: ComPtr < :: neocogi_com :: IUnknown >`. The caller receives one shared owner and releases it when finished.
     #[allow(
@@ -407,7 +417,7 @@ pub struct IPersistableVTable {
     )]
     pub child: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_arg_0: <u32 as ::neocogi_com::ComValue>::Wire,
+        __nc_arg_0: <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
         __nc_out: *mut ::neocogi_com::ComRaw<::neocogi_com::IUnknown>,
     ) -> ::neocogi_com::NcStatus,
 }
@@ -521,12 +531,12 @@ const _: () = {
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
         ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
         ///
-        ///On success, returns `u32` from the ABI out slot.
+        ///On success, returns `:: core :: primitive :: u32` from the ABI out slot.
         pub fn schema_version(
             &self,
-        ) -> ::core::result::Result<u32, ::neocogi_com::NcStatus> {
+        ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus> {
             let mut __nc_out_1 = ::core::mem::MaybeUninit::<
-                <u32 as ::neocogi_com::ComValue>::Wire,
+                <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
             >::uninit();
             let __nc_this_1 = self.__nc_pointer.as_raw();
             let __nc_status_1 = unsafe {
@@ -537,7 +547,9 @@ const _: () = {
                 return ::core::result::Result::Err(__nc_status_1);
             }
             let __nc_result_1 = (unsafe {
-                ::neocogi_com::decode_inline::<u32>(__nc_out_1.assume_init())
+                ::neocogi_com::decode_inline::<
+                    ::core::primitive::u32,
+                >(__nc_out_1.assume_init())
             })?;
             ::core::result::Result::Ok(__nc_result_1)
         }
@@ -582,12 +594,12 @@ const _: () = {
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
         ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
         ///
-        ///On success, returns `u32` from the ABI out slot.
+        ///On success, returns `:: core :: primitive :: u32` from the ABI out slot.
         pub fn child_count(
             &self,
-        ) -> ::core::result::Result<u32, ::neocogi_com::NcStatus> {
+        ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus> {
             let mut __nc_out_3 = ::core::mem::MaybeUninit::<
-                <u32 as ::neocogi_com::ComValue>::Wire,
+                <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
             >::uninit();
             let __nc_this_3 = self.__nc_pointer.as_raw();
             let __nc_status_3 = unsafe {
@@ -598,7 +610,9 @@ const _: () = {
                 return ::core::result::Result::Err(__nc_status_3);
             }
             let __nc_result_3 = (unsafe {
-                ::neocogi_com::decode_inline::<u32>(__nc_out_3.assume_init())
+                ::neocogi_com::decode_inline::<
+                    ::core::primitive::u32,
+                >(__nc_out_3.assume_init())
             })?;
             ::core::result::Result::Ok(__nc_result_3)
         }
@@ -609,12 +623,12 @@ const _: () = {
         ///
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
         ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
-        ///- `index` is passed by value as `u32`.
+        ///- `index` is passed by value as `:: core :: primitive :: u32`.
         ///
         ///On success, returns `:: neocogi_com :: ComPtr < :: neocogi_com :: IUnknown >`. The caller receives one shared owner and releases it when finished.
         pub fn child(
             &self,
-            __nc_arg_0: u32,
+            __nc_arg_0: ::core::primitive::u32,
         ) -> ::core::result::Result<
             ::neocogi_com::ComPtr<::neocogi_com::IUnknown>,
             ::neocogi_com::NcStatus,
@@ -671,7 +685,7 @@ impl IPersistableAbi {
                     ::neocogi_com::NcAbiPassing::Out,
                 ),
                 ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::__nc_abi_type::<u32>(),
+                    ::neocogi_com::__nc_abi_type::<::core::primitive::u32>(),
                 ),
             },
         },
@@ -699,7 +713,7 @@ impl IPersistableAbi {
                     ::neocogi_com::NcAbiPassing::Out,
                 ),
                 ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::__nc_abi_type::<u32>(),
+                    ::neocogi_com::__nc_abi_type::<::core::primitive::u32>(),
                 ),
             },
         },
@@ -714,7 +728,7 @@ impl IPersistableAbi {
                         ::neocogi_com::NcAbiPassing::Value,
                     ),
                     ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                        ::neocogi_com::__nc_abi_type::<u32>(),
+                        ::neocogi_com::__nc_abi_type::<::core::primitive::u32>(),
                     ),
                 },
             ] as &'static [::neocogi_com::NcMethodParamDescriptor])
@@ -753,17 +767,17 @@ pub trait IPersistenceFactory {
     /// IDL source: `neocogi/com/persistence/objects.ncidl:29:8` (module `neocogi.com.persistence`).
     fn validate(
         &self,
-        version: u32,
-        state: ::neocogi_com::NcCopyFromBufferOffset<'_, u8>,
-        child_count: u32,
+        version: ::core::primitive::u32,
+        state: ::neocogi_com::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
+        child_count: ::core::primitive::u32,
     ) -> ::core::result::Result<(), ::neocogi_com::NcStatus>;
     /// Returns a fully initialized object; every child is already constructed.
     /// Failure must release resources acquired by this call and publish no root.
     /// IDL source: `neocogi/com/persistence/objects.ncidl:32:8` (module `neocogi.com.persistence`).
     fn restore(
         &self,
-        version: u32,
-        state: ::neocogi_com::NcCopyFromBufferOffset<'_, u8>,
+        version: ::core::primitive::u32,
+        state: ::neocogi_com::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
         children: ::neocogi_com::ComRef<'_, self::IObjectChildrenAbi>,
     ) -> ::core::result::Result<
         ::neocogi_com::ComPtr<::neocogi_com::IUnknown>,
@@ -786,9 +800,9 @@ pub struct IPersistenceFactoryVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `version` uses ABI storage `< u32 as :: neocogi_com :: ComValue > :: Wire` for `u32`. Passed by value.
-    ///- `state` uses ABI storage `* const < u8 as :: neocogi_com :: ComValue > :: Wire` for `:: neocogi_com :: NcCopyFromBufferOffset < '_ , u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
-    ///- `child_count` uses ABI storage `< u32 as :: neocogi_com :: ComValue > :: Wire` for `u32`. Passed by value.
+    ///- `version` uses ABI storage `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: Wire` for `:: core :: primitive :: u32`. Passed by value.
+    ///- `state` uses ABI storage `* const < :: core :: primitive :: u8 as :: neocogi_com :: ComValue > :: Wire` for `:: neocogi_com :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
+    ///- `child_count` uses ABI storage `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: Wire` for `:: core :: primitive :: u32`. Passed by value.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -797,11 +811,11 @@ pub struct IPersistenceFactoryVTable {
     )]
     pub validate: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_arg_0: <u32 as ::neocogi_com::ComValue>::Wire,
+        __nc_arg_0: <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
         __nc_arg_1_offset: u64,
         __nc_arg_1_len: u64,
-        __nc_arg_1_ptr: *const <u8 as ::neocogi_com::ComValue>::Wire,
-        __nc_arg_2: <u32 as ::neocogi_com::ComValue>::Wire,
+        __nc_arg_1_ptr: *const <::core::primitive::u8 as ::neocogi_com::ComValue>::Wire,
+        __nc_arg_2: <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
     ) -> ::neocogi_com::NcStatus,
     /// Returns a fully initialized object; every child is already constructed.
     /// Failure must release resources acquired by this call and publish no root.
@@ -813,8 +827,8 @@ pub struct IPersistenceFactoryVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `version` uses ABI storage `< u32 as :: neocogi_com :: ComValue > :: Wire` for `u32`. Passed by value.
-    ///- `state` uses ABI storage `* const < u8 as :: neocogi_com :: ComValue > :: Wire` for `:: neocogi_com :: NcCopyFromBufferOffset < '_ , u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
+    ///- `version` uses ABI storage `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: Wire` for `:: core :: primitive :: u32`. Passed by value.
+    ///- `state` uses ABI storage `* const < :: core :: primitive :: u8 as :: neocogi_com :: ComValue > :: Wire` for `:: neocogi_com :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
     ///- `children` uses ABI storage `:: neocogi_com :: ComRaw < self :: IObjectChildrenAbi >` for `:: neocogi_com :: ComRef < '_ , self :: IObjectChildrenAbi >`. This is a borrowed object/table pair. Both fields must be non-null. The callee must call `AddRef` before retaining the interface after the call returns.
     ///
     ///On success, `out` receives `:: neocogi_com :: ComRaw < :: neocogi_com :: IUnknown >` for `:: neocogi_com :: ComPtr < :: neocogi_com :: IUnknown >`. The caller receives one shared owner and releases it when finished.
@@ -824,10 +838,10 @@ pub struct IPersistenceFactoryVTable {
     )]
     pub restore: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_arg_0_0: <u32 as ::neocogi_com::ComValue>::Wire,
+        __nc_arg_0_0: <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
         __nc_arg_1_0_offset: u64,
         __nc_arg_1_0_len: u64,
-        __nc_arg_1_0_ptr: *const <u8 as ::neocogi_com::ComValue>::Wire,
+        __nc_arg_1_0_ptr: *const <::core::primitive::u8 as ::neocogi_com::ComValue>::Wire,
         __nc_arg_2_0: ::neocogi_com::ComRaw<self::IObjectChildrenAbi>,
         __nc_out: *mut ::neocogi_com::ComRaw<::neocogi_com::IUnknown>,
     ) -> ::neocogi_com::NcStatus,
@@ -923,16 +937,16 @@ const _: () = {
         ///
         ///This safe wrapper invokes the raw vtable function and maps a successful status to `Ok(())`.
         ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
-        ///- `version` is passed by value as `u32`.
-        ///- `state` is passed as a safe readable `u8` buffer plus offset.
-        ///- `child_count` is passed by value as `u32`.
+        ///- `version` is passed by value as `:: core :: primitive :: u32`.
+        ///- `state` is passed as a safe readable `:: core :: primitive :: u8` buffer plus offset.
+        ///- `child_count` is passed by value as `:: core :: primitive :: u32`.
         ///
         ///On success, returns `()`.
         pub fn validate(
             &self,
-            __nc_arg_0: u32,
-            __nc_arg_1: ::neocogi_com::NcCopyFromBufferOffset<'_, u8>,
-            __nc_arg_2: u32,
+            __nc_arg_0: ::core::primitive::u32,
+            __nc_arg_1: ::neocogi_com::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
+            __nc_arg_2: ::core::primitive::u32,
         ) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
             let __nc_arg_0 = ::neocogi_com::encode_inline(&__nc_arg_0)?;
             let __nc_arg_1 = ::neocogi_com::EncodedInput::new(__nc_arg_1)?;
@@ -963,15 +977,18 @@ const _: () = {
         ///
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
         ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
-        ///- `version` is passed by value as `u32`.
-        ///- `state` is passed as a safe readable `u8` buffer plus offset.
+        ///- `version` is passed by value as `:: core :: primitive :: u32`.
+        ///- `state` is passed as a safe readable `:: core :: primitive :: u8` buffer plus offset.
         ///- `children` borrows a `self :: IObjectChildrenAbi` interface for the duration of the call. An interface is required. The callee must call `AddRef` before retaining a present interface.
         ///
         ///On success, returns `:: neocogi_com :: ComPtr < :: neocogi_com :: IUnknown >`. The caller receives one shared owner and releases it when finished.
         pub fn restore(
             &self,
-            __nc_arg_0_0: u32,
-            __nc_arg_1_0: ::neocogi_com::NcCopyFromBufferOffset<'_, u8>,
+            __nc_arg_0_0: ::core::primitive::u32,
+            __nc_arg_1_0: ::neocogi_com::NcCopyFromBufferOffset<
+                '_,
+                ::core::primitive::u8,
+            >,
             __nc_arg_2_0: ::neocogi_com::ComRef<'_, self::IObjectChildrenAbi>,
         ) -> ::core::result::Result<
             ::neocogi_com::ComPtr<::neocogi_com::IUnknown>,
@@ -1025,7 +1042,7 @@ impl IPersistenceFactoryAbi {
                         ::neocogi_com::NcAbiPassing::Value,
                     ),
                     ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                        ::neocogi_com::__nc_abi_type::<u32>(),
+                        ::neocogi_com::__nc_abi_type::<::core::primitive::u32>(),
                     ),
                 },
                 ::neocogi_com::NcMethodParamDescriptor {
@@ -1034,7 +1051,7 @@ impl IPersistenceFactoryAbi {
                         ::neocogi_com::NcAbiPassing::CopyFromBufferOffset,
                     ),
                     ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                        ::neocogi_com::__nc_abi_plain_type::<u8>(),
+                        ::neocogi_com::__nc_abi_plain_type::<::core::primitive::u8>(),
                     ),
                 },
                 ::neocogi_com::NcMethodParamDescriptor {
@@ -1043,7 +1060,7 @@ impl IPersistenceFactoryAbi {
                         ::neocogi_com::NcAbiPassing::Value,
                     ),
                     ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                        ::neocogi_com::__nc_abi_type::<u32>(),
+                        ::neocogi_com::__nc_abi_type::<::core::primitive::u32>(),
                     ),
                 },
             ] as &'static [::neocogi_com::NcMethodParamDescriptor])
@@ -1068,7 +1085,7 @@ impl IPersistenceFactoryAbi {
                         ::neocogi_com::NcAbiPassing::Value,
                     ),
                     ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                        ::neocogi_com::__nc_abi_type::<u32>(),
+                        ::neocogi_com::__nc_abi_type::<::core::primitive::u32>(),
                     ),
                 },
                 ::neocogi_com::NcMethodParamDescriptor {
@@ -1077,7 +1094,7 @@ impl IPersistenceFactoryAbi {
                         ::neocogi_com::NcAbiPassing::CopyFromBufferOffset,
                     ),
                     ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                        ::neocogi_com::__nc_abi_plain_type::<u8>(),
+                        ::neocogi_com::__nc_abi_plain_type::<::core::primitive::u8>(),
                     ),
                 },
                 ::neocogi_com::NcMethodParamDescriptor {

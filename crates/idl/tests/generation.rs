@@ -204,7 +204,7 @@ fn preserves_documentation_without_making_it_an_abi_input() {
     assert!(generated.contains("/// Public generated value."));
     assert!(generated.contains("/// Copied numeric payload."));
     assert!(!generated.contains("#[doc ="));
-    assert!(generated.contains("pub number: u64"));
+    assert!(generated.contains("pub number: ::core::primitive::u64"));
 }
 
 /// Confirms file names, declaration placement, and discovery order do not
@@ -278,7 +278,7 @@ fn generates_negative_signed_enum_discriminants() {
     let generated = neocogi_idl::generate_rust(&graph, "example.signed").unwrap();
     assert!(generated.contains("pub const Failed: Self = Self(-1)"), "{generated}");
     assert!(!generated.contains("com_tag"), "{generated}");
-    assert!(generated.contains("Accepted(i32)"), "{generated}");
+    assert!(generated.contains("Accepted(::core::primitive::i32)"), "{generated}");
 }
 
 /// Generated COM projections retain the message shape needed by designer tools.

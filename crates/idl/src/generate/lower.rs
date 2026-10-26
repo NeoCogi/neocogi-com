@@ -90,7 +90,8 @@ fn argument(graph: &mut Generation<'_>, module: &ResolvedModule, parameter: &Par
                 return Err(GenerateError::new("resolved borrow is neither value nor interface"));
             };
             if name.is_str() {
-                buffer(syn::parse_quote!(u8), false)
+                // String wire bytes belong to the compiler, not application aliases.
+                buffer(syn::parse_quote!(::core::primitive::u8), false)
             } else if builtin_object_type(name).is_some() || matches!(resolve(graph, module, name)?.declaration.kind, DeclarationKind::Interface(_)) {
                 let (interface, mode_ty) = object(graph, module, target)?;
                 let mode = mode_ty.as_ref().map(|mode| quote! { , #mode });

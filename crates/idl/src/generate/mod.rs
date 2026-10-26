@@ -207,10 +207,10 @@ fn module_header(graph: &mut Generation<'_>, module: &ResolvedModule) -> Result<
         pub const MODULE_ID: ::neocogi_com::NcGuid = #module_id;
 
         /// Transitive canonical ABI fingerprint of this generated module.
-        pub const ABI_FINGERPRINT: [u8; 32] = [#(#fingerprint),*];
+        pub const ABI_FINGERPRINT: [::core::primitive::u8; 32] = [#(#fingerprint),*];
 
         /// Exact dotted module name derived from the normalized IDL path.
-        pub const MODULE_NAME: &str = #module_name;
+        pub const MODULE_NAME: &::core::primitive::str = #module_name;
 
 
     };
@@ -666,26 +666,27 @@ fn signature_literal(value: [u8; 32]) -> Literal {
     Literal::byte_string(&value)
 }
 
-/// Converts one enum representation into its Rust fixed-width integer type.
+/// Selects the core primitive independently of aliases in the consumer's scope.
 fn enum_repr(value: EnumRepr) -> TokenStream {
     match value {
-        EnumRepr::U8 => quote! { u8 },
-        EnumRepr::U16 => quote! { u16 },
-        EnumRepr::U32 => quote! { u32 },
-        EnumRepr::I8 => quote! { i8 },
-        EnumRepr::I16 => quote! { i16 },
-        EnumRepr::I32 => quote! { i32 },
+        EnumRepr::U8 => quote! { ::core::primitive::u8 },
+        EnumRepr::U16 => quote! { ::core::primitive::u16 },
+        EnumRepr::U32 => quote! { ::core::primitive::u32 },
+        EnumRepr::I8 => quote! { ::core::primitive::i8 },
+        EnumRepr::I16 => quote! { ::core::primitive::i16 },
+        EnumRepr::I32 => quote! { ::core::primitive::i32 },
     }
 }
 
-/// Converts one supported scalar spelling into a Rust type token.
+/// Binds an IDL built-in to its actual owner, never an ambient Rust alias.
+/// Caller-authored native Rust field types do not pass through this selection.
 fn scalar(value: &str) -> Result<TokenStream, GenerateError> {
     match value {
         "Guid" => Ok(quote! { ::neocogi_com::NcGuid }),
         "Status" => Ok(quote! { ::neocogi_com::NcStatus }),
         "bool" | "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "f32" | "f64" => {
             let ident = rust_ident(value)?;
-            Ok(quote! { #ident })
+            Ok(quote! { ::core::primitive::#ident })
         }
         _ => Err(GenerateError::new(format!("unsupported scalar type {value:?}"))),
     }

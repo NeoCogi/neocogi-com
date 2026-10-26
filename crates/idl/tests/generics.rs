@@ -115,7 +115,7 @@ fn generic_interface_accepts_scalar_arguments_in_valid_positions() {
     );
     let graph = resolve_modules(vec![source]).unwrap();
     let rust = generate_rust(&graph, "test.scalars").unwrap();
-    assert!(rust.contains("value: u32"));
+    assert!(rust.contains("value: ::core::primitive::u32"));
 }
 
 /// Two independently generated projections can query and call the same COM object.

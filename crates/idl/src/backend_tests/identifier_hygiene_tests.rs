@@ -55,6 +55,13 @@ fn printed_bindings_preserve_authored_values_and_arguments() {
         "legal keyword member case did not execute: {}",
         String::from_utf8_lossy(&result.stdout)
     );
+    assert!(
+        String::from_utf8_lossy(&result.stdout)
+            .lines()
+            .any(|line| line == "test semantic_primitive_shadow::idl_u32_keeps_identity_and_physical_abi ... ok"),
+        "IDL primitive ABI case did not execute: {}",
+        String::from_utf8_lossy(&result.stdout)
+    );
 }
 
 /// Object expansion must survive printing with authored support names in both ownership modes.
