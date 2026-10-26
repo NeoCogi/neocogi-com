@@ -109,27 +109,6 @@ pub(crate) fn interface_companion_ident(name: &Ident, companion: neocogi_com_cor
     format_ident!("{name}{}", companion.suffix(), span = name.span())
 }
 
-/// Binds field syntax at its application owner and returns canonical projections.
-///
-/// Emit `owners` in a scope without private declarations/imports. Self then names
-/// the application, and even opaque macros resolve before converter bindings are
-/// introduced. One ordered owner list supplies indices across enum alternatives;
-/// each independent expansion owns its own lexical trait and implementations.
-pub(crate) fn application_fields(name: &Ident, fields: &syn::Fields, owner: &Ident, owners: &mut Vec<proc_macro2::TokenStream>) -> syn::Fields {
-    let mut fields = fields.clone();
-    for field in &mut fields {
-        let index = owners.len();
-        let ty = &field.ty;
-        owners.push(quote! {
-            impl #owner<#index> for #name {
-                type Value = #ty;
-            }
-        });
-        field.ty = syn::parse2(quote! { <#name as #owner<#index>>::Value }).expect("generated field projection is a type");
-    }
-    fields
-}
-
 /// Uses an explicit facade path or the canonical public `neocogi-com` crate name.
 pub(crate) fn runtime_crate_path(override_path: Option<&Path>) -> Path {
     override_path.cloned().unwrap_or_else(|| syn::parse_quote!(::neocogi_com))

@@ -416,8 +416,11 @@ fn positional_records_preserve_golden_bytes_defaults_and_error_offsets() {
     );
 }
 
-/// Counts only values acquired by the partial-construction regression below.
+/// Counts currently live values in the sole partial-construction resource test.
 static ACQUIRED_FIELDS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// Monotonic acquisitions prove each failure occurs after acquiring prior fields.
+static TOTAL_ACQUIRED_FIELDS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
 /// A decoded field with observable destruction and no serialized owner pointer.
 #[derive(Debug)]
@@ -427,6 +430,7 @@ impl ComDeserialize for Acquired {
     fn com_deserialize(reader: &mut binary::Reader<'_>) -> Result<Self, binary::Error> {
         u8::com_deserialize(reader)?;
         ACQUIRED_FIELDS.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        TOTAL_ACQUIRED_FIELDS.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         Ok(Self)
     }
 }
@@ -467,14 +471,29 @@ enum PartialChoice {
 #[test]
 fn partial_ordered_construction_drops_every_acquired_field() {
     assert_eq!(ACQUIRED_FIELDS.load(std::sync::atomic::Ordering::SeqCst), 0);
-    assert!(binary::from_slice::<PartialRecord>(b"NCB\x01\x03\0\0\0\x01\x01\x02").is_err());
+    let before = TOTAL_ACQUIRED_FIELDS.load(std::sync::atomic::Ordering::SeqCst);
+    assert_eq!(
+        binary::from_slice::<PartialRecord>(b"NCB\x01\x03\0\0\0\x01\x01\x02").unwrap_err(),
+        binary::Error { offset: 11, message: "invalid boolean" }
+    );
+    assert_eq!(TOTAL_ACQUIRED_FIELDS.load(std::sync::atomic::Ordering::SeqCst) - before, 2);
     assert_eq!(ACQUIRED_FIELDS.load(std::sync::atomic::Ordering::SeqCst), 0);
-    assert!(binary::from_slice::<[Acquired; 3]>(b"NCB\x01\x03\0\0\0\x01\x01").is_err());
+    let before = TOTAL_ACQUIRED_FIELDS.load(std::sync::atomic::Ordering::SeqCst);
+    assert_eq!(
+        binary::from_slice::<[Acquired; 3]>(b"NCB\x01\x03\0\0\0\x01\x01").unwrap_err(),
+        binary::Error { offset: 10, message: "truncated value" }
+    );
+    assert_eq!(TOTAL_ACQUIRED_FIELDS.load(std::sync::atomic::Ordering::SeqCst) - before, 2);
     assert_eq!(ACQUIRED_FIELDS.load(std::sync::atomic::Ordering::SeqCst), 0);
     for ordinal in [0u8, 1] {
         let mut bytes = *b"NCB\x01\0\0\0\0\x02\0\0\0\x01\x02";
         bytes[4] = ordinal;
-        assert!(binary::from_slice::<PartialChoice>(&bytes).is_err());
+        let before = TOTAL_ACQUIRED_FIELDS.load(std::sync::atomic::Ordering::SeqCst);
+        assert_eq!(
+            binary::from_slice::<PartialChoice>(&bytes).unwrap_err(),
+            binary::Error { offset: 14, message: "invalid boolean" }
+        );
+        assert_eq!(TOTAL_ACQUIRED_FIELDS.load(std::sync::atomic::Ordering::SeqCst) - before, 1);
         assert_eq!(ACQUIRED_FIELDS.load(std::sync::atomic::Ordering::SeqCst), 0);
     }
 }

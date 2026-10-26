@@ -28,6 +28,15 @@ fn printed_bindings_preserve_authored_values_and_arguments() {
     }
     // Share the semantic assertions with the ordinary procedural-macro path.
     fs::write(project.path().join("src/lib.rs"), include_str!("fixtures/identifier_hygiene.rs")).unwrap();
+    fs::create_dir(project.path().join("tests")).unwrap();
+    fs::write(
+        project.path().join("tests/public_value_wire.rs"),
+        format!(
+            "extern crate printed_hygiene_proof as fixture;\n{}",
+            include_str!("fixtures/public_value_wire.rs")
+        ),
+    )
+    .unwrap();
     let result = Command::new("cargo")
         .args(["test", "--offline", "--manifest-path"])
         .arg(project.path().join("Cargo.toml"))
@@ -46,6 +55,13 @@ fn printed_bindings_preserve_authored_values_and_arguments() {
         "{}\n{}",
         String::from_utf8_lossy(&result.stdout),
         String::from_utf8_lossy(&result.stderr)
+    );
+    assert!(
+        String::from_utf8_lossy(&result.stdout)
+            .lines()
+            .any(|line| line == "test public_wires_and_storage_preserve_bound_idl_types ... ok"),
+        "cross-crate Wire/Storage case did not execute: {}",
+        String::from_utf8_lossy(&result.stdout)
     );
     // Archives and floor runs must execute this case, even if others still pass.
     assert!(

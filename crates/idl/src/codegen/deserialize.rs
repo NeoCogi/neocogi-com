@@ -9,7 +9,7 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{Attribute, Data, DeriveInput, Fields, Ident, Path, Result};
 
-use crate::codegen::util::{PrivateNames, application_fields, push_error, validate_no_generics};
+use crate::codegen::util::{PrivateNames, push_error, validate_no_generics};
 
 /// The sole decoding policy beyond the declared value shape.
 #[derive(Default)]
@@ -34,31 +34,11 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream> {
     }
 }
 
-/// Wraps one ordered constructor in the single concrete persistence trait.
-/// Its field-index primitive belongs to core; projected field types belong to Self.
-fn implementation(
-    ident: &Ident,
-    nc: &Path,
-    reader: &Ident,
-    names: &PrivateNames,
-    native_fields: &Ident,
-    owners: &[TokenStream],
-    body: TokenStream,
-) -> TokenStream {
-    let field_scope = (!owners.is_empty()).then(|| {
-        quote! {
-            /// Private native-field resolution preserves Self and field visibility.
-            trait #native_fields<const INDEX: ::core::primitive::usize> {
-                /// Authored native field type, with application Self and visibility.
-                type Value;
-            }
-        }
-    });
+/// Keeps decoder bindings private while actual destinations determine field types.
+/// Native type syntax is never copied into this generated implementation scope.
+fn implementation(ident: &Ident, nc: &Path, reader: &Ident, names: &PrivateNames, body: TokenStream) -> TokenStream {
     let binding_imports = names.binding_imports();
     quote! {
-        const _: () = {
-        #field_scope
-        #(#owners)*
         const _: () = {
         #binding_imports
         impl #nc::ComDeserialize for #ident {
@@ -68,28 +48,23 @@ fn implementation(
             }
         }
         };
-        };
     }
 }
 
-/// Generates construction after COM value-layout validation, when used by an attribute macro.
+/// Generates ordered construction for native derives and compiler-selected IDL fields.
 pub fn expand_struct(ident: &Ident, fields: &Fields, nc: &Path, default: bool) -> Result<TokenStream> {
     let mut names = PrivateNames::new(quote! { #ident #fields #nc });
     let reader = names.binding("__nc_reader");
     let field_reader = names.binding("__nc_fields");
     let value = names.binding("__nc_value");
     let field_value = names.binding("__nc_field");
-    let mut owners = Vec::new();
-    let native_fields = names.fresh("__NcNativeFields");
-    let fields = application_fields(ident, fields, &native_fields, &mut owners);
     let count = fields.len();
-    let body = match &fields {
+    let body = match fields {
         Fields::Named(_) if default => {
             let assignments = fields.iter().map(|field| {
                 let member = field.ident.as_ref().expect("named field");
-                let ty = &field.ty;
                 quote! {
-                    if let ::core::option::Option::Some(#field_value) = #field_reader.read_next::<#ty>()? {
+                    if let ::core::option::Option::Some(#field_value) = #field_reader.read_next()? {
                         #value.#member = #field_value;
                     }
                 }
@@ -105,17 +80,17 @@ pub fn expand_struct(ident: &Ident, fields: &Fields, nc: &Path, default: bool) -
             }
         }
         Fields::Named(_) => {
-            let construct = construction(&fields, quote!(Self), &field_reader);
+            let construct = construction(fields, quote!(Self), &field_reader);
             quote! { #reader.record(#count, |#field_reader| ::core::result::Result::Ok(#construct)) }
         }
         Fields::Unnamed(_) if !default => {
-            let construct = construction(&fields, quote!(Self), &field_reader);
+            let construct = construction(fields, quote!(Self), &field_reader);
             quote! { #reader.sequence(|#field_reader| ::core::result::Result::Ok(#construct)) }
         }
         Fields::Unnamed(_) => return Err(syn::Error::new_spanned(ident, "default requires a named struct")),
         Fields::Unit => return Err(syn::Error::new_spanned(ident, "ComDeserialize requires a named or tuple struct")),
     };
-    Ok(implementation(ident, nc, &reader, &names, &native_fields, &owners, body))
+    Ok(implementation(ident, nc, &reader, &names, body))
 }
 
 /// Builds fields directly in their destination; previously acquired fields drop on failure.
@@ -126,8 +101,7 @@ fn construction(fields: &Fields, destination: TokenStream, field_reader: &Ident)
         _ => "invalid sequence length",
     };
     let values = fields.iter().map(|field| {
-        let ty = &field.ty;
-        let read = quote! { #field_reader.read_next::<#ty>()?.ok_or_else(|| #field_reader.error(#missing))? };
+        let read = quote! { #field_reader.read_next()?.ok_or_else(|| #field_reader.error(#missing))? };
         match &field.ident {
             Some(member) => quote! { #member: #read },
             None => read,
@@ -148,8 +122,6 @@ pub fn expand_enum(ident: &Ident, data: &syn::DataEnum, nc: &Path) -> Result<Tok
     let mut names = PrivateNames::new(quote! { #ident #variants #nc });
     let reader = names.binding("__nc_reader");
     let field_reader = names.binding("__nc_fields");
-    let mut owners = Vec::new();
-    let native_fields = names.fresh("__NcNativeFields");
     let count = data.variants.len();
     let arms = data
         .variants
@@ -158,10 +130,10 @@ pub fn expand_enum(ident: &Ident, data: &syn::DataEnum, nc: &Path) -> Result<Tok
         .map(|(index, variant)| {
             let index = index as u32;
             let name = &variant.ident;
-            let fields = application_fields(ident, &variant.fields, &native_fields, &mut owners);
+            let fields = &variant.fields;
             let count = fields.len();
-            let construct = construction(&fields, quote!(Self::#name), &field_reader);
-            let body = match &fields {
+            let construct = construction(fields, quote!(Self::#name), &field_reader);
+            let body = match fields {
                 Fields::Unit => quote! { ::core::result::Result::Ok(Self::#name) },
                 Fields::Unnamed(fields) if fields.unnamed.len() == 1 => {
                     quote! { ::core::result::Result::Ok(Self::#name(#reader.read()?)) }
@@ -181,8 +153,6 @@ pub fn expand_enum(ident: &Ident, data: &syn::DataEnum, nc: &Path) -> Result<Tok
         nc,
         &reader,
         &names,
-        &native_fields,
-        &owners,
         quote! {
             match #reader.variant(#count)? {
                 #(#arms,)*

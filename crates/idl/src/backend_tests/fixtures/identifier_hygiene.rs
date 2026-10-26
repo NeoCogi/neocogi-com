@@ -1,7 +1,11 @@
 //! Executable proof: accepted names remain data through codecs and ABI calls.
+#![deny(private_interfaces)]
 mod arguments;
 mod shadow;
 mod values;
+
+// Integration children name public representations through their actual value owner.
+pub use values::{Choice, Owned, Record};
 
 #[cfg(test)]
 mod keyword_dispatch {

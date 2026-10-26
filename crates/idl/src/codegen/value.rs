@@ -1,4 +1,4 @@
-//! One recursive field converter shared by copied and owned declaration macros.
+//! One recursive converter for compiler-selected copied and owned IDL values.
 //!
 //! Application fields never double as unchecked foreign wire fields. This module
 //! emits raw C records, a tag-selected union for enums, and concrete backing
@@ -8,20 +8,21 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::{Fields, Ident, Visibility};
 
-use crate::codegen::util::{PrivateNames, application_fields};
+use crate::codegen::util::PrivateNames;
 
 /// A record or enum alternative with its declared tag and ordered field shape.
-pub struct ValueCase {
+pub(crate) struct ValueCase {
     /// None identifies a record; Some names an enum alternative.
-    pub variant: Option<Ident>,
+    pub(crate) variant: Option<Ident>,
     /// Raw discriminant used only by tagged enums.
-    pub tag: TokenStream,
-    /// Source-level fields whose individual codecs define recursive lowering.
-    pub fields: Fields,
+    pub(crate) tag: TokenStream,
+    /// Already-bound IDL field types; native Self, type macros and ambient aliases are not inputs.
+    pub(crate) fields: Fields,
 }
 
 /// Generates a complete checked codec without altering the application type.
-/// Wire/support primitives name core; authored field types keep their native owner.
+/// Field types already name their compiler-selected owner and are used directly.
+/// Wire/storage/layout/cost emission must not resolve native Rust syntax again.
 pub(crate) fn expand(
     name: &Ident,
     visibility: &Visibility,
@@ -34,19 +35,6 @@ pub(crate) fn expand(
     let authored_fields = cases.iter().map(|case| &case.fields);
     let authored_variants = cases.iter().filter_map(|case| case.variant.as_ref());
     let mut names = PrivateNames::new(quote! { #name #nc #(#authored_fields)* #(#authored_variants)* });
-    // Resolve authored field syntax while Self still denotes the application.
-    // The private converter uses these typed projections, never reinterpreting
-    // Self or macro-produced names inside a generated wire/storage definition.
-    let mut field_owners = Vec::new();
-    let native_fields = names.fresh("__NcNativeFields");
-    let cases = cases
-        .iter()
-        .map(|case| ValueCase {
-            variant: case.variant.clone(),
-            tag: case.tag.clone(),
-            fields: application_fields(name, &case.fields, &native_fields, &mut field_owners),
-        })
-        .collect::<Vec<_>>();
     let wire_name = names.fresh("__NcWire");
     let union_name = names.fresh("__NcPayload");
     let storage_name = names.fresh("__NcStorage");
@@ -162,9 +150,8 @@ pub(crate) fn expand(
             raw_values.push(quote! { empty: 0 });
         }
         wires.push(quote! {
-            // Native field projections remain private; consumers see only their
-            // normalized raw types. Separate-crate wire access is regression-tested.
-            #[doc(hidden)] #[allow(private_interfaces)] #[repr(C)] #[derive(::core::clone::Clone, ::core::marker::Copy)]
+            // Public raw fields use the bound field codecs, not native layout.
+            #[doc(hidden)] #[repr(C)] #[derive(::core::clone::Clone, ::core::marker::Copy)]
             /// Raw fields for one structural value alternative.
             #visibility struct #case_wire { #(#raw_fields),* }
         });
@@ -218,10 +205,10 @@ pub(crate) fn expand(
     }
     let tagged_wire = is_enum.then(|| {
         quote! {
-            #[doc(hidden)] #[allow(private_interfaces)] #[repr(C)] #[derive(::core::clone::Clone, ::core::marker::Copy)]
+            #[doc(hidden)] #[repr(C)] #[derive(::core::clone::Clone, ::core::marker::Copy)]
             /// Raw alternatives, inspected only after validating the active tag.
             #visibility union #union_name { #(#members),* }
-            #[doc(hidden)] #[allow(private_interfaces)] #[repr(C)] #[derive(::core::clone::Clone, ::core::marker::Copy)]
+            #[doc(hidden)] #[repr(C)] #[derive(::core::clone::Clone, ::core::marker::Copy)]
             /// Explicit integer tag and recursively lowered active payload.
             #visibility struct #wire_name {
                 /// Declared variant discriminant; unknown values fail conversion.
@@ -239,7 +226,7 @@ pub(crate) fn expand(
     let storage = (!inline).then(|| {
         quote! {
             #[doc(hidden)]
-            #[allow(private_interfaces)]
+
             /// Concrete ownership of converted indirect fields; never erased.
             #visibility enum #storage_name { #(#storages),* }
         }
@@ -331,29 +318,16 @@ pub(crate) fn expand(
             const _: () = {
                 /// Requires durable copied identity independently of reflection.
                 fn #check<#parameter: #nc::AbiPlainValue>() {}
-                /// Checks native fields at their application owner without runtime work.
+                /// Checks compiler-bound fields without runtime work.
                 fn #fields() { #(#check::<#types>();)* }
             };
-        }
-    });
-    let field_scope = (!field_owners.is_empty()).then(|| {
-        quote! {
-            /// Native field syntax belongs to this application; it is not public API.
-            trait #native_fields<const INDEX: ::core::primitive::usize> {
-                /// The native field type before any private conversion bindings exist.
-                type Value;
-            }
         }
     });
     let binding_imports = names.binding_imports();
     quote! {
         // No binding imports or helper declarations enter the authored type scope.
         const _: () = {
-        #field_scope
-        #(#field_owners)*
-        // Anonymous ownership keeps wire/storage helpers out of the application's
-        // item namespace. Public associated types remain usable through ComValue.
-        const _: () = {
+        // Public associated types locate otherwise anonymous wire/storage helpers.
         #binding_imports
         #(#wires)* #tagged_wire #storage #inline_checks #plain_checks
         // SAFETY: only raw field representations cross COM; recursive conversion
@@ -407,7 +381,6 @@ pub(crate) fn expand(
             const VALUE_SIGNATURE: #nc::NcAbiSignature = #signature;
         }
         #inline_impl
-        };
         };
     }
 }

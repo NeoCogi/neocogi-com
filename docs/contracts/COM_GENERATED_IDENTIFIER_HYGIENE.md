@@ -53,11 +53,22 @@ operations and constants, even when a native type has same-named inherent member
 with plausible wrong values. Layout identity additionally proves recursive size,
 alignment, field offsets and absence of content checks or ownership.
 
-Native field types resolve at their application owner before private decoder
-scopes exist. Private lexical projections preserve `Self`, recursive `Vec<Self>`,
-const expressions and opaque macros for standalone persistence derives without
-requiring a live COM value contract. Public native records may retain private
-field types. No erased registry or public field-resolution API is introduced.
+Standalone persistence constructs actual native fields with destination-inferred
+reads. A field's type is never copied into a generated helper scope: Rust's actual
+constructor or defaulted-field assignment owns `Self`, recursive `Vec<Self>`,
+private types, const expressions and opaque macros. This requires no live COM
+value contract. Public native records may retain private field types.
+
+Live value emission is compiler-private. Its field types are already bound by
+IDL lowering and name core, the supplying module or the owning dependency directly.
+Those same types supply raw Wire/Storage, validation, costs and layout proofs;
+there is no native field-projection trait or second field-resolution layer.
+`codegen::emit_value` and `ValueCase` are internal compiler operations, not a Rust
+value-declaration frontend. Public persistence/procedural expanders remain callable
+by the separate macros crate. The shared IDL fixture denies private-interface
+leaks where generated definitions compile, and a separate integration crate names
+associated Wire/Storage, accesses valid raw fields and retains nonempty owned
+backing through checked decoding.
 
 ## Public method and companion admission
 

@@ -40,6 +40,11 @@ conversion, persistence and Rust object/plugin/host-entry expansion. Its method
 plans retain authored documentation, ownership and physical argument/result
 types together; safe and raw documentation describe their respective types.
 Code generation never recovers a contract by reparsing printed Rust.
+Live-value case emission is internal to the compiler and consumes already-bound
+IDL field types directly for raw wires, typed storage and checked conversion.
+Standalone persistence expanders instead infer native field types from the actual
+Rust construction destination, preserving private types, Self and opaque macros
+without a separate type-resolution helper.
 
 The compiler and its backend are one package. `neocogi-com-macros` remains a
 separate `proc-macro` crate because Rust requires that crate type for procedural

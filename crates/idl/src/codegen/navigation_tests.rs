@@ -76,7 +76,7 @@ fn typed_interface_and_value_names_keep_their_supplied_identifier_spans() {
         assert_origin(expanded.clone(), &name, expected);
     }
 
-    let enumeration: syn::ItemEnum = syn::parse_str("\n\n\n pub enum Track { Fixed { extent:i32 }, Auto }").unwrap();
+    let enumeration: syn::ItemEnum = syn::parse_str("\n\n\n pub enum Track { Fixed { extent: ::core::primitive::i32 }, Auto }").unwrap();
     let cases = enumeration
         .variants
         .iter()

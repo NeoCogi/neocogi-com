@@ -60,8 +60,8 @@ pub(super) fn run_consumers(name: &str, cases: impl IntoIterator<Item = (String,
     run_consumers_with_files(super::test_consumer::Consumer::new(name), cases, &[], &[]);
 }
 
-/// Additional integration targets compile as separate crates, so public wires
-/// must remain usable without access to the native field-resolution scope.
+/// Additional integration targets exercise public APIs from separate crates,
+/// without access to private native fields or implementation definitions.
 /// Each required child must report success for every ordinary/printed selection;
 /// unrelated callers pass an empty slice and retain their full existing suites.
 pub(super) fn run_consumers_with_files(
@@ -99,6 +99,47 @@ pub(super) fn run_consumers_with_files(
     }
 }
 
+/// Expands selected persistence derives with their policy attributes intact.
+/// Consumed helper attributes belong to those derives, not to the printed item.
+fn persistence_expansions(input: &mut syn::DeriveInput) -> TokenStream {
+    let mut serialize = false;
+    let mut deserialize = false;
+    let mut attributes = Vec::new();
+    for attribute in std::mem::take(&mut input.attrs) {
+        if attribute.path().is_ident("derive") {
+            let paths = attribute
+                .parse_args_with(syn::punctuated::Punctuated::<syn::Path, syn::Token![,]>::parse_terminated)
+                .unwrap();
+            let paths = paths
+                .into_iter()
+                .filter(|path| match path.segments.last().unwrap().ident.to_string().as_str() {
+                    "ComSerialize" => {
+                        serialize = true;
+                        false
+                    }
+                    "ComDeserialize" => {
+                        deserialize = true;
+                        false
+                    }
+                    _ => true,
+                })
+                .collect::<Vec<_>>();
+            if !paths.is_empty() {
+                attributes.push(syn::parse_quote!(#[derive(#(#paths),*)]));
+            }
+        } else {
+            attributes.push(attribute);
+        }
+    }
+    input.attrs = attributes;
+    let serialization = serialize.then(|| crate::codegen::expand_com_serialize_derive(input.clone()).unwrap());
+    let deserialization = deserialize.then(|| crate::codegen::expand_com_deserialize_derive(input.clone()).unwrap());
+    if serialize || deserialize {
+        input.attrs.retain(|attr| !attr.path().is_ident("com_deserialize"));
+    }
+    quote! { #serialization #deserialization }
+}
+
 /// Expands top-level production attributes while leaving authored Rust intact.
 /// Tests wrap these items in local blocks separately to cover non-module scope.
 fn source_items(source: &str, expand: bool) -> String {
@@ -106,46 +147,9 @@ fn source_items(source: &str, expand: bool) -> String {
     for item in syn::parse_file(source).unwrap().items {
         let tokens = match item {
             syn::Item::Struct(mut item) => {
-                let mut serialize = false;
-                let mut deserialize = false;
-                let mut attributes = Vec::new();
-                for attribute in item.attrs {
-                    if attribute.path().is_ident("derive") {
-                        let paths = attribute
-                            .parse_args_with(syn::punctuated::Punctuated::<syn::Path, syn::Token![,]>::parse_terminated)
-                            .unwrap();
-                        let paths = paths
-                            .into_iter()
-                            .filter(|path| {
-                                if path.segments.last().unwrap().ident == "ComSerialize" {
-                                    serialize = true;
-                                    false
-                                } else if path.segments.last().unwrap().ident == "ComDeserialize" {
-                                    deserialize = true;
-                                    false
-                                } else {
-                                    true
-                                }
-                            })
-                            .collect::<Vec<_>>();
-                        if !paths.is_empty() {
-                            attributes.push(syn::parse_quote!(#[derive(#(#paths),*)]));
-                        }
-                    } else {
-                        attributes.push(attribute);
-                    }
-                }
-                item.attrs = attributes;
-                let serialization = if serialize {
-                    crate::codegen::expand_com_serialize_derive(syn::parse2(quote! { #item }).unwrap()).unwrap()
-                } else {
-                    TokenStream::new()
-                };
-                let deserialization = if deserialize {
-                    crate::codegen::expand_com_deserialize_derive(syn::parse2(quote! { #item }).unwrap()).unwrap()
-                } else {
-                    TokenStream::new()
-                };
+                let mut input = syn::parse2(quote! { #item }).unwrap();
+                let persistence = persistence_expansions(&mut input);
+                item.attrs = input.attrs;
                 let index = item
                     .attrs
                     .iter()
@@ -157,7 +161,13 @@ fn source_items(source: &str, expand: bool) -> String {
                     }
                     None => quote! { #item },
                 };
-                quote! { #definition #serialization #deserialization }
+                quote! { #definition #persistence }
+            }
+            syn::Item::Enum(mut item) => {
+                let mut input = syn::parse2(quote! { #item }).unwrap();
+                let persistence = persistence_expansions(&mut input);
+                item.attrs = input.attrs;
+                quote! { #item #persistence }
             }
             syn::Item::Fn(mut item) => match item
                 .attrs
@@ -404,6 +414,48 @@ fn field_types_keep_application_self_and_opaque_macro_scope() {
         pub fn envelope() -> Envelope {
             Envelope { inner: Tree { bytes: [3, 17], children: vec![] }, tag: 17 }
         }
+
+        // Opaque expansion manufactures a name absent from the derive input tokens.
+        #[allow(non_camel_case_types)] type __NcNativeFields = ::core::primitive::u32;
+        macro_rules! native_type { () => { __NcNativeFields }; }
+        #[derive(Debug, PartialEq, neocogi_com::ComSerialize, neocogi_com::ComDeserialize)]
+        struct Opaque { value: native_type!() }
+        #[derive(neocogi_com::ComSerialize, neocogi_com::ComDeserialize)]
+        struct Explicit { value: ::core::primitive::u32 }
+        #[derive(neocogi_com::ComSerialize, neocogi_com::ComDeserialize)]
+        struct Visible { value: __NcNativeFields }
+        #[derive(Debug, PartialEq, neocogi_com::ComSerialize, neocogi_com::ComDeserialize)]
+        struct Positional(u8, native_type!());
+        #[derive(Debug, PartialEq, neocogi_com::ComSerialize, neocogi_com::ComDeserialize)]
+        enum Shapes { Empty, Wrapped(native_type!()), Pair(u8, native_type!()), Named { value: native_type!() } }
+        #[derive(Debug, PartialEq, neocogi_com::ComSerialize, neocogi_com::ComDeserialize)]
+        #[com_deserialize(default)]
+        struct Defaulted { prefix: u8, value: native_type!() }
+        impl ::core::default::Default for Defaulted {
+            fn default() -> Self { Self { prefix: 11, value: 29 } }
+        }
+        #[derive(neocogi_com::ComSerialize)] struct Prefix { prefix: u8 }
+        pub fn opaque_round_trips() {
+            let native = Opaque { value: 73 };
+            let bytes = neocogi_com::binary::to_vec(&native).unwrap();
+            assert_eq!(neocogi_com::binary::from_slice::<Opaque>(&bytes).unwrap(), native);
+            let explicit = neocogi_com::binary::to_vec(&Explicit { value: 91 }).unwrap();
+            assert_eq!(neocogi_com::binary::from_slice::<Explicit>(&explicit).unwrap().value, 91);
+            let visible = neocogi_com::binary::to_vec(&Visible { value: 17 }).unwrap();
+            assert_eq!(neocogi_com::binary::from_slice::<Visible>(&visible).unwrap().value, 17);
+            let native = Positional(5, 43);
+            let bytes = neocogi_com::binary::to_vec(&native).unwrap();
+            assert_eq!(neocogi_com::binary::from_slice::<Positional>(&bytes).unwrap(), native);
+            for native in [Shapes::Empty, Shapes::Wrapped(57), Shapes::Pair(7, 61), Shapes::Named { value: 79 }] {
+                let bytes = neocogi_com::binary::to_vec(&native).unwrap();
+                assert_eq!(neocogi_com::binary::from_slice::<Shapes>(&bytes).unwrap(), native);
+            }
+            let prefix = neocogi_com::binary::to_vec(&Prefix { prefix: 19 }).unwrap();
+            assert_eq!(neocogi_com::binary::from_slice::<Defaulted>(&prefix).unwrap(), Defaulted { prefix: 19, value: 29 });
+            let native = Defaulted { prefix: 23, value: 83 };
+            let bytes = neocogi_com::binary::to_vec(&native).unwrap();
+            assert_eq!(neocogi_com::binary::from_slice::<Defaulted>(&bytes).unwrap(), native);
+        }
     "#;
     // Expand top-level derives before wrapping: source_items is deliberately non-recursive.
     // Isolation keeps the existing authored Self/usize array expressions valid.
@@ -421,6 +473,31 @@ fn field_types_keep_application_self_and_opaque_macro_scope() {
     "#;
     let cases = [false, true].map(|expand| {
         let declaration = source_items(declaration, expand);
+        if expand {
+            // These declarations must contain actual printed implementations, not derives.
+            let parsed = syn::parse_file(&declaration).unwrap();
+            for name in ["Shapes", "Defaulted"] {
+                let input = parsed
+                    .items
+                    .iter()
+                    .find_map(|item| match item {
+                        syn::Item::Struct(item) if item.ident == name => Some(syn::parse2::<syn::DeriveInput>(quote! { #item }).unwrap()),
+                        syn::Item::Enum(item) if item.ident == name => Some(syn::parse2::<syn::DeriveInput>(quote! { #item }).unwrap()),
+                        _ => None,
+                    })
+                    .unwrap();
+                assert!(input.attrs.iter().all(|attr| !attr.path().is_ident("com_deserialize")));
+                assert!(!quote! { #input }.to_string().contains("ComDeserialize"));
+                assert!(
+                    parsed.items.iter().any(|item| match item {
+                        syn::Item::Const(item) => quote! { #item }.to_string().contains(&format!("ComDeserialize for {name}")),
+                        _ => false,
+                    }),
+                    "printed deserialize impl for {name}"
+                );
+            }
+            assert!(declaration.contains("::core::default::Default"));
+        }
         let aliases = source_items(aliases, expand);
         (
             format!("printed={expand}"),
@@ -432,6 +509,7 @@ fn field_types_keep_application_self_and_opaque_macro_scope() {
                 {declaration}
                 #[test] fn native_type_identity_survives_conversion_and_persistence() {{
                     native_aliases::round_trip();
+                    opaque_round_trips();
                     let fixed = Fixed {{ direct: [1, 73], opaque: [2, 91] }};
                     let bytes = neocogi_com::binary::to_vec(&fixed).unwrap();
                     let decoded = neocogi_com::binary::from_slice::<Fixed>(&bytes).unwrap();
@@ -455,9 +533,9 @@ fn field_types_keep_application_self_and_opaque_macro_scope() {
         super::test_consumer::Consumer::new("field-type-ownership-proof"),
         cases,
         &[(
-            "tests/public_wire.rs",
+            "tests/public_persistence.rs",
             r#"
-        #[test] fn public_wires_do_not_require_native_field_visibility() {
+        #[test] fn public_persistence_does_not_require_native_field_visibility() {
             use field_type_ownership_proof::{envelope, Envelope};
             let native = envelope();
             let bytes = neocogi_com::binary::to_vec(&native).unwrap();
@@ -468,7 +546,7 @@ fn field_types_keep_application_self_and_opaque_macro_scope() {
         )],
         &[
             "native_type_identity_survives_conversion_and_persistence",
-            "public_wires_do_not_require_native_field_visibility",
+            "public_persistence_does_not_require_native_field_visibility",
         ],
     );
 }

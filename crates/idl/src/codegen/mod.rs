@@ -27,7 +27,7 @@ pub use object::expand_com_object;
 pub use interface::{InterfaceVTablePrefix, InterfaceExpansion, expand_interface_parts};
 pub use deserialize::{expand_derive as expand_com_deserialize_derive, expand_struct as emit_record_decoder, expand_enum as emit_enum_decoder};
 pub use serialize::expand_derive as expand_com_serialize_derive;
-pub use value::{ValueCase};
+pub(crate) use value::ValueCase;
 pub use scalar::{ScalarDomain, ScalarMember, ScalarPlan, emit_scalar};
 
 /// Derives a provider trait declaration from the same typed plan as its ABI.
@@ -62,10 +62,11 @@ pub fn method_declaration(method: &model::AbiMethod) -> proc_macro2::TokenStream
     quote! { #(#docs)* fn #name(#receiver, #(#parameters),*) -> ::core::result::Result<#output, #error>; }
 }
 
-/// Emits a checked codec from already classified value alternatives.
+/// Emits a checked codec from compiler-bound IDL value alternatives.
+/// This internal entrypoint accepts no arbitrary native Rust field syntax.
 /// `copied` requires self-contained wires; `nominal_fields` also requires their
 /// declaration metadata. Native application layout is never a wire substitute.
-pub fn emit_value(
+pub(crate) fn emit_value(
     name: &syn::Ident,
     vis: &syn::Visibility,
     cases: &[ValueCase],
