@@ -271,8 +271,11 @@ mod tests {
         consumers(&repository, &root, "0.0.0")?;
         let runner = Runner::new(root.canonicalize()?);
         let graph: serde_json::Value = serde_json::from_str(&runner.read(
-            "cargo",
+            "rustup",
             [
+                "run",
+                "stable",
+                "cargo",
                 "metadata",
                 "--format-version",
                 "1",

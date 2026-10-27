@@ -15,7 +15,8 @@ pub(crate) type Result<T> = std::result::Result<T, Box<dyn std::error::Error + S
 /// A source root and its explicit inherited child environment; never mutates globals.
 #[derive(Clone)]
 pub(crate) struct Runner {
-    /// Canonical working directory for Cargo and relative fixture inputs.
+    /// Working directory for Cargo and relative fixture inputs; copied source
+    /// roots are canonicalized during preparation, after receipt invalidation.
     pub root: PathBuf,
     /// Credentials/tool discovery survive; ambient compiler/loader policy does not.
     pub env: BTreeMap<OsString, OsString>,
@@ -181,7 +182,12 @@ pub(crate) fn copy_tree(source: &Path, destination: &Path) -> Result<()> {
 /// Own a complete source fixture, keeping compile-time embedded paths alive.
 /// Normal completion uses explicit close so cleanup failure prevents a green task.
 pub(crate) fn sources(runner: &Runner) -> Result<(TempDir, Runner)> {
-    let owner = runner.scratch("sources-")?;
+    let mut fixture = runner.clone();
+    fixture.root = runner
+        .root
+        .canonicalize()
+        .map_err(|error| format!("cannot prepare checkout {}: {error}", runner.root.display()))?;
+    let owner = fixture.scratch("sources-")?;
     for relative in [
         "crates",
         "schemas",
@@ -193,12 +199,11 @@ pub(crate) fn sources(runner: &Runner) -> Result<(TempDir, Runner)> {
         "examples/schemas",
         "docs",
     ] {
-        copy_tree(&runner.root.join(relative), &owner.path().join(relative))?;
+        copy_tree(&fixture.root.join(relative), &owner.path().join(relative))?;
     }
     for relative in ["README.md", "rustfmt.toml", "Cargo.lock", "Cargo.toml"] {
-        fs::copy(runner.root.join(relative), owner.path().join(relative))?;
+        fs::copy(fixture.root.join(relative), owner.path().join(relative))?;
     }
-    let mut fixture = runner.clone();
     fixture.root = owner.path().to_path_buf();
     fixture.env.insert("CARGO_TARGET_DIR".into(), fixture.root.join("target").into_os_string());
     fixture.temporary_files(fixture.root.join("tmp"))?;

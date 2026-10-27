@@ -23,7 +23,10 @@ fn main() {
 
 /// Parse a small fixed command surface before creating sources or starting builds.
 fn dispatch() -> Result<()> {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize()?;
+    // Locating the compiled-in checkout is purely lexical. Compatibility owns
+    // filesystem validation after it invalidates the caller's old receipt.
+    let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let root = manifest.parent().expect("tools directory").parent().expect("checkout directory").to_path_buf();
     let runner = Runner::new(root);
     let mut args = std::env::args_os().skip(1);
     let command = args.next().unwrap_or_else(|| "help".into());

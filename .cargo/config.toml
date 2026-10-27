@@ -2,5 +2,10 @@
 # Bootstrap the task runner without multiplying compiler jobs on small machines.
 jobs = 1
 
+[env]
+# Several tests spawn independent Cargo builds; parallel test cases multiply jobs.
+CARGO_BUILD_JOBS = { value = "1", force = true }
+RUST_TEST_THREADS = { value = "1", force = true }
+
 [alias]
 xtask = "run --locked --package xtask --"

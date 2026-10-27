@@ -986,16 +986,17 @@ Rust compilers, optimization, LTO and panic settings must not leak private Rust
 layout or allocator ownership across that boundary. This does not promise that
 old contract revisions or different architectures are interchangeable.
 
-[`scripts/compatibility.py`](../scripts/compatibility.py) owns the independent
-build and execution policy. It uses installed Rustup toolchains and Python 3.10+
-with only the standard library. An unpublished final test fixture owns its host
+The unpublished Rust [`xtask`](../tools/xtask/README.md) owns the independent
+build and execution policy using installed Rustup toolchains and the platform's
+native compiler/linker. An unpublished final test fixture owns its host
 implementation; no additional production registry is introduced. From the repository root, run:
 
 ```sh
-python3 scripts/compatibility.py --suite cross-version --report /tmp/com-cross.json
-python3 scripts/compatibility.py --suite build-flags --report /tmp/com-flags.json
-python3 scripts/compatibility.py --suite linked --report /tmp/com-linked.json
-python3 -m unittest discover -s scripts -p test_compatibility.py
+cargo xtask compatibility --suite cross-version --report com-cross.json
+cargo xtask compatibility --suite build-flags --report com-flags.json
+cargo xtask compatibility --suite linked --report com-linked.json
+cargo test -p xtask --locked
+cargo xtask workspace
 ```
 
 The matrix is deliberately explicit, rather than a claim that every possible
@@ -1025,7 +1026,7 @@ Rust 1.85 minimum. The Linux SDK job runs the floor suite sequentially:
 
 ```sh
 rustup toolchain install 1.85.0 --profile minimal
-bash scripts/test-msrv.sh
+cargo xtask msrv
 ```
 
 That suite checks all COM/IDL/inspector targets and features, library tests,
@@ -1096,15 +1097,17 @@ native NeoCogi provider library.
 
 ## Entry points, safety checks and CI
 
-The shell entry points `test-cross-version.sh`, `test-build-flags.sh`, and
-`test-linked-runtime.sh` select the corresponding driver suite. The linked
-PowerShell entry point selects the same suite and propagates its exit code.
-They accept driver arguments such as `--report`; there is no independent shell
-matrix or old arbitrary Cargo-argument forwarding to keep in sync.
+`cargo xtask compatibility --suite NAME` selects the same Rust-owned policy on
+Linux, macOS and Windows. `--report PATH` retains the invocation's evidence.
+The Python driver and shell/PowerShell entry points have been removed; tasks
+invoke subprocess argument vectors directly. Temporary sources, nested test
+scratch and targets live below the checkout's `target/xtask-work` directory and
+are explicitly retired before success. The runner forces one build job and one
+test thread in all children, including compiler-spawning tests.
 
-`test-safety.sh` selects `--suite safety`. It requires nightly with `miri` and
+`cargo xtask compatibility --suite safety` requires nightly with `miri` and
 `rust-src` installed. It discovers and interprets the COM core, runtime,
-and facade library tests, plus current `local_com`, `com_main`, `borrowed_values`,
+and facade library tests, plus current `local_com`, `com_main`, `borrowed_values`, `client_views`,
 `checked_values`, `output_buffers`, `output_completion`, `exclusive_com` and
 `weak_com` targets.
 Four explicit large-buffer stress cases remain native-only: the two checked-value
@@ -1119,7 +1122,7 @@ Final runtime test executables explicitly select their implementation because Mi
 cannot load native plugins.
 That is a different check from executing the real shared-library boundary.
 
-`test-sanitizers.sh` selects `--suite sanitizers`, executing address and then
+`cargo xtask compatibility --suite sanitizers` executes address and then
 thread instrumentation and failing on either error. The `address` and `thread`
 suites also run individually. These require nightly `rust-src` and
 `x86_64-unknown-linux-gnu`. Each rebuilds the standard library, runtime, host,
@@ -1127,7 +1130,7 @@ plugin and test harnesses under the same sanitizer. Instrumented executables
 export sanitizer hooks before linker section collection: a later-loaded plugin
 may need a hook that the host itself never called. Without that export,
 ThreadSanitizer tests could pass before plugin acquisition failed on an undefined
-`__tsan_atomic64_exchange`. The six runtime-free Rust targets and three intentionally
+`__tsan_atomic64_exchange`. The seven runtime-free Rust targets and three intentionally
 embedded library suites retain their ordinary mode under instrumentation. The
 two independent factory/persistence targets own their instrumented host runtime
 and run after build cleanup without any COM runtime library. The
@@ -1139,9 +1142,9 @@ and data-race checks remain enabled. Miri receives no suppression flags.
 
 ```sh
 rustup toolchain install nightly --component miri --component rust-src
-scripts/test-safety.sh --report /tmp/com-miri.json
-python3 scripts/compatibility.py --suite address --report /tmp/com-asan.json
-python3 scripts/compatibility.py --suite thread --report /tmp/com-tsan.json
+cargo xtask compatibility --suite safety --report com-miri.json
+cargo xtask compatibility --suite address --report com-asan.json
+cargo xtask compatibility --suite thread --report com-tsan.json
 ```
 
 Missing components, unsupported sanitizer targets, discovery mismatches and
@@ -1171,11 +1174,13 @@ including child-list deallocation through its original owning pointer.
 
 ## Published archive validation
 
-Run `bash scripts/test-packages.sh` with Rust 1.85 installed. It creates
+Run `cargo xtask packages` with Rust 1.85 installed. It creates
 real Cargo archives for the five SDK packages and inspector, extracts them into a
 fresh directory, and patches dependencies **only to those extracted archives**.
-Rust 1.85 checks all shipped targets and runs shipped executable tests and
-runnable documentation examples. An ordinary runtime build must produce its host
+The temporary workspace contains only extracted packages and downstream consumers;
+it inherits no package metadata from the checkout. Rust 1.85 checks all shipped
+targets and runs shipped executable tests and runnable documentation examples.
+An ordinary runtime build must produce its host
 rlib; no COM runtime shared library is deployed. One temporary shared target
 cache avoids retaining one copy per package and is removed after verification. The gate also builds a fresh consumer
 with `build.rs`, generates an interface and executes its checked COM call. Runtime

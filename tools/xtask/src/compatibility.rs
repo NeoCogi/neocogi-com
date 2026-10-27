@@ -34,6 +34,11 @@ pub(crate) const ABI_TESTS: &[(&str, &str)] = &[
     ),
 ];
 
+/// Select an exact maintained sentinel without depending on table order.
+pub(crate) fn abi_sentinel(name: &str) -> &'static str {
+    ABI_TESTS.iter().find(|(target, _)| *target == name).expect("maintained ABI target").1
+}
+
 /// One role's explicit code-generation policy, applied to all its dependencies.
 #[derive(Clone, Copy, Debug, Serialize)]
 pub(crate) struct Build {
@@ -621,7 +626,7 @@ fn safety(runner: &Runner) -> Result<Value> {
                 ],
             ),
         ];
-        let interfaces = [
+        let mut interfaces = vec![
             ("local_com", "local_and_foreign_calls_share_one_gate_and_one_model"),
             (
                 "com_main",
@@ -629,9 +634,21 @@ fn safety(runner: &Runner) -> Result<Value> {
             ),
             ("borrowed_values", "owned_message_outlives_producer_guard_and_source"),
         ];
-        for (name, sentinel) in interfaces.iter().chain(ABI_TESTS.iter().filter(|(name, _)| *name != "recursive_interfaces")) {
-            let mut required = vec![*sentinel];
-            if *name == "exclusive_com" {
+        // Keep the interpreter workload explicit: adding a native ABI target
+        // must not silently introduce native-only work or inflate Miri's matrix.
+        for name in [
+            "client_views",
+            "checked_values",
+            "output_buffers",
+            "output_completion",
+            "exclusive_com",
+            "weak_com",
+        ] {
+            interfaces.push((name, abi_sentinel(name)));
+        }
+        for (name, sentinel) in interfaces {
+            let mut required = vec![sentinel];
+            if name == "exclusive_com" {
                 required.push("thread_safe_owner_drop_waits_for_admitted_readers_and_writers");
             }
             targets.push((words(&["-p", "neocogi-com-tests", "--features", "runtime", "--test", name]), required));

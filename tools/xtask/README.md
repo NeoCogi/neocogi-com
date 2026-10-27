@@ -33,7 +33,9 @@ Tasks invoke argument vectors directly and never evaluate shell commands. The
 runner removes ambient compiler/profile/loader overrides, retains tool discovery
 and registry credentials, and forces `CARGO_BUILD_JOBS=1` and
 `RUST_TEST_THREADS=1` for every child. The checkout also bootstraps Cargo with
-one build job. No task runs concurrent compilers. CI has four jobs total.
+one build job and configures Cargo-launched tests to use one thread, so plain
+workspace test commands retain the same bound. No task runs concurrent compilers.
+CI has four jobs total.
 
 Each isolated task owns sources and targets below `target/xtask-work`, on the
 checkout's filesystem rather than a potentially memory-backed system temporary
@@ -53,7 +55,8 @@ inputs; no checkout SDK code supplies an archive dependency.
 Compatibility accepts `--report PATH`. Relative paths belong to the caller's
 working directory. Receipts record the selected compiler/panic/LTO policies,
 nonempty exact and complete test execution, and SHA-256 of relocated host test
-executables. A new invocation writes `running` before source preparation, then
+executables. A new invocation writes `running` before validating or copying its
+checkout, including when the binary's original checkout no longer exists, then
 `passed` only after every selected case and source teardown finish; failures
 write `failed`, retaining completed cases. An interruption leaves `running`,
 which is never success. Exit status is authoritative even if output contains a

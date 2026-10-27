@@ -50,7 +50,7 @@ restoration. The runtime-free [state schema](../com-host/support/extent_state.rs
 is shared as source between assemblies; dynamic host code links no provider just
 to obtain schema facts.
 
-The [compatibility driver](../../scripts/compatibility.py) builds the
+The Rust [compatibility task](../../tools/xtask/README.md) builds the
 host and providers independently with selected compiler/panic/LTO/layout policies,
 removes targets, and executes a relocated deployment. Its independent peer B
 publishes a host-visible marker and acquires A through supplied access. The host

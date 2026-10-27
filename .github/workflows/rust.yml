@@ -29,12 +29,15 @@ jobs:
           rustup toolchain install stable --profile minimal --component rustfmt --component clippy --component rust-src
           rustup toolchain install 1.85.0 --profile minimal
       - run: cargo fetch --locked
-      - name: Locked workspace and qualification-driver regressions
+      - name: Qualification driver regressions
         if: ${{ !cancelled() }}
-        run: python3 -m unittest discover -s scripts -p 'test_*.py'
+        run: cargo test -p xtask --locked
+      - name: Locked workspace and independent fixture graphs
+        if: ${{ !cancelled() }}
+        run: cargo xtask workspace
       - name: Formatting, Clippy, feature boundaries and strict documentation
         if: ${{ !cancelled() }}
-        run: bash scripts/test-quality.sh
+        run: cargo xtask quality
       - name: Complete workspace tests
         if: ${{ !cancelled() }}
         run: cargo test --workspace --all-features --locked
@@ -46,13 +49,13 @@ jobs:
         run: cargo clean
       - name: Rust 1.85 qualification
         if: ${{ !cancelled() }}
-        run: bash scripts/test-msrv.sh
+        run: cargo xtask msrv
       - name: Extracted crate archives and downstream consumer
         if: ${{ !cancelled() }}
-        run: bash scripts/test-packages.sh
+        run: cargo xtask packages
       - name: Relocated Linux providers and host runtime
         if: ${{ !cancelled() }}
-        run: python3 scripts/compatibility.py --suite linked
+        run: cargo xtask compatibility --suite linked
 
   linux-safety:
     name: Linux compiler policies and safety
@@ -66,16 +69,16 @@ jobs:
       - run: cargo fetch --locked
       - name: Independent compiler, panic, LTO and layout policies
         if: ${{ !cancelled() }}
-        run: python3 scripts/compatibility.py --suite build-flags
+        run: cargo xtask compatibility --suite build-flags
       - name: Miri ownership and raw-value checks
         if: ${{ !cancelled() }}
-        run: python3 scripts/compatibility.py --suite safety
+        run: cargo xtask compatibility --suite safety
       - name: AddressSanitizer across native plugin boundaries
         if: ${{ !cancelled() }}
-        run: python3 scripts/compatibility.py --suite address
+        run: cargo xtask compatibility --suite address
       - name: ThreadSanitizer across native plugin boundaries
         if: ${{ !cancelled() }}
-        run: python3 scripts/compatibility.py --suite thread
+        run: cargo xtask compatibility --suite thread
 
   macos:
     name: macOS native compatibility
@@ -84,8 +87,12 @@ jobs:
       - uses: actions/checkout@v6
       - run: rustup toolchain install stable --profile minimal
       - run: cargo fetch --locked
+      - name: Qualification driver regressions
+        if: ${{ !cancelled() }}
+        run: cargo test -p xtask --locked
       - name: Native linked qualification
-        run: python3 scripts/compatibility.py --suite linked --report "${{ runner.temp }}/com-linked-macos.json"
+        if: ${{ !cancelled() }}
+        run: cargo xtask compatibility --suite linked --report "${{ runner.temp }}/com-linked-macos.json"
       - name: Native inspector argument tests
         if: ${{ !cancelled() }}
         run: cargo test -p neocogi-inspect --bin neocogi-inspect --locked
@@ -104,8 +111,12 @@ jobs:
       - uses: actions/checkout@v6
       - run: rustup toolchain install stable --profile minimal
       - run: cargo fetch --locked
+      - name: Qualification driver regressions
+        if: ${{ !cancelled() }}
+        run: cargo test -p xtask --locked
       - name: Native linked qualification
-        run: python3 scripts/compatibility.py --suite linked --report "${{ runner.temp }}/com-linked-windows.json"
+        if: ${{ !cancelled() }}
+        run: cargo xtask compatibility --suite linked --report "${{ runner.temp }}/com-linked-windows.json"
       - name: Native inspector argument tests
         if: ${{ !cancelled() }}
         run: cargo test -p neocogi-inspect --bin neocogi-inspect --locked

@@ -292,8 +292,9 @@ objects through a typed factory and reconnects its application-defined observer.
 
 The [compatibility matrix](abi-v1.md#independent-build-compatibility) defines independent host/runtime and
 provider builds, mixed compiler/profile policies, relocated execution,
-and the separate Miri/sanitizer checks. One standard-library Python driver owns
-these checks; shell, PowerShell and CI entry points delegate to it. An ordinary
+and the separate Miri/sanitizer checks. One unpublished Rust
+[`xtask`](../tools/xtask/README.md) owns these checks on Linux, macOS and Windows;
+CI invokes the same Cargo commands. An ordinary
 `cargo build -p neocogi-com-runtime` produces its ordinary host rlib.
 `#[com_main]` initializes that implementation; dynamic and static providers share
 its registry through supplied C service tables. No runtime DSO or native bridge
@@ -302,21 +303,18 @@ monolithic builds.
 
 ## Checking the documentation
 
-The complete maintained quality gate is `bash scripts/test-quality.sh`.
+The complete maintained quality gate is `cargo xtask quality`.
 It checks workspace formatting, all SDK targets/features with strict Clippy,
 supported allocation modes, ABI snippets, local links and strict rustdoc. The COM
-CI job runs that same script without dropping dependency lint coverage. Native
+CI job runs that same task without dropping dependency lint coverage. Native
 backend and cross-platform driver checks retain their separate CI rows.
 
 Run these commands from the workspace root:
 
 ```sh
 cargo test -p neocogi-com-core -p neocogi-com --doc --all-features
-python3 scripts/check-markdown-links.py
-RUSTDOCFLAGS='-D warnings' cargo doc --no-deps --all-features \
-  -p neocogi-com-core -p neocogi-com -p neocogi-com-macros \
-  -p neocogi-com-runtime \
-  -p neocogi-idl
+cargo xtask markdown
+cargo xtask quality
 ```
 
 The facade's runnable README examples participate in doctests. Examples marked

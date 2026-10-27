@@ -34,8 +34,8 @@ notifications, persistence, and ownership checks. See the
 ## Independent builds
 
 ```sh
-python3 scripts/compatibility.py --suite linked
-python3 scripts/compatibility.py --suite build-flags
+cargo xtask compatibility --suite linked
+cargo xtask compatibility --suite build-flags
 ```
 
 The compatibility driver owns temporary source/build directories, compiles roles

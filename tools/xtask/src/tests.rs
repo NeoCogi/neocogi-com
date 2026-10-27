@@ -29,6 +29,7 @@ fn process_exit_precedes_output_admission() -> Result<()> {
 /// Exact semantic names and executed counts must survive ignored/filter cases.
 #[test]
 fn harness_admission_rejects_empty_substring_and_ignored_cases() -> Result<()> {
+    assert!(require_tests("0 tests", &[]).is_err());
     for listing in ["", "0 tests", "prefix_required: test", "required: benchmark"] {
         assert!(require_tests(listing, &["required"]).is_err());
     }
@@ -123,10 +124,23 @@ fn explicit_policy_removes_ambient_state_and_keeps_harness_last() -> Result<()> 
     let env = clean_environment(
         [
             ("PATH", "tools"),
+            ("CARGO", "stale"),
             ("RUSTC", "stale"),
+            ("RUSTUP_TOOLCHAIN", "stale"),
+            ("RUSTFLAGS", "stale"),
+            ("CARGO_ENCODED_RUSTFLAGS", "stale"),
             ("CARGO_TARGET_DIR", "stale"),
+            ("CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS", "stale"),
             ("CARGO_PROFILE_RELEASE_PANIC", "stale"),
+            ("CARGO_BUILD_TARGET", "stale"),
+            ("CARGO_BUILD_RUSTC", "stale"),
             ("LD_LIBRARY_PATH", "stale"),
+            ("DYLD_LIBRARY_PATH", "stale"),
+            ("MIRIFLAGS", "stale"),
+            ("MIRI_SYSROOT", "stale"),
+            ("ASAN_OPTIONS", "stale"),
+            ("LSAN_OPTIONS", "stale"),
+            ("TSAN_OPTIONS", "stale"),
             ("CARGO_BUILD_JOBS", "99"),
             ("RUST_TEST_THREADS", "99"),
         ]
@@ -158,6 +172,9 @@ fn explicit_policy_removes_ambient_state_and_keeps_harness_last() -> Result<()> 
         Some(Sanitizer::Thread),
         &["--list"],
     )?;
+    assert_eq!(&args[..3], words(&["run", "nightly", "cargo"]));
+    assert_eq!(args[args.iter().position(|word| word == "--profile").unwrap() + 1], "release");
+    assert_eq!(args[args.iter().position(|word| word == "--target").unwrap() + 1], "x86_64-unknown-linux-gnu");
     assert_eq!(&args[args.len() - 2..], words(&["--", "--list"]));
     assert!(args.iter().position(|s| s == "-Zbuild-std").unwrap() < args.iter().position(|s| s == "--").unwrap());
     assert!(args.contains(&OsString::from("target with spaces")));
@@ -203,6 +220,12 @@ fn cargo_artifacts_reject_missing_foreign_duplicate_and_renamed_roots() -> Resul
         }
         assert_eq!(admit(&records)?.len(), 2);
     }
+    let executable = std::path::Path::new(records[0]["executable"].as_str().unwrap());
+    let bytes = fs::read(executable)?;
+    fs::write(executable, b"")?;
+    assert!(admit(&records).is_err(), "empty executables are not build evidence");
+    fs::write(executable, bytes)?;
+    assert_eq!(admit(&records)?.len(), 2);
     assert!(admit(&records[..1]).is_err());
     let mut duplicates = records.clone();
     duplicates.push(records[0].clone());
@@ -311,4 +334,72 @@ fn owned_scratch_retires_after_success_and_failure() -> Result<()> {
     assert!(result.unwrap_err().to_string().contains("child failed"));
     assert!(!path.exists());
     Ok(())
+}
+
+/// A real filesystem teardown error cannot publish a green completed-case receipt.
+/// Replacing our empty scratch directory with a regular file makes remove_dir_all
+/// fail on every native platform without privileged permissions or subprocess mocks.
+#[test]
+fn filesystem_cleanup_failure_keeps_the_receipt_failed() -> Result<()> {
+    let outer = tempfile::tempdir()?;
+    let report = outer.path().join("receipt.json");
+    let options = Options {
+        suite: Suite::Linked,
+        report: Some(report.clone()),
+    };
+    for child_failed in [false, true] {
+        let owner = tempfile::tempdir_in(outer.path())?;
+        let path = owner.path().to_owned();
+        fs::remove_dir(&path)?;
+        fs::write(&path, b"deliberate cleanup failure")?;
+        let result = reported(&options, |cases| {
+            cases.push(json!({"status":"passed"}));
+            crate::process::retire(owner, if child_failed { Err("child failed".into()) } else { Ok(()) })
+        });
+        let error = result.unwrap_err().to_string();
+        assert!(error.contains("cleanup"));
+        assert_eq!(error.contains("child failed"), child_failed);
+        let receipt: Value = serde_json::from_slice(&fs::read(&report)?)?;
+        assert_eq!(receipt["status"], "failed");
+        assert_eq!(receipt["cases"].as_array().unwrap().len(), 1);
+        assert_eq!(receipt["error"], error);
+    }
+    Ok(())
+}
+
+/// A binary whose original checkout disappeared must invalidate old evidence.
+/// Build the actual CLI in owned scratch, retain its executable outside that
+/// checkout, then remove every original source and target before invoking it.
+#[test]
+fn standalone_cli_invalidates_receipts_before_validating_its_checkout() -> Result<()> {
+    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize()?;
+    let runner = Runner::new(repository.clone());
+    let outer = runner.scratch("missing-checkout-test-")?;
+    let source = tempfile::tempdir_in(outer.path())?;
+    crate::process::copy_tree(&repository.join("tools/xtask"), &source.path().join("tools/xtask"))?;
+    let mut manifest: toml::Value = toml::from_str(&fs::read_to_string(repository.join("Cargo.toml"))?)?;
+    manifest["workspace"]["members"] = toml::Value::Array(vec![toml::Value::String("tools/xtask".into())]);
+    fs::write(source.path().join("Cargo.toml"), toml::to_string(&manifest)?)?;
+    fs::copy(repository.join("Cargo.lock"), source.path().join("Cargo.lock"))?;
+    let mut arguments = words(&["run", "stable", "cargo", "build", "--offline", "-p", "xtask", "--manifest-path"]);
+    arguments.push(source.path().join("Cargo.toml").into_os_string());
+    arguments.push("--target-dir".into());
+    arguments.push(source.path().join("target").into_os_string());
+    runner.run("rustup", arguments)?;
+    let executable_name = format!("xtask{}", std::env::consts::EXE_SUFFIX);
+    let executable = outer.path().join(&executable_name);
+    fs::copy(source.path().join("target/debug").join(&executable_name), &executable)?;
+    let missing = source.path().to_owned();
+    source.close()?;
+    let receipt_path = outer.path().join("receipt.json");
+    fs::write(&receipt_path, "{\"status\":\"passed\"}")?;
+    let mut arguments = words(&["compatibility", "--suite", "linked", "--report"]);
+    arguments.push(receipt_path.clone().into_os_string());
+    assert!(runner.run(&executable, arguments).is_err());
+    let receipt: Value = serde_json::from_slice(&fs::read(&receipt_path)?)?;
+    assert_eq!(receipt["status"], "failed");
+    assert_eq!(receipt["cases"], json!([]));
+    assert!(!missing.exists(), "source validation must not recreate the removed checkout");
+    assert!(receipt["error"].as_str().unwrap().contains("cannot prepare checkout"));
+    crate::process::retire(outer, Ok(()))
 }

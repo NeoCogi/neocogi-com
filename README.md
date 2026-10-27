@@ -4,9 +4,9 @@ A standalone Rust workspace for NeoCogi's experimental component ABI, IDL
 compiler, object helpers, host runtime, and plugin inspection tools. Separately
 built components communicate through explicit C ABI contracts.
 
-Requires stable Rust 1.85 or newer. Native integration tests also require Python
-3.11+, a C compiler, and the platform linker. No UI or rendering libraries are
-part of this workspace.
+Requires stable Rust 1.85 or newer. Repository checks use the unpublished Rust
+[`xtask`](tools/xtask/README.md); native integration tests also require a C
+compiler and the platform linker.
 
 The checkout's Rust toolchain includes `rust-src` so compile-fail tests produce
 consistent standard-library diagnostics locally and in CI.
@@ -27,14 +27,14 @@ unpublished workspaces so they can exercise independent compiler builds.
 ```sh
 cargo test --workspace --all-features --locked
 cargo run -p neocogi-example-com-host --features monolith --locked
-bash scripts/test-quality.sh
-bash scripts/test-msrv.sh
-bash scripts/test-packages.sh
+cargo xtask quality
+cargo xtask msrv
+cargo xtask packages
 ```
 
-The package check builds the six actual crate archives, extracts them outside
-the source tree, runs their shipped tests on Rust 1.85, and executes a downstream
-consumer using only those extracted packages. Install that compiler with
+The package check builds the six actual crate archives, extracts them into an
+isolated temporary workspace, runs their shipped tests on Rust 1.85, and executes
+a downstream consumer using only those extracted packages. Install that compiler with
 `rustup toolchain install 1.85.0 --profile minimal`. The package check uses cached
 registry inputs; run `cargo fetch --locked` first on a fresh machine.
 

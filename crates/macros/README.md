@@ -133,6 +133,6 @@ and private native fields; no public field-resolution API is added.
 
 Executable package tests own their fixtures and ask Cargo for the actual core
 and facade package locations. They also run against extracted SDK archives;
-`bash scripts/test-packages.sh` supplies the matching SDK offline and
+`cargo xtask packages` supplies the matching SDK offline and
 checks all shipped test targets. Checkout-only integration suites remain in
 repository CI. See [archive validation](https://github.com/NeoCogi/neocogi-com/blob/master/docs/abi-v1.md#published-archive-validation).
