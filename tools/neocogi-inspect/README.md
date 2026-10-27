@@ -33,5 +33,13 @@ as breaking; plugin version text is diagnostic.
 
 Inspection maps trusted native code and can execute platform loader initializers.
 It never calls the factory bootstrap or recursively locates provider plugins.
+On Windows, paths select explicit files; bare names do not request PATH discovery.
+This open searches ordinary imports beside the selected DLL and in System32,
+subject to Windows module reuse/redirection. Colocate private native dependencies.
+Later provider loads and delay loads follow the provider's own policy. This is
+executable inspection, not a sandbox or publisher authentication. Successfully
+opened mappings stay pinned until the inspector exits; inspection errors remain
+recoverable. See the
+[native loading contract](https://github.com/NeoCogi/neocogi-com/blob/master/docs/abi-v1.md#runtime-and-global-registry).
 The [sample plugin](https://github.com/NeoCogi/neocogi-com/blob/master/examples/com-plugin/README.md) can be built and
 inspected with ordinary Cargo, without the assembly driver.

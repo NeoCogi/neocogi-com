@@ -616,10 +616,30 @@ per process.
 ## Runtime and global registry
 
 Native Rust loading and owned inspection reject an interior NUL before entering
-the platform loader. Windows checks the encoded UTF-16 path before LoadLibraryW;
+the platform loader. Windows checks the original native UTF-16 path before resolving it;
 Unix checks its byte path before dlopen. Both report the existing OpenLibrary
 phase. The facade's UTF-8 path adapter retains its invalid-argument rejection.
 Successfully opened native mappings remain process-pinned.
+
+On Windows, owned inspection, callback inspection and required loading share one
+opener. It rejects empty paths, qualifies the supplied filesystem path once with
+`std::path::absolute`, and calls `LoadLibraryExW` with
+`LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32`. There is no
+permissive retry or process-global search-directory change. Bare and relative
+paths select files relative to Windows' native path resolution; a bare name is
+not a request for PATH discovery. Ordinary imports for this open search the
+selected DLL's directory and System32, subject to normal Windows module reuse
+and redirection. Deploy private import dependencies beside the selected DLL.
+Application, user-added, current-working and PATH directories are excluded from
+this per-open search. The original caller spelling remains the diagnostic path
+and first-registration provenance; the temporary absolute path is not catalog state.
+
+Qualification does not canonicalize links, authenticate files or bind a checked
+file handle to an image. Later provider-issued `LoadLibrary*` calls and delay
+loads do not inherit these flags. Providers and their native dependencies remain
+trusted code. The low-level inspector accepts native `OsStr` paths; SDK UTF-8
+adapters retain their documented encoding restriction. Missing or unsupported
+native loads report `OpenLibrary` without broadening the search.
 
 ### One host, supplied access
 
@@ -1017,6 +1037,17 @@ factory/persistence suites through the independent
 [`host-runtime` final fixture](../tests/com/integration-tests/fixtures/host-runtime/Cargo.toml).
 The same case files are reused by the ordinary test roots. Each final executable
 explicitly owns its implementation; pure ABI tests enable no unused service clients.
+
+On Windows, `linked` also requires the exact
+`windows_native_paths_and_dependency_search_are_explicit` case and then the full
+`windows_plugin_paths` target. One fixture build per parent invocation supplies
+the genuinely imported helper and same-name alternative. Fresh bounded children
+test search layouts, native Unicode/NUL/empty/missing paths, callback inspection,
+and mandatory loading. Initializer marker positive/failure controls distinguish
+rejection from already-executed code; mandatory failure is compared with an
+isolated abort from the same test binary. Native Windows execution of this Rust
+loader suite is required for publication; cross-checking and Wine probes only
+provide supporting evidence.
 
 Exact names, nonempty execution and actual Cargo artifacts are checked. Installing
 nightly or finding a successfully compiled binary never passes a compatibility case.

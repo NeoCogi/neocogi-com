@@ -432,7 +432,7 @@ fn ordinary_tests(runner: &Runner, build: Build, target: &Path, native: &str, sa
         tests.push((
             "windows_plugin_paths".into(),
             words(&["test", "-p", "neocogi-com-tests", "--features", "runtime", "--test", "windows_plugin_paths"]),
-            vec!["embedded_nul_path_is_rejected_before_descriptor_getter"],
+            vec!["windows_native_paths_and_dependency_search_are_explicit"],
         ));
     }
     for (name, sentinel) in ABI_TESTS {

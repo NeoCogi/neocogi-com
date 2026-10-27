@@ -2,6 +2,10 @@
 mod test_fixtures;
 /// Generates checkout-owned fixtures and examples independently of runtime linkage.
 fn main() {
+    // Runtime-built Windows dependency fixtures use the same compiler target as
+    // this test owner; Cargo does not expose build-script variables to tests.
+    println!("cargo:rustc-env=NC_COM_TEST_TARGET={}", std::env::var("TARGET").unwrap());
+    println!("cargo:rustc-env=NC_COM_TEST_HOST={}", std::env::var("HOST").unwrap());
     // Contract generation runs on the build machine. Emitted ABI/codec Rust
     // needs no procedural macro feature or linked runtime in the target.
     for name in ["calculator", "tree", "tagged_objects", "strings_and_bytes", "query_cost"] {

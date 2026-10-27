@@ -38,6 +38,13 @@ import library or COM loader environment is needed. macOS uses `.dylib` and Wind
 uses `.dll`; ordinary system dependencies still apply. `--release` selects
 `target/release` for both commands.
 
+On Windows, ordinary imports for the provider open search beside the selected
+DLL and in System32, subject to Windows module reuse/redirection. Place private
+native dependencies beside the provider; CWD and PATH are not deployment search
+directories. Relative paths select explicit files and are resolved once. Later
+provider-issued loads and delay loads retain their own policy. The provider and
+its native dependencies must be trusted; inspection also executes loader code.
+
 For a static provider:
 
 ```sh

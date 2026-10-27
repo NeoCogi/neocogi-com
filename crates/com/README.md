@@ -264,6 +264,15 @@ first registration and origin; conflicting providers are rejected. See
 Inspection is a separate operation that can report errors without registering
 or acquiring a plugin factory. Its fallible result does not make live loading optional.
 
+With `neocogi-com-host` on Windows, supply an explicit filesystem path. Relative
+paths are resolved once; bare names do not request PATH discovery. Ordinary
+imports for this open search the selected DLL directory and System32, subject to
+Windows module reuse/redirection. Deploy private dependencies beside the DLL.
+Later provider-issued loads and delay loads have their own search policy.
+The SDK requires UTF-8 paths and preserves the original spelling as provenance.
+Both the provider and its native dependencies remain trusted code; see the
+[loading contract](https://github.com/NeoCogi/neocogi-com/blob/master/docs/abi-v1.md#runtime-and-global-registry).
+
 For static assemblies, register the descriptor before using the same typed
 acquisition method:
 

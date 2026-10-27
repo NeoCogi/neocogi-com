@@ -1,0 +1,12 @@
+[workspace]
+[package]
+name = "nc-windows-loader-policy-fixture"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+neocogi-com-core = { path = "../../../../../crates/core" }

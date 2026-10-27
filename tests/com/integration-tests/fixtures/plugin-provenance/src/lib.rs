@@ -39,11 +39,6 @@ pub unsafe extern "C" fn nc_get_plugin_descriptor_v1(out: *mut *const NcPluginDe
     if out.is_null() {
         return NC_E_POINTER;
     }
-    // Instrument discovery outside DLL initialization/loader-lock callbacks.
-    // The Windows path regression supplies a unique external marker per child.
-    if let Some(marker) = std::env::var_os("NC_COM_WINDOWS_PATH_MARKER") {
-        std::fs::write(marker, b"descriptor getter entered").unwrap();
-    }
     // SAFETY: The loader provides one output slot; metadata remains mapped.
     unsafe { *out = &DESCRIPTION };
     NC_OK
