@@ -52,6 +52,20 @@ errors. It exposes plugin/factory data, not a runtime inventory of contract
 declarations. Static registration and later factory calls retain their existing
 status-returning contracts; they are separate operations from live loading.
 
+On Windows, all three loading/inspection paths resolve the caller's filesystem
+path once and use `LoadLibraryExW` with
+`LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32`. Deploy private
+ordinary import dependencies beside the selected DLL. This open excludes
+application, user-added, CWD and PATH search directories, without changing global
+process policy or retrying with broader flags. Windows module reuse/redirection
+still applies; later provider-issued loads and delay loads retain their own
+policy. Bare names select CWD-relative files rather than requesting PATH lookup.
+The caller's original path remains in errors and first-registration provenance.
+Native inspection accepts UTF-16 paths; SDK path adapters require UTF-8. Paths
+and ABI identities do not authenticate native code: providers and their native
+dependencies must be trusted. See the
+[native loading contract](https://github.com/NeoCogi/neocogi-com/blob/master/docs/abi-v1.md#runtime-and-global-registry).
+
 [Runtime ABI v1](https://github.com/NeoCogi/neocogi-com/blob/master/docs/abi-v1.md#runtime-and-global-registry) has three C tables:
 complete plugin operations, diagnostics and persistence. Plugin lookup and
 enumeration share one projection containing identity, factory and dependencies. Loading

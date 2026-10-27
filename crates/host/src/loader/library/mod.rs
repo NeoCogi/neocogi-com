@@ -1,6 +1,6 @@
 //! Platform-neutral dynamic-library handle abstraction.
 //!
-//! Conditional modules wrap Unix `dlopen`, Windows `LoadLibraryW`, or a clear
+//! Conditional modules wrap Unix `dlopen`, Windows `LoadLibraryExW`, or a clear
 //! unsupported-platform error behind one `DynamicLibrary` API. Loaded plugin
 //! handles are pinned for the process lifetime because native COM vtables
 //! and type descriptors remain embedded in their code and data segments.

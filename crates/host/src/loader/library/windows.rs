@@ -1,7 +1,9 @@
 //! Windows dynamic-library loading through the Kernel32 loader APIs.
 //!
-//! Rust paths are encoded as NUL-terminated UTF-16 for `LoadLibraryW`; exported
-//! symbol names use NUL-terminated bytes for `GetProcAddress`. Successful module
+//! Explicit filesystem paths are qualified once and encoded as UTF-16 for
+//! `LoadLibraryExW`. This open's ordinary imports search only the selected DLL
+//! directory and System32, subject to Windows module reuse/redirection. Later
+//! native and delay loads retain the trusted provider's own policy. Successful
 //! handles remain process-pinned; dropping the wrapper does not free the module.
 
 use core::ffi::{c_char, c_void};
@@ -15,15 +17,20 @@ use std::vec::Vec;
 
 use super::{Error, PluginLoadErrorKind};
 
-/// Opaque module handle returned by `LoadLibraryW`.
+/// Opaque module handle returned by the Windows native loader.
 type Hmodule = *mut c_void;
 /// Untyped exported procedure address returned by `GetProcAddress`.
 type Farproc = *mut c_void;
 
+/// Search the selected DLL directory for this open's import dependencies.
+const LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR: u32 = 0x0000_0100;
+/// Search the OS directory without adding application, user, CWD or PATH entries.
+const LOAD_LIBRARY_SEARCH_SYSTEM32: u32 = 0x0000_0800;
+
 #[link(name = "kernel32")]
 unsafe extern "system" {
-    /// Opens a module identified by a NUL-terminated UTF-16 path.
-    fn LoadLibraryW(lpLibFileName: *const u16) -> Hmodule;
+    /// Opens one qualified UTF-16 path with an explicit per-call import search.
+    fn LoadLibraryExW(lpLibFileName: *const u16, hFile: *mut c_void, dwFlags: u32) -> Hmodule;
     /// Resolves one NUL-terminated exported symbol name.
     fn GetProcAddress(hModule: Hmodule, lpProcName: *const c_char) -> Farproc;
     /// Returns the calling thread's latest Windows error code.
@@ -36,7 +43,7 @@ unsafe extern "system" {
 /// dynamic unloading while references or static descriptors exist causes memory
 /// faults. The handle is process-pinned and deliberately not freed on drop.
 pub(in crate::loader) struct DynamicLibrary {
-    /// Native handle returned by `LoadLibraryW`.
+    /// Native handle returned by the successful native open.
     handle: NonNull<c_void>,
 }
 
@@ -47,20 +54,42 @@ unsafe impl Send for DynamicLibrary {}
 unsafe impl Sync for DynamicLibrary {}
 
 impl DynamicLibrary {
-    /// Opens a Windows library path after UTF-16 encoding.
+    /// Resolves an explicit filesystem path and opens it without ambient search.
+    /// Original caller spelling remains with the outer error/provenance owner;
+    /// neither this temporary absolute path nor its UTF-16 buffer is retained.
     pub(in crate::loader) fn open(path: &Path) -> Result<Self, Error> {
-        let mut wide: Vec<u16> = path.as_os_str().encode_wide().collect();
-        // Reject before entering the native loader: otherwise LoadLibraryW
-        // silently opens the prefix before the first zero, including DLL code.
-        if wide.contains(&0) {
+        if path.as_os_str().is_empty() {
+            return Err(Error {
+                kind: PluginLoadErrorKind::OpenLibrary,
+                message: "library path is empty".to_string(),
+            });
+        }
+        // Check the original native spelling before resolving it: a terminator
+        // must never turn an explicitly selected path into a different image.
+        if path.as_os_str().encode_wide().any(|unit| unit == 0) {
             return Err(Error {
                 kind: PluginLoadErrorKind::OpenLibrary,
                 message: "library path contains an interior NUL code unit".to_string(),
             });
         }
+        // Qualification does not access the filesystem or resolve links. The
+        // native loader remains the authority for missing/unloadable images.
+        let absolute = std::path::absolute(path).map_err(|error| Error {
+            kind: PluginLoadErrorKind::OpenLibrary,
+            message: format!("cannot resolve library path: {error}"),
+        })?;
+        let mut wide: Vec<u16> = absolute.as_os_str().encode_wide().collect();
         wide.push(0);
-        // SAFETY: `wide` is a NUL-terminated UTF-16 path.
-        let handle = unsafe { LoadLibraryW(wide.as_ptr()) };
+        // SAFETY: wide owns a terminated native path for the entire call, the
+        // reserved handle is null, and the flags constrain this open only.
+        // No fallback or process-global directory mutation broadens the policy.
+        let handle = unsafe {
+            LoadLibraryExW(
+                wide.as_ptr(),
+                core::ptr::null_mut(),
+                LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32,
+            )
+        };
         NonNull::new(handle).map(|handle| Self { handle }).ok_or_else(|| Error {
             kind: PluginLoadErrorKind::OpenLibrary,
             message: last_error(),
