@@ -9,10 +9,17 @@ use std::{
 use crate::resolve_modules;
 
 #[cfg(test)]
+mod output_admission_tests;
+#[cfg(test)]
+mod test_support;
+#[cfg(test)]
 mod worker_failure_tests;
 use serde::{Deserialize, Serialize};
 
-use crate::generate::{RustModulePaths, generate_rust_with_paths_and_source_map};
+use crate::generate::RustModulePaths;
+
+mod emission;
+use emission::generate_module_emission;
 
 mod source;
 mod source_map;
@@ -78,6 +85,8 @@ impl Module {
     /// Cargo invokes this from the contract crate's `build.rs`. The crate must
     /// declare the exact conventionally derived `links` value; this prevents a
     /// package from advertising another module's generated artifacts.
+    /// Generation and graph encoding precede output work. Physical provenance
+    /// finishing and publication are fallible filesystem operations, not a transaction.
     pub fn build(self) -> Result<BuildOutput, BuildError> {
         let manifest_dir = required_path("CARGO_MANIFEST_DIR")?;
         let output_dir = required_path("OUT_DIR")?;
@@ -199,11 +208,10 @@ impl Module {
                 .route_dependency(&resolved, &module, provider)
                 .map_err(|source| BuildError::Idl(source.to_string()))?;
         }
-        let output = write_module_bindings(
+        let emission = generate_module_emission(
             &resolved,
             &module_name,
             &paths,
-            &source_roots,
             &output_dir,
             &own_module.name.segments().join("_"),
             &format!(
@@ -222,6 +230,7 @@ impl Module {
             source: source_error,
         })?;
         let graph_path = output_dir.join("neocogi-idl-graph.json");
+        let output = emission.write(&graph.source_roots, &resolved, &output_dir)?;
         write_changed(&graph_path, &graph_bytes)?;
 
         println!("cargo::metadata=idl_graph={}", graph_path.display());
@@ -233,73 +242,6 @@ impl Module {
 
         Ok(output)
     }
-}
-
-/// Emits one admitted module using the same binding, include and provenance layout
-/// for packaged dependency graphs and independently compiled shared sources.
-fn write_module_bindings(
-    resolved: &crate::ResolvedModules,
-    module_name: &str,
-    paths: &RustModulePaths,
-    source_roots: &BTreeMap<String, PathBuf>,
-    output_dir: &Path,
-    stem: &str,
-    ownership_note: &str,
-) -> Result<BuildOutput, BuildError> {
-    let resolved_module = resolved
-        .module(module_name)
-        .ok_or_else(|| BuildError::Idl(format!("resolved graph lost module {module_name:?}")))?;
-    let mut bindings = generate_rust_with_paths_and_source_map(resolved, module_name, paths).map_err(|source| BuildError::Idl(source.to_string()))?;
-    let generated_file = format!("{stem}.rs");
-    let bindings_path = output_dir.join(&generated_file);
-    // The filesystem writer owns physical naming; the pure generator's default
-    // logical-name stem is only a placeholder until this output is selected.
-    bindings.source_map.generated_file = generated_file;
-    let include_path = output_dir.join(format!("{stem}.include.rs"));
-    let source_map_path = output_dir.join(format!("{stem}.rs.map"));
-    source_map::resolve_locations(&mut bindings.source_map, output_dir, source_roots, resolved)?;
-    let map_bytes = serde_json::to_vec_pretty(&bindings.source_map).map_err(|source_error| BuildError::Json {
-        operation: "encode Rust source map",
-        path: source_map_path.clone(),
-        source: source_error,
-    })?;
-    write_changed(&bindings_path, bindings.source.as_bytes())?;
-    write_changed(&source_map_path, &map_bytes)?;
-    // Only this small entry is macro-included. A normal Rust module gives
-    // attribute-macro definitions an actual source file for IDE navigation.
-    // Its relative path also keeps the pair relocatable within OUT_DIR.
-    // Explicit imports retain their original precedence over consumer glob
-    // re-exports. In particular, another contract's module metadata must not
-    // make this contract's MODULE_ID, ABI_FINGERPRINT or dependency routes
-    // ambiguous.
-    let explicit_exports = std::iter::once("MODULE_ID, ABI_FINGERPRINT, MODULE_NAME".to_owned())
-        .chain(resolved_module.source.imports.iter().map(|import| import.name.clone()))
-        .chain(paths.dependency_namespace().map(|name| name.to_string()))
-        .collect::<Vec<_>>()
-        .join(", ");
-    let entry = format!(
-        "// Generated module entry for IDL module `{module_name}`.\n\
-             {ownership_note}\n\
-             // The generated filename below is local to this package, not a global identity.\n\
-             #[path = \"{stem}.rs\"]\n\
-             mod __nc_idl_{stem};\n\
-             // Preserve the public surface, including in private consumer modules.\n\
-             #[allow(unused_imports)]\n\
-             pub use self::__nc_idl_{stem}::*;\n\
-             #[allow(unused_imports)]\n\
-             pub use self::__nc_idl_{stem}::{{{explicit_exports}}};\n"
-    );
-    write_changed(&include_path, entry.as_bytes())?;
-
-    Ok(BuildOutput {
-        module_name: module_name.to_owned(),
-        module_id: resolved_module.module_id,
-        abi_fingerprint: resolved_module.abi_fingerprint,
-        bindings: bindings_path,
-        include: include_path,
-        source_map: source_map_path,
-        dependency_graph: output_dir.join("neocogi-idl-graph.json"),
-    })
 }
 
 /// Deterministic outputs owned by one successful contract build script.

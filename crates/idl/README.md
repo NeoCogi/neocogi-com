@@ -104,6 +104,12 @@ Existing inputs and directory membership are tracked by Cargo. Absent candidate
 paths watch their nearest existing source directory, so unchanged builds stay
 cached while added source parts or competing owners invalidate both consumers.
 
+Both Cargo builders finish all requested Rust generation and encode the source
+graph before creating or changing generated output. A rejected complete public
+Rust path or generation-worker start therefore preserves prior output, including
+bundled navigation copies. Filesystem provenance finishing and publication are
+later fallible operations and do not promise rollback on IO failure.
+
 No `links`, contract package, runtime state or `DEP_*` variable is needed.
 
 Independent generation produces distinct Rust types with the same physical ABI,

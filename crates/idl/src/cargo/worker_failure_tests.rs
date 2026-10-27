@@ -1,14 +1,7 @@
 //! Unit-test children exercise real Cargo build admission without production controls.
-use std::{
-    collections::BTreeMap,
-    error::Error,
-    ffi::OsString,
-    fs, io,
-    path::{Path, PathBuf},
-    process::Command,
-};
+use std::{error::Error, fs, io, path::PathBuf, process::Command};
 use crate::{ModuleGraphError, ParseError, syntax::failure};
-use super::{BuildError, Module, contract_links_name};
+use super::{BuildError, Module, contract_links_name, test_support::snapshot};
 
 /// Selects one private child; never read by an ordinary IDL dependency build.
 const CASE: &str = "NEOCOGI_IDL_UNIT_BUILD_FAILURE";
@@ -16,17 +9,6 @@ const CASE: &str = "NEOCOGI_IDL_UNIT_BUILD_FAILURE";
 const TEST: &str = "cargo::worker_failure_tests::bundled_worker_failure_preserves_artifacts_and_metadata";
 /// Written only after the child has checked the typed failure and unchanged files.
 const OBSERVED: &str = "observed bundled worker rejection";
-
-/// Captures every file, including unrelated sentinels, rather than only the .rs output.
-fn snapshot(directory: &Path) -> BTreeMap<OsString, Vec<u8>> {
-    fs::read_dir(directory)
-        .unwrap()
-        .map(|entry| {
-            let entry = entry.unwrap();
-            (entry.file_name(), fs::read(entry.path()).unwrap())
-        })
-        .collect()
-}
 
 /// Identification and record parsing succeed; bundled admission returns before all writes.
 #[test]

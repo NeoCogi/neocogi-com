@@ -6,7 +6,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use super::{BuildError, BuildOutput, GraphModule, GraphRecord, GRAPH_SCHEMA, ModuleSources, required_path, write_changed, write_module_bindings};
+use super::{BuildError, BuildOutput, GraphModule, GraphRecord, GRAPH_SCHEMA, ModuleSources, required_path, write_changed, generate_module_emission};
 use crate::generate::RustModulePaths;
 
 /// Generates selected modules directly from shared IDL namespace trees.
@@ -34,7 +34,8 @@ pub struct SharedSources {
 struct Binding {
     /// Exact dotted IDL module name; also determines its source path.
     module: String,
-    /// Validated by the generator before any output is written.
+    /// Owner prefix is admitted at registration; completed metadata paths are
+    /// checked during whole-request generation, before filesystem finishing.
     rust_path: String,
     /// Whether this consumer emits the module rather than importing Rust types.
     emission: Emission,
@@ -95,6 +96,8 @@ impl SharedSources {
 
     /// Builds from Cargo's manifest directory into this consumer's `OUT_DIR`.
     /// Emits source rerun instructions, but no Cargo ownership metadata.
+    /// All requested generation and graph encoding complete before output work;
+    /// filesystem finishing and publication can still fail with partial effects.
     pub fn build(self) -> Result<Vec<BuildOutput>, BuildError> {
         let manifest = required_path("CARGO_MANIFEST_DIR")?;
         let roots = self.roots.iter().map(|root| manifest.join(root)).collect::<Vec<_>>();
@@ -102,7 +105,8 @@ impl SharedSources {
     }
 
     /// Generates at explicit paths, with no dependency on process environment.
-    /// All source/path/graph admission completes before generated output changes.
+    /// All source admission, generation and graph encoding precede output work.
+    /// Physical provenance finishing and publication remain fallible filesystem phases.
     fn build_at(&self, source_roots: &[PathBuf], output: &Path) -> Result<Vec<BuildOutput>, BuildError> {
         let mut paths = RustModulePaths::default();
         let mut local = BTreeSet::new();
@@ -154,12 +158,7 @@ impl SharedSources {
                     .map_err(|error| BuildError::Idl(error.to_string()))?;
             }
         }
-        fs::create_dir_all(output).map_err(|source| BuildError::Io {
-            operation: "create generated output directory",
-            path: output.to_owned(),
-            source,
-        })?;
-        let mut results = Vec::new();
+        let mut emissions = Vec::new();
         for name in local {
             // Module UUIDs are already the canonical logical identity. Bounded,
             // lowercase filenames distinguish separator/case variants on Windows.
@@ -172,11 +171,10 @@ impl SharedSources {
                     .to_string()
                     .replace('-', "")
             );
-            results.push(write_module_bindings(
+            emissions.push(generate_module_emission(
                 &resolved,
                 &name,
                 &paths,
-                &roots,
                 output,
                 &stem,
                 "// Consumer-owned bindings from shared IDL sources; no Cargo links owner.",
@@ -203,6 +201,15 @@ impl SharedSources {
             path: path.clone(),
             source,
         })?;
+        fs::create_dir_all(output).map_err(|source| BuildError::Io {
+            operation: "create generated output directory",
+            path: output.to_owned(),
+            source,
+        })?;
+        let results = emissions
+            .into_iter()
+            .map(|emission| emission.write(&graph.source_roots, &resolved, output))
+            .collect::<Result<Vec<_>, _>>()?;
         write_changed(&path, &bytes)?;
         Ok(results)
     }
