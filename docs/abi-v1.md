@@ -589,7 +589,7 @@ protocol; its concrete T and native wrapper do not cross the ABI.
 
 ## Fixed byte-copy primitives
 
-`INcBytes::copy_to` and `INcString::copy_utf8_to` retain their exact-range
+`INcBytes::copy_to` and `INcString::copy_to` retain their exact-range
 `offset, length, pointer` slots and `NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET` (`0x04`).
 These built-in contracts copy a prescribed number of unrestricted bytes or fail.
 They have never interpreted old bytes as input, need no enum conversion, and do
@@ -1168,8 +1168,15 @@ The ordinary COM job also runs facade/runtime library tests in release mode.
 Strong-only retain exhaustion formerly returned uncounted owners only when debug
 assertions were disabled, so debug tests alone cannot prevent its recurrence.
 Both profiles exercise injected counter limits and native subprocess termination
-through byte/string/list `Clone` and `QueryInterface` entrypoints. Miri skips those
-process-abort cases and interprets the ordinary count/final-destruction tests,
+through authentic typed byte/string `Clone`, the actual provider C
+`QueryInterface` slots, and the child-list entrypoints. Byte queries cover IUnknown
+and INcBytes; string queries cover IUnknown, INcString and INcBytes. Each success
+branch must independently retain before publishing its projection. Same-contract
+`ComPtr::query` legitimately uses AddRef and is not evidence that a provider query
+slot was exercised. Portable ordinary and last-available-count controls check the
+returned contract/object, exactly one retain, balanced query release, a usable
+original and final release after restoring synthetic counts. Miri skips the
+process-abort cases and interprets those count/final-destruction tests,
 including child-list deallocation through its original owning pointer.
 
 ## Published archive validation
