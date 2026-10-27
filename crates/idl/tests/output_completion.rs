@@ -15,7 +15,7 @@ fn generated_consuming_outputs_prepare_before_acceptance() {
         project.path().join("Cargo.toml"),
         format!(
             "[package]\nname='output-completion-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\n",
-            root.join("crates/api"),
+            root.join("crates/com"),
         ),
     )
     .unwrap();

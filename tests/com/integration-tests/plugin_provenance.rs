@@ -61,7 +61,7 @@ fn native_plugin_origin_is_atomic_idempotent_and_process_pinned() {
     let mut raw_id = NcGuid::nil();
     // SAFETY: The v1 table is linked from this checkout. Path bytes and output
     // storage remain live for the synchronous ABI call.
-    let status = unsafe { ((*nc_com::initialize_process().runtime).load_plugin_library_utf8)(bytes.as_ptr(), bytes.len(), &mut raw_id) };
+    let status = unsafe { ((*neocogi_com_host::initialize_process().runtime).load_plugin_library_utf8)(bytes.as_ptr(), bytes.len(), &mut raw_id) };
     assert_eq!(status, NC_OK);
     assert_eq!(raw_id, id);
     let info = runtime.plugin_info(id).unwrap().unwrap();
@@ -111,10 +111,10 @@ fn build_library() -> PathBuf {
 }
 
 // This final test executable owns its isolated process runtime.
-extern crate nc_com as _;
+extern crate neocogi_com_host as _;
 
 /// Initializes this final test executable's selected host and admits its static tables.
 fn host_runtime() -> neocogi_com::Runtime {
     // SAFETY: the explicit implementation owns its complete process-lived graph.
-    unsafe { neocogi_com::Runtime::__from_host_api(nc_com::initialize_process()) }.expect("test host API is compatible")
+    unsafe { neocogi_com::Runtime::__from_host_api(neocogi_com_host::initialize_process()) }.expect("test host API is compatible")
 }

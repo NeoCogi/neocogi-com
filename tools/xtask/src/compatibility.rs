@@ -439,7 +439,7 @@ fn ordinary_tests(runner: &Runner, build: Build, target: &Path, native: &str, sa
         tests.push(((*name).into(), words(&["test", "-p", "neocogi-com-tests", "--test", name]), vec![sentinel]));
     }
     if sanitizer.is_some() {
-        for package in ["neocogi-com-core", "neocogi-com-runtime", "neocogi-com"] {
+        for package in ["neocogi-com-core", "neocogi-com-host", "neocogi-com"] {
             let mut args = words(&["test", "-p", package, "--lib"]);
             match package {
                 "neocogi-com-core" => args.extend(words(&["--features", "std"])),
@@ -624,7 +624,7 @@ fn safety(runner: &Runner) -> Result<Value> {
                 vec!["abi::array_tests::array_signature_matches_known_sha256_and_distinguishes_shapes"],
             ),
             (
-                words(&["-p", "neocogi-com-runtime", "--lib"]),
+                words(&["-p", "neocogi-com-host", "--lib"]),
                 vec!["loader::plan::tests::orders_dependencies_before_dependents_deterministically"],
             ),
             (

@@ -232,7 +232,7 @@ mod failed_root {
     fn acquisition_clears_output_before_failure_and_normalizes_status() {
         let acquire = plugin_descriptor().acquire.unwrap();
         // SAFETY: null is a supported defensive ABI input.
-        assert_eq!(unsafe { acquire(nc_com::initialize_process(), core::ptr::null_mut()) }, NC_E_POINTER);
+        assert_eq!(unsafe { acquire(neocogi_com_host::initialize_process(), core::ptr::null_mut()) }, NC_E_POINTER);
         assert_eq!(CALLED.load(Ordering::SeqCst), 0);
         // Host admission also precedes provider entry and clears stale output.
         let mut rejected = ComRaw::<IUnknown> {
@@ -243,7 +243,7 @@ mod failed_root {
         assert_eq!(unsafe { acquire(core::ptr::null(), &mut rejected) }, NC_E_POINTER);
         assert!(rejected.is_null());
         assert_eq!(CALLED.load(Ordering::SeqCst), 0);
-        let mut incompatible = *nc_com::initialize_process();
+        let mut incompatible = *neocogi_com_host::initialize_process();
         incompatible.runtime_abi_version += 1;
         // SAFETY: Readable unsupported prefix; all child tables remain static.
         assert_eq!(unsafe { acquire(&incompatible, &mut rejected) }, neocogi_com::NC_E_ABI_VERSION);
@@ -254,7 +254,7 @@ mod failed_root {
             vtable: core::ptr::dangling(),
         };
         // SAFETY: output storage is valid; the stale pair is never dereferenced.
-        assert!(unsafe { acquire(nc_com::initialize_process(), &mut out) }.is_err());
+        assert!(unsafe { acquire(neocogi_com_host::initialize_process(), &mut out) }.is_err());
         assert!(out.is_null());
         assert_eq!(CALLED.load(Ordering::SeqCst), 1);
     }
@@ -263,5 +263,5 @@ mod failed_root {
 /// Initializes this final test executable's selected host and admits its static tables.
 fn host_runtime() -> neocogi_com::Runtime {
     // SAFETY: the explicit implementation owns its complete process-lived graph.
-    unsafe { neocogi_com::Runtime::__from_host_api(nc_com::initialize_process()) }.expect("test host API is compatible")
+    unsafe { neocogi_com::Runtime::__from_host_api(neocogi_com_host::initialize_process()) }.expect("test host API is compatible")
 }

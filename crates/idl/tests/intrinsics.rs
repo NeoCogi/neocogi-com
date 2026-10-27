@@ -95,7 +95,7 @@ fn copied_arrays_compile_and_cross_real_com_thunks() {
         project.path().join("Cargo.toml"),
         format!(
             "[package]\nname='array-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\n",
-            root.join("crates/api")
+            root.join("crates/com")
         ),
     )
     .unwrap();

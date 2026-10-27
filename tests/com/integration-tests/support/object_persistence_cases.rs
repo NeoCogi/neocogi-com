@@ -65,7 +65,7 @@ fn exclusive_snapshot_returns_status_before_getters_and_preserves_owner() {
     );
     // SAFETY: The linked runtime table is process-lived. The live owner protects
     // identity, and the callback receives one exclusive local counter for this call.
-    let api = unsafe { nc_com::initialize_process().persistence.as_ref() }.unwrap();
+    let api = unsafe { neocogi_com_host::initialize_process().persistence.as_ref() }.unwrap();
     let mut deliveries = 0usize;
     let status = unsafe {
         (api.snapshot)(
@@ -112,7 +112,7 @@ impl IPersistenceFactory for ExclusiveFactory {
 fn raw_factory_registration_rejects_exclusive_projection_without_mutation() {
     let owner = ExclusiveFactory::into_box(ExclusiveFactory).query::<IPersistenceFactoryAbi>().unwrap();
     // SAFETY: The linked runtime lends an immutable table for the process lifetime.
-    let api = unsafe { nc_com::initialize_process().persistence.as_ref() }.unwrap();
+    let api = unsafe { neocogi_com_host::initialize_process().persistence.as_ref() }.unwrap();
     let mut context = core::ptr::null_mut();
     // SAFETY: Fresh local output; all context operations remain sequential on this thread.
     assert_eq!(unsafe { (api.create_context)(&mut context) }, neocogi_com::NC_OK);
@@ -446,5 +446,5 @@ mod snapshot_identity;
 /// Initializes this final test executable's selected host and admits its static tables.
 fn host_runtime() -> neocogi_com::Runtime {
     // SAFETY: the explicit implementation owns its complete process-lived graph.
-    unsafe { neocogi_com::Runtime::__from_host_api(nc_com::initialize_process()) }.expect("test host API is compatible")
+    unsafe { neocogi_com::Runtime::__from_host_api(neocogi_com_host::initialize_process()) }.expect("test host API is compatible")
 }

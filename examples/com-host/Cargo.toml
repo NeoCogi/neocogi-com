@@ -12,7 +12,7 @@ monolith = ["dep:neocogi-example-com-plugin"]
 
 [dependencies]
 neocogi-com = { workspace = true, features = ["macros", "runtime"] }
-neocogi-com-runtime.workspace = true
+neocogi-com-host.workspace = true
 neocogi-example-com-plugin = { path = "../com-plugin", optional = true }
 
 [[bin]]

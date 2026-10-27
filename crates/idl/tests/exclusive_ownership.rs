@@ -62,7 +62,7 @@ fn generated_factories_transfer_one_owner_through_real_abi_calls() {
         project.path().join("Cargo.toml"),
         format!(
             "[package]\nname='exclusive-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\n",
-            root.join("crates/api")
+            root.join("crates/com")
         ),
     )
     .unwrap();

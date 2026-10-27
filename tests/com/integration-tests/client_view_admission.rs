@@ -6,7 +6,7 @@ use std::{fs, path::Path, process::Command};
 #[test]
 fn client_views_cannot_replace_capability_storage() {
     let owner = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let facade = owner.join("../../crates/api");
+    let facade = owner.join("../../crates/com");
     let compiler = owner.join("../../crates/idl");
     let schema = facade.join("../../schemas/nc/tests/weak_com.ncidl");
     let project = tempfile::tempdir().unwrap();

@@ -82,7 +82,7 @@ fn parameter_and_output_expressions_cannot_merge_with_following_siblings() {
         project.path().join("Cargo.toml"),
         format!(
             "[package]\nname='canonical-framing-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\n",
-            root.join("crates/api")
+            root.join("crates/com")
         ),
     )
     .unwrap();

@@ -1,7 +1,7 @@
 //! Bounded capture of semantic initialization trees, with owned-path cycle checks.
 
-use neocogi_com_core::{binary, ComPtr, ComRef, IUnknown, NcStatus, NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE};
-use neocogi_com_core::persistence::{IPersistableAbi, Limits, ObjectRecord};
+use neocogi_com::{binary, ComPtr, ComRef, IUnknown, NcStatus, NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE};
+use neocogi_com::persistence::{IPersistableAbi, Limits, ObjectRecord};
 
 /// Exports a shared opt-in tree, detects ownership cycles, and bounds traversal.
 /// A live exclusive root is a valid borrow but cannot be retained along the

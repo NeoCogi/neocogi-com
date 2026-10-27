@@ -94,10 +94,10 @@ fn build_library(case: &str) -> PathBuf {
 }
 
 // This final test executable owns its isolated process runtime.
-extern crate nc_com as _;
+extern crate neocogi_com_host as _;
 
 /// Initializes this final test executable's selected host and admits its static tables.
 fn host_runtime() -> neocogi_com::Runtime {
     // SAFETY: the explicit implementation owns its complete process-lived graph.
-    unsafe { neocogi_com::Runtime::__from_host_api(nc_com::initialize_process()) }.expect("test host API is compatible")
+    unsafe { neocogi_com::Runtime::__from_host_api(neocogi_com_host::initialize_process()) }.expect("test host API is compatible")
 }

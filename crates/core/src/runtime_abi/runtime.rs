@@ -1,4 +1,4 @@
-//! Unified plugin operations supplied by the host-owned `nc_com` runtime.
+//! Unified plugin operations supplied by the host-owned `neocogi_com_host` runtime.
 //! Registration, loading, factory acquisition, lookup, enumeration and unregistered
 //! inspection share this table. Diagnostics and persistence have independent
 //! lifecycles and tables. Callers admit this immutable size-prefixed table through

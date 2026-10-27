@@ -40,19 +40,19 @@ impl Consumer {
     /// Adds the selected implementation only to a final test owner that actually
     /// acquires plugins or exercises generated host startup. Pure codec/interface
     /// consumers keep their existing implementation-free dependency boundary.
-    pub fn with_runtime_owner(self) -> Self {
+    pub fn with_host_owner(self) -> Self {
         let workspace = metadata(&Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml"));
         let implementation = workspace
             .packages
             .iter()
-            .find(|package| package.name == "neocogi-com-runtime" && package.version == env!("CARGO_PKG_VERSION"));
+            .find(|package| package.name == "neocogi-com-host" && package.version == env!("CARGO_PKG_VERSION"));
         let dependency = match implementation {
             Some(package) => format!("{{path={:?}}}", package.manifest_path.parent().unwrap()),
             None => format!("\"={}\"", env!("CARGO_PKG_VERSION")),
         };
         let manifest = self.directory.path().join("Cargo.toml");
         let mut source = fs::read_to_string(&manifest).unwrap();
-        source.push_str(&format!("neocogi-com-runtime={dependency}\n"));
+        source.push_str(&format!("neocogi-com-host={dependency}\n"));
         fs::write(manifest, source).unwrap();
         self
     }

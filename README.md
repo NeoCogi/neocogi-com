@@ -17,7 +17,7 @@ consistent standard-library diagnostics locally and in CI.
 | `neocogi-idl` | Contract compiler, shared code generation, Cargo integration |
 | `neocogi-com-macros` | Object, plugin, persistence, and host entry macros |
 | `neocogi-com` | Typed interface ownership, values, and optional host clients |
-| `neocogi-com-runtime` | Host-owned runtime and native plugin loader (`nc_com` rlib) |
+| `neocogi-com-host` | Host-owned runtime and native plugin loader (`neocogi_com_host` rlib) |
 | `neocogi-inspect` | Plugin metadata inspection, checks, plans, and comparisons |
 
 The two unpublished example packages demonstrate a COM host and provider with

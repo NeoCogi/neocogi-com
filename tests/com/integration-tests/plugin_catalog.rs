@@ -33,7 +33,7 @@ fn description(name: &'static str, dependencies: &'static [NcPluginDependencyDes
 fn complete_records_are_coherent_owned_and_stable_across_growth() {
     let runtime = crate::host_runtime();
     assert_eq!(runtime.runtime_abi_version(), 1);
-    let api = unsafe { &*nc_com::initialize_process().runtime };
+    let api = unsafe { &*neocogi_com_host::initialize_process().runtime };
     let mut len = usize::MAX;
     assert_eq!(unsafe { (api.plugin_infos)(ptr::null_mut(), 0, &mut len) }, NC_OK);
     assert_eq!(len, 0);
@@ -114,10 +114,10 @@ fn complete_records_are_coherent_owned_and_stable_across_growth() {
 }
 
 // This final test executable owns its isolated process runtime.
-extern crate nc_com as _;
+extern crate neocogi_com_host as _;
 
 /// Initializes this final test executable's selected host and admits its static tables.
 fn host_runtime() -> neocogi_com::Runtime {
     // SAFETY: the explicit implementation owns its complete process-lived graph.
-    unsafe { neocogi_com::Runtime::__from_host_api(nc_com::initialize_process()) }.expect("test host API is compatible")
+    unsafe { neocogi_com::Runtime::__from_host_api(neocogi_com_host::initialize_process()) }.expect("test host API is compatible")
 }

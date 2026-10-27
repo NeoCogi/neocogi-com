@@ -210,8 +210,8 @@ name = "neocogi-com"
 version = "0.0.0"
 dependencies = [
  "neocogi-com-core",
+ "neocogi-com-host",
  "neocogi-com-macros",
- "neocogi-com-runtime",
 ]
 
 [[package]]
@@ -219,6 +219,14 @@ name = "neocogi-com-core"
 version = "0.0.0"
 dependencies = [
  "syn 2.0.119",
+]
+
+[[package]]
+name = "neocogi-com-host"
+version = "0.0.0"
+dependencies = [
+ "neocogi-com",
+ "neocogi-com-core",
 ]
 
 [[package]]
@@ -230,20 +238,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "neocogi-com-runtime"
-version = "0.0.0"
-dependencies = [
- "neocogi-com-core",
-]
-
-[[package]]
 name = "neocogi-com-tests"
 version = "0.0.0"
 dependencies = [
  "cc",
  "neocogi-com",
  "neocogi-com-core",
- "neocogi-com-runtime",
+ "neocogi-com-host",
  "neocogi-idl",
  "tempfile",
  "trybuild",
@@ -254,7 +255,7 @@ name = "neocogi-example-com-host"
 version = "0.0.0"
 dependencies = [
  "neocogi-com",
- "neocogi-com-runtime",
+ "neocogi-com-host",
  "neocogi-example-com-plugin",
  "neocogi-idl",
  "tempfile",
@@ -288,7 +289,7 @@ name = "neocogi-inspect"
 version = "0.0.0"
 dependencies = [
  "neocogi-com-core",
- "neocogi-com-runtime",
+ "neocogi-com-host",
  "serde",
  "serde_json",
  "tempfile",

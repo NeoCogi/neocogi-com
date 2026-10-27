@@ -22,7 +22,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [dev-dependencies]
 # Library-local tests explicitly retain their host implementation.
-neocogi-com-runtime.workspace = true
+neocogi-com-host.workspace = true
 
 [features]
 default = ["macros", "std"]

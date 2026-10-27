@@ -975,7 +975,7 @@ removed runtime contract mechanism.
 
 ### Generated IDL metadata
 
-[`neocogi_com::idl_metadata`](../../crates/api/src/idl_metadata.rs) contains
+[`neocogi_com::idl_metadata`](../../crates/com/src/idl_metadata.rs) contains
 static descriptions of interfaces and values for tools that need to read a
 contract without linking the IDL compiler. `InterfaceAbi::IDL_INTERFACE` is an
 `InterfaceMetadata`: it describes methods, receiver access, argument/result

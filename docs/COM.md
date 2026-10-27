@@ -159,7 +159,7 @@ may be a finished service or an ordinary provider with typed creation methods.
 ## Host acquisition
 
 For a monolith, enable `neocogi-com/runtime`, directly depend on
-`neocogi-com-runtime`, and retain that implementation in the final assembly.
+`neocogi-com-host`, and retain that implementation in the final assembly.
 Register the linked provider before requesting its exact factory. The following complete function
 accepts access supplied by the host entry and uses the declarations above:
 
@@ -264,16 +264,16 @@ protocol. Live COM calls retain their separate checked wire representation.
 - `neocogi-com-core`: raw ABI layouts and traits (`no_std` by default).
 - `neocogi-com-macros`: thin procedural entrypoints over IDL's shared backend.
 - `neocogi-com`: typed object/data helpers and optional supplied-host service clients.
-- `neocogi-com-runtime`: plugin catalog, loader, and persistence implementation;
-  its Rust library target is `nc_com`.
+- `neocogi-com-host`: plugin catalog, loader, and persistence implementation;
+  its Rust library target is `neocogi_com_host`.
 - `neocogi-idl` under `crates/idl`: IDL parser/resolver, the shared `codegen`
   backend for contracts and Rust implementation macros, and Cargo build integration
   used directly by consuming libraries and applications.
 
 The facade's defaults (`std`, `macros`) support local objects without linking a
 runtime. `runtime` enables service clients; every final native/browser host
-explicitly links the `nc_com` rlib and supplies access to reusable libraries/plugins.
-See the [feature and deployment table](../crates/api/README.md#features-and-scope).
+explicitly links the `neocogi_com_host` rlib and supplies access to reusable libraries/plugins.
+See the [feature and deployment table](../crates/com/README.md#features-and-scope).
 The [core data guide](../crates/core/README.md#text-bytes-and-borrowed-storage) distinguishes
 unsafe descriptor borrows such as `NcStaticUtf8::as_str` from owned string copies.
 
@@ -282,7 +282,7 @@ marketplace. Applications own installation, trust, signatures, and path policy.
 
 ## Experimental object persistence and typed integration
 
-[`neocogi_com::persistence`](../crates/runtime/PERSISTENCE.md) provides runtime-owned opt-in semantic snapshots and explicit,
+[`neocogi_com::persistence`](../crates/host/PERSISTENCE.md) provides runtime-owned opt-in semantic snapshots and explicit,
 context-bound factory reconstruction. The portable value codec remains separate
 from object acquisition; arbitrary private object memory is never serialized.
 The [host/provider example](../examples/com-plugin/README.md) reconstructs saved
@@ -295,7 +295,7 @@ provider builds, mixed compiler/profile policies, relocated execution,
 and the separate Miri/sanitizer checks. One unpublished Rust
 [`xtask`](../tools/xtask/README.md) owns these checks on Linux, macOS and Windows;
 CI invokes the same Cargo commands. An ordinary
-`cargo build -p neocogi-com-runtime` produces its ordinary host rlib.
+`cargo build -p neocogi-com-host` produces its ordinary host rlib.
 `#[com_main]` initializes that implementation; dynamic and static providers share
 its registry through supplied C service tables. No runtime DSO or native bridge
 is deployed. See the [native guide](guides/COM_NATIVE.md) for shared-provider and

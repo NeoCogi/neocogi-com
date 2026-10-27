@@ -82,7 +82,7 @@ fn accepted_generic_deserializers_compile_and_reconstruct_values() {
         project.path().join("Cargo.toml"),
         format!(
             "[package]\nname='operation-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\n",
-            root.join("crates/api")
+            root.join("crates/com")
         ),
     )
     .unwrap();
@@ -198,7 +198,7 @@ fn generated_ncb_values_execute_without_allocation_features() {
     fs::create_dir(project.path().join("src")).unwrap();
     fs::write(project.path().join("Cargo.toml"), format!(
         "[package]\nname='noalloc-ncb-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?},default-features=false,features=['macros']}}\n",
-        root.join("crates/api"),
+        root.join("crates/com"),
     )).unwrap();
     fs::write(
         project.path().join("src/contract.rs"),

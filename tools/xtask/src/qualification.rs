@@ -213,7 +213,7 @@ pub(crate) fn workspace(runner: &Runner) -> Result<()> {
     let result = (|| {
         let root = owner.path();
         fs::create_dir(root.join("src"))?;
-        let path = toml::Value::String(runner.root.join("crates/api").to_str().ok_or("non-UTF8 manifest path")?.into());
+        let path = toml::Value::String(runner.root.join("crates/com").to_str().ok_or("non-UTF8 manifest path")?.into());
         fs::write(
             root.join("Cargo.toml"),
             format!(

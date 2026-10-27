@@ -45,7 +45,7 @@ contents it retains.
 
 This is a component ABI with its own registry and lifetime protocol; it supplies
 no Windows COM activation, apartments or operating-system marshalling. The one
-global native plugin registry belongs to the executable-owned `nc_com`. Object storage and
+global native plugin registry belongs to the executable-owned `neocogi_com_host`. Object storage and
 caller-owned persistence contexts retain their separate responsibilities.
 
 
@@ -624,8 +624,8 @@ Successfully opened native mappings remain process-pinned.
 ### One host, supplied access
 
 One authority owns plugin GUIDs, dependency validation, registration order, first
-provenance and pinned native code. The executable links `neocogi-com-runtime`
-(the Rust library `nc_com`). Its normal `#[com_main]` entry initializes that
+provenance and pinned native code. The executable links `neocogi-com-host`
+(the Rust library `neocogi_com_host`). Its normal `#[com_main]` entry initializes that
 implementation once and passes a copyable `Runtime` to application code.
 
 Every provider bootstrap receives access to those same immutable host tables.
@@ -730,7 +730,7 @@ storage; scalar shape checks are not arbitrary-pointer validation.
 
 ## Unified C table
 
-The implementation also exposes `nc_com::initialize_process()` as an ordinary
+The implementation also exposes `neocogi_com_host::initialize_process()` as an ordinary
 Rust host entry. It initializes its existing singleton without provider calls
 and returns an immutable `NcHostApiV1`: byte size, runtime/core versions (both 1),
 and pointers to the runtime, debug and persistence tables. The complete service
@@ -813,16 +813,16 @@ fn main(runtime: neocogi_com::Runtime) {
 ```
 
 Its manifest enables `neocogi-com`'s `runtime` clients and directly depends on
-`neocogi-com-runtime`. The handle itself is available without `std` or `runtime`;
+`neocogi-com-host`. The handle itself is available without `std` or `runtime`;
 only richer clients require that feature. `com_main` supports safe synchronous
 nongeneric `fn main(runtime: Runtime)`, preserving normal `()`/`ExitCode`/`Result`
-returns, `?`, cfg and lint scopes. Explicit `neocogi_com = path, nc_com = path`
+returns, `?`, cfg and lint scopes. Explicit `neocogi_com = path, neocogi_com_host = path`
 arguments support renamed dependencies. It adds no executor.
 A mismatched selected implementation is a fatal startup configuration error.
 
 The [factory walkthrough](COM.md) executes generated typed registration,
 acquisition and ordinary construction. Tests may initialize their explicitly
-selected host with `nc_com::initialize_process()` and unsafe checked adoption;
+selected host with `neocogi_com_host::initialize_process()` and unsafe checked adoption;
 ordinary reusable libraries accept the resulting handle rather than initialize.
 
 `plugin_info` returns `None` only for an unknown GUID. `plugins` returns owned
@@ -944,7 +944,7 @@ the canonical allocation along active ancestors; repeated siblings are legal.
 Logical interface equality is not allocation identity. Validate the whole recipe
 before constructing objects and release partial restored owners on failure.
 NCB v1, live-call wire validation and application reconstruction remain distinct
-contracts; see [persistence](../crates/runtime/PERSISTENCE.md).
+contracts; see [persistence](../crates/host/PERSISTENCE.md).
 
 `NcDebugApiV1` separately owns callback messenger creation/destruction. At most
 64 messengers are live; callbacks execute outside runtime catalog locks. Final
@@ -966,7 +966,7 @@ children are static. Copy callback metadata needed after a callback. See the
 ## Native and static composition
 
 The facade provides typed clients and owns no implementation dependency, including
-with all features. The final executable links the ordinary `nc_com` rlib. Native
+with all features. The final executable links the ordinary `neocogi_com_host` rlib. Native
 providers link contracts/facade only and export their version-one descriptor.
 Static composition registers a linked provider descriptor; dynamic composition
 loads a provider library. Both use the same host-owned registry and C service graph.

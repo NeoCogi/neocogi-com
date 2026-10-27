@@ -1,6 +1,6 @@
 //! Bounded copying from provider-owned byte objects into runtime-owned memory.
 
-use neocogi_com_core::{ComPtr, INcBytesAbi, NcStatus, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE};
+use neocogi_com::{ComPtr, INcBytesAbi, NcStatus, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE};
 
 /// Checks a foreign length before reserving storage or asking the provider to copy.
 pub(super) fn copy_bounded(bytes: &ComPtr<INcBytesAbi>, maximum: usize) -> Result<Vec<u8>, NcStatus> {

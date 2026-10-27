@@ -8,7 +8,7 @@ version = "0.0.0"
 dependencies = [
  "neocogi-com",
  "neocogi-com-core",
- "neocogi-com-runtime",
+ "neocogi-com-host",
  "neocogi-idl",
 ]
 
@@ -37,18 +37,19 @@ name = "neocogi-com-core"
 version = "0.0.0"
 
 [[package]]
+name = "neocogi-com-host"
+version = "0.0.0"
+dependencies = [
+ "neocogi-com",
+ "neocogi-com-core",
+]
+
+[[package]]
 name = "neocogi-com-macros"
 version = "0.0.0"
 dependencies = [
  "neocogi-idl",
  "syn 2.0.119",
-]
-
-[[package]]
-name = "neocogi-com-runtime"
-version = "0.0.0"
-dependencies = [
- "neocogi-com-core",
 ]
 
 [[package]]

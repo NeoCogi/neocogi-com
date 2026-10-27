@@ -95,7 +95,7 @@ fn optional_copied_values_and_borrowed_owned_values_cross_com() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize().unwrap();
     let project = tempfile::tempdir().unwrap();
     fs::create_dir(project.path().join("src")).unwrap();
-    fs::write(project.path().join("Cargo.toml"), format!("[package]\nname='option-proof'\nversion='0.0.0'\nedition='2024'\nlinks='nc_contract_70726f6f662e6f7074696f6e73'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\n", root.join("crates/api"))).unwrap();
+    fs::write(project.path().join("Cargo.toml"), format!("[package]\nname='option-proof'\nversion='0.0.0'\nedition='2024'\nlinks='nc_contract_70726f6f662e6f7074696f6e73'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\n", root.join("crates/com"))).unwrap();
     let manifest = project.path().join("Cargo.toml");
     fs::write(
         &manifest,

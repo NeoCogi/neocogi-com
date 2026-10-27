@@ -290,7 +290,7 @@ Each persistence registry is thread-local and independently owned. Its factories
 remain retained until that registry is dropped; registration requires mutable access.
 The same supplied host allocates, operates on and destroys each context. The
 NCB-v1 document format and provider interface identities remain unchanged.
-See [persistence semantics and ownership](https://github.com/NeoCogi/neocogi-com/blob/master/crates/runtime/PERSISTENCE.md).
+See [persistence semantics and ownership](https://github.com/NeoCogi/neocogi-com/blob/master/crates/host/PERSISTENCE.md).
 
 ## Features and scope
 
@@ -303,7 +303,7 @@ See [persistence semantics and ownership](https://github.com/NeoCogi/neocogi-com
 | Defaults: `std`, `macros` | Local objects, owned data, and implementation macros; no runtime linkage |
 | `runtime` | Implies `std`; enables runtime/persistence service clients. The host supplies admitted access. |
 
-The final native/browser executable directly depends on `neocogi-com-runtime`
+The final native/browser executable directly depends on `neocogi-com-host`
 and initializes it through `#[neocogi_com::com_main]`. The facade has no
 implementation dependency. Reusable helpers accept `Runtime`; plugin acquisition
 receives it from the host. Tests may explicitly initialize their selected owner.

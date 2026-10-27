@@ -151,7 +151,7 @@ fn plugin_accessor_checks_rust_identity_at_input() {
 /// The scoped dynamic C export and the ordinary Rust acquisition may share spelling.
 #[test]
 fn plugin_export_spelling_is_legal_with_dynamic_feature_off_and_on() {
-    let consumer = super::test_consumer::Consumer::new("plugin-public-name-controls").with_runtime_owner();
+    let consumer = super::test_consumer::Consumer::new("plugin-public-name-controls").with_host_owner();
     let manifest = consumer.directory.path().join("Cargo.toml");
     let mut cargo = fs::read_to_string(&manifest).unwrap();
     cargo += "\n[features]\ndynamic-plugin=[]\n";
@@ -180,7 +180,7 @@ fn plugin_export_spelling_is_legal_with_dynamic_feature_off_and_on() {
                 let descriptor = plugin_descriptor();
                 let mut raw = neocogi_com::ComRaw::null();
                 // SAFETY: live writable slot receives one owner from the actual adapter.
-                assert!(unsafe {{ descriptor.acquire.unwrap()(nc_com::initialize_process(), &mut raw) }}.is_ok());
+                assert!(unsafe {{ descriptor.acquire.unwrap()(neocogi_com_host::initialize_process(), &mut raw) }}.is_ok());
                 // SAFETY: successful adapter transferred the initialized owner.
                 let owner = unsafe {{ neocogi_com::ComPtr::<neocogi_com::IUnknown>::from_raw_owned(raw) }}.unwrap();
                 assert_eq!(owner.query::<RootAbi>().unwrap().value(), Ok(73));

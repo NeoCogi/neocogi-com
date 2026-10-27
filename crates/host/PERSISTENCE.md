@@ -42,7 +42,7 @@ monolith. Its adapter reconstructs through the provider's existing typed factory
 
 ## Ownership and linkage
 
-Persistence is implemented in `neocogi-com-runtime` and called through
+Persistence is implemented in `neocogi-com-host` and called through
 `NcPersistenceApiV1`, supplied in the admitted host API description. Enable the
 facade's `runtime` feature for callers. All final hosts link the implementation
 rlib and pass access to registry creation and capture. The unreleased ABI-v1

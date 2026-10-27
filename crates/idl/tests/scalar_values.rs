@@ -34,7 +34,7 @@ fn scalar_bindings_compile_and_execute_without_default_features_or_alloc() {
     fs::create_dir(project.path().join("src")).unwrap();
     fs::write(project.path().join("Cargo.toml"), format!(
         "[package]\nname='scalar-no-alloc-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?},default-features=false}}\n",
-        root.join("crates/api"),
+        root.join("crates/com"),
     )).unwrap();
     fs::write(
         project.path().join("src/lib.rs"),

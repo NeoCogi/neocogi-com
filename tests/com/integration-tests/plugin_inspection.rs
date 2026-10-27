@@ -58,7 +58,7 @@ fn inspection_and_registration_share_admission_without_sharing_publication() {
         let path = build_case(case, &directory);
         let before = runtime.plugins().unwrap();
         // SAFETY: the independently built fixture supplies initialized immutable metadata and code.
-        let owned = unsafe { nc_com::inspect_plugin_library(&path) };
+        let owned = unsafe { neocogi_com_host::inspect_plugin_library(&path) };
         // SAFETY: the callback is synchronous; the descriptor is admitted and its mapping pinned.
         let callback = unsafe {
             runtime.with_plugin_library_descriptor(&path, |description| {
@@ -107,7 +107,7 @@ fn inspection_and_registration_share_admission_without_sharing_publication() {
             let mut out = ComRaw::null();
             // SAFETY: every native open is process-pinned; even after unlink its code is live.
             // CLOSED on the first explicit call proves metadata operations did not bootstrap it.
-            assert_eq!(unsafe { acquire(nc_com::initialize_process(), &mut out) }, NC_E_CLOSED);
+            assert_eq!(unsafe { acquire(neocogi_com_host::initialize_process(), &mut out) }, NC_E_CLOSED);
             assert!(out.is_null());
         } else {
             assert_eq!(owned.unwrap_err().status(), Some(expected), "owned case {case}");
@@ -134,10 +134,10 @@ fn inspection_and_registration_share_admission_without_sharing_publication() {
 }
 
 // This final executable owns exactly one process runtime; fixture DSOs use core only.
-extern crate nc_com as _;
+extern crate neocogi_com_host as _;
 
 /// Initializes this final test executable's selected host and admits its static tables.
 fn host_runtime() -> neocogi_com::Runtime {
     // SAFETY: the explicit implementation owns its complete process-lived graph.
-    unsafe { neocogi_com::Runtime::__from_host_api(nc_com::initialize_process()) }.expect("test host API is compatible")
+    unsafe { neocogi_com::Runtime::__from_host_api(neocogi_com_host::initialize_process()) }.expect("test host API is compatible")
 }

@@ -315,7 +315,7 @@ fn plugin_implementation_items_have_private_lexical_ownership() {
                             let root = Root::from_value(Root);
                             // A rejected adapter must overwrite even a non-null sentinel with null.
                             let mut raw = root.as_raw();
-                            let status = unsafe {{ descriptor.acquire.unwrap()(nc_com::initialize_process(), &mut raw) }};
+                            let status = unsafe {{ descriptor.acquire.unwrap()(neocogi_com_host::initialize_process(), &mut raw) }};
                             if {rejected} {{
                                 assert_eq!(status, neocogi_com::NC_E_CLOSED);
                                 assert!(raw.is_null());
@@ -334,7 +334,7 @@ fn plugin_implementation_items_have_private_lexical_ownership() {
         (format!("printed={expand}"), source)
     });
     run_consumers_with_files(
-        super::test_consumer::Consumer::new("plugin-item-ownership-proof").with_runtime_owner(),
+        super::test_consumer::Consumer::new("plugin-item-ownership-proof").with_host_owner(),
         cases,
         &[],
         &[],

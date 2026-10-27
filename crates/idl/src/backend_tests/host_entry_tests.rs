@@ -10,14 +10,14 @@ use super::test_consumer::Consumer;
 #[test]
 fn host_entry_runs_with_normal_printed_and_renamed_dependencies() {
     for renamed in [false, true] {
-        let consumer = Consumer::new("host-entry-proof").with_runtime_owner();
+        let consumer = Consumer::new("host-entry-proof").with_host_owner();
         let manifest = consumer.directory.path().join("Cargo.toml");
         let (facade, implementation, args) = if renamed {
             let source = fs::read_to_string(&manifest)
                 .unwrap()
                 .lines()
                 .map(|line| {
-                    for (package, alias) in [("neocogi-com", "client"), ("neocogi-com-runtime", "owner")] {
+                    for (package, alias) in [("neocogi-com", "client"), ("neocogi-com-host", "owner")] {
                         if let Some(dependency) = line.strip_prefix(&format!("{package}=")) {
                             return match dependency.strip_prefix('{') {
                                 Some(fields) => format!("{alias}={{package={package:?},{fields}\n"),
@@ -29,9 +29,9 @@ fn host_entry_runs_with_normal_printed_and_renamed_dependencies() {
                 })
                 .collect::<String>();
             fs::write(&manifest, source).unwrap();
-            ("client", "owner", "neocogi_com = ::client, nc_com = ::owner")
+            ("client", "owner", "neocogi_com = ::client, neocogi_com_host = ::owner")
         } else {
-            ("neocogi_com", "nc_com", "")
+            ("neocogi_com", "neocogi_com_host", "")
         };
         let authored: syn::ItemFn = syn::parse_str(&format!(
             r#"

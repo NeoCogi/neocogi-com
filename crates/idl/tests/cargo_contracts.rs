@@ -50,7 +50,7 @@ fn colliding_display_names_build_and_call_together() {
         let mut manifest = format!(
             "[package]\nname='{package}'\nversion='0.0.0'\nedition='2024'\nlinks={:?}\n[dependencies]\nneocogi-com={{path={:?}}}\n",
             contract_links_name(module),
-            root.join("crates/api"),
+            root.join("crates/com"),
         );
         if package == "host" {
             for (dependency, _, _, _) in &packages[..4] {
@@ -232,7 +232,7 @@ fn imported_generics_use_typed_routes_through_direct_providers() {
         let mut manifest = format!(
             "[package]\nname='{package}'\nversion='0.0.0'\nedition='2024'\nlinks={:?}\n[dependencies]\nneocogi-com={{path={:?}}}\n",
             contract_links_name(module),
-            root.join("crates/api"),
+            root.join("crates/com"),
         );
         for dependency in dependencies {
             manifest.push_str(&format!("{dependency}={{path='../{dependency}'}}\n"));

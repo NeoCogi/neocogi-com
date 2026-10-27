@@ -83,7 +83,7 @@
 //! an explicit aligned-field serialization codec. IDL owns no native packing,
 //! alignment, or external-field admission switches.
 //!
-//! The host explicitly links `neocogi-com-runtime` and initializes its one catalog
+//! The host explicitly links `neocogi-com-host` and initializes its one catalog
 //! through `#[com_main]`. A copyable [`Runtime`] lends access to that host's immutable
 //! C operation tables. Plugin acquisition and reusable libraries receive it from
 //! their caller; the facade selects no implementation or named-symbol discovery.
@@ -197,4 +197,4 @@ pub use neocogi_com_core::NcOutputBuffer;
 
 // Only this test executable retains an implementation, independently of facade features.
 #[cfg(all(test, feature = "runtime"))]
-extern crate nc_com as _;
+extern crate neocogi_com_host as _;

@@ -46,7 +46,7 @@ fn authored_names_preserve_values_across_generated_com() {
         project.path().join("Cargo.toml"),
         format!(
             "[package]\nname='identifier-hygiene-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\n",
-            root.join("crates/api")
+            root.join("crates/com")
         ),
     )
     .unwrap();

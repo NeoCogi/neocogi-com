@@ -17,7 +17,7 @@
 //! failures diagnose and abort; static registration and debug capacity failures
 //! return statuses. Caller-owned persistence contexts stay outside the catalog.
 //!
-//! The Cargo package is `neocogi-com-runtime`; the Rust target is `nc_com`.
+//! The Cargo package is `neocogi-com-host`; the Rust target is `neocogi_com_host`.
 //! Native and browser hosts link this implementation once and lend its immutable
 //! C service tables to providers. No runtime DSO is deployed. Pure ABI records remain
 //! in `neocogi-com-core`; importing them creates no runtime state.
@@ -50,7 +50,7 @@ pub use loader::{
 /// they do not select or initialize another implementation. Host catalog/debug
 /// entrypoints synchronize concurrent calls; caller-owned persistence contexts
 /// retain their thread-local and exclusive-operation requirements.
-pub fn initialize_process() -> &'static neocogi_com_core::NcHostApiV1 {
+pub fn initialize_process() -> &'static neocogi_com::NcHostApiV1 {
     let _ = state::RuntimeState::global();
     &api::HOST_API
 }

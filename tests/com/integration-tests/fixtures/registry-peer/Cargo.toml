@@ -14,7 +14,7 @@ crate-type = ["rlib"]
 dynamic-plugin = []
 
 [dependencies]
-neocogi-com = { path = "../../../../../crates/api", features = ["runtime"] }
+neocogi-com = { path = "../../../../../crates/com", features = ["runtime"] }
 
 [build-dependencies]
 neocogi-idl = { path = "../../../../../crates/idl" }

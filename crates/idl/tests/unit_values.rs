@@ -33,7 +33,7 @@ fn unit_values_use_checked_storage_in_copied_calls() {
     // The generated runtime fixture deliberately uses alloc-only facade support.
     fs::write(project.path().join("Cargo.toml"), format!(
         "[package]\nname='unit-values-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?},default-features=false,features=['alloc','macros']}}\n",
-        root.join("crates/api"),
+        root.join("crates/com"),
     )).unwrap();
     fs::write(
         project.path().join("src/lib.rs"),

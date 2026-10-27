@@ -94,7 +94,7 @@ fn generated_weak_values_and_results_preserve_lifetime_and_validation() {
         project.path().join("Cargo.toml"),
         format!(
             "[package]\nname='weak-shared-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\n",
-            root.join("crates/api"),
+            root.join("crates/com"),
         ),
     )
     .unwrap();

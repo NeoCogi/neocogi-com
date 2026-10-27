@@ -1,21 +1,24 @@
 [package]
-name = "neocogi-com-runtime"
+name = "neocogi-com-host"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-documentation = "https://docs.rs/neocogi-com-runtime"
+documentation = "https://docs.rs/neocogi-com-host"
 readme = "README.md"
-description = "Process-global runtime and plugin loader for neocogi-com"
+description = "Host-owned COM services, plugin registry, and native loader"
 keywords = ["com", "abi", "ffi", "plugin"]
 categories = ["api-bindings", "development-tools::ffi"]
 
 [lib]
 # The final host links this implementation; providers use only supplied access.
-name = "nc_com"
+name = "neocogi_com_host"
 crate-type = ["rlib"]
 
 [dependencies]
 neocogi-com-core = { workspace = true, default-features = false, features = ["std"] }
+
+# Shared ownership, contracts and codecs; the host selects no client-service or macro features.
+neocogi-com = { workspace = true, default-features = false, features = ["std"] }

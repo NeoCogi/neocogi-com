@@ -1,6 +1,6 @@
 # COM host
 
-This executable explicitly owns `neocogi-com-runtime`. `#[com_main]` initializes
+This executable explicitly owns `neocogi-com-host`. `#[com_main]` initializes
 that selected host and supplies immutable access; provider acquisition receives
 the same services. The provider has no implementation dependency.
 

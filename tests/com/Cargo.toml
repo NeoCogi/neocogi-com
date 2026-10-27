@@ -20,7 +20,7 @@ neocogi-idl.workspace = true
 [dev-dependencies]
 neocogi-com-core.workspace = true
 # Each final executable owns the runtime it deliberately retains.
-neocogi-com-runtime.workspace = true
+neocogi-com-host.workspace = true
 # Fetch native fixture inputs before its separate offline Cargo build.
 cc = { version = "=1.2.0", default-features = false }
 trybuild.workspace = true

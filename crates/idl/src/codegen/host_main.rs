@@ -15,7 +15,7 @@ use crate::codegen::util::{PrivateNames, runtime_crate_path};
 pub struct MainArgs {
     /// Canonical facade path unless overridden with `neocogi_com = path`.
     facade: Option<Path>,
-    /// Ordinary host implementation path unless overridden with `nc_com = path`.
+    /// Ordinary host implementation path unless overridden with `neocogi_com_host = path`.
     implementation: Option<Path>,
 }
 
@@ -27,10 +27,10 @@ impl Parse for MainArgs {
             let key: Ident = input.parse()?;
             let slot = if key == "neocogi_com" {
                 &mut args.facade
-            } else if key == "nc_com" {
+            } else if key == "neocogi_com_host" {
                 &mut args.implementation
             } else {
-                return Err(syn::Error::new(key.span(), "expected neocogi_com = path or nc_com = path"));
+                return Err(syn::Error::new(key.span(), "expected neocogi_com = path or neocogi_com_host = path"));
             };
             if slot.is_some() {
                 return Err(syn::Error::new(key.span(), "duplicate com_main dependency path"));
@@ -70,7 +70,7 @@ pub fn expand_com_main(args: MainArgs, input: ItemFn) -> Result<proc_macro2::Tok
         ));
     }
     let nc = runtime_crate_path(args.facade.as_ref());
-    let implementation = args.implementation.unwrap_or_else(|| syn::parse_quote!(::nc_com));
+    let implementation = args.implementation.unwrap_or_else(|| syn::parse_quote!(::neocogi_com_host));
     let mut names = PrivateNames::new(quote! { #input #nc #implementation });
     let host = names.binding("__nc_host_api");
     let runtime = names.binding("__nc_runtime");
@@ -123,8 +123,13 @@ mod tests {
     /// Path configuration is explicit and cannot silently select two owners.
     #[test]
     fn dependency_path_admission_is_unambiguous() {
-        assert!(syn::parse_str::<MainArgs>("neocogi_com = client, nc_com = owner,").is_ok());
-        for source in ["runtime = owner", "nc_com = a, nc_com = b", "neocogi_com = a, neocogi_com = b"] {
+        assert!(syn::parse_str::<MainArgs>("neocogi_com = client, neocogi_com_host = owner,").is_ok());
+        for source in [
+            "nc_com = owner",
+            "runtime = owner",
+            "neocogi_com_host = a, neocogi_com_host = b",
+            "neocogi_com = a, neocogi_com = b",
+        ] {
             assert!(syn::parse_str::<MainArgs>(source).is_err());
         }
     }

@@ -5,7 +5,7 @@
 //! the runtime that allocated it. No facade object machinery is required here.
 
 use core::{ffi::c_void, sync::atomic::AtomicU32};
-use neocogi_com_core::{
+use neocogi_com::{
     ComInterface, ComPtr, ComRaw, IUnknown, IUnknownVTable, NcInterfaceId, NcStatus, __com_add_ref_count, __com_release_ref_count, NC_E_ABI_VERSION,
     NC_E_NOINTERFACE, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_OK,
     persistence::{IObjectChildrenAbi, IObjectChildrenVTable},
@@ -173,7 +173,7 @@ unsafe extern "C" fn count(this: *mut c_void, out: *mut u32) -> NcStatus {
 ///
 /// # Safety
 /// `this` is a live list; non-null `out` accepts one interface-pointer write.
-unsafe extern "C" fn get(this: *mut c_void, index: u32, out: *mut neocogi_com_core::ComRaw<IUnknown>) -> NcStatus {
+unsafe extern "C" fn get(this: *mut c_void, index: u32, out: *mut neocogi_com::ComRaw<IUnknown>) -> NcStatus {
     if out.is_null() {
         return NC_E_POINTER;
     }

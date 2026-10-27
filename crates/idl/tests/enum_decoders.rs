@@ -32,7 +32,7 @@ fn ordinary_enum_decoders_compile_and_reconstruct_every_payload_shape() {
         project.path().join("Cargo.toml"),
         format!(
             "[package]\nname='enum-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\n",
-            root.join("crates/api")
+            root.join("crates/com")
         ),
     )
     .unwrap();

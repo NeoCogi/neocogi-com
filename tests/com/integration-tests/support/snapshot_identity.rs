@@ -216,7 +216,7 @@ impl Entry {
                 let mut sink = Sink { bytes: Vec::new(), calls: 0 };
                 // SAFETY: linked table is static; root and exclusive sink outlive the call.
                 let status = unsafe {
-                    ((*nc_com::initialize_process().persistence).snapshot)(root.as_raw(), limits.into(), Some(deliver), core::ptr::from_mut(&mut sink).cast())
+                    ((*neocogi_com_host::initialize_process().persistence).snapshot)(root.as_raw(), limits.into(), Some(deliver), core::ptr::from_mut(&mut sink).cast())
                 };
                 if status.is_err() {
                     assert_eq!(sink.calls, 0);

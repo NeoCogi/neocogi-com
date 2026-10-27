@@ -4,7 +4,7 @@
 //! plugins: status codes, GUIDs, `IUnknown`, descriptor metadata, versioned
 //! runtime table layouts, common read-only bytes/string raw interfaces, and ABI version
 //! constants. Higher-level Rust ergonomics and allocation-backed objects live in `neocogi-com`;
-//! process-global dynamic loading and registry state live in `neocogi-com-runtime`.
+//! process-global dynamic loading and registry state live in `neocogi-com-host`.
 //!
 //! Descriptor metadata supports runtime validation and inspection. It exposes
 //! explicit diagnostic method records and nominal aggregate identities, but not

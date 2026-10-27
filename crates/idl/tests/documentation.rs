@@ -65,8 +65,8 @@ fn readme_factory_contract_and_bootstrap_execute_as_documented() {
     let project = tempfile::tempdir().unwrap();
     fs::create_dir(project.path().join("src")).unwrap();
     fs::write(project.path().join("Cargo.toml"), format!(
-        "[package]\nname='documented-com-bootstrap'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[features]\ndynamic-plugin=[]\n[dependencies]\nneocogi-com={{path={:?},features=['runtime']}}\nneocogi-com-runtime={{path={:?}}}\n",
-        root.join("crates/api"), root.join("crates/runtime"),
+        "[package]\nname='documented-com-bootstrap'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[features]\ndynamic-plugin=[]\n[dependencies]\nneocogi-com={{path={:?},features=['runtime']}}\nneocogi-com-host={{path={:?}}}\n",
+        root.join("crates/com"), root.join("crates/host"),
     )).unwrap();
     // The consumer's locally generated bindings are included as a module here;
     // every authored line below comes directly from its marked public block.
@@ -96,7 +96,7 @@ fn readme_factory_contract_and_bootstrap_execute_as_documented() {
         implementation.push_str(example(document, label));
         implementation.push('\n');
     }
-    implementation.push_str("#[test] fn documented_bootstrap() { static_example(unsafe { neocogi_com::Runtime::__from_host_api(nc_com::initialize_process()) }.unwrap()).unwrap(); }\n");
+    implementation.push_str("#[test] fn documented_bootstrap() { static_example(unsafe { neocogi_com::Runtime::__from_host_api(neocogi_com_host::initialize_process()) }.unwrap()).unwrap(); }\n");
     fs::write(project.path().join("src/lib.rs"), implementation).unwrap();
     let output = Command::new("cargo")
         .args(["test", "--offline", "--features", "dynamic-plugin", "--manifest-path"])
@@ -138,7 +138,7 @@ fn active_guides_do_not_reintroduce_retired_protocol_prescriptions() {
     for relative in ["docs/contracts", "docs/guides", "docs/architecture"] {
         markdown(&root.join(relative), &mut files);
     }
-    for relative in ["docs/COM.md", "crates/api/README.md", "crates/macros/README.md", "crates/idl/README.md"] {
+    for relative in ["docs/COM.md", "crates/com/README.md", "crates/macros/README.md", "crates/idl/README.md"] {
         files.push(root.join(relative));
     }
     files.sort();

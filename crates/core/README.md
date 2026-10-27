@@ -137,7 +137,7 @@ the value neither owns those bytes nor pins a shared library.
 For a readable `NcCopyFromBufferOffset<u8>`, use
 `core::str::from_utf8(buffer.as_slice())` when text is required. There is no
 universal safe `as_str(&self) -> &str` on raw ABI views. See the
-[facade's data helpers](https://github.com/NeoCogi/neocogi-com/blob/master/crates/api/README.md#strings-and-byte-buffers) for owned copies.
+[facade's data helpers](https://github.com/NeoCogi/neocogi-com/blob/master/crates/com/README.md#strings-and-byte-buffers) for owned copies.
 
 ## Experimental persistent values
 

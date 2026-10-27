@@ -6,7 +6,7 @@ use std::{fs, path::Path, process::Command};
 #[test]
 fn shared_provider_minimum_is_independent_of_class_mode() {
     let owner = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let facade = owner.join("../../crates/api");
+    let facade = owner.join("../../crates/com");
     let compiler = owner.join("../../crates/idl");
     let project = tempfile::tempdir().unwrap();
     fs::create_dir(project.path().join("src")).unwrap();

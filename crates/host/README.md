@@ -1,4 +1,4 @@
-# neocogi-com-runtime
+# neocogi-com-host
 
 The runtime owns plugin registration, trusted library loading, checked
 root-factory acquisition, plugin provenance, diagnostics, and the
@@ -44,7 +44,7 @@ Plugin descriptor ABI v1 and core object ABI v1 remain independently versioned.
 
 ## Build and link
 
-The package builds the ordinary Rust `nc_com` rlib. Native and browser final
+The package builds the ordinary Rust `neocogi_com_host` rlib. Native and browser final
 hosts depend on it directly and use `#[neocogi_com::com_main]` to initialize its
 existing singleton and obtain a copyable access handle. Reusable libraries take
 that handle from their caller. Plugin acquisition receives it through the C
@@ -74,7 +74,7 @@ implementation, while providers need only the built-in core contracts and
 the facade's implementation helpers. See [persistence](PERSISTENCE.md) for
 limits, provider obligations, and reconstruction semantics.
 
-The public Rust API of `nc_com` also includes `inspect_plugin_library` and
+The public Rust API of `neocogi_com_host` also includes `inspect_plugin_library` and
 `plan_plugin_load_order`, used by the build and inspection tools. Inspection
 returns owned metadata without registering or acquiring a plugin root, but it pins
 every successfully opened library for the inspector process lifetime. A

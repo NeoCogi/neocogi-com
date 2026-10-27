@@ -6,7 +6,7 @@ use std::{
     path::{Path, PathBuf},
     process::Command,
 };
-use nc_com::{inspect_plugin_library, PluginLoadErrorKind};
+use neocogi_com_host::{inspect_plugin_library, PluginLoadErrorKind};
 
 /// Uses fresh processes, so a previously pinned mapping cannot mask truncation.
 #[test]

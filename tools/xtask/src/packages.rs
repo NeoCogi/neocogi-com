@@ -15,8 +15,8 @@ pub(crate) const PUBLISHED: &[(&str, &str)] = &[
     ("neocogi-com-core", "crates/core"),
     ("neocogi-idl", "crates/idl"),
     ("neocogi-com-macros", "crates/macros"),
-    ("neocogi-com-runtime", "crates/runtime"),
-    ("neocogi-com", "crates/api"),
+    ("neocogi-com", "crates/com"),
+    ("neocogi-com-host", "crates/host"),
     ("neocogi-inspect", "tools/neocogi-inspect"),
 ];
 /// Validate and extract this package's single archive prefix without an external tar.
@@ -102,7 +102,7 @@ fn consumers(repository: &Path, root: &Path, version: &str) -> Result<()> {
     fs::write(
         consumer.join("Cargo.toml"),
         format!(
-            "[package]\nname='archive-consumer'\nversion='0.0.0'\nedition='2024'\nlinks='nc_contract_70726f6f662e61726368697665'\n[dependencies]\nneocogi-com={{version='={version}',features=['runtime']}}\nneocogi-com-runtime='={version}'\n[build-dependencies]\nneocogi-idl='={version}'\n"
+            "[package]\nname='archive-consumer'\nversion='0.0.0'\nedition='2024'\nlinks='nc_contract_70726f6f662e61726368697665'\n[dependencies]\nneocogi-com={{version='={version}',features=['runtime']}}\nneocogi-com-host='={version}'\n[build-dependencies]\nneocogi-idl='={version}'\n"
         ),
     )?;
     fs::write(consumer.join("build.rs"), include_str!("../fixtures/archive-build.rs"))?;
@@ -171,9 +171,9 @@ pub(crate) fn run(runner: &Runner) -> Result<()> {
         if output.trim_end_matches(['\r', '\n']).replace("\r\n", "\n") != expected {
             return Err(format!("unexpected strings_and_bytes output: {output}").into());
         }
-        let runtime = format!("{}/Cargo.toml", root.join(format!("neocogi-com-runtime-{version}")).display());
+        let runtime = format!("{}/Cargo.toml", root.join(format!("neocogi-com-host-{version}")).display());
         verification.cargo("1.85.0", &["build", "--manifest-path", &runtime])?;
-        crate::process::require_file(&root.join("target/debug/libnc_com.rlib"))?;
+        crate::process::require_file(&root.join("target/debug/libneocogi_com_host.rlib"))?;
         verification.cargo("1.85.0", &["run", "--manifest-path", "consumer/Cargo.toml"])?;
         let facade = format!("neocogi-com-{version}/Cargo.toml");
         for options in [

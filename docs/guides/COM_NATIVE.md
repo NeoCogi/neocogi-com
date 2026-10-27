@@ -2,7 +2,7 @@
 
 This workspace uses stable Cargo. IDL generation runs through ordinary build
 dependencies; no application staging tool or nightly artifact dependencies are
-required. The final executable explicitly links `neocogi-com-runtime` and passes
+required. The final executable explicitly links `neocogi-com-host` and passes
 its runtime access to providers.
 
 ## Shared provider

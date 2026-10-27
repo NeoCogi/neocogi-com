@@ -106,7 +106,7 @@ fn plugin_source(shadow: &str, explicit_version: bool, expand: bool) -> String {
             assert_eq!(unsafe {{ descriptor.plugin_version.as_str() }}.unwrap(), {expected:?});
             let mut raw = neocogi_com::ComRaw::<neocogi_com::IUnknown>::null();
             // SAFETY: live output storage receives one owner from the generated C adapter.
-            assert!(unsafe {{ descriptor.acquire.unwrap()(nc_com::initialize_process(), &mut raw) }}.is_ok());
+            assert!(unsafe {{ descriptor.acquire.unwrap()(neocogi_com_host::initialize_process(), &mut raw) }}.is_ok());
             // SAFETY: successful acquisition returned that one shared owner.
             let root = unsafe {{ neocogi_com::ComPtr::<neocogi_com::IUnknown>::from_raw_owned(raw) }}.unwrap();
             assert_eq!(root.query::<IRootAbi>().unwrap().value().unwrap(), 73);
@@ -178,7 +178,7 @@ fn plugin_support_lookup_is_explicit_in_normal_and_printed_rust() {
         ("explicit version", "macro_rules! env { ($key:literal) => { 99_u32 }; }", true),
     ];
     run_cases(
-        super::test_consumer::Consumer::new("plugin-support-resolution-proof").with_runtime_owner(),
+        super::test_consumer::Consumer::new("plugin-support-resolution-proof").with_host_owner(),
         cases
             .into_iter()
             .flat_map(|(name, shadow, version)| [false, true].map(move |expand| (format!("{name}, printed={expand}"), plugin_source(shadow, version, expand)))),

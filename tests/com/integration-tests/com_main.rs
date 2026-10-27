@@ -81,7 +81,7 @@ mod copied_access {
     #[test]
     fn copied_access_outlives_the_outer_record_and_shares_state_across_threads() {
         let runtime = {
-            let record = *nc_com::initialize_process();
+            let record = *neocogi_com_host::initialize_process();
             // SAFETY: only this outer copy is temporary. Its reachable immutable
             // tables/code and synchronized host state all remain process-lived.
             unsafe { neocogi_com::Runtime::__from_host_api(&record) }.unwrap()

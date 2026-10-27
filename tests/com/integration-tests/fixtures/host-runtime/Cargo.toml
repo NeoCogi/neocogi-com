@@ -8,8 +8,8 @@ autotests = false
 
 [workspace]
 [dev-dependencies]
-neocogi-com-runtime = { path = "../../../../../crates/runtime" }
-neocogi-com = { path = "../../../../../crates/api", features = ["runtime"] }
+neocogi-com-host = { path = "../../../../../crates/host" }
+neocogi-com = { path = "../../../../../crates/com", features = ["runtime"] }
 
 [[test]]
 name = "factory_plugin_runtime"

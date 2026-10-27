@@ -43,7 +43,7 @@ jobs:
         run: cargo test --workspace --all-features --locked
       - name: Optimized ownership and native abort checks
         if: ${{ !cancelled() }}
-        run: cargo test -p neocogi-com -p neocogi-com-runtime --lib --release --locked -- --test-threads=1
+        run: cargo test -p neocogi-com -p neocogi-com-host --lib --release --locked -- --test-threads=1
       - name: Release native build artifacts before isolated qualification
         if: ${{ !cancelled() }}
         run: cargo clean

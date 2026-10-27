@@ -8,7 +8,7 @@
 use std::collections::BTreeSet;
 
 use neocogi_com_core::{NcAbiThreadingMode, NcGuid, guid_from_qualified_name};
-use nc_com::PluginInspection;
+use neocogi_com_host::PluginInspection;
 use serde::{Deserialize, Serialize};
 
 /// Stable document-family identifier, separate from the native descriptor ABI.
