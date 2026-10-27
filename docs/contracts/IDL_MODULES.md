@@ -108,7 +108,8 @@ argument ABI signatures. The consuming module and backend Rust import paths are
 excluded, so separately built consumers can negotiate the same specialization.
 Generated concrete Rust names contain a deterministic identity suffix. They are
 compiler names; metadata retains the original template and arguments. Recursive
-instantiation is bounded by depth and total instance limits.
+instantiation is bounded by one generated-work allowance for the complete module
+batch, in addition to materialization-depth and instance limits.
 
 Template parameter names are local binders. Fingerprints encode their zero-based
 positions, so `Pair<T> { value: T }` and `Pair<Item> { value: Item }` have the same
@@ -208,8 +209,35 @@ invalid. Likewise, `Node<bool>` is finite because its children are a sequence;
 Closed definitions have consumer-local Rust names and consumer-independent
 contract identities. Inspection reports canonical value identities and the
 actual Rust projection available in the generating crate. The expansion is
-bounded to 64 specialization levels and 4,096 instances; recursively inventing
-new argument types fails with an IDL diagnostic.
+bounded to 64 new specialization levels and 4,096 consumer-local instances across
+one module batch. Exact active recursive reuse is checked before admitting a new
+instance. Expansion also admits at most 1,048,576 generated structural visits,
+32 MiB of cumulative conservative model/scratch storage charges, and 256 combined
+active descent levels. Descent composes expression traversal, substitution and
+reentrant materialization; entering another declaration does not reset it.
+Individually shallow expressions may therefore exceed the combined nesting bound.
+
+Copies, identity/origin reads, comparisons and projection work are checked before
+the generated operation. Each repeated substitution pays independently, including
+phantom arguments. Cache hits consume work; freed transients do not refund storage.
+Copied documentation, source-span metadata, names and bound keys are included.
+Authored source normalization is outside this generated allowance. Recursively
+inventing arguments or exhausting any allowance returns source-located EIDL060,
+with a distinct work, storage, nesting, or materialization-depth/instance reason.
+Returning the limit diagnostic permits one requesting source-span metadata copy
+and fixed text outside the exhausted allowance; it does not copy/render the
+failing type, its origin tree or the source corpus.
+
+These are compiler implementation limits, not ABI identity inputs or an exact
+process-memory/allocator-success guarantee. Parsing authored input, native Rust/C
+compilation and IO have their ordinary costs. After expansion, consumers borrow
+admitted finite arguments: canonical admission retains one exact origin per
+closed declaration, signatures stop at nominal leaves, and metadata walks named
+edges with visited sets per consumer root. Documentation renders the bound
+qualified spelling directly; diagnostic closed-type labels truncate explicitly
+at 4 KiB. No disposable type AST is constructed just to inspect or render it.
+Exact semantic-origin checks, nominal UUIDs/signature bytes and supplying Rust
+projections remain independent of these limits.
 
 ## Source language
 

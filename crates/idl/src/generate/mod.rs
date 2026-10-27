@@ -730,54 +730,14 @@ fn declaration_origin<'a>(graph: &'a Generation<'_>, declaration: &'a Declaratio
 fn declaration_docs(graph: &Generation<'_>, declaration: &Declaration) -> TokenStream {
     let origin = origin_docs(&declaration.docs, declaration_origin(graph, declaration));
     let Some(instance) = &declaration.specialization else { return origin };
-    let mut applied = instance.template.clone();
-    applied.arguments = instance.arguments.clone();
-    // This is a synthesized display view, not a rewritten semantic AST. Canonical
-    // owner keys explain imported templates without losing authored source spans.
-    let mut display = AbiType::Named(applied);
-    qualify_display(graph, &mut display);
     let explanation = Literal::string(&format!(
         " Closed IDL type: `{}`. Rust name `{}` appends `Instance` and the closed type's nominal UUID as hexadecimal digits. \
          The UUID derives from the template and argument identities; it is not reversibly mangled source text. \
          Use this closed spelling to interpret the generated name; decoding the UUID cannot recover the type arguments.",
-        display.source_name(),
+        crate::type_display::application(instance, Some(graph.graph), false),
         declaration.name,
     ));
     quote! { #origin #[doc = #explanation] }
-}
-
-/// Qualifies a disposable documentation view using established declaration keys.
-/// It neither looks up source spelling nor changes canonical/supplying ownership.
-fn qualify_display(graph: &Generation<'_>, ty: &mut AbiType) {
-    match ty {
-        AbiType::Named(name) => {
-            if let Some(key) = name.binding.declaration() {
-                let mut segments = graph.graph.modules()[key.module]
-                    .source
-                    .name
-                    .to_string()
-                    .split('.')
-                    .map(str::to_owned)
-                    .collect::<Vec<_>>();
-                segments.push(key.name.clone());
-                name.segments = segments;
-            }
-            for argument in &mut name.arguments {
-                qualify_display(graph, argument);
-            }
-        }
-        AbiType::ComPtr(value)
-        | AbiType::WeakComPtr(value)
-        | AbiType::ComBox(value)
-        | AbiType::WeakComBox(value)
-        | AbiType::Borrowed(value)
-        | AbiType::Vector(value)
-        | AbiType::UnsizedSlice(value)
-        | AbiType::Slice(value)
-        | AbiType::OutputSlice(value)
-        | AbiType::Array { element: value, .. } => qualify_display(graph, value),
-        AbiType::Unit | AbiType::Scalar(_) | AbiType::String => {}
-    }
 }
 
 /// Adds readable provenance after authored docs, so it survives Rust macro forwarding.

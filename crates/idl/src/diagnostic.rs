@@ -70,6 +70,23 @@ pub struct SourceSpan {
 }
 
 impl SourceSpan {
+    /// Exhaustive owned-payload view for generated-copy accounting. Adding span
+    /// metadata must update this list instead of silently bypassing the budget.
+    pub(crate) fn owned_strings(&self) -> [&str; 2] {
+        let Self { module, path, start: _, end: _ } = self;
+        [module, path]
+    }
+
+    /// Allocation-free vacancy used only while moving a named type through a visitor.
+    pub(crate) fn placeholder() -> Self {
+        Self {
+            module: String::new(),
+            path: String::new(),
+            start: SourcePosition { line: 0, column: 0 },
+            end: SourcePosition { line: 0, column: 0 },
+        }
+    }
+
     /// Converts a parser span into stable one-based source coordinates.
     pub(crate) fn from_parser(span: Span) -> Self {
         let start = span.start();

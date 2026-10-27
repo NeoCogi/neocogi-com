@@ -13,6 +13,8 @@
 #![deny(missing_docs)]
 
 mod binding;
+#[cfg(all(test, target_os = "linux", not(miri)))]
+mod bounded_child;
 mod diagnostic;
 mod metadata_names;
 mod model;
@@ -23,6 +25,7 @@ mod sha256;
 mod specialize;
 mod standard;
 mod syntax;
+mod type_display;
 pub use standard::is_bundled_module;
 
 pub use model::{

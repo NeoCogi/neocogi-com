@@ -272,6 +272,7 @@ dependencies = [
 name = "neocogi-idl"
 version = "0.0.0"
 dependencies = [
+ "libc",
  "neocogi-com-core",
  "prettyplease",
  "proc-macro2",

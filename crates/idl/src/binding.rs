@@ -126,19 +126,7 @@ pub(crate) fn semantic_origin(ty: &crate::AbiType) -> Result<SemanticOrigin, cra
         T::Unit => Ok(O::Unit),
         T::Scalar(name) => Ok(O::Scalar(name.clone())),
         T::String => Ok(O::Text),
-        T::Named(name) => match &name.binding {
-            Binding::Intrinsic(value) => Ok(O::Intrinsic(*value)),
-            Binding::Declaration(key) if name.arguments.is_empty() => Ok(O::Nominal(key.clone())),
-            Binding::Application { template, .. } => Ok(O::Application(
-                template.clone(),
-                name.arguments.iter().map(semantic_origin).collect::<Result<_, _>>()?,
-            )),
-            _ => Err(crate::ResolutionError {
-                diagnostics: vec![
-                    crate::Diagnostic::new("EIDL060", "closed semantic origin requires a bound type").primary(&name.span, "unbound or open argument"),
-                ],
-            }),
-        },
+        T::Named(name) => semantic_origin_named(name, &name.arguments),
         T::ComPtr(child) => constructor(Constructor::ComPtr, None, child),
         T::WeakComPtr(child) => constructor(Constructor::WeakComPtr, None, child),
         T::ComBox(child) => constructor(Constructor::ComBox, None, child),
@@ -149,6 +137,26 @@ pub(crate) fn semantic_origin(ty: &crate::AbiType) -> Result<SemanticOrigin, cra
         T::Slice(child) => constructor(Constructor::Slice, None, child),
         T::OutputSlice(child) => constructor(Constructor::OutputSlice, None, child),
         T::Array { element, len } => constructor(Constructor::Array, Some(*len), element),
+    }
+}
+
+/// Reads a borrowed application without reconstructing an owned AbiType.
+/// Expansion preflights its output; later admission reads only bounded retained
+/// expressions and retains one exact origin per admitted declaration.
+pub(crate) fn semantic_origin_named(name: &crate::NamedType, arguments: &[crate::AbiType]) -> Result<SemanticOrigin, crate::ResolutionError> {
+    use SemanticOrigin as O;
+    match &name.binding {
+        Binding::Intrinsic(value) => Ok(O::Intrinsic(*value)),
+        Binding::Declaration(key) if arguments.is_empty() => Ok(O::Nominal(key.clone())),
+        Binding::Application { template, .. } => Ok(O::Application(
+            template.clone(),
+            arguments.iter().map(semantic_origin).collect::<Result<_, _>>()?,
+        )),
+        _ => Err(crate::ResolutionError {
+            diagnostics: vec![
+                crate::Diagnostic::new("EIDL060", "closed semantic origin requires a bound type").primary(&name.span, "unbound or open argument"),
+            ],
+        }),
     }
 }
 

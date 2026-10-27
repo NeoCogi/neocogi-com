@@ -16,7 +16,7 @@ external archive utility is required by the task runner.
 | `cargo xtask compatibility --suite linked` | Native C/ABI checks, relocated host-owned test executables and independent providers |
 | `cargo xtask compatibility --suite cross-version` | Stable host/nightly providers and the reverse direction |
 | `cargo xtask compatibility --suite build-flags` | Both cross-version rows plus release panic/LTO variations |
-| `cargo xtask compatibility --suite safety` | Miri ownership and raw-storage cases |
+| `cargo xtask compatibility --suite safety` | Miri ownership, raw-storage and compiler-budget cases |
 | `cargo xtask compatibility --suite address` | AddressSanitizer host/provider execution |
 | `cargo xtask compatibility --suite thread` | ThreadSanitizer host/provider execution |
 | `cargo xtask compatibility --suite sanitizers` | Both sanitizer workloads sequentially |

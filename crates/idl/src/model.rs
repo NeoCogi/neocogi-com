@@ -276,6 +276,20 @@ pub struct NamedType {
 }
 
 impl NamedType {
+    /// Moves a type without cloning its argument tree. The vacancy cannot escape
+    /// a successful visitor or specialization operation.
+    pub(crate) fn take(&mut self) -> Self {
+        std::mem::replace(
+            self,
+            Self {
+                span: SourceSpan::placeholder(),
+                segments: Vec::new(),
+                arguments: Vec::new(),
+                binding: crate::binding::Binding::Unbound,
+            },
+        )
+    }
+
     /// Whether binding selected the language's borrowed UTF-8 view intrinsic.
     pub(crate) fn is_str(&self) -> bool {
         matches!(self.binding, crate::binding::Binding::Intrinsic(crate::binding::Intrinsic::Str))

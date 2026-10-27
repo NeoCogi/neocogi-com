@@ -98,7 +98,8 @@ fn child(test: &str, case: &str, builder: Builder, seeded: bool, reverse: bool, 
     if !matches!(builder, Builder::Shared) {
         fs::create_dir_all(&output).unwrap();
     }
-    let result = Command::new(std::env::current_exe().unwrap())
+    let mut command = Command::new(std::env::current_exe().unwrap());
+    command
         .args(["--exact", test, "--nocapture", "--test-threads=1"])
         .env(CASE, case)
         .env("NEOCOGI_IDL_OUTPUT_BUILDER", builder.name())
@@ -106,9 +107,15 @@ fn child(test: &str, case: &str, builder: Builder, seeded: bool, reverse: bool, 
         .env("NEOCOGI_IDL_OUTPUT_REVERSE", if reverse { "yes" } else { "no" })
         .env("CARGO_MANIFEST_DIR", &root)
         .env("OUT_DIR", output)
-        .env("CARGO_MANIFEST_LINKS", contract_links_name("proof.a"))
-        .output()
-        .unwrap();
+        .env("CARGO_MANIFEST_LINKS", contract_links_name("proof.a"));
+    #[cfg(all(target_os = "linux", not(miri)))]
+    let result = if case == "budget" {
+        crate::bounded_child::run(command)
+    } else {
+        command.output().unwrap()
+    };
+    #[cfg(not(all(target_os = "linux", not(miri))))]
+    let result = command.output().unwrap();
     let stdout = String::from_utf8_lossy(&result.stdout);
     assert!(
         result.status.success(),
@@ -117,7 +124,14 @@ fn child(test: &str, case: &str, builder: Builder, seeded: bool, reverse: bool, 
     );
     assert!(stdout.contains(OBSERVED), "child must execute assertions: {stdout}");
     if case != "path" {
-        assert!(!stdout.contains("cargo::metadata="), "rejection must not advertise success: {stdout}");
+        // A successful seed may advertise metadata; only the rejected invocation
+        // is denied success. The marker also proves that invocation actually ran.
+        let rejected = if case == "budget" {
+            stdout.split_once("begin budget rejection").expect("rejection marker").1
+        } else {
+            &stdout
+        };
+        assert!(!rejected.contains("cargo::metadata="), "rejection must not advertise success: {stdout}");
     }
 }
 
@@ -258,6 +272,58 @@ fn graph_encoding_rejection_precedes_output_changes() {
                 seeded,
                 false,
                 true,
+            );
+        }
+    }
+}
+
+/// An expansion-limit error precedes generation, maps, graph publication and
+/// metadata for all public frontends, including a seeded entire output tree.
+#[cfg(all(target_os = "linux", not(miri)))]
+#[test]
+fn expansion_limit_rejection_preserves_outputs() {
+    if std::env::var(CASE).as_deref() == Ok("budget") {
+        let builder = Builder::child();
+        let root = std::path::PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").unwrap());
+        let output = std::path::PathBuf::from(std::env::var_os("OUT_DIR").unwrap());
+        builder.sources(&root, "u32");
+        if std::env::var("NEOCOGI_IDL_OUTPUT_SEEDED").unwrap() == "yes" {
+            builder.build("proof::z", false).unwrap();
+            seed_unrelated(&output);
+        }
+        let before = snapshot(&output);
+        let path = root.join("schemas").join(match builder {
+            Builder::Directory => "proof/a/part.ncidl",
+            _ => "proof/a.ncidl",
+        });
+        fs::write(path, "#[version(1)] struct Pair<A, B> { marker: u8 } #[version(1)] struct Grow<T> { children: Vec<Grow<Pair<T, T>>> } #[version(1)] struct Root { value: Grow<u8> }").unwrap();
+        crate::bounded_child::cap();
+        println!("begin budget rejection");
+        let error = builder.build("proof::z", false).unwrap_err();
+        let BuildError::Resolve(error) = error else {
+            panic!("wrong rejection phase: {error:?}")
+        };
+        let message = error.to_string();
+        assert!(message.contains("EIDL060"), "{message}");
+        assert!(
+            ["compiler work limit", "compiler storage limit", "compiler nesting limit"]
+                .iter()
+                .any(|reason| message.contains(reason)),
+            "{message}"
+        );
+        assert_eq!(snapshot(&output), before);
+        println!("{OBSERVED}");
+        return;
+    }
+    for builder in [Builder::File, Builder::Directory, Builder::Shared] {
+        for seeded in [false, true] {
+            child(
+                "cargo::output_admission_tests::expansion_limit_rejection_preserves_outputs",
+                "budget",
+                builder,
+                seeded,
+                false,
+                false,
             );
         }
     }

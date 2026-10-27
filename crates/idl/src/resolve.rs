@@ -222,7 +222,19 @@ pub fn resolve_modules(modules: Vec<Module>) -> Result<ResolvedModules, ModuleGr
 }
 
 /// Resolves already admitted owned models; only semantic diagnostics enter collectors.
-fn resolve_semantics(mut modules: Vec<Module>) -> Result<ResolvedModules, ResolutionError> {
+fn resolve_semantics(modules: Vec<Module>) -> Result<ResolvedModules, ResolutionError> {
+    resolve_semantics_with_limits(modules, crate::specialize::budget::Limits::default())
+}
+
+/// Private limits plumbing uses the same source admission/binding/consumer path.
+#[cfg(test)]
+pub(crate) fn resolve_with_limits(modules: Vec<Module>, limits: crate::specialize::budget::Limits) -> Result<ResolvedModules, ModuleGraphError> {
+    let modules = crate::standard::attach(modules)?;
+    resolve_semantics_with_limits(modules, limits).map_err(ModuleGraphError::Resolution)
+}
+
+/// The only expansion allowance covers all canonically ordered modules.
+fn resolve_semantics_with_limits(mut modules: Vec<Module>, limits: crate::specialize::budget::Limits) -> Result<ResolvedModules, ResolutionError> {
     modules.sort_by(|left, right| {
         left.name
             .cmp(&right.name)
@@ -262,7 +274,7 @@ fn resolve_semantics(mut modules: Vec<Module>) -> Result<ResolvedModules, Resolu
             diagnostics: diagnostics.into_iter().map(|diagnostic| diagnostic.with_sources(&sources)).collect(),
         });
     }
-    let modules = crate::specialize::expand(authored.into_iter().map(|entry| entry.module).collect())?;
+    let modules = crate::specialize::expand(authored.into_iter().map(|entry| entry.module).collect(), limits)?;
     let mut entries = build_entries(modules)?;
     connect_externals_and_imports(&mut entries)?;
     let admitted = admit_canonical_origins(&entries)?;
@@ -713,11 +725,7 @@ fn validate_module(index: usize, entries: &[ModuleEntry], values: &crate::ValueG
                     for (field, ty) in record.fields.iter().zip(&value.fields) {
                         if let Some(reason) = values.persistence_failure(ty) {
                             let authored = match &declaration.specialization {
-                                Some(instance) => {
-                                    let mut name = instance.template.clone();
-                                    name.arguments = instance.arguments.clone();
-                                    name.rust_path()
-                                }
+                                Some(instance) => crate::type_display::application(instance, None, true),
                                 None => declaration.name.clone(),
                             };
                             let mut diagnostic = Diagnostic::new(
@@ -827,11 +835,7 @@ fn validate_layouts(index: usize, entries: &[ModuleEntry], values: &crate::Value
 /// Shows source template arguments instead of leaking a generated Rust hash name.
 fn authored_declaration_name(declaration: &Declaration) -> String {
     match &declaration.specialization {
-        Some(instance) => {
-            let mut name = instance.template.clone();
-            name.arguments = instance.arguments.clone();
-            name.rust_path()
-        }
+        Some(instance) => crate::type_display::application(instance, None, true),
         None => declaration.name.clone(),
     }
 }
@@ -1434,19 +1438,18 @@ struct CanonicalOrigin {
 
 /// Authorizes reuse once, before any string-keyed consumer can lose a definition.
 fn admit_canonical_origins(entries: &[ModuleEntry]) -> Result<HashMap<String, CanonicalOrigin>, ResolutionError> {
-    use crate::binding::{DeclarationKey, SemanticOrigin, semantic_origin};
+    use crate::binding::{DeclarationKey, SemanticOrigin, semantic_origin_named};
     let mut admitted = HashMap::<String, CanonicalOrigin>::new();
     for (module_index, entry) in entries.iter().enumerate() {
         for (declaration_index, declaration) in entry.module.declarations.iter().enumerate() {
             let identity = &entry.declaration_identities[declaration_index];
             let origin = if let Some(specialization) = &declaration.specialization {
-                let mut name = specialization.template.clone();
-                name.arguments = specialization.arguments.clone();
+                let name = &specialization.template;
                 // The retained bound template fixes every contract attribute;
                 // finite arguments fix substitution, including phantom fields.
                 let key = name.binding.declaration().expect("bound template");
                 assert!(entries[key.module].module.templates.iter().any(|template| template.name == key.name));
-                semantic_origin(&AbiType::Named(name))?
+                semantic_origin_named(name, &specialization.arguments)?
             } else {
                 SemanticOrigin::Nominal(DeclarationKey {
                     module: module_index,
@@ -1476,8 +1479,8 @@ fn admit_canonical_origins(entries: &[ModuleEntry]) -> Result<HashMap<String, Ca
                                     format!("canonical declaration {:?} has conflicting semantic origins", identity.qualified_name),
                                 )
                                 .with_sources(&sources)
-                                .primary(&declaration.span, format!("conflicting definition: {:?}", candidate.origin))
-                                .secondary(&first.span, format!("first definition: {:?}", previous.origin)),
+                                .primary(&declaration.span, "conflicting definition")
+                                .secondary(&first.span, "first definition"),
                             ],
                         });
                     }

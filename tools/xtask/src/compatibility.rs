@@ -611,6 +611,15 @@ fn safety(runner: &Runner) -> Result<Value> {
     let result = (|| {
         let mut targets = vec![
             (
+                // Interpret quota semantics; native/MSRV/archive suites own the
+                // separate borrowed-rendering and full code-generation checks.
+                words(&["-p", "neocogi-idl", "--lib", "semantic_budget_"]),
+                vec![
+                    "specialize::tests::semantic_budget_cache_hits_spend_batch_work",
+                    "specialize::tests::semantic_budget_composes_reentrant_descent",
+                ],
+            ),
+            (
                 words(&["-p", "neocogi-com-core", "--lib", "--features", "std"]),
                 vec!["abi::array_tests::array_signature_matches_known_sha256_and_distinguishes_shapes"],
             ),
