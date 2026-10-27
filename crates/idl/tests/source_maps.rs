@@ -336,6 +336,12 @@ mod metadata_calls {
             .unwrap()
             .contains("enum Option<T>")
     );
+    // Navigation must point to the exact compiler-owned source, not merely a
+    // similarly named enum found under a consumer or dependency source root.
+    assert_eq!(
+        fs::read(out_dir.join(file.location.as_ref().unwrap())).unwrap(),
+        include_bytes!("../stdlib/neocogi/lang.ncidl")
+    );
     for (name, text, part) in [("First", first, "a.ncidl"), ("Second", second, "z.ncidl")] {
         let entry = map
             .mappings

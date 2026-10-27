@@ -6,7 +6,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use super::{BuildError, BuildOutput, GraphModule, GraphRecord, GRAPH_SCHEMA, ModuleSources, required_path, write_changed, generate_module_emission};
+use super::{BuildError, BuildOutput, GraphModule, GraphRecord, GRAPH_SCHEMA, ModuleSources, required_path, write_emissions, generate_module_emission};
 use crate::generate::RustModulePaths;
 
 /// Generates selected modules directly from shared IDL namespace trees.
@@ -206,12 +206,7 @@ impl SharedSources {
             path: output.to_owned(),
             source,
         })?;
-        let results = emissions
-            .into_iter()
-            .map(|emission| emission.write(&graph.source_roots, &resolved, output))
-            .collect::<Result<Vec<_>, _>>()?;
-        write_changed(&path, &bytes)?;
-        Ok(results)
+        write_emissions(emissions, &graph.source_roots, &resolved, output, &bytes)
     }
 }
 

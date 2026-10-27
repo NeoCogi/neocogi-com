@@ -691,6 +691,15 @@ file/directory owners fail the build. Rerun directives track source parts. Gener
 filenames use existing logical module UUIDs to avoid case/separator collisions and
 remain bounded; callers use each returned include path rather than guessing names.
 
+Both Cargo builders complete every requested module's generation and source-graph
+encoding before output materialization. Complete Rust-path and generator-worker
+errors therefore preserve prior output, including navigation copies. Physical
+source-map finishing is a separate fallible phase: all maps are resolved and
+serialized before any main binding/map/include or graph is overwritten. Bundled
+navigation copies and directories may change during finishing. Final publication
+uses write-if-changed and can be partial on IO failure; neither phase promises a
+filesystem transaction. Success metadata/results follow the complete publication.
+
 Independent consumers obtain distinct Rust types with matching ABI layouts, IIDs
 and signatures. Their COM calls negotiate that exact identity, and generated
 bindings own no runtime state. The host's sole runtime registry is unaffected.

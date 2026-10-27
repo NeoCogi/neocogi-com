@@ -83,12 +83,14 @@ impl Builder {
 /// Executes exactly one public-builder test with native Cargo input paths.
 fn child(test: &str, case: &str, builder: Builder, seeded: bool, reverse: bool, non_unicode: bool) {
     let fixture = tempfile::tempdir().unwrap();
-    let mut root = fixture.path().join("consumer");
+    let root = fixture.path().join("consumer");
     #[cfg(unix)]
-    if non_unicode {
+    let root = if non_unicode {
         use std::{ffi::OsString, os::unix::ffi::OsStringExt};
-        root.push(OsString::from_vec(b"native-\xff".to_vec()));
-    }
+        root.join(OsString::from_vec(b"native-\xff".to_vec()))
+    } else {
+        root
+    };
     #[cfg(not(unix))]
     assert!(!non_unicode);
     fs::create_dir_all(&root).unwrap();
@@ -139,6 +141,11 @@ fn complete_path_rejection_preserves_the_entire_output_tree() {
             panic!("wrong rejection phase: {error:?}")
         };
         assert!(message.contains("invalid public Rust path"), "{message}");
+        let module = match builder {
+            Builder::Shared => "proof.z",
+            Builder::File | Builder::Directory => "proof.a",
+        };
+        assert!(message.contains(&format!("cannot generate module {module:?}")), "{message}");
         let suffix = match builder {
             Builder::Shared => "::LongValue",
             Builder::File | Builder::Directory => "::Ready",
@@ -192,6 +199,9 @@ fn later_generation_worker_failure_preserves_the_entire_output_tree() {
             panic!("denied wrong phase: {error:?}")
         };
         assert!(message.contains("cannot start generated-Rust syntax worker"), "{message}");
+        // An extra earlier worker must not silently move this regression to
+        // first-module generation while retaining the same generic error text.
+        assert!(message.contains("cannot generate module \"proof.z\""), "{message}");
         assert!(message.contains("test denied syntax worker start"), "{message}");
         assert_eq!(snapshot(&output), before);
         println!("{OBSERVED}");

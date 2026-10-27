@@ -36,7 +36,8 @@ pub(super) fn generate_module_emission(
     let resolved_module = resolved
         .module(module_name)
         .ok_or_else(|| BuildError::Idl(format!("resolved graph lost module {module_name:?}")))?;
-    let mut bindings = generate_rust_with_paths_and_source_map(resolved, module_name, paths).map_err(|source| BuildError::Idl(source.to_string()))?;
+    let mut bindings = generate_rust_with_paths_and_source_map(resolved, module_name, paths)
+        .map_err(|source| BuildError::Idl(format!("cannot generate module {module_name:?}: {source}")))?;
     let generated_file = format!("{stem}.rs");
     let bindings_path = output_dir.join(&generated_file);
     // Cargo owns physical naming, while the pure generator supplies only its
@@ -84,18 +85,72 @@ pub(super) fn generate_module_emission(
 }
 
 impl ModuleEmission {
-    /// Finishes actual-file provenance and publishes this completed generation.
-    /// Filesystem errors can leave partial output; no compiler work is repeated.
-    pub(super) fn write(mut self, roots: &BTreeMap<String, PathBuf>, resolved: &ResolvedModules, output: &Path) -> Result<BuildOutput, BuildError> {
+    /// Finishes and serializes provenance without publishing any main artifact.
+    /// This phase may create bundled navigation copies before a later error.
+    /// Logical maps are discarded after serialization rather than retained twice.
+    fn finish(mut self, roots: &BTreeMap<String, PathBuf>, resolved: &ResolvedModules, output: &Path) -> Result<ReadyEmission, BuildError> {
         source_map::resolve_locations(&mut self.generated.source_map, output, roots, resolved)?;
         let map_bytes = serde_json::to_vec_pretty(&self.generated.source_map).map_err(|source| BuildError::Json {
             operation: "encode Rust source map",
             path: self.output.source_map.clone(),
             source,
         })?;
-        write_changed(&self.output.bindings, self.generated.source.as_bytes())?;
-        write_changed(&self.output.source_map, &map_bytes)?;
+        Ok(ReadyEmission {
+            source: self.generated.source,
+            source_map: map_bytes,
+            include_text: self.include_text,
+            output: self.output,
+        })
+    }
+}
+
+/// A module whose compiler and physical provenance work has completed.
+/// Only contextual filesystem writes remain; this owner retains no logical map
+/// or syntax tree and cannot invoke generation during publication.
+struct ReadyEmission {
+    /// The exact formatted Rust produced by the original generator invocation.
+    source: String,
+    /// Serialized map with final basename and canonical physical locations.
+    source_map: Vec<u8>,
+    /// Already selected normal-module loader and explicit public re-exports.
+    include_text: String,
+    /// Successful result descriptors, withheld until the complete batch publishes.
+    output: BuildOutput,
+}
+
+impl ReadyEmission {
+    /// Publishes one fully finished module using existing write-if-changed rules.
+    /// A write failure can leave partial files; no rollback is promised.
+    fn write(self) -> Result<BuildOutput, BuildError> {
+        write_changed(&self.output.bindings, self.source.as_bytes())?;
+        write_changed(&self.output.source_map, &self.source_map)?;
         write_changed(&self.output.include, self.include_text.as_bytes())?;
         Ok(self.output)
     }
 }
+
+/// Writes completed compiler results and their already encoded source graph.
+/// This shared filesystem owner never regenerates or serializes the source graph.
+/// Every map must finish before any main artifact is changed. Bundled-source
+/// copies/directories may change during finishing; actual publication can be
+/// partial on IO failure. Callers advertise success only after this returns.
+pub(super) fn write_emissions(
+    emissions: Vec<ModuleEmission>,
+    roots: &BTreeMap<String, PathBuf>,
+    resolved: &ResolvedModules,
+    output: &Path,
+    graph_bytes: &[u8],
+) -> Result<Vec<BuildOutput>, BuildError> {
+    let ready = emissions
+        .into_iter()
+        .map(|emission| emission.finish(roots, resolved, output))
+        .collect::<Result<Vec<_>, _>>()?;
+    // This second batch barrier is separate from generation: a later source
+    // can disappear or fail canonicalization after all Rust generation succeeds.
+    let results = ready.into_iter().map(ReadyEmission::write).collect::<Result<Vec<_>, _>>()?;
+    write_changed(&output.join("neocogi-idl-graph.json"), graph_bytes)?;
+    Ok(results)
+}
+
+#[cfg(test)]
+mod tests;

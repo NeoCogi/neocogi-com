@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 use crate::generate::RustModulePaths;
 
 mod emission;
-use emission::generate_module_emission;
+use emission::{generate_module_emission, write_emissions};
 
 mod source;
 mod source_map;
@@ -230,8 +230,9 @@ impl Module {
             source: source_error,
         })?;
         let graph_path = output_dir.join("neocogi-idl-graph.json");
-        let output = emission.write(&graph.source_roots, &resolved, &output_dir)?;
-        write_changed(&graph_path, &graph_bytes)?;
+        let output = write_emissions(vec![emission], &graph.source_roots, &resolved, &output_dir, &graph_bytes)?
+            .pop()
+            .expect("packaged build prepared exactly one local module");
 
         println!("cargo::metadata=idl_graph={}", graph_path.display());
         println!("cargo::metadata=idl_source_map={}", output.source_map.display());

@@ -109,6 +109,9 @@ graph before creating or changing generated output. A rejected complete public
 Rust path or generation-worker start therefore preserves prior output, including
 bundled navigation copies. Filesystem provenance finishing and publication are
 later fallible operations and do not promise rollback on IO failure.
+All source maps finish and serialize before any main binding, map, include or
+graph file is overwritten. A finishing failure may leave navigation copies or
+directories; a failure during final writes can leave partial main output.
 
 No `links`, contract package, runtime state or `DEP_*` variable is needed.
 

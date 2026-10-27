@@ -79,6 +79,16 @@ including `neocogi.lang::Option`, is copied from the resolved source into
 `OUT_DIR/idl-sources/`; maps point to that exact copy instead of guessing a file
 under the consumer's IDL root. These files and metadata are private build artifacts.
 
+Cargo first generates the entire requested local batch and encodes the source
+graph without filesystem writes. It then finishes all source locations and
+serializes every map before replacing any main `.rs`, `.rs.map`, `.include.rs`
+or graph file. Bundled source copies can already change during location finishing;
+they require actual files for canonicalization. Main publication is a later
+fallible write phase. This ordering preserves old main files on map-finishing
+failure without promising rollback on final IO failure or interruption. Generated
+text and logical maps are retained across the batch; logical maps are released
+as their finished serialized bytes are prepared.
+
 ## What is mapped
 
 The compiler parses the final pretty-printed Rust to measure ranges. Formatting,
@@ -202,8 +212,12 @@ origin explicitly.
 Tests cover Unicode columns, multipart ordering, formatting, scalar wrappers and
 constants, native fields/variants, closed generic interfaces, method bodies, imports, EOF
 boundaries and JSON round-tripping. A real Cargo module-generation test verifies
-reported map paths, resolution to the authored file, unchanged-output reuse, and
-location-only edits refreshing the map without changing binding behavior.
+reported map paths, resolution to the authored file, exact bundled-source copies
+and generated metadata/COM calls. Cargo unit tests separately check complete
+recursive output preservation on generation/graph rejection, main-file preservation
+on a later map-finishing error, and exact bytes/known old timestamps on an unchanged
+successful repeat. The shared-consumer test checks actual Cargo cache reuse and
+source-membership invalidation, which differ from avoiding unchanged file writes.
 
 Run the maintained source-map integration suite from the workspace root:
 
