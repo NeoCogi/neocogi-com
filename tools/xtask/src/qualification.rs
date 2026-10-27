@@ -201,6 +201,26 @@ pub(crate) fn workspace(runner: &Runner) -> Result<()> {
             return Err("published package version or inventory mismatch".into());
         }
     }
+    // Package roles are a dependency invariant, not just naming convention.
+    // Host-dependent integration tests belong to tests/com, keeping the SDK
+    // independently testable and avoiding a development-only dependency cycle.
+    let sdk = packages.iter().find(|package| package["name"] == "neocogi-com").ok_or("missing shared SDK")?;
+    let host = packages
+        .iter()
+        .find(|package| package["name"] == "neocogi-com-host")
+        .ok_or("missing host implementation")?;
+    let sdk_dependencies = sdk["dependencies"].as_array().ok_or("missing SDK dependencies")?;
+    if sdk_dependencies.iter().any(|dependency| dependency["name"] == "neocogi-com-host") {
+        return Err("shared SDK must not depend on a host implementation, even for tests".into());
+    }
+    if !host["dependencies"]
+        .as_array()
+        .ok_or("missing host dependencies")?
+        .iter()
+        .any(|dependency| dependency["name"] == "neocogi-com" && dependency["kind"].is_null())
+    {
+        return Err("host implementation must depend on the shared SDK".into());
+    }
     let fixtures = runner.root.join("tests/com/integration-tests/fixtures");
     for entry in fs::read_dir(fixtures)? {
         let path = entry?.path();
@@ -228,12 +248,28 @@ pub(crate) fn workspace(runner: &Runner) -> Result<()> {
         consumer.root = root.to_path_buf();
         consumer.env.insert("CARGO_TARGET_DIR".into(), root.join("target").into_os_string());
         let tree = consumer.cargo("stable", &["tree", "--offline", "--edges", "normal,build", "--prefix", "none"])?;
-        for compiler in ["neocogi-idl", "syn ", "prettyplease", "serde_json"] {
+        for compiler in ["neocogi-idl", "syn ", "prettyplease", "serde_json", "neocogi-com-host"] {
             if tree.contains(compiler) {
-                return Err(format!("compiler dependency in no-default graph: {compiler}").into());
+                return Err(format!("compiler or host dependency in no-default SDK graph: {compiler}").into());
             }
         }
         consumer.cargo("stable", &["check", "--offline"])?;
+        let service_tree = consumer.cargo(
+            "stable",
+            &[
+                "tree",
+                "--offline",
+                "--edges",
+                "normal,build",
+                "--prefix",
+                "none",
+                "--features",
+                "neocogi-com/macros,neocogi-com/runtime",
+            ],
+        )?;
+        if service_tree.contains("neocogi-com-host") {
+            return Err("SDK service clients or macros select a host implementation".into());
+        }
         Ok(())
     })();
     crate::process::retire(owner, result)

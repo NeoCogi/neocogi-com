@@ -83,6 +83,13 @@
 //! an explicit aligned-field serialization codec. IDL owns no native packing,
 //! alignment, or external-field admission switches.
 //!
+//! An interface caller calls a COM interface; a provider implements one. Both
+//! use this shared SDK. A host is the final assembly that additionally selects
+//! `neocogi-com-host` to own its runtime services. Hosts can provide callbacks,
+//! and plugins can call other providers: caller/provider roles describe calls.
+//! This crate's normal dependencies are core and optional implementation macros.
+//! The `runtime` feature adds clients for supplied service tables, not a host.
+//!
 //! The host explicitly links `neocogi-com-host` and initializes its one catalog
 //! through `#[com_main]`. A copyable [`Runtime`] lends access to that host's immutable
 //! C operation tables. Plugin acquisition and reusable libraries receive it from
@@ -194,7 +201,3 @@ pub use neocogi_com_core::{EncodedInput, DecodedInput};
 pub use neocogi_com_core::{NcOutput, NcOutputWriter, PreparedOutput};
 #[cfg(feature = "alloc")]
 pub use neocogi_com_core::NcOutputBuffer;
-
-// Only this test executable retains an implementation, independently of facade features.
-#[cfg(all(test, feature = "runtime"))]
-extern crate neocogi_com_host as _;

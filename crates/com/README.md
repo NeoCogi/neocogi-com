@@ -5,6 +5,25 @@ component ABI. It provides typed COM pointers, generated interface/object
 support, typed plugin roots, and optional clients for
 host-supplied runtime services.
 
+## Hosts, callers and providers
+
+An interface caller calls an object; a provider implements its interfaces. A
+plugin can be both, and a host can provide callback objects. This package is the
+shared SDK for all of them. The final host application additionally selects
+`neocogi-com-host`, whose Rust crate is `neocogi_com_host`, to own registration,
+loading and host services.
+
+The SDK depends normally on core and optional implementation macros. Its
+`runtime` feature enables clients for supplied host-service tables; it creates no
+host state and adds no implementation dependency. A provider receives a copyable
+`Runtime` during bootstrap and uses that access for any service calls. The host
+implementation uses the SDK's shared ownership/contracts/codecs with `std`, while
+calling its own raw service implementation stays inside the host package.
+
+See [roles, dependencies and startup](https://github.com/NeoCogi/neocogi-com/blob/master/docs/COM.md#hosts-callers-and-providers)
+for the complete dependency graph. A local object and its interface callers need
+only their shared contract and SDK features, independently of plugin deployment.
+
 Public cross-library contracts should be authored as Rust-like `.ncidl`
 modules. See [IDL contract modules](https://github.com/NeoCogi/neocogi-com/blob/master/docs/contracts/IDL_MODULES.md) for their
 source, crate, signature, and tooling model. The

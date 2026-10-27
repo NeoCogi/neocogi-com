@@ -17,6 +17,12 @@
 //! failures diagnose and abort; static registration and debug capacity failures
 //! return statuses. Caller-owned persistence contexts stay outside the catalog.
 //!
+//! The host role belongs to the final application that selects this package.
+//! Interface callers and providers share the separate `neocogi-com` SDK. A
+//! provider can call other providers, and a host can implement callbacks. This
+//! implementation uses SDK ownership/contracts/codecs with `std` and core raw
+//! service records. The SDK's normal dependencies do not select this host.
+//!
 //! The Cargo package is `neocogi-com-host`; the Rust target is `neocogi_com_host`.
 //! Native and browser hosts link this implementation once and lend its immutable
 //! C service tables to providers. No runtime DSO is deployed. Pure ABI records remain

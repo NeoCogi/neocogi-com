@@ -171,6 +171,10 @@ deployment target. Raw run archives are excluded from Git.
 
 ## Initial object/table measurement
 
+The size measurements below refer to the former `libnc_com.so` runtime artifact.
+The current `neocogi-com-host` implementation is an rlib linked into the final
+host; these historical names do not describe a deployed host shared library.
+
 Implementation `e428471a` was compared with a fresh build of `1129d592` at the
 same workspace/output path using `rustc 1.100.0-nightly (bff8e12ff 2026-08-26)`,
 full/Vulkan assembly and the min-size profile. The complete migration measures:

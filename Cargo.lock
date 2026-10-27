@@ -210,7 +210,6 @@ name = "neocogi-com"
 version = "0.0.0"
 dependencies = [
  "neocogi-com-core",
- "neocogi-com-host",
  "neocogi-com-macros",
 ]
 

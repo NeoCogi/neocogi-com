@@ -4,6 +4,21 @@ The current contract is [pre-release ABI v1](docs/abi-v1.md). Entries below reco
 its development; later entries can supersede older implementation details.
 Historical draft numbers do not define additional supported COM baselines.
 
+## Shared SDK and explicit host package
+
+Use `neocogi-com` in `crates/com` for both interface callers and providers.
+The implementation is `neocogi-com-host` in `crates/host`, with Rust library
+`neocogi_com_host`. Host persistence code uses the shared SDK; raw host tables
+continue to use core. Update default/aliased `com_main` linkage, manifests,
+fixtures, archive admission, CI and documentation together. The `runtime` SDK
+feature remains a supplied-service client feature. Core/service ABI names and
+versions are unchanged. Older entries below record historical package/artifact
+names and deployment models; they are not current linkage instructions.
+
+Remove the SDK's obsolete host dev-dependency and unused test-only crate retention.
+Host-dependent integration tests already live in `tests/com`. Workspace checks
+enforce the host-to-SDK dependency direction and host-free SDK feature graphs.
+
 ## Host-owned services within ABI v1
 
 Initialize one selected executable-owned implementation with `#[com_main]` and

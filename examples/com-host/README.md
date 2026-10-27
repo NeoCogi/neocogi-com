@@ -1,5 +1,9 @@
 # COM host
 
+The host role belongs to this final executable. It uses `neocogi-com` as the
+shared SDK for calling provider interfaces and implementing observer callbacks.
+See [host/caller/provider roles](../../docs/COM.md#hosts-callers-and-providers).
+
 This executable explicitly owns `neocogi-com-host`. `#[com_main]` initializes
 that selected host and supplies immutable access; provider acquisition receives
 the same services. The provider has no implementation dependency.

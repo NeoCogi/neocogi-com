@@ -6,6 +6,26 @@ implementation of caller-owned persistence contexts. It contains
 no contract-module registry, native contract descriptions, or event seeding.
 Applications use `neocogi_com::Runtime`.
 
+## Host implementation and shared SDK
+
+A host is the final application that selects this implementation. The package
+name is `neocogi-com-host` and the Rust library path is `neocogi_com_host`.
+Interface callers and providers both use the separate `neocogi-com` SDK: callers
+call interfaces, providers implement them, and either role can occur inside a
+host or plugin. `neocogi_com::Runtime` is supplied access to this implementation's
+service tables; it does not own or initialize another runtime.
+
+This package depends on the SDK with defaults disabled and `std` enabled for
+shared ownership, persistence contracts and codecs, plus core for raw service
+tables and validation. The SDK has no dependency back to the host; host-dependent
+integration tests live in the unpublished `tests/com` package.
+Providers link the SDK and receive host access during bootstrap; the final host
+links this package once. Host-side inspection tools can reuse its loader and
+metadata utilities without initializing the plugin catalog.
+
+See [the role and dependency guide](https://github.com/NeoCogi/neocogi-com/blob/master/docs/COM.md#hosts-callers-and-providers)
+for the complete graph and startup/call sequence.
+
 A dynamic library exports `nc_get_plugin_descriptor_v1`, lending an
 immutable descriptor with plugin metadata, hard dependencies, full root factory
 IID/signature, threading, and bootstrap. Registration validates the metadata and

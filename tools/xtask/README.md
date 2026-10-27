@@ -7,7 +7,7 @@ external archive utility is required by the task runner.
 | Command | Checks |
 | --- | --- |
 | `cargo test -p xtask --locked` | Driver regressions, real harness admission, archive extraction and report failures |
-| `cargo xtask workspace` | Locked workspace/fixture resolution and a compiler-free no-default consumer |
+| `cargo xtask workspace` | Locked workspace/fixture resolution, SDK/host dependency direction, and a compiler-free no-default consumer |
 | `cargo xtask quality` | Formatting, strict Clippy, allocation modes, ABI snippets, Markdown links and strict rustdoc |
 | `cargo xtask markdown` | Local Markdown files and heading anchors; external links are not fetched |
 | `cargo xtask msrv` | Rust 1.85 checks, library tests, exact semantic integration cases and feature boundaries |

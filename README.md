@@ -16,9 +16,20 @@ consistent standard-library diagnostics locally and in CI.
 | `neocogi-com-core` | Raw ABI types and traits; `no_std` by default |
 | `neocogi-idl` | Contract compiler, shared code generation, Cargo integration |
 | `neocogi-com-macros` | Object, plugin, persistence, and host entry macros |
-| `neocogi-com` | Typed interface ownership, values, and optional host clients |
+| `neocogi-com` | Shared SDK for interface callers and providers, ownership, values, and host-service clients |
 | `neocogi-com-host` | Host-owned runtime and native plugin loader (`neocogi_com_host` rlib) |
 | `neocogi-inspect` | Plugin metadata inspection, checks, plans, and comparisons |
+
+A **host** is the final application that owns one runtime implementation. An
+**interface caller** calls a COM interface; a **provider** implements one. These
+roles can overlap: hosts can implement callbacks, and plugins can call other
+providers or host services. Both use the shared `neocogi-com` SDK. The host also
+links `neocogi-com-host`; the SDK's `runtime` feature supplies service clients
+without selecting that implementation.
+
+The [host, caller and provider guide](docs/COM.md#hosts-callers-and-providers)
+defines their responsibilities, dependency graph and call flow. The SDK lives in
+`crates/com`; the host implementation lives in `crates/host`.
 
 The two unpublished example packages demonstrate a COM host and provider with
 both static and shared-library deployment. ABI fixtures remain isolated,

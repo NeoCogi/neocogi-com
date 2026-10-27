@@ -13,6 +13,12 @@ fn acquire_root(_runtime: neocogi_com::Runtime)
 }
 ```
 
+This crate is a provider when it implements the extent interfaces and a caller
+when it calls the host's observer or supplied services. Its normal dependency is
+the shared SDK; contract generation uses `neocogi-idl` at build time. The
+[role/dependency guide](../../docs/COM.md#hosts-callers-and-providers) explains
+why using the SDK or its `runtime` clients selects no host implementation.
+
 The separate [host](../com-host) owns the runtime implementation. Its
 `#[neocogi_com::com_main]` entry receives a copyable handle and registers/acquires
 the provider. A dynamic provider uses the same host tables without importing

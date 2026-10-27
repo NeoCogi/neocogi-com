@@ -8,7 +8,7 @@ license.workspace = true
 repository.workspace = true
 documentation = "https://docs.rs/neocogi-com"
 readme = "README.md"
-description = "Typed C-ABI COM clients, object helpers, and optional runtime bindings"
+description = "Shared C-ABI COM SDK for interface callers, providers, and host-service clients"
 keywords = ["com", "abi", "ffi", "plugin"]
 categories = ["api-bindings", "development-tools::ffi"]
 
@@ -19,10 +19,6 @@ neocogi-com-macros = { workspace = true, optional = true }
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
-
-[dev-dependencies]
-# Library-local tests explicitly retain their host implementation.
-neocogi-com-host.workspace = true
 
 [features]
 default = ["macros", "std"]

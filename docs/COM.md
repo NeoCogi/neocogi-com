@@ -30,6 +30,91 @@ See [IDL contract modules](contracts/IDL_MODULES.md) for authoring and native
 builds, [component design](architecture/COM_DESIGN.md) for responsibility
 boundaries, and [the current ABI specification](abi-v1.md) for the binary model.
 
+## Hosts, callers and providers
+
+A **host** is the final native executable or browser/Wasm assembly that selects
+and initializes one `neocogi-com-host` implementation. It owns the plugin catalog,
+loading policy and host services. The Rust library is `neocogi_com_host`, built as
+an ordinary rlib; linking it into the final assembly supplies the implementation.
+
+An **interface caller** (also called a client) is any code that calls a COM
+interface through a generated client view, `ComPtr`, `ComRef` or another
+appropriate handle. It can live in the host, a plugin, or an ordinary library.
+Calling an object directly requires its
+interface contract and handle, not plugin registration or a runtime lookup on
+each call.
+
+A **provider** implements interfaces and owns concrete object state. A **plugin**
+packages a provider behind a descriptor and typed root acquisition function. A
+plugin may be dynamically loaded or statically linked into the host. The same
+provider can call another provider, so it is a caller during those calls. A host
+that implements an observer callback is a provider of that callback interface.
+These are roles in an interaction, not mutually exclusive kinds of Rust crate.
+
+`neocogi-com` is the **shared SDK**, used by callers and providers. It supplies
+ownership handles, object implementation helpers, codecs, generated-client
+support and optional host-service clients. `neocogi_com::Runtime` is a copyable
+access handle to the selected host's immutable service tables. Copying it creates
+no registry, loads no implementation and grants no ownership of the host state.
+
+### Dependencies
+
+Arrows below mean a normal Cargo dependency, not the direction of a COM call:
+
+```mermaid
+flowchart TD
+    App[Host application] --> Host[neocogi-com-host]
+    App --> SDK[neocogi-com shared SDK]
+    Provider[Plugin or provider] --> SDK
+    Host --> SDK
+    Host --> Core[neocogi-com-core]
+    SDK --> Core
+```
+
+| Assembly or package | Dependencies and purpose |
+| --- | --- |
+| Host application | `neocogi-com` with `runtime` and `macros` for service clients and `com_main`, plus `neocogi-com-host` for the selected implementation. Static composition also adds the provider's rlib. |
+| Plugin/provider | `neocogi-com` with the features needed for its objects and values. `macros` exposes `com_object` and `plugin`; `runtime` is needed only when it calls the supplied host-service clients. It receives `Runtime` from bootstrap. |
+| Ordinary interface caller | `neocogi-com` and its generated contract bindings, with `alloc`/`std` as its values require. Local interface calls do not need the host package or SDK `runtime` feature. |
+| `neocogi-com-host` | `neocogi-com` with `default-features = false, features = ["std"]` for shared ownership, persistence contracts and codecs; `neocogi-com-core` with `std` for raw service tables and validation. These dependencies identify one set of shared ABI types. |
+| `neocogi-com` | `neocogi-com-core`, plus optional `neocogi-com-macros`. It has no host dependency, including when `runtime` is enabled or its unit tests run. Host-dependent integration tests live in the unpublished `tests/com` package. |
+| Contract generation | A crate that generates bindings uses `neocogi-idl` in `[build-dependencies]`. Enabling SDK `macros` builds `neocogi-com-macros`, whose backend depends on IDL and core. |
+
+The shared SDK remains usable with reduced features; all defaults disabled retain
+its `no_std` interface/ownership surface. The host implementation requires `std`.
+The package names are `neocogi-com` and `neocogi-com-host`; their ordinary Rust
+paths are `neocogi_com` and `neocogi_com_host`, respectively.
+
+### Startup and calls
+
+1. The final host explicitly depends on `neocogi-com-host` and uses
+   `#[neocogi_com::com_main]`. The generated entry calls
+   `neocogi_com_host::initialize_process()`, admits its `NcHostApiV1` bundle and
+   passes a `neocogi_com::Runtime` handle to the authored main body. Explicit
+   `neocogi_com = path, neocogi_com_host = path` arguments support Cargo aliases.
+2. The host registers a statically linked descriptor or loads an
+   application-selected provider library. Registration checks the descriptor and
+   dependencies before publishing the plugin in that host's catalog.
+3. The host requests an exact factory interface. Acquisition validates the
+   contract and invokes the provider's bootstrap with the same host API bundle.
+   The provider receives its `Runtime` handle and returns one owning root
+   interface reference.
+4. The caller uses factory methods to create objects and calls their interfaces
+   directly through generated clients. Providers can retain supplied runtime
+   access when they need host services or nested plugin acquisition; those calls
+   return to the same host-owned tables.
+5. COM handles govern object lifetime independently of catalog registration.
+   Dropping a client handle releases its ownership as defined by its interface
+   handle. Dynamically opened provider code remains pinned for process lifetime,
+   and the host's service tables remain valid after main returns.
+
+For example, the [sample host](../examples/com-host) acquires the
+[extent provider](../examples/com-plugin), calls its factory, and supplies an
+observer. The host is the caller of the extent object; the extent object is the
+caller of the host's observer. Both use `neocogi-com`. Only the final application
+selects `neocogi-com-host`. Inspection tools may also depend on the host package
+for its descriptor/loader utilities without initializing a second catalog.
+
 ## IDL
 
 The COM-owned [IDL compiler](../crates/idl) generates checked ABIs for ordinary values
