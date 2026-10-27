@@ -8,6 +8,7 @@ members = [
     "crates/api",
     "tests/com",
     "tools/neocogi-inspect",
+    "tools/xtask",
     "examples/com-plugin",
     "examples/com-host",
 ]

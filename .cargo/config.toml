@@ -1,0 +1,6 @@
+[build]
+# Bootstrap the task runner without multiplying compiler jobs on small machines.
+jobs = 1
+
+[alias]
+xtask = "run --locked --package xtask --"

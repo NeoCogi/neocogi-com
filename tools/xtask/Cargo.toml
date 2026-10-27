@@ -1,0 +1,19 @@
+[package]
+name = "xtask"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+description = "Repository-owned COM qualification commands"
+
+[dependencies]
+flate2 = "1.1"
+percent-encoding = "2.3"
+regex = "1.13"
+serde.workspace = true
+serde_json.workspace = true
+sha2 = "0.10"
+tar = { version = "0.4", default-features = false }
+tempfile.workspace = true
+toml = "1.1"
