@@ -85,6 +85,11 @@ impl SharedSources {
     /// Source still comes from the shared roots and is checked in this build.
     /// Emitted uses certify the selected Rust type's own resolved declaration
     /// identity at compilation; matching module constants alone are insufficient.
+    /// A surviving authored closed-interface import forwards all five public
+    /// names from this route, so supplying facades must expose the complete
+    /// trait/Abi/VTable/VtblFor/Client family. Marker checks do not certify
+    /// arbitrary independently authored sibling aliases; inherited code keeps
+    /// using checked marker associations. Native value imports forward one name.
     pub fn import(mut self, module: impl Into<String>, rust_path: impl Into<String>) -> Self {
         self.bindings.push(Binding {
             module: module.into(),

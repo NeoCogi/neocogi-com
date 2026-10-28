@@ -34,6 +34,17 @@ fn harness_admission_rejects_empty_substring_and_ignored_cases() -> Result<()> {
         assert!(require_tests(listing, &["required"]).is_err());
     }
     require_tests("required: test\nhelper: test", &["required"])?;
+    // Archive qualification sees a complete harness run: unrelated successes
+    // must not conceal an ignored, absent or merely similarly named sentinel.
+    for output in [
+        "test helper ... ok\ntest required ... ignored\ntest result: ok. 1 passed; 0 failed; 1 ignored;",
+        "test required_suffix ... ok\ntest result: ok. 1 passed; 0 failed;",
+        "test required ... FAILED\ntest helper ... ok",
+        "test helper ... ok",
+    ] {
+        assert!(require_named_execution(output, "required").is_err());
+    }
+    require_named_execution("test required ... ok\ntest helper ... ok", "required")?;
     for output in [
         "",
         "test result: ok. 0 passed; 0 failed; 1 ignored;",

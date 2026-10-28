@@ -2,7 +2,7 @@
 use std::{ffi::OsString, fs, path::Path};
 use serde_json::Value;
 use crate::{
-    compatibility::{ABI_TESTS, abi_sentinel, execute_tests, words},
+    compatibility::{ABI_TESTS, IMPORTED_INTERFACE_PROVIDER_TEST, abi_sentinel, execute_tests, require_execution, require_tests, words},
     packages::PUBLISHED,
     process::{Result, Runner, sources},
 };
@@ -87,18 +87,25 @@ pub(crate) fn msrv(runner: &Runner) -> Result<()> {
     fixture.env.insert("RUSTUP_TOOLCHAIN".into(), "1.85.0".into());
     let result = (|| {
         fixture.cargo("1.85.0", &["generate-lockfile"])?;
-        let mut rows = Vec::new();
         let mut all = words(&["check"]);
         all.extend(selectors(true, true));
         all.extend(words(&["--all-targets", "--all-features", "--locked"]));
-        rows.push(all);
+        fixture.run("rustup", words(&["run", "1.85.0", "cargo"]).into_iter().chain(all))?;
         let mut libs = words(&["test"]);
         libs.extend(selectors(false, false));
         libs.extend(words(&["--lib", "--locked"]));
-        rows.push(libs);
-        for args in rows {
-            fixture.run("rustup", words(&["run", "1.85.0", "cargo"]).into_iter().chain(args))?;
-        }
+        // Shipped backend tests are library tests, unlike floor_semantics' --test
+        // targets. Admit the exact default-feature operation before the existing
+        // complete SDK library phase; do not run the full IDL library twice.
+        let imported_provider = IMPORTED_INTERFACE_PROVIDER_TEST;
+        let listing = fixture.cargo("1.85.0", &["test", "-p", "neocogi-idl", "--lib", "--locked", "--", "--list"])?;
+        require_tests(&listing, &[imported_provider])?;
+        let execution = fixture.cargo(
+            "1.85.0",
+            &["test", "-p", "neocogi-idl", "--lib", "--locked", "--", "--exact", imported_provider],
+        )?;
+        require_execution(&execution)?;
+        fixture.run("rustup", words(&["run", "1.85.0", "cargo"]).into_iter().chain(libs))?;
         floor_semantics(&fixture)?;
         for args in [
             vec!["test", "--manifest-path", "tests/abi-spec/Cargo.toml", "--doc", "--locked"],

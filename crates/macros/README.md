@@ -22,6 +22,15 @@ struct ButtonObject {
 }
 ```
 
+An interface imported by another IDL module can be implemented through that
+module's path, for example `#[com_object(consumer::Button)]` with
+`impl consumer::Button for ButtonObject`. Generated IDL imports reexport the
+original trait and its complete `Abi`/`VTable`/`VtblFor`/`Client` family; typed
+queries and borrowed calls can use `consumer::ButtonAbi`. A handwritten Rust
+trait-only alias does not provide those siblings automatically: an object macro
+derives its marker/provider names beside the supplied trait path. Custom Rust
+routes supplying IDL imports must expose the complete family.
+
 The interface supplies the public identity, threading capability, callable
 surface, and required interfaces. The implementation supplies private
 state and method bodies. Typed facade storage contains one Rust value and the common lifetime header;

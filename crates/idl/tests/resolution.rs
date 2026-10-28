@@ -648,3 +648,112 @@ fn dense_member_conflicts_are_source_aware_and_policy_specific() {
     )])
     .unwrap();
 }
+
+/// Imported interface families reserve every public name at the actual use
+/// identifier, against both local and separately imported declarations.
+#[test]
+fn imported_interface_companions_have_source_aware_collision_admission() {
+    for kind in neocogi_com_core::NcComInterfaceCompanion::ALL {
+        let name = format!("IBase{}", kind.suffix());
+        for separate_import in [false, true] {
+            let base = module("proof/base.ncidl", "#[version(1)] interface IBase {}");
+            let a = "extern proof.base; use proof.base::IBase; #[version(1)] struct Anchor { value: u32 }";
+            let z = if separate_import {
+                format!("extern proof.other; use proof.other::{name};")
+            } else {
+                format!("#[version(1)] struct {name} {{ value: u32 }}")
+            };
+            let consumer = parse_module_parts(
+                Path::new("proof/consumer"),
+                &[
+                    ModuleSource {
+                        path: Path::new("proof/consumer/a.ncidl"),
+                        text: a,
+                    },
+                    ModuleSource {
+                        path: Path::new("proof/consumer/z.ncidl"),
+                        text: &z,
+                    },
+                ],
+            )
+            .unwrap();
+            let mut modules = vec![base, consumer];
+            if separate_import {
+                modules.push(module("proof/other.ncidl", &format!("#[version(1)] struct {name} {{ value: u32 }}")));
+            }
+            let error = resolve_modules(modules).unwrap_err();
+            let neocogi_idl::ModuleGraphError::Resolution(error) = error else {
+                panic!("wrong rejection phase: {error}")
+            };
+            let diagnostic = error.diagnostics.iter().find(|diagnostic| diagnostic.code == "EIDL021").unwrap();
+            assert!(diagnostic.message.contains(&name));
+            let primary = diagnostic.labels.iter().find(|label| label.style == neocogi_idl::LabelStyle::Primary).unwrap();
+            let secondary = diagnostic
+                .labels
+                .iter()
+                .find(|label| label.style == neocogi_idl::LabelStyle::Secondary)
+                .unwrap();
+            assert_eq!(primary.span.path(), "proof/consumer/a.ncidl");
+            assert_eq!(
+                primary.span.start(),
+                neocogi_idl::SourcePosition {
+                    line: 1,
+                    column: a.find("IBase;").unwrap() + 1
+                }
+            );
+            assert_eq!(secondary.span.path(), "proof/consumer/z.ncidl");
+            assert_eq!(
+                secondary.span.start(),
+                neocogi_idl::SourcePosition {
+                    line: 1,
+                    column: z.find(&name).unwrap() + 1
+                }
+            );
+        }
+    }
+}
+
+/// Only emitted interface families reserve companions. Native values and both
+/// unused/consumed open-template imports leave similarly spelled names available.
+#[test]
+fn value_and_open_interface_imports_do_not_acquire_phantom_companions() {
+    for consumed in [false, true] {
+        let owner = module(
+            "proof/owner.ncidl",
+            "#[version(1)] struct Value { value: u32 } #[version(1)] interface Template<T> { fn echo(&self, value: T) -> Result<T>; }",
+        );
+        let usage = if consumed { "#[version(1)] interface User: Template<u32> {}" } else { "" };
+        let consumer = module(
+            "proof/consumer.ncidl",
+            &format!(
+                "extern proof.owner; use proof.owner::{{Value, Template}}; #[version(1)] struct ValueAbi {{ value: u32 }} #[version(1)] struct TemplateAbi {{ value: u32 }} {usage}"
+            ),
+        );
+        let graph = resolve_modules(vec![owner, consumer]).unwrap();
+        let file: syn::File = syn::parse_str(&neocogi_idl::generate_rust(&graph, "proof.consumer").unwrap()).unwrap();
+        let imports: Vec<_> = file
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                syn::Item::Use(item) => Some(quote::quote!(#item).to_string()),
+                _ => None,
+            })
+            .collect();
+        assert!(imports.iter().any(|item| item.ends_with(":: Value ;")), "{imports:?}");
+        assert!(
+            !imports.iter().any(|item| item.contains("Template") || item.contains("ValueAbi")),
+            "{imports:?}"
+        );
+        if consumed {
+            assert!(
+                graph
+                    .module("proof.consumer")
+                    .unwrap()
+                    .source
+                    .declarations
+                    .iter()
+                    .any(|declaration| declaration.specialization.is_some())
+            );
+        }
+    }
+}

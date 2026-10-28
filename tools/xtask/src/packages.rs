@@ -6,7 +6,7 @@ use std::{
 };
 use flate2::read::GzDecoder;
 use crate::{
-    compatibility::words,
+    compatibility::{IMPORTED_INTERFACE_PROVIDER_TEST, require_named_execution, words},
     process::{Result, Runner},
 };
 
@@ -163,7 +163,10 @@ pub(crate) fn run(runner: &Runner) -> Result<()> {
                 args.extend(words(&options));
                 args.push("--manifest-path".into());
                 args.push(manifest.as_os_str().to_owned());
-                verification.run("rustup", args)?;
+                let output = verification.run("rustup", args)?;
+                if package == &"neocogi-idl" && options.contains(&"--tests") {
+                    require_named_execution(&output, IMPORTED_INTERFACE_PROVIDER_TEST)?;
+                }
             }
         }
         let output = verification.cargo("1.85.0", &["run", "--manifest-path", "strings-consumer/Cargo.toml"])?;

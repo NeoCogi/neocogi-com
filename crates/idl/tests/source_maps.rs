@@ -536,3 +536,48 @@ fn imported_and_phantom_specializations_separate_definitions_from_use_sites() {
         (start.line, start.column + "Stored<Size, Size>".len())
     );
 }
+
+/// One authored imported interface maps its complete grouped Rust family, while
+/// an independent import and later local method retain their own exact origins.
+#[test]
+fn grouped_interface_imports_preserve_each_origin_and_later_member_offsets() {
+    let owner = neocogi_idl::parse_module(
+        Path::new("proof/base.ncidl"),
+        "#[version(1)] interface IBase {} #[version(1)] struct Value { value: u32 }",
+    )
+    .unwrap();
+    let a = "extern proof.base; use proof.base::IBase; #[version(1)] interface Later { fn get(&self) -> Result<u32>; }";
+    let z = "use proof.base::Value;";
+    let consumer = parse_module_parts(
+        Path::new("proof/consumer"),
+        &[
+            ModuleSource {
+                path: Path::new("proof/consumer/a.ncidl"),
+                text: a,
+            },
+            ModuleSource {
+                path: Path::new("proof/consumer/z.ncidl"),
+                text: z,
+            },
+        ],
+    )
+    .unwrap();
+    let graph = resolve_modules(vec![owner, consumer]).unwrap();
+    let generated = generate_rust_with_source_map(&graph, "proof.consumer").unwrap();
+    for name in std::iter::once("IBase".to_owned()).chain(
+        neocogi_com_core::NcComInterfaceCompanion::ALL
+            .into_iter()
+            .map(|kind| format!("IBase{}", kind.suffix())),
+    ) {
+        let entry = generated.source_map.lookup(position(&generated.source, &name)).unwrap();
+        assert_eq!(entry.kind, SourceMapKind::Import, "{name}");
+        assert_eq!(entry.original.range.start, position(a, "IBase;"), "{name}");
+        assert_eq!(generated.source_map.sources[entry.original.source].path, "proof/consumer/a.ncidl");
+    }
+    let value = generated.source_map.lookup(position(&generated.source, "::Value;")).unwrap();
+    assert_eq!(value.original.range.start, position(z, "Value;"));
+    assert_eq!(generated.source_map.sources[value.original.source].path, "proof/consumer/z.ncidl");
+    let method = generated.source_map.lookup(position(&generated.source, "fn get(")).unwrap();
+    assert_eq!(method.kind, SourceMapKind::Method);
+    assert_eq!(method.original.range.start, position(a, "get("));
+}

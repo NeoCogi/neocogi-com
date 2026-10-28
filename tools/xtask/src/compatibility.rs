@@ -230,6 +230,22 @@ impl Sanitizer {
     }
 }
 
+/// Shipped IDL operation required by both compiler-floor and archive qualification.
+/// Keep the exact library-test path here so package and checkout gates agree.
+pub(crate) const IMPORTED_INTERFACE_PROVIDER_TEST: &str = "backend_tests::binding_admission_tests::imported_interface_paths_construct_providers";
+
+/// Require one named test to have passed within a complete captured harness run.
+/// Other passing helpers, ignored tests and substring names cannot satisfy an
+/// archive's required semantic operation. The caller already checks process exit.
+pub(crate) fn require_named_execution(output: &str, required: &str) -> Result<()> {
+    let passed = format!("test {required} ... ok");
+    if output.lines().any(|line| line.trim() == passed) {
+        Ok(())
+    } else {
+        Err(format!("required test did not execute successfully: {required}").into())
+    }
+}
+
 /// Prove exact semantic names exist; benchmarks/substrings/empty listings fail.
 pub(crate) fn require_tests(listing: &str, required: &[&str]) -> Result<()> {
     let names: BTreeSet<_> = listing.lines().filter_map(|line| line.strip_suffix(": test")).collect();

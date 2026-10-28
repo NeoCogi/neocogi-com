@@ -565,6 +565,21 @@ matching `extern` is rejected; an external declaration may instead be referred
 to explicitly as `neocogi::render::ITexture`. External module names are always
 fully qualified and never resolved relative to the current namespace.
 
+An authored import of a closed interface also exposes its complete generated
+Rust family: `ITexture`, `ITextureAbi`, `ITextureVTable`, `ITextureVtblFor` and
+`ITextureClient`. The importing module reexports the existing items from its
+selected supplying Rust route; it creates no replacement interface identity or
+table. For coherent generated bindings, both owner and imported paths name the
+same Rust types. Providers can use `#[com_object(consumer::ITexture)]`, implement
+`consumer::ITexture`, and query/call through `ComPtr<consumer::ITextureAbi>` or
+`ComRef<'_, consumer::ITextureAbi>`. Cargo include entries explicitly forward the
+whole family so consumer globs cannot make its named companions ambiguous.
+Admission reserves all those public names at the authored import identifier;
+conflicts with local or separately imported declarations are source-aware IDL
+errors before generation or publication. Native value imports expose one name.
+Open-template imports are consumed by specialization, including unused imports;
+closed instances keep their existing consumer-local generated family.
+
 ### Multi-file module composition
 
 Large contracts may place declarations in any number of `.ncidl` files below
@@ -709,6 +724,21 @@ The selected `BaseVtblFor<T>` constructor must type-check against that associate
 table; existing typed provider-projection identity/ancestry checks still apply.
 Public trait/Abi/VTable/VtblFor/Client names remain available. No extra query,
 reference-count operation, core/compiler dependency or runtime graph is added.
+
+A custom Rust facade selected to supply an authored closed-interface import must
+expose all five public names, even for an otherwise unused import. Previously
+partial supplying facades must add the missing original exports. This does not
+apply to an unrelated handwritten trait alias used directly by an object macro;
+such a path must supply the marker/provider names that the macro derives beside
+it. The IDL compiler does not resolve arbitrary Rust aliases or inspect missing
+Rust items; unavailable supplying names cause Rust compilation errors.
+
+Availability does not certify arbitrary sibling aliases. A handwritten facade
+may expose a current checked marker alongside older unused named Client/VTable
+items. Those aliases are forwarded as supplied; inherited code still uses the
+checked marker's associated representations. Marker identity checks do not
+claim that every independently authored sibling is coherent. Whole-family Rust
+type equality is guaranteed for coherent generated supplying routes.
 
 Add other
 subsystems with `.include_root("../../ui/schemas")`. Every reachable module must have
