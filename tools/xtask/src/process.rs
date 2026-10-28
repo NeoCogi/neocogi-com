@@ -98,6 +98,8 @@ impl Runner {
     }
 
     /// Allocate disk-backed task scratch below this checkout, ignoring ambient TMPDIR.
+    /// The checkout excludes target from workspace membership so temporary Cargo
+    /// projects cannot join it when searching past a copied source workspace.
     pub fn scratch(&self, prefix: &str) -> Result<TempDir> {
         let directory = self.root.join("target/xtask-work");
         fs::create_dir_all(&directory)?;
@@ -106,6 +108,8 @@ impl Runner {
 
     /// Keep nested test-owned temporary sources and targets on the same disk as
     /// their task owner. All three spellings cover Unix and Windows discovery.
+    /// Enclosing workspaces must exclude this subtree (tmp directly, target for
+    /// outer checkouts) so generated Cargo projects can own their own workspaces.
     pub fn temporary_files(&mut self, directory: PathBuf) -> Result<()> {
         fs::create_dir_all(&directory)?;
         for key in ["TMPDIR", "TMP", "TEMP"] {

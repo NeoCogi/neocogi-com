@@ -1135,6 +1135,11 @@ invoke subprocess argument vectors directly. Temporary sources, nested test
 scratch and targets live below the checkout's `target/xtask-work` directory and
 are explicitly retired before success. The runner forces one build job and one
 test thread in all children, including compiler-spawning tests.
+The checkout, copied source and archive workspaces exclude their `target` and
+`tmp` subtrees from Cargo workspace membership. `TMPDIR`, `TMP` and `TEMP` point
+to `tmp`; generated Cargo projects such as Miri's sysroot builder therefore
+remain independent of every enclosing workspace during Cargo's ancestor search,
+even when the interpreter cache is empty.
 
 `cargo xtask compatibility --suite safety` requires nightly with `miri` and
 `rust-src` installed. It discovers and interprets the COM core, runtime,

@@ -40,11 +40,15 @@ CI has four jobs total.
 Each isolated task owns sources and targets below `target/xtask-work`, on the
 checkout's filesystem rather than a potentially memory-backed system temporary
 directory. Sources remain alive while tests use embedded manifest paths. Copied
-fixtures exclude build outputs, Git data and private plans/reviews. Independently
-built native roles are copied and cleaned before relocated execution. Task-owned
-sources/targets are explicitly retired before success; failure unwinding also
-attempts cleanup. Interrupted processes can leave scratch, removed by
-`cargo clean`. A running task must finish before cleaning the workspace.
+fixtures exclude build outputs, Git data and private plans/reviews. Both copied
+source and archive workspaces exclude their `target` and `tmp` subtrees from
+workspace membership. The runner points `TMPDIR`, `TMP` and `TEMP` to `tmp` so
+generated Cargo projects, including a fresh Miri sysroot build, remain independent
+of every enclosing workspace during Cargo's ancestor search.
+Independently built native roles are copied and cleaned before relocated
+execution. Task-owned sources/targets are explicitly retired before success;
+failure unwinding also attempts cleanup. Interrupted processes can leave scratch,
+removed by `cargo clean`. A running task must finish before cleaning the workspace.
 
 Archive verification extracts with Rust gzip/tar libraries into a workspace
 containing only archive members and generated consumers, without shared package

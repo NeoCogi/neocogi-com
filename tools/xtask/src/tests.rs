@@ -256,6 +256,59 @@ fn cargo_artifacts_reject_missing_foreign_duplicate_and_renamed_roots() -> Resul
     }
     Ok(())
 }
+
+/// Miri and compiler-spawning tests create standalone Cargo projects in TMPDIR.
+/// Exercise Cargo's ancestor search with a generated package and path dependency;
+/// neither manifest declares a workspace or knows its enclosing scratch location.
+pub(crate) fn require_independent_temporary_package(runner: &Runner) -> Result<()> {
+    let temporary = &runner.env[&OsString::from("TMPDIR")];
+    for key in ["TMP", "TEMP"] {
+        assert_eq!(&runner.env[&OsString::from(key)], temporary);
+    }
+    let package = tempfile::Builder::new().prefix("rustc-build-sysroot-").tempdir_in(temporary)?;
+    fs::create_dir_all(package.path().join("src"))?;
+    fs::create_dir_all(package.path().join("dependency/src"))?;
+    fs::write(
+        package.path().join("Cargo.toml"),
+        "[package]\nname='scratch-sysroot'\nversion='0.0.0'\nedition='2024'\n[dependencies]\nscratch-dependency={path='dependency'}\n",
+    )?;
+    fs::write(package.path().join("src/lib.rs"), "pub use scratch_dependency::VALUE;\n")?;
+    fs::write(
+        package.path().join("dependency/Cargo.toml"),
+        "[package]\nname='scratch-dependency'\nversion='0.0.0'\nedition='2024'\n",
+    )?;
+    fs::write(package.path().join("dependency/src/lib.rs"), "pub const VALUE: u8 = 1;\n")?;
+    let result = (|| {
+        let mut arguments = words(&["run", "stable", "cargo", "metadata", "--offline", "--format-version=1", "--manifest-path"]);
+        arguments.push(package.path().join("Cargo.toml").into_os_string());
+        let graph: Value = serde_json::from_str(&runner.read("rustup", arguments)?)?;
+        assert_eq!(
+            std::path::Path::new(graph["workspace_root"].as_str().unwrap()).canonicalize()?,
+            package.path().canonicalize()?
+        );
+        assert_eq!(graph["workspace_members"].as_array().unwrap().len(), 1);
+        assert_eq!(graph["packages"].as_array().unwrap().len(), 2);
+        Ok(())
+    })();
+    crate::process::retire(package, result)
+}
+
+/// Copied sources retain the checkout manifest's temporary-project exclusion.
+#[test]
+fn temporary_cargo_projects_do_not_join_the_copied_workspace() -> Result<()> {
+    let checkout = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize()?;
+    let manifest = fs::read(checkout.join("Cargo.toml"))?;
+    let (owner, fixture) = crate::process::sources(&Runner::new(checkout))?;
+    let path = owner.path().to_owned();
+    let result = (|| {
+        assert_eq!(fs::read(fixture.root.join("Cargo.toml"))?, manifest);
+        require_independent_temporary_package(&fixture)
+    })();
+    crate::process::retire(owner, result)?;
+    assert!(!path.exists());
+    Ok(())
+}
+
 /// Failed source preparation invalidates old success and leaves no scratch directory.
 #[test]
 fn failed_preparation_replaces_previous_success_receipt() -> Result<()> {

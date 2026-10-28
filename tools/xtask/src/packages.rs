@@ -69,10 +69,14 @@ fn consumers(repository: &Path, root: &Path, version: &str) -> Result<()> {
     // Scratch lives below the checkout's target directory. This workspace
     // boundary owns only extracted packages and consumers, with no inherited
     // metadata or source-checkout dependencies to mask incomplete archives.
+    // Temporary Cargo projects remain independent, just as in copied sources.
     let mut members = PUBLISHED.iter().map(|(name, _)| format!("{name}-{version}")).collect::<Vec<_>>();
     members.extend(["consumer".into(), "strings-consumer".into()]);
     let members = toml::Value::Array(members.into_iter().map(toml::Value::String).collect());
-    fs::write(root.join("Cargo.toml"), format!("[workspace]\nresolver='3'\nmembers={members}\n"))?;
+    fs::write(
+        root.join("Cargo.toml"),
+        format!("[workspace]\nresolver='3'\nexclude=['target','tmp']\nmembers={members}\n"),
+    )?;
     fs::create_dir(root.join(".cargo"))?;
     let mut patch = String::from("[patch.crates-io]\n");
     for (package, _) in PUBLISHED {
@@ -254,11 +258,12 @@ mod tests {
         Ok(())
     }
 
-    /// Cargo owns the extracted assembly even when an unrelated workspace is above it.
+    /// Cargo owns the extracted assembly below an unrelated source workspace.
+    /// As in the checkout, its target subtree excludes nested task-owned projects.
     #[test]
     fn extracted_workspace_cannot_join_the_source_checkout() -> Result<()> {
         let owner = tempfile::tempdir()?;
-        fs::write(owner.path().join("Cargo.toml"), "[workspace]\nmembers=['source-only']\n")?;
+        fs::write(owner.path().join("Cargo.toml"), "[workspace]\nmembers=['source-only']\nexclude=['target']\n")?;
         let root = owner.path().join("target/extracted");
         fs::create_dir_all(&root)?;
         for (package, _) in PUBLISHED {
@@ -272,7 +277,9 @@ mod tests {
         }
         let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         consumers(&repository, &root, "0.0.0")?;
-        let runner = Runner::new(root.canonicalize()?);
+        let mut runner = Runner::new(root.canonicalize()?);
+        runner.temporary_files(runner.root.join("tmp"))?;
+        crate::tests::require_independent_temporary_package(&runner)?;
         let graph: serde_json::Value = serde_json::from_str(&runner.read(
             "rustup",
             [
