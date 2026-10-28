@@ -67,6 +67,33 @@ impl Fixture {
         Self { consumer }
     }
 
+    /// Gives the same real helper/provider graph to either Cargo source API.
+    /// The helper publishes graph ownership; its actual supplied Rust definitions
+    /// remain the independent coherent (or deliberately overridden) fixture.
+    fn source_packages(&self, values: &str, service: &str) {
+        let root = self.consumer.directory.path();
+        fs::create_dir_all(root.join("schemas/proof")).unwrap();
+        self.write("schemas/proof/value.ncidl", values);
+        self.write("schemas/proof/service.ncidl", service);
+        let idl = Path::new(env!("CARGO_MANIFEST_DIR"));
+        for (package, module) in [("helper", "proof.value"), ("provider", "proof.service")] {
+            let extra = if package == "provider" { "binding-helper={path='../helper'}\n" } else { "" };
+            self.write(&format!("{package}/Cargo.toml"), &format!(
+            "[package]\nname='binding-{package}'\nversion='0.0.0'\nedition='2024'\nlinks={:?}\n[dependencies]\nneocogi-com={{path={:?}}}\n{extra}[build-dependencies]\nneocogi-idl={{path={idl:?}}}\n",
+            crate::cargo::contract_links_name(module), self.consumer.facade
+        ));
+        }
+        self.write(
+            "helper/build.rs",
+            r#"
+        fn main() {
+            neocogi_idl::cargo::Module::new("../schemas", "proof/value.ncidl")
+                .rust_path("binding_helper::selected").build().unwrap();
+        }
+    "#,
+        );
+    }
+
     /// Changes only safe facade exports. Current module constants may coexist
     /// with an older explicit declaration, exactly as in an ordinary library.
     fn select(&self, export: &str) {
@@ -234,7 +261,8 @@ fn imported_declaration_checks_cover_each_lowering_route() {
 }
 
 /// Interface root arguments, results and physical inheritance all certify the
-/// selected Abi marker, even when only its public trait is emitted as an import.
+/// selected Abi marker. Forwarding the full imported family must not replace
+/// that proof with the identity of an independently named sibling alias.
 #[test]
 fn imported_interface_identity_rejects_stale_markers() {
     let fixture = Fixture::new("binding-interface-proof", OLD_BASE, CURRENT_BASE);
@@ -419,27 +447,7 @@ fn inherited_calls_use_checked_marker_associations_instead_of_stale_names() {
 #[test]
 fn shared_and_packaged_sources_certify_actual_imports_before_real_calls() {
     let fixture = Fixture::new("binding-admission-host", OLD_VALUES, CURRENT_VALUES);
-    let root = fixture.consumer.directory.path();
-    fs::create_dir_all(root.join("schemas/proof")).unwrap();
-    fixture.write("schemas/proof/value.ncidl", CURRENT_VALUES);
-    fixture.write("schemas/proof/service.ncidl", SERVICE);
-    let idl = Path::new(env!("CARGO_MANIFEST_DIR"));
-    for (package, module) in [("helper", "proof.value"), ("provider", "proof.service")] {
-        let extra = if package == "provider" { "binding-helper={path='../helper'}\n" } else { "" };
-        fixture.write(&format!("{package}/Cargo.toml"), &format!(
-            "[package]\nname='binding-{package}'\nversion='0.0.0'\nedition='2024'\nlinks={:?}\n[dependencies]\nneocogi-com={{path={:?}}}\n{extra}[build-dependencies]\nneocogi-idl={{path={idl:?}}}\n",
-            crate::cargo::contract_links_name(module), fixture.consumer.facade
-        ));
-    }
-    fixture.write(
-        "helper/build.rs",
-        r#"
-        fn main() {
-            neocogi_idl::cargo::Module::new("../schemas", "proof/value.ncidl")
-                .rust_path("binding_helper::selected").build().unwrap();
-        }
-    "#,
-    );
+    fixture.source_packages(CURRENT_VALUES, SERVICE);
     fixture.write(
         "provider/src/lib.rs",
         r#"
@@ -674,4 +682,212 @@ fn object_projection_identity_still_rejects_a_stale_root_provider() {
         stderr.contains("E0080") && stderr.contains("conflicting inherited interface contracts") && stderr.contains("VTABLES"),
         "{stderr}"
     );
+}
+
+/// Source owner for the imported-provider regressions; no locally derived
+/// interface may substitute for this imported trait as the object's root.
+const IMPORTED_BASE: &str = "#[version(1)] interface IBase { fn get(&self) -> Result<u32>; }";
+/// An otherwise unrelated local value keeps the consuming module concrete.
+const IMPORTING_MODULE: &str = "extern proof.value; use proof.value::IBase; #[version(1)] struct Anchor { value: u32 }";
+
+/// Selects the actual procedural macro or its printed expansion without changing
+/// the provider's authored trait, state, imported bindings or method body.
+fn imported_provider_source(path: &str, printed: bool, witnesses: bool) -> String {
+    let object = if printed {
+        let arguments = syn::parse_str(path).unwrap();
+        let expanded = crate::codegen::expand_com_object(
+            arguments,
+            syn::parse_quote!(
+                struct Provider;
+            ),
+        );
+        prettyplease::unparse(&syn::parse2(expanded).unwrap())
+    } else {
+        format!("#[neocogi_com::com_object({path})] struct Provider;")
+    };
+    let mut source = format!(
+        r#"
+        {object}
+        impl service::IBase for Provider {{
+            fn get(&self) -> Result<u32, neocogi_com::NcStatus> {{ Ok(73) }}
+        }}
+        pub fn root() -> neocogi_com::ComPtr<neocogi_com::IUnknown> {{ Provider::from_value(Provider) }}
+    "#
+    );
+    if witnesses {
+        // PhantomData accepts unsized Client views and requires nominal type
+        // equality, without allowing a reference-returning deref coercion.
+        for companion in neocogi_com_core::NcComInterfaceCompanion::ALL {
+            let name = format!("IBase{}", companion.suffix());
+            let argument = match companion {
+                neocogi_com_core::NcComInterfaceCompanion::Provider => "<Provider>",
+                _ => "",
+            };
+            source.push_str(&format!(
+                "#[allow(dead_code)] fn same_{suffix}(x: core::marker::PhantomData<service::{name}{argument}>) -> core::marker::PhantomData<binding_helper::selected::{name}{argument}> {{ x }}\n",
+                suffix = companion.suffix().to_ascii_lowercase(),
+            ));
+        }
+    }
+    source
+}
+
+/// Both root spellings query the same original Rust marker; the imported owner
+/// and its borrowed view actually dispatch the generated ABI method.
+fn imported_host_source() -> &'static str {
+    r#"
+    #[test] fn imported_call() {
+        let root = binding_provider::root();
+        let imported = root.query::<binding_provider::service::IBaseAbi>().unwrap();
+        let original = root.query::<binding_helper::selected::IBaseAbi>().unwrap();
+        assert_eq!(imported.get().unwrap(), 73);
+        let borrowed: neocogi_com::ComRef<'_, binding_provider::service::IBaseAbi> = imported.as_com_ref();
+        assert_eq!(borrowed.get().unwrap(), 73);
+        assert_eq!(original.get().unwrap(), 73);
+        assert!(imported.as_com_ref().same_object(original.as_com_ref()));
+    }
+    "#
+}
+
+/// Regression for the omitted operation: implement an authored imported interface
+/// through its consuming module, not a local derived interface or owner alias.
+#[test]
+fn imported_interface_paths_construct_providers() {
+    let fixture = Fixture::new("binding-import-surface-host", IMPORTED_BASE, IMPORTED_BASE);
+    fixture.select("");
+    let manifest = fixture.consumer.directory.path().join("Cargo.toml");
+    let mut source = fs::read_to_string(&manifest).unwrap();
+    source.push_str("binding-helper={path='helper'}\n");
+    fs::write(manifest, source).unwrap();
+    fixture.write("src/lib.rs", imported_host_source());
+    // First validate identical source/setup with the owner path; it cannot count
+    // as closure because both following consuming-path expansions must pass.
+    for (path, printed, witnesses) in [
+        ("binding_helper::selected::IBase", false, false),
+        ("service::IBase", false, true),
+        ("service::IBase", true, true),
+    ] {
+        fixture.provider(
+            IMPORTED_BASE,
+            IMPORTING_MODULE,
+            "binding_helper::r#mod::r#type",
+            &imported_provider_source(path, printed, witnesses),
+        );
+        // The owner-only control cannot query a nonexistent imported marker on
+        // the unfixed compiler, so use the original marker solely for this row.
+        if !witnesses {
+            fixture.write(
+                "src/lib.rs",
+                &imported_host_source().replace("binding_provider::service::IBaseAbi", "binding_helper::selected::IBaseAbi"),
+            );
+        } else {
+            fixture.write("src/lib.rs", imported_host_source());
+        }
+        let output = fixture.cargo("test");
+        assert!(
+            output.status.success(),
+            "path={path}, printed={printed}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(String::from_utf8_lossy(&output.stdout).contains("test imported_call ... ok"));
+    }
+}
+
+/// Same-name incompatible exports expose missing wrapper precedence even when
+/// associated-type method calls never mention a named Client or VTable.
+fn imported_rival_source() -> String {
+    let mut source = String::from(
+        "#[allow(dead_code)] pub mod rival { pub const MODULE_NAME: &str = \"wrong\"; pub const MODULE_ID: () = (); pub const ABI_FINGERPRINT: () = ();\n",
+    );
+    for companion in neocogi_com_core::NcComInterfaceCompanion::ALL {
+        let name = format!("IBase{}", companion.suffix());
+        match companion {
+            neocogi_com_core::NcComInterfaceCompanion::Provider => source.push_str(&format!("pub struct {name}<T>(core::marker::PhantomData<T>);\n")),
+            neocogi_com_core::NcComInterfaceCompanion::Client => {
+                source.push_str(&format!("pub struct {name}<M = neocogi_com::ThreadLocal>(core::marker::PhantomData<M>);\n"))
+            }
+            neocogi_com_core::NcComInterfaceCompanion::Abi | neocogi_com_core::NcComInterfaceCompanion::VTable => {
+                source.push_str(&format!("pub struct {name};\n"))
+            }
+        }
+    }
+    source.push_str("}\n");
+    source
+}
+
+/// Both real build APIs must expose the imported provider's complete family.
+/// One rival-glob case witnesses every companion without four extra projects.
+#[test]
+fn cargo_imported_interface_families_preserve_precedence() {
+    let fixture = Fixture::new("binding-import-cargo-host", IMPORTED_BASE, IMPORTED_BASE);
+    fixture.select("");
+    fixture.source_packages(IMPORTED_BASE, IMPORTING_MODULE);
+    let manifest = fixture.consumer.directory.path().join("Cargo.toml");
+    let mut source = fs::read_to_string(&manifest).unwrap();
+    source.push_str("binding-helper={path='helper'}\n");
+    fs::write(manifest, source).unwrap();
+    let resolved = graph(IMPORTED_BASE, Some(IMPORTING_MODULE));
+    let owner = resolved.module("proof.service").unwrap();
+    fixture.write("src/lib.rs", &format!(
+        "{}\n#[test] fn consumer_metadata_keeps_its_owner() {{ assert_eq!(binding_provider::service::MODULE_NAME, \"proof.service\"); assert_eq!(binding_provider::service::MODULE_ID.to_uuid_bytes(), {:?}); assert_eq!(binding_provider::service::ABI_FINGERPRINT, {:?}); }}",
+        imported_host_source(), owner.module_id.to_uuid_bytes(), owner.abi_fingerprint,
+    ));
+    for (label, selection) in [
+        (
+            "shared",
+            r#"neocogi_idl::cargo::SharedSources::new("../schemas").module("proof.service", "binding_provider::service").import("proof.value", "binding_helper::selected").build().map(|mut outputs| outputs.remove(0))"#,
+        ),
+        (
+            "packaged",
+            r#"neocogi_idl::cargo::Module::new("../schemas", "proof/service.ncidl").rust_path("binding_provider::service").build()"#,
+        ),
+    ] {
+        fixture.write(
+            "provider/build.rs",
+            &format!(
+                r#"fn main() {{
+                match {selection} {{
+                    Ok(output) => {{
+                        std::fs::write("last-output", output.include.parent().unwrap().to_str().unwrap()).unwrap();
+                        println!("cargo::rustc-env=SERVICE_BINDINGS={{}}", output.include.display());
+                    }}
+                    Err(neocogi_idl::BuildError::Resolve(error)) => {{
+                        assert!(error.to_string().contains("EIDL021"));
+                        panic!("NC_IMPORTED_FAMILY_RESOLVE_REJECTION: {{error}}");
+                    }}
+                    Err(error) => panic!("wrong rejection phase: {{error}}"),
+                }}
+            }}"#,
+            ),
+        );
+        let rival = if label == "shared" { imported_rival_source() } else { String::new() };
+        let include_glob = if label == "shared" { "pub use crate::rival::*;" } else { "" };
+        fixture.write(
+            "provider/src/lib.rs",
+            &format!(
+                "extern crate self as binding_provider; {rival} pub mod service {{ {include_glob} include!(env!(\"SERVICE_BINDINGS\")); }} {}",
+                imported_provider_source("service::IBase", false, true),
+            ),
+        );
+        let output = fixture.cargo("test");
+        assert!(output.status.success(), "{label}: {}", String::from_utf8_lossy(&output.stderr));
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(stdout.contains("test imported_call ... ok"), "{stdout}");
+        assert!(stdout.contains("test consumer_metadata_keeps_its_owner ... ok"), "{stdout}");
+
+        // Reuse these real Cargo builders after a successful publication. A
+        // source-level imported-family collision must preserve every seeded file
+        // and advertise no successful metadata for the rejected invocation.
+        let output_dir = std::path::PathBuf::from(fs::read_to_string(fixture.consumer.directory.path().join("provider/last-output")).unwrap());
+        crate::cargo::test_support::seed_unrelated(&output_dir);
+        let before = crate::cargo::test_support::snapshot(&output_dir);
+        fixture.write("schemas/proof/service.ncidl", &IMPORTING_MODULE.replace("struct Anchor", "struct IBaseAbi"));
+        let rejected = fixture.cargo("check");
+        let stderr = String::from_utf8_lossy(&rejected.stderr);
+        assert!(!rejected.status.success(), "{label}: imported collision compiled");
+        assert!(stderr.contains("NC_IMPORTED_FAMILY_RESOLVE_REJECTION"), "{label}: {stderr}");
+        assert!(!stderr.contains("cargo::metadata="), "{label}: rejected build advertised graph ownership");
+        assert_eq!(crate::cargo::test_support::snapshot(&output_dir), before);
+        fixture.write("schemas/proof/service.ncidl", IMPORTING_MODULE);
+    }
 }

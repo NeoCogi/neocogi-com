@@ -70,6 +70,19 @@ pub(super) fn named_rust_type<'a>(
     resolved: ResolvedDeclaration<'a>,
     abi_suffix: bool,
 ) -> Result<TokenStream, GenerateError> {
+    let path = named_rust_path(graph, module, resolved, abi_suffix)?;
+    Ok(quote! { #path })
+}
+
+/// Selects the typed path and records its external marker/value proof once.
+/// Imports keep this syntax to derive the same supplying route's public siblings;
+/// token consumers use the thin quoting adapter above rather than select again.
+pub(super) fn named_rust_path<'a>(
+    graph: &mut Generation<'a>,
+    module: &ResolvedModule,
+    resolved: ResolvedDeclaration<'a>,
+    abi_suffix: bool,
+) -> Result<syn::Path, GenerateError> {
     let interface = matches!(resolved.declaration.kind, DeclarationKind::Interface(_));
     let name = rust_ident(&resolved.declaration.name)?;
     let marker = if interface {
@@ -79,7 +92,7 @@ pub(super) fn named_rust_type<'a>(
     };
     let emitted = if interface && abi_suffix { &marker } else { &name };
     if resolved.module.source.name == module.source.name {
-        return Ok(quote! { self::#emitted });
+        return Ok(syn::parse_quote! { self::#emitted });
     }
     let mut selected = graph.paths.dependency_path(&resolved.module.source.name.to_string())?;
     selected.segments.push(syn::PathSegment {
@@ -96,5 +109,5 @@ pub(super) fn named_rust_type<'a>(
         .selected
         .entry((resolved.identity.qualified_name.as_str(), path))
         .or_insert(ExternalBinding { declaration: resolved, rust_type });
-    Ok(quote! { #selected })
+    Ok(selected)
 }

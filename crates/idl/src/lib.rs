@@ -21,6 +21,7 @@ mod model;
 mod parser;
 mod path;
 mod resolve;
+mod rust_names;
 mod sha256;
 mod specialize;
 mod standard;

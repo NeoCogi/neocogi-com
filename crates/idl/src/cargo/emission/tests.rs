@@ -150,3 +150,70 @@ fn unchanged_publication_preserves_bytes_and_timestamps() {
         }
     }
 }
+
+/// Reads actual emitted Rust use trees, not the policy helper under test.
+fn use_names(tree: &syn::UseTree) -> Vec<String> {
+    match tree {
+        syn::UseTree::Path(path) => use_names(&path.tree),
+        syn::UseTree::Group(group) => group.items.iter().flat_map(use_names).collect(),
+        syn::UseTree::Name(name) => vec![name.ident.to_string()],
+        syn::UseTree::Rename(rename) => vec![rename.rename.to_string()],
+        syn::UseTree::Glob(_) => vec!["*".into()],
+    }
+}
+
+/// The normal module and explicit wrapper must expose exactly the same original
+/// interface family; metadata and typed dependency namespace retain precedence.
+#[test]
+fn imported_interface_export_inventory_matches_both_actual_surfaces() {
+    use std::collections::BTreeSet;
+    let base = crate::parse_module(Path::new("proof/base.ncidl"), "#[version(1)] interface IBase { fn get(&self) -> Result<u32>; }").unwrap();
+    let consumer = crate::parse_module(
+        Path::new("proof/consumer.ncidl"),
+        "extern proof.base; use proof.base::IBase; #[version(1)] struct Anchor { value: u32 }",
+    )
+    .unwrap();
+    let graph = crate::resolve_modules(vec![base, consumer]).unwrap();
+    let mut paths = RustModulePaths::default();
+    paths.insert("proof.base", "base::r#type").unwrap();
+    paths.insert("proof.consumer", "consumer::api").unwrap();
+    paths.route_dependency(&graph, "proof.base", "proof.base").unwrap();
+    let owner = tempfile::tempdir().unwrap();
+    let emission = generate_module_emission(&graph, "proof.consumer", &paths, owner.path(), "consumer", "// test").unwrap();
+    let family: BTreeSet<_> = std::iter::once("IBase".to_string())
+        .chain(
+            neocogi_com_core::NcComInterfaceCompanion::ALL
+                .into_iter()
+                .map(|kind| format!("IBase{}", kind.suffix())),
+        )
+        .collect();
+    let generated: syn::File = syn::parse_str(&emission.generated.source).unwrap();
+    let imports: Vec<_> = generated
+        .items
+        .iter()
+        .filter_map(|item| match item {
+            syn::Item::Use(item) => {
+                let names: BTreeSet<_> = use_names(&item.tree).into_iter().collect();
+                names.contains("IBase").then_some(names)
+            }
+            _ => None,
+        })
+        .collect();
+    assert_eq!(imports.as_slice(), std::slice::from_ref(&family));
+    let wrapper: syn::File = syn::parse_str(&emission.include_text).unwrap();
+    let explicit: Vec<_> = wrapper
+        .items
+        .iter()
+        .filter_map(|item| match item {
+            syn::Item::Use(item) => {
+                let names: BTreeSet<_> = use_names(&item.tree).into_iter().collect();
+                names.contains("MODULE_ID").then_some(names)
+            }
+            _ => None,
+        })
+        .collect();
+    let mut expected = family;
+    expected.extend(["MODULE_ID", "ABI_FINGERPRINT", "MODULE_NAME"].map(str::to_owned));
+    expected.insert(paths.dependency_namespace().unwrap().to_string());
+    assert_eq!(explicit, [expected]);
+}

@@ -52,11 +52,17 @@ pub(super) fn generate_module_emission(
     // re-exports. In particular, another contract's module metadata must not
     // make this contract's MODULE_ID, ABI_FINGERPRINT or dependency routes
     // ambiguous.
-    let explicit_exports = std::iter::once("MODULE_ID, ABI_FINGERPRINT, MODULE_NAME".to_owned())
-        .chain(resolved_module.source.imports.iter().map(|import| import.name.clone()))
-        .chain(paths.dependency_namespace().map(|name| name.to_string()))
-        .collect::<Vec<_>>()
-        .join(", ");
+    let mut explicit_exports = vec!["MODULE_ID, ABI_FINGERPRINT, MODULE_NAME".to_owned()];
+    for import in &resolved_module.source.imports {
+        let imported = resolved
+            .resolve_import(import)
+            .ok_or_else(|| BuildError::Idl("resolved import lost its declaration".to_owned()))?;
+        // Companions need the same precedence as the trait itself; inherited
+        // associated-type calls alone do not observe named-export ambiguity.
+        explicit_exports.extend(crate::rust_names::declaration_names(imported.declaration));
+    }
+    explicit_exports.extend(paths.dependency_namespace().map(|name| name.to_string()));
+    let explicit_exports = explicit_exports.join(", ");
     let entry = format!(
         "// Generated module entry for IDL module `{module_name}`.\n\
              {ownership_note}\n\

@@ -489,28 +489,23 @@ fn generate_imports(graph: &mut Generation<'_>, module: &ResolvedModule) -> Resu
     let imports = module.source.imports.iter().map(|import| {
         // Imports already name an exact admitted module/declaration. Open
         // template imports were consumed by specialization and are not Rust types.
-        let owner = graph
+        let resolved = graph
             .graph
-            .module(&import.module)
-            .ok_or_else(|| GenerateError::new("resolved import lost its module"))?;
-        let index = owner
-            .source
-            .declarations
-            .iter()
-            .position(|value| value.name == import.name)
+            .resolve_import(import)
             .ok_or_else(|| GenerateError::new("resolved import lost its declaration"))?;
-        let selected = named_rust_type(
-            graph,
-            module,
-            ResolvedDeclaration {
-                module: owner,
-                declaration: &owner.source.declarations[index],
-                identity: &owner.declarations[index],
-            },
-            false,
-        )?;
+        let mut selected = selection::named_rust_path(graph, module, resolved, false)?;
+        let names = crate::rust_names::declaration_names(resolved.declaration)
+            .map(|name| rust_ident(&name))
+            .collect::<Result<Vec<_>, _>>()?;
         let origin = origin_docs(&[], &import.span);
-        Ok(quote! { #origin pub use #selected; })
+        if names.len() == 1 {
+            return Ok(quote! { #origin pub use #selected; });
+        }
+        // Keep the checked supplying route, including transitive/raw facade
+        // components. Each generated group belongs to one authored identifier.
+        selected.segments.pop();
+        selected.segments.pop_punct();
+        Ok(quote! { #origin pub use #selected::{#(#names),*}; })
     });
     let imports = imports.collect::<Result<Vec<_>, GenerateError>>()?;
     Ok(quote! { #(#imports)* })

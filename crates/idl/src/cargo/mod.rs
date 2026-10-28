@@ -11,7 +11,7 @@ use crate::resolve_modules;
 #[cfg(test)]
 mod output_admission_tests;
 #[cfg(test)]
-mod test_support;
+pub(crate) mod test_support;
 #[cfg(test)]
 mod worker_failure_tests;
 use serde::{Deserialize, Serialize};
@@ -75,6 +75,9 @@ impl Module {
     /// For example, `example_api::contracts` keeps the logical contract identity
     /// `example.contracts` while exposing its bindings inside the owning facade.
     /// Validation occurs during build, before any generated output is written.
+    /// Consumers importing a closed interface forward its full public Rust
+    /// family from the selected route. A custom supplying facade must expose
+    /// the trait and all four companions, not only the marker or used methods.
     pub fn rust_path(mut self, path: impl Into<String>) -> Self {
         self.rust_path = Some(path.into());
         self

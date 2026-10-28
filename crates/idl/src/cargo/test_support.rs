@@ -9,7 +9,7 @@ use std::{
 
 /// Distinguishes empty directories from files so creation is observable too.
 #[derive(Eq, PartialEq)]
-pub(super) enum SnapshotEntry {
+pub(crate) enum SnapshotEntry {
     /// An existing directory, including an otherwise empty navigation directory.
     Directory,
     /// Exact bytes of a regular fixture file.
@@ -35,7 +35,7 @@ impl fmt::Debug for SnapshotEntry {
 }
 
 /// Captures the complete tree; absence differs from an existing empty directory.
-pub(super) fn snapshot(directory: &Path) -> Option<BTreeMap<PathBuf, SnapshotEntry>> {
+pub(crate) fn snapshot(directory: &Path) -> Option<BTreeMap<PathBuf, SnapshotEntry>> {
     fn visit(root: &Path, directory: &Path, entries: &mut BTreeMap<PathBuf, SnapshotEntry>) {
         for entry in fs::read_dir(directory).unwrap() {
             let entry = entry.unwrap();
@@ -59,7 +59,7 @@ pub(super) fn snapshot(directory: &Path) -> Option<BTreeMap<PathBuf, SnapshotEnt
 }
 
 /// Makes preservation include an unrelated nested user-owned file.
-pub(super) fn seed_unrelated(output: &Path) {
+pub(crate) fn seed_unrelated(output: &Path) {
     fs::create_dir_all(output.join("unrelated/nested")).unwrap();
     fs::write(output.join("unrelated/nested/sentinel"), "preserve this file").unwrap();
 }

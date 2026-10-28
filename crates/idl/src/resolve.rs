@@ -8,7 +8,7 @@ use std::{
     fmt,
 };
 
-use neocogi_com_core::{NcComDenseEnumMember, NcComInterfaceCompanion, NcGuid, guid_from_name, guid_from_qualified_name};
+use neocogi_com_core::{NcComDenseEnumMember, NcGuid, guid_from_name, guid_from_qualified_name};
 
 use crate::{
     AbiType, BitEnum, Declaration, DeclarationKind, Diagnostic, Enum, EnumRepr, Method, Module, NamedType, SourceFile, SourceSpan, Threading, VariantFields,
@@ -120,6 +120,19 @@ impl ResolvedModules {
     /// imports are never reconstructed here; the name must belong to this graph.
     pub(crate) fn resolve_declaration<'a>(&'a self, name: &NamedType) -> Option<ResolvedDeclaration<'a>> {
         self.project(name.binding.projection()?)
+    }
+
+    /// Borrows the exact owner of one surviving authored import. Unlike ordinary
+    /// named types, imports already carry an admitted module/declaration pair;
+    /// they need no lexical lookup, global fallback or new retained projection.
+    pub(crate) fn resolve_import(&self, import: &crate::Import) -> Option<ResolvedDeclaration<'_>> {
+        let module = self.module(&import.module)?;
+        let index = module.source.declarations.iter().position(|declaration| declaration.name == import.name)?;
+        Some(ResolvedDeclaration {
+            module,
+            declaration: &module.source.declarations[index],
+            identity: module.declarations.get(index)?,
+        })
     }
 
     /// Borrows one concrete declaration and its already-computed canonical identity.
@@ -374,7 +387,7 @@ fn resolve_semantics_with_limits(mut modules: Vec<Module>, limits: crate::specia
     // Validate authored and generated interface companion names together.
     let mut diagnostics = Vec::new();
     for module in &graph.modules {
-        collect_diagnostics(&mut diagnostics, validate_generated_names(module));
+        collect_diagnostics(&mut diagnostics, validate_generated_names(&graph, module));
     }
     if !diagnostics.is_empty() {
         let sources = graph
@@ -759,24 +772,13 @@ fn validate_module(index: usize, entries: &[ModuleEntry], values: &crate::ValueG
     }
 }
 
-/// Adds every public type emitted by the typed interface backend for one name.
-///
-/// Resolver and backend consume the core companion inventory directly. Authored
-/// interfaces and closed specializations therefore reserve the same namespace
-/// without maintaining a second list of generated support names.
-fn interface_companions(name: &str, companions: &mut Vec<String>) {
-    for companion in NcComInterfaceCompanion::ALL {
-        companions.push(format!("{name}{}", companion.suffix()));
-    }
-}
-
 /// Reserves visible Rust companion types before generation, including imported names.
 ///
 /// Authored declarations and explicit imports already have unambiguous IDL lookup,
-/// but an interface or tagged enum also emits Rust types that share this module's
-/// namespace. Reject collisions at the source location rather than leaving a
-/// duplicate-item compiler error in an unrelated generated file.
-fn validate_generated_names(module: &ResolvedModule) -> Result<(), ResolutionError> {
+/// but local and imported interfaces expose a complete Rust family in this module.
+/// Reject collisions at the declaration/import origin before generation or output
+/// publication. The final graph already excludes open-template Rust surfaces.
+fn validate_generated_names(graph: &ResolvedModules, module: &ResolvedModule) -> Result<(), ResolutionError> {
     let source = &module.source;
     let mut occupied = HashMap::<String, (SourceSpan, String)>::new();
     for declaration in &source.declarations {
@@ -791,23 +793,33 @@ fn validate_generated_names(module: &ResolvedModule) -> Result<(), ResolutionErr
     }
 
     let mut diagnostics = Vec::new();
-    for declaration in &source.declarations {
-        let mut companions = Vec::new();
-        match &declaration.kind {
-            DeclarationKind::Interface(_) => {
-                interface_companions(&declaration.name, &mut companions);
-            }
-            DeclarationKind::Struct(_) | DeclarationKind::Enum(_) | DeclarationKind::BitEnum(_) => {}
-        }
-        for name in &companions {
-            let origin = &declaration.span;
+    let local = source.declarations.iter().map(|declaration| Ok((declaration, &declaration.span)));
+    let imported = source.imports.iter().map(|import| {
+        graph
+            .resolve_import(import)
+            .map(|resolved| (resolved.declaration, &import.span))
+            .ok_or_else(|| {
+                source_error(
+                    source,
+                    "EIDL033",
+                    &import.span,
+                    "resolved import lost its declaration",
+                    "missing imported declaration",
+                )
+            })
+    });
+    for family in local.chain(imported) {
+        let (declaration, origin) = family?;
+        // All authored names were reserved above, so only the companions can
+        // add namespace members here. The same projection drives both emitters.
+        for name in crate::rust_names::declaration_names(declaration).skip(1) {
             if let Some((previous_span, previous_name)) = occupied.get(name.as_str()) {
                 let diagnostic = Diagnostic::new(
                     "EIDL021",
                     format!("generated Rust name {name:?} from {} conflicts with {previous_name}", declaration.name),
                 )
                 .with_sources(&source.sources)
-                .primary(origin, "this declaration generates the conflicting name")
+                .primary(origin, "this declaration or import exposes the conflicting name")
                 .secondary(previous_span, "name is already present here");
                 diagnostics.push(diagnostic);
             } else {
