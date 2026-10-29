@@ -80,8 +80,7 @@ pub(crate) fn quality(runner: &Runner) -> Result<()> {
         ]),
     )?;
     crate::markdown::check(&runner.root)?;
-    let mut docs = runner.clone();
-    docs.env.insert("RUSTDOCFLAGS".into(), "-D warnings -D missing-docs".into());
+    let docs = strict_rustdoc(runner);
     for mode in ["all", "default", "no-default", "alloc"] {
         let mut args = words(&["doc", "--no-deps", "--locked"]);
         if mode == "all" {
@@ -100,6 +99,18 @@ pub(crate) fn quality(runner: &Runner) -> Result<()> {
     }
     println!("quality suite passed");
     Ok(())
+}
+
+/// Select strict task-owned flags through Cargo's highest-priority flag source.
+/// The shared process boundary has already removed inherited flags/executables;
+/// lower-priority Cargo flag configuration cannot replace this explicit policy.
+pub(crate) fn strict_rustdoc(runner: &Runner) -> Runner {
+    let mut docs = runner.clone();
+    docs.env.insert(
+        "CARGO_ENCODED_RUSTDOCFLAGS".into(),
+        ["-D", "warnings", "-D", "missing-docs"].join("\u{1f}").into(),
+    );
+    docs
 }
 
 /// Compiler-floor rows keep RUSTUP_TOOLCHAIN in every compiler-spawning child.

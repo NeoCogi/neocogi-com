@@ -53,6 +53,19 @@ one build job and configures Cargo-launched tests to use one thread, so plain
 workspace test commands retain the same bound. No task runs concurrent compilers.
 CI has four jobs total.
 
+Compiler and documentation flags/executable selectors include their ordinary,
+encoded and supported `CARGO_BUILD_*` spellings. Output-directory aliases and
+ambient warning-level policy are removed too; each task owns those settings.
+Strict documentation selects `-D warnings -D missing-docs` through Cargo's encoded
+flag source, which takes precedence over ordinary flags and Cargo flag settings.
+Driver regressions observe the actual Runner/Cargo diagnostic and exercise native
+Rustdoc executable sentinels, valid docs, and owned output paths. They do not
+assume every removed selector was a separate demonstrated lint bypass.
+
+This policy retains ordinary OS discovery and registry/auth inputs. It trusts
+PATH, the installed toolchains and Cargo configuration; it is not a sandbox for
+hostile config files or a promise to replace every configured compiler executable.
+
 Each isolated task owns sources and targets below `target/xtask-work`, on the
 checkout's filesystem rather than a potentially memory-backed system temporary
 directory. Sources remain alive while tests use embedded manifest paths. Copied

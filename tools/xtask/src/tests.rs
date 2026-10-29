@@ -6,6 +6,8 @@ use crate::{
     process::{Result, Runner, clean_environment},
 };
 
+mod rustdoc;
+
 /// Real Cargo discovery admits the owner; losing or republishing a source fails.
 #[test]
 fn checkout_test_ownership_is_complete_and_unpublished() -> Result<()> {
@@ -167,15 +169,25 @@ fn explicit_policy_removes_ambient_state_and_keeps_harness_last() -> Result<()> 
     let env = clean_environment(
         [
             ("PATH", "tools"),
+            ("CARGO_NET_OFFLINE", "true"),
+            ("CARGO_REGISTRIES_TEST_TOKEN", "fake-test-value"),
             ("CARGO", "stale"),
             ("RUSTC", "stale"),
             ("RUSTUP_TOOLCHAIN", "stale"),
             ("RUSTFLAGS", "stale"),
             ("CARGO_ENCODED_RUSTFLAGS", "stale"),
+            ("RUSTDOC", "stale"),
+            ("RUSTDOCFLAGS", "stale"),
+            ("CARGO_ENCODED_RUSTDOCFLAGS", "stale"),
+            ("CARGO_BUILD_RUSTDOC", "stale"),
+            ("CARGO_BUILD_RUSTDOCFLAGS", "stale"),
             ("CARGO_TARGET_DIR", "stale"),
             ("CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS", "stale"),
             ("CARGO_PROFILE_RELEASE_PANIC", "stale"),
             ("CARGO_BUILD_TARGET", "stale"),
+            ("CARGO_BUILD_TARGET_DIR", "stale"),
+            ("CARGO_BUILD_BUILD_DIR", "stale"),
+            ("CARGO_BUILD_WARNINGS", "stale"),
             ("CARGO_BUILD_RUSTC", "stale"),
             ("LD_LIBRARY_PATH", "stale"),
             ("DYLD_LIBRARY_PATH", "stale"),
@@ -194,6 +206,8 @@ fn explicit_policy_removes_ambient_state_and_keeps_harness_last() -> Result<()> 
         env,
         BTreeMap::from([
             ("PATH".into(), "tools".into()),
+            ("CARGO_NET_OFFLINE".into(), "true".into()),
+            ("CARGO_REGISTRIES_TEST_TOKEN".into(), "fake-test-value".into()),
             ("CARGO_BUILD_JOBS".into(), "1".into()),
             ("RUST_TEST_THREADS".into(), "1".into())
         ])
