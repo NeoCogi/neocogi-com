@@ -1,5 +1,7 @@
 # NeoCogi COM
 
+[![Crates.io](https://img.shields.io/crates/v/neocogi-com.svg?include_prereleases)](https://crates.io/crates/neocogi-com)
+
 NeoCogi COM helps you build Rust applications with plugins compiled separately
 from the application. It provides interface definitions, object ownership,
 plugin loading, and inspection tools through an explicit C-compatible component
