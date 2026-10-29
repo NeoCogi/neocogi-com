@@ -295,6 +295,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "neocogi-tooling-tests"
+version = "0.0.0"
+dependencies = [
+ "libc",
+ "neocogi-com-core",
+ "neocogi-idl",
+ "prettyplease",
+ "proc-macro2",
+ "quote",
+ "serde_json",
+ "syn 2.0.119",
+ "tempfile",
+]
+
+[[package]]
 name = "once_cell"
 version = "1.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"

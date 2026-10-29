@@ -6,6 +6,38 @@ use crate::{
     process::{Result, Runner, clean_environment},
 };
 
+/// Real Cargo discovery admits the owner; losing or republishing a source fails.
+#[test]
+fn checkout_test_ownership_is_complete_and_unpublished() -> Result<()> {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize()?;
+    let runner = Runner::new(root.clone());
+    let graph: Value = serde_json::from_str(&runner.read(
+        "rustup",
+        words(&[
+            "run",
+            "stable",
+            "cargo",
+            "metadata",
+            "--offline",
+            "--locked",
+            "--no-deps",
+            "--format-version",
+            "1",
+        ]),
+    )?)?;
+    let packages = graph["packages"].as_array().unwrap();
+    crate::qualification::checkout_tests(&root, packages)?;
+    let mut missing = packages.clone();
+    let owner = missing.iter_mut().find(|package| package["name"] == "neocogi-tooling-tests").unwrap();
+    let removed = owner["targets"].as_array_mut().unwrap().pop().unwrap();
+    assert!(crate::qualification::checkout_tests(&root, &missing).is_err());
+    let mut advertised = packages.clone();
+    let public = advertised.iter_mut().find(|package| package["name"] == "neocogi-idl").unwrap();
+    public["targets"].as_array_mut().unwrap().push(removed);
+    assert!(crate::qualification::checkout_tests(&root, &advertised).is_err());
+    Ok(())
+}
+
 /// A child mode supplies a marker followed by failure to test exit-code priority.
 #[test]
 fn subprocess_fixture() {

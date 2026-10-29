@@ -41,6 +41,39 @@ fn build_factory_plugin() -> PathBuf {
     shared_artifact(&output, "nc_example_com")
 }
 
+/// Builds the actual CLI and selects its executable from Cargo's artifact record.
+/// The unpublished integration owner does not receive another package's
+/// `CARGO_BIN_EXE` variables. Cargo, rather than a guessed target directory, owns
+/// the executable's location and platform suffix.
+fn build_inspector() -> PathBuf {
+    let workspace = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_owned());
+    let output = Command::new(cargo)
+        .current_dir(workspace)
+        .args([
+            "build",
+            "--offline",
+            "--locked",
+            "-p",
+            "neocogi-inspect",
+            "--bin",
+            "neocogi-inspect",
+            "--message-format=json",
+        ])
+        .output()
+        .expect("build inspector binary");
+    assert_success("inspector binary build", &output);
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+        .filter(|record| {
+            record["reason"] == "compiler-artifact" && record["target"]["name"] == "neocogi-inspect" && record["target"]["kind"] == serde_json::json!(["bin"])
+        })
+        .filter_map(|record| record["executable"].as_str().map(PathBuf::from))
+        .next()
+        .expect("Cargo reports the inspector executable")
+}
+
 /// Reports child diagnostics before failing a build or inspection assertion.
 fn assert_success(subject: &str, output: &Output) {
     assert!(
@@ -52,13 +85,13 @@ fn assert_success(subject: &str, output: &Output) {
 }
 
 /// Exercises each real output sink independently; earlier writes cannot satisfy later cases.
-fn assert_native_output_paths(plugin: &Path, intended: &Path, neighbor: &Path) {
+fn assert_native_output_paths(inspector: &Path, plugin: &Path, intended: &Path, neighbor: &Path) {
     assert_ne!(intended, neighbor);
     for command in ["dump", "plan"] {
         for option in ["--output", "-o"] {
             std::fs::write(intended, b"intended sentinel").unwrap();
             std::fs::write(neighbor, b"neighbor sentinel").unwrap();
-            let output = Command::new(env!("CARGO_BIN_EXE_neocogi-inspect"))
+            let output = Command::new(inspector)
                 .arg(command)
                 .arg(plugin)
                 .args(["--format", "json", option])
@@ -91,7 +124,7 @@ fn assert_native_output_paths(plugin: &Path, intended: &Path, neighbor: &Path) {
         for option in [inline_output, std::ffi::OsString::from("--format=json")] {
             std::fs::write(intended, b"intended sentinel").unwrap();
             std::fs::write(neighbor, b"neighbor sentinel").unwrap();
-            let output = Command::new(env!("CARGO_BIN_EXE_neocogi-inspect"))
+            let output = Command::new(inspector)
                 .arg(command)
                 .arg(&missing)
                 .arg(option)
@@ -112,11 +145,12 @@ fn assert_native_output_paths(plugin: &Path, intended: &Path, neighbor: &Path) {
 /// Relocation and native output identity share one provider build and staging owner.
 #[test]
 fn inspects_a_standalone_plugin_and_its_exact_factory_signature() {
+    let inspector = build_inspector();
     let original = build_factory_plugin();
     let staging = tempfile::tempdir().expect("isolated plugin directory");
     let plugin = staging.path().join(original.file_name().unwrap());
     std::fs::copy(original, &plugin).expect("relocate plugin without build outputs");
-    let output = Command::new(env!("CARGO_BIN_EXE_neocogi-inspect"))
+    let output = Command::new(&inspector)
         .arg("dump")
         .arg(&plugin)
         .args(["--format", "json"])
@@ -134,12 +168,17 @@ fn inspects_a_standalone_plugin_and_its_exact_factory_signature() {
     assert!(factory.get("modules").is_none());
     assert!(factory.get("direct_contracts").is_none());
 
-    assert_native_output_paths(&plugin, &staging.path().join("report-é.json"), &staging.path().join("unicode-neighbor.json"));
+    assert_native_output_paths(
+        &inspector,
+        &plugin,
+        &staging.path().join("report-é.json"),
+        &staging.path().join("unicode-neighbor.json"),
+    );
     #[cfg(target_os = "linux")]
     {
         use std::os::unix::ffi::OsStringExt;
         let intended = staging.path().join(std::ffi::OsString::from_vec(b"report-\xff.json".to_vec()));
         let neighbor = staging.path().join("report-\u{fffd}.json");
-        assert_native_output_paths(&plugin, &intended, &neighbor);
+        assert_native_output_paths(&inspector, &plugin, &intended, &neighbor);
     }
 }

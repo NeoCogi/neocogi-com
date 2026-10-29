@@ -1,0 +1,138 @@
+[package]
+name = "neocogi-tooling-tests"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+autotests = false
+description = "Checkout-only IDL and inspector integration suites"
+
+[dev-dependencies]
+neocogi-idl.workspace = true
+neocogi-com-core.workspace = true
+proc-macro2.workspace = true
+quote.workspace = true
+syn = { workspace = true, features = ["visit"] }
+prettyplease.workspace = true
+serde_json.workspace = true
+tempfile.workspace = true
+
+[target.'cfg(target_os = "linux")'.dev-dependencies]
+libc = "0.2"
+
+[[test]]
+name = "bound_references"
+path = "../../crates/idl/tests/bound_references.rs"
+
+[[test]]
+name = "builtin_objects"
+path = "../../crates/idl/tests/builtin_objects.rs"
+
+[[test]]
+name = "canonical_framing"
+path = "../../crates/idl/tests/canonical_framing.rs"
+
+[[test]]
+name = "capabilities"
+path = "../../crates/idl/tests/capabilities.rs"
+
+[[test]]
+name = "cargo_contracts"
+path = "../../crates/idl/tests/cargo_contracts.rs"
+
+[[test]]
+name = "documentation"
+path = "../../crates/idl/tests/documentation.rs"
+
+[[test]]
+name = "enum_decoders"
+path = "../../crates/idl/tests/enum_decoders.rs"
+
+[[test]]
+name = "event_metadata"
+path = "../../crates/idl/tests/event_metadata.rs"
+
+[[test]]
+name = "exclusive_ownership"
+path = "../../crates/idl/tests/exclusive_ownership.rs"
+
+[[test]]
+name = "fingerprints"
+path = "../../crates/idl/tests/fingerprints.rs"
+
+[[test]]
+name = "foundational_binding"
+path = "../../crates/idl/tests/foundational_binding.rs"
+
+[[test]]
+name = "generation"
+path = "../../crates/idl/tests/generation.rs"
+
+[[test]]
+name = "generic_parameter_positions"
+path = "../../crates/idl/tests/generic_parameter_positions.rs"
+
+[[test]]
+name = "generics"
+path = "../../crates/idl/tests/generics.rs"
+
+[[test]]
+name = "identifier_hygiene"
+path = "../../crates/idl/tests/identifier_hygiene.rs"
+
+[[test]]
+name = "intrinsics"
+path = "../../crates/idl/tests/intrinsics.rs"
+
+[[test]]
+name = "method_sources"
+path = "../../crates/idl/tests/method_sources.rs"
+
+[[test]]
+name = "output_completion"
+path = "../../crates/idl/tests/output_completion.rs"
+
+[[test]]
+name = "parser"
+path = "../../crates/idl/tests/parser.rs"
+
+[[test]]
+name = "persistence_peers"
+path = "../../crates/idl/tests/persistence_peers.rs"
+
+[[test]]
+name = "resolution"
+path = "../../crates/idl/tests/resolution.rs"
+
+[[test]]
+name = "rust_paths"
+path = "../../crates/idl/tests/rust_paths.rs"
+
+[[test]]
+name = "scalar_values"
+path = "../../crates/idl/tests/scalar_values.rs"
+
+[[test]]
+name = "source_maps"
+path = "../../crates/idl/tests/source_maps.rs"
+
+[[test]]
+name = "specialization_origins"
+path = "../../crates/idl/tests/specialization_origins.rs"
+
+[[test]]
+name = "standard_library"
+path = "../../crates/idl/tests/standard_library.rs"
+
+[[test]]
+name = "unit_values"
+path = "../../crates/idl/tests/unit_values.rs"
+
+[[test]]
+name = "weak_shared"
+path = "../../crates/idl/tests/weak_shared.rs"
+
+[[test]]
+name = "factory_plugin"
+path = "../../tools/neocogi-inspect/tests/factory_plugin.rs"

@@ -6,6 +6,8 @@ edition.workspace = true
 # Repository integration suites inspect sibling packages, docs and native fixtures.
 # Keep them in checkout CI; archives ship local unit tests and downstream examples.
 exclude = ["tests/**"]
+# Checkout-only targets are registered by tests/tooling, not registry archives.
+autotests = false
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true

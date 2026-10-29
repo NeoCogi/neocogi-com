@@ -56,7 +56,8 @@ runtime dependency or registry and does not change the unreleased ABI-v1 contrac
 Core remains independent of the compiler. Its checked-in persistence ABI stays
 freshness-checked against the same emitter. Backend emission unit
 tests and compiler-dependent executable/name-binding regressions all belong to
-the IDL package; run `cargo test -p neocogi-idl` for both groups.
+their appropriate owner: run `cargo test -p neocogi-idl --lib` for shipped backend
+tests and `cargo test -p neocogi-tooling-tests` for checkout integration suites.
 
 Generated raw vtable fields narrowly allow Clippy's type-complexity lint because
 their flattened signatures are the physical IDL calling convention. This does

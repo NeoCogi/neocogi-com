@@ -11,6 +11,7 @@ members = [
     "crates/host",
     "crates/com",
     "tests/com",
+    "tests/tooling",
     "tools/neocogi-inspect",
     "tools/xtask",
     "examples/com-plugin",

@@ -1245,8 +1245,10 @@ prefix, borrowed-byte call, complete 8/8/7-byte stream and terminal empty chunk.
 
 IDL, the test assembly and inspector repository integration suites inspect sibling packages,
 current guide examples or nested native fixture workspaces. Their source files
-stay in checkout CI and are excluded from registry archives, so Cargo does not
-advertise test targets whose inputs are absent. Package-local unit tests remain
+stay in checkout CI under the unpublished `neocogi-tooling-tests` owner. The IDL
+and inspector packages disable integration-test discovery and exclude those
+sources from registry archives; packaging therefore omits no discovered targets.
+The tooling owner explicitly registers the same sources without moving fixtures. Package-local unit tests remain
 included. Compiler backend printer fixtures belong to the IDL archive; the core handle
 source audit belongs to core. The small subprocess helper is deliberately local
 to each owning package rather than requiring a published test-support crate.

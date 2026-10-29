@@ -1,5 +1,10 @@
 //! Quality, compiler-floor and workspace graph checks, with shared serial policy.
-use std::{ffi::OsString, fs, path::Path};
+use std::{
+    collections::BTreeSet,
+    ffi::OsString,
+    fs,
+    path::{Path, PathBuf},
+};
 use serde_json::Value;
 use crate::{
     compatibility::{ABI_TESTS, IMPORTED_INTERFACE_PROVIDER_TEST, abi_sentinel, execute_tests, require_execution, require_tests, words},
@@ -14,7 +19,7 @@ fn selectors(tests: bool, tooling: bool) -> Vec<OsString> {
         args.extend(words(&["-p", name]));
     }
     if tests {
-        args.extend(words(&["-p", "neocogi-com-tests"]));
+        args.extend(words(&["-p", "neocogi-com-tests", "-p", "neocogi-tooling-tests"]));
     }
     if tooling {
         args.extend(words(&["-p", "xtask"]));
@@ -143,9 +148,9 @@ fn floor_semantics(runner: &Runner) -> Result<()> {
     {
         rows.push(("neocogi-com-tests", name, vec![*sentinel]));
     }
-    rows.push(("neocogi-idl", "unit_values", vec!["unit_values_use_checked_storage_in_copied_calls"]));
+    rows.push(("neocogi-tooling-tests", "unit_values", vec!["unit_values_use_checked_storage_in_copied_calls"]));
     rows.push((
-        "neocogi-idl",
+        "neocogi-tooling-tests",
         "parser",
         vec![
             "rejects_explicit_receiver_lifetimes",
@@ -187,11 +192,56 @@ fn metadata(runner: &Runner, manifest: &Path) -> Result<Value> {
     args.push(manifest.as_os_str().to_owned());
     Ok(serde_json::from_str(&runner.read("rustup", args)?)?)
 }
+
+/// Every checkout-only integration source has exactly one unpublished owner.
+/// Derive the expected inventory from files so adding a new source cannot
+/// silently omit it after public packages disable automatic test discovery.
+pub(crate) fn checkout_tests(root: &Path, packages: &[Value]) -> Result<()> {
+    let mut expected = BTreeSet::new();
+    for relative in ["crates/idl/tests", "tools/neocogi-inspect/tests"] {
+        for entry in fs::read_dir(root.join(relative))? {
+            let path = entry?.path();
+            if path.extension().is_some_and(|extension| extension == "rs") {
+                expected.insert(path.canonicalize()?);
+            }
+        }
+    }
+    let owner = packages
+        .iter()
+        .find(|package| package["name"] == "neocogi-tooling-tests")
+        .ok_or("missing checkout tooling test owner")?;
+    if owner["publish"] != serde_json::json!([]) {
+        return Err("checkout tooling tests must remain unpublished".into());
+    }
+    let targets = |package: &Value| -> Result<BTreeSet<PathBuf>> {
+        package["targets"]
+            .as_array()
+            .ok_or("missing Cargo targets")?
+            .iter()
+            .filter(|target| target["kind"] == serde_json::json!(["test"]))
+            .map(|target| Ok(Path::new(target["src_path"].as_str().ok_or("missing test source")?).canonicalize()?))
+            .collect()
+    };
+    if targets(owner)? != expected {
+        return Err("checkout integration sources and registered targets differ".into());
+    }
+    for name in ["neocogi-idl", "neocogi-inspect"] {
+        let package = packages
+            .iter()
+            .find(|package| package["name"] == name)
+            .ok_or("missing public tooling package")?;
+        if !targets(package)?.is_empty() {
+            return Err(format!("{name} must not advertise checkout-only integration tests").into());
+        }
+    }
+    Ok(())
+}
 /// Resolve every independent fixture and compile a compiler-free no-default consumer.
 pub(crate) fn workspace(runner: &Runner) -> Result<()> {
     let graph = metadata(runner, &runner.root.join("Cargo.toml"))?;
     let members = graph["workspace_members"].as_array().ok_or("missing workspace members")?;
     let packages = graph["packages"].as_array().ok_or("missing workspace packages")?;
+    checkout_tests(&runner.root, packages)?;
     let mut published = Vec::new();
     for package in packages {
         if members.contains(&package["id"]) && package["publish"] != serde_json::json!([]) {

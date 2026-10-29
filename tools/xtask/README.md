@@ -7,7 +7,7 @@ external archive utility is required by the task runner.
 | Command | Checks |
 | --- | --- |
 | `cargo test -p xtask --locked` | Driver regressions, real harness admission, archive extraction and report failures |
-| `cargo xtask workspace` | Locked workspace/fixture resolution, SDK/host dependency direction, and a compiler-free no-default consumer |
+| `cargo xtask workspace` | Locked graphs, complete unpublished integration ownership, SDK/host dependency direction, and a compiler-free no-default consumer |
 | `cargo xtask quality` | Formatting, strict Clippy, allocation modes, ABI snippets, Markdown links and strict rustdoc |
 | `cargo xtask markdown` | Local Markdown files and heading anchors; external links are not fetched |
 | `cargo xtask msrv` | Rust 1.85 checks, library tests, exact semantic integration cases and feature boundaries |
@@ -28,6 +28,20 @@ stable/nightly; Miri needs nightly Miri and sanitizer builds need nightly
 Native checks still require the platform C compiler and linker; 32-bit checks
 also require the selected target and matching native multilib support.
 `cargo fetch --locked` primes registry inputs for offline archive verification.
+
+Checkout-only IDL and inspector suites belong to the unpublished
+[`neocogi-tooling-tests`](../../tests/tooling/README.md) owner. Their source and
+fixture paths stay intact, while public packages disable integration discovery.
+Workspace qualification derives the expected targets from those source files,
+so disabling public discovery cannot silently remove a new or existing test.
+
+Run ordinary multi-package `cargo package` and the final publish dry-run online.
+Cargo 1.97.1 and 1.98.1 can fail offline verification of staged dependencies with
+external dev-dependencies with an internal `no hash listed` error. A minimal
+two-package reproduction passes normally and fails offline after adding a `syn`
+dev-dependency. This is separate from archive completeness: `packages` creates
+archives offline with `--no-verify`, then independently builds and tests their
+extracted contents on Rust 1.85. It does not replace the online release dry-run.
 
 Tasks invoke argument vectors directly and never evaluate shell commands. The
 runner removes ambient compiler/profile/loader overrides, retains tool discovery
