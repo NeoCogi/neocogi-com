@@ -219,6 +219,10 @@ on a later map-finishing error, and exact bytes/known old timestamps on an uncha
 successful repeat. The shared-consumer test checks actual Cargo cache reuse and
 source-membership invalidation, which differ from avoiding unchanged file writes.
 
+The filesystem-backed non-UTF-8-root graph-encoding rejection case runs on Linux.
+The macOS CI filesystem rejects that directory before a builder can run; portable
+generation, path-rejection and output-preservation cases still run there.
+
 Run the maintained source-map integration suite from the workspace root:
 
 ```sh

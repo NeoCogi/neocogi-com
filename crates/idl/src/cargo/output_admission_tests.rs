@@ -81,18 +81,20 @@ impl Builder {
 }
 
 /// Executes exactly one public-builder test with native Cargo input paths.
+/// The non-Unicode-root variant needs Linux's native-byte filename support;
+/// macOS CI rejects that fixture before any builder can be invoked.
 fn child(test: &str, case: &str, builder: Builder, seeded: bool, reverse: bool, non_unicode: bool) {
     let fixture = tempfile::tempdir().unwrap();
     let root = fixture.path().join("consumer");
-    #[cfg(unix)]
+    #[cfg(target_os = "linux")]
     let root = if non_unicode {
         use std::{ffi::OsString, os::unix::ffi::OsStringExt};
         root.join(OsString::from_vec(b"native-\xff".to_vec()))
     } else {
         root
     };
-    #[cfg(not(unix))]
-    assert!(!non_unicode);
+    #[cfg(not(target_os = "linux"))]
+    assert!(!non_unicode, "the non-Unicode-root fixture is Linux-only");
     fs::create_dir_all(&root).unwrap();
     let output = root.join("output");
     if !matches!(builder, Builder::Shared) {
@@ -234,7 +236,10 @@ fn later_generation_worker_failure_preserves_the_entire_output_tree() {
 }
 
 /// Native roots can serialize unsuccessfully even when relative map paths are UTF-8.
-#[cfg(unix)]
+/// This needs a real non-UTF-8 directory, which the macOS CI filesystem rejects
+/// during fixture setup. Keep its six public-builder cases on Linux; portable
+/// path, worker and publication-preservation checks remain enabled on macOS.
+#[cfg(target_os = "linux")]
 #[test]
 fn graph_encoding_rejection_precedes_output_changes() {
     if std::env::var(CASE).as_deref() == Ok("graph") {
