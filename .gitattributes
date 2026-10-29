@@ -1,0 +1,3 @@
+# Keep generated-source freshness checks and crate contents identical on every OS.
+# Binary files retain their bytes; tracked text uses LF even with core.autocrlf=true.
+* text=auto eol=lf

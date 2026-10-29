@@ -47,6 +47,11 @@ Native integration tests also require a C compiler and platform linker.
 The checkout toolchain includes `rust-src` for consistent compiler diagnostics.
 Checkout-only integration fixtures remain unpublished.
 
+Tracked text uses LF line endings on every platform. Git applies the repository's
+`.gitattributes` policy even when `core.autocrlf` is enabled, keeping checked-in
+generated bindings and crate contents consistent across operating systems.
+Use a fresh clone if an older checkout retains CRLF copies of generated files.
+
 ```sh
 cargo test --workspace --all-features --locked
 cargo run -p neocogi-example-com-host --features monolith --locked
