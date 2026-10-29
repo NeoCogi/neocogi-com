@@ -23,7 +23,7 @@ Providers link the SDK and receive host access during bootstrap; the final host
 links this package once. Host-side inspection tools can reuse its loader and
 metadata utilities without initializing the plugin catalog.
 
-See [the role and dependency guide](https://github.com/NeoCogi/neocogi-com/blob/master/docs/COM.md#hosts-callers-and-providers)
+See [the role and dependency guide](https://github.com/NeoCogi/neocogi-com/blob/v0.1.0-alpha.1/docs/COM.md#hosts-callers-and-providers)
 for the complete graph and startup/call sequence.
 
 A dynamic library exports `nc_get_plugin_descriptor_v1`, lending an
@@ -64,9 +64,9 @@ The caller's original path remains in errors and first-registration provenance.
 Native inspection accepts UTF-16 paths; SDK path adapters require UTF-8. Paths
 and ABI identities do not authenticate native code: providers and their native
 dependencies must be trusted. See the
-[native loading contract](https://github.com/NeoCogi/neocogi-com/blob/master/docs/abi-v1.md#runtime-and-global-registry).
+[native loading contract](https://github.com/NeoCogi/neocogi-com/blob/v0.1.0-alpha.1/docs/abi-v1.md#runtime-and-global-registry).
 
-[Runtime ABI v1](https://github.com/NeoCogi/neocogi-com/blob/master/docs/abi-v1.md#runtime-and-global-registry) has three C tables:
+[Runtime ABI v1](https://github.com/NeoCogi/neocogi-com/blob/v0.1.0-alpha.1/docs/abi-v1.md#runtime-and-global-registry) has three C tables:
 complete plugin operations, diagnostics and persistence. Plugin lookup and
 enumeration share one projection containing identity, factory and dependencies. Loading
 returns a plugin GUID. Plugin inspection reports static origin or the first
@@ -84,7 +84,7 @@ existing singleton and obtain a copyable access handle. Reusable libraries take
 that handle from their caller. Plugin acquisition receives it through the C
 bootstrap; providers select no implementation. No runtime DSO or native bridge
 is built or deployed. The runtime requires `std`; core and the access handle
-retain reduced-feature support. See the [sample host](https://github.com/NeoCogi/neocogi-com/tree/master/examples/com-host).
+retain reduced-feature support. See the [sample host](https://github.com/NeoCogi/neocogi-com/tree/v0.1.0-alpha.1/examples/com-host).
 
 `initialize_process()` is infallible/idempotent and invokes no plugin. Its
 immutable `NcHostApiV1`, child tables, state and code remain process/instance-lived

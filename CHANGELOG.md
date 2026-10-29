@@ -4,7 +4,7 @@ The current contract uses [core generation 18](docs/abi-v1.md). Entries below re
 its development; later entries can supersede older implementation details.
 Historical draft numbers do not define additional supported COM baselines.
 
-## Unreleased — first public alpha
+## 0.1.0-alpha.1 — release candidate
 
 Prepared on 2026-10-28; publication is pending.
 

@@ -64,7 +64,7 @@ as overflow are ordinary returned statuses.
 Install the matching inspector after the SDK has been published:
 
 ```sh
-cargo install neocogi-inspect --version '=0.0.0' --locked
+cargo install neocogi-inspect --version '=0.1.0-alpha.1' --locked
 ```
 
 Inspect the library with `neocogi-inspect dump PATH_TO_LIBRARY`, or run
