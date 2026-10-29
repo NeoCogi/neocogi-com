@@ -37,6 +37,13 @@ fixture paths stay intact, while public packages disable integration discovery.
 Workspace qualification derives the expected targets from those source files,
 so disabling public discovery cannot silently remove a new or existing test.
 
+The floor/archive library phases require named imported-provider and independent
+SharedSources consumer execution. The latter checks legal weak/underscore IDL
+names through imports, qualified types and real COM calls across independently
+generated bindings. Existing complete library runs supply this evidence; adding
+the required name does not add another complete or exact consumer run. Ignored,
+missing or similarly named cases cannot satisfy either requirement.
+
 Run ordinary multi-package `cargo package` and the final publish dry-run online.
 Cargo 1.97.1 and 1.98.1 can fail offline verification of staged dependencies with
 external dev-dependencies with an internal `no hash listed` error. A minimal

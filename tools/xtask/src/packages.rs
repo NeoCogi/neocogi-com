@@ -6,7 +6,7 @@ use std::{
 };
 use flate2::read::GzDecoder;
 use crate::{
-    compatibility::{IMPORTED_INTERFACE_PROVIDER_TEST, require_named_execution, words},
+    compatibility::{IMPORTED_INTERFACE_PROVIDER_TEST, SHARED_SOURCE_CONSUMER_TEST, require_named_execution, words},
     process::{Result, Runner},
 };
 
@@ -274,6 +274,7 @@ pub(crate) fn run(runner: &Runner) -> Result<()> {
                 let output = verification.run("rustup", args)?;
                 if package == &"neocogi-idl" && options.contains(&"--tests") {
                     require_named_execution(&output, IMPORTED_INTERFACE_PROVIDER_TEST)?;
+                    require_named_execution(&output, SHARED_SOURCE_CONSUMER_TEST)?;
                 }
             }
         }

@@ -236,6 +236,10 @@ impl Sanitizer {
 /// Keep the exact library-test path here so package and checkout gates agree.
 pub(crate) const IMPORTED_INTERFACE_PROVIDER_TEST: &str = "backend_tests::binding_admission_tests::imported_interface_paths_construct_providers";
 
+/// Shipped independent consumers must execute legal logical namespace references
+/// and real COM calls in the existing compiler-floor and archive library phases.
+pub(crate) const SHARED_SOURCE_CONSUMER_TEST: &str = "backend_tests::shared_sources_tests::independent_shared_source_consumers_call_through_their_own_bindings";
+
 /// Require one named test to have passed within a complete captured harness run.
 /// Other passing helpers, ignored tests and substring names cannot satisfy an
 /// archive's required semantic operation. The caller already checks process exit.

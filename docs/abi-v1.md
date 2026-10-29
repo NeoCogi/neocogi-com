@@ -1078,6 +1078,11 @@ checked values, output buffers/completion and generated unit values. Parser
 qualification additionally requires exact receiver-lifetime, unsupported-annotation,
 type/integer syntax rejection and multipart source-diagnostic cases before running
 the complete parser target. Snapshot diagnostics remain in stable qualification.
+Logical module-name/span parser cases are also required, and the existing full
+library phase must execute the named independent SharedSources consumer. Its
+real calls cover imported and qualified types in legal weak/underscore namespaces.
+Archives require the same shipped consumer alongside the older imported-provider
+operation; neither can be ignored or absent behind a broad passing test count.
 The cross-compiler native-loader cases run in the Linux safety job. The workflow
 contains four jobs total, with one Cargo build job and one test thread per job.
 

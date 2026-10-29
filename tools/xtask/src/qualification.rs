@@ -7,7 +7,10 @@ use std::{
 };
 use serde_json::Value;
 use crate::{
-    compatibility::{ABI_TESTS, GENERATION_SENTINEL, IMPORTED_INTERFACE_PROVIDER_TEST, abi_sentinel, execute_tests, require_execution, require_tests, words},
+    compatibility::{
+        ABI_TESTS, GENERATION_SENTINEL, IMPORTED_INTERFACE_PROVIDER_TEST, SHARED_SOURCE_CONSUMER_TEST, abi_sentinel, execute_tests, require_execution,
+        require_named_execution, require_tests, words,
+    },
     packages::PUBLISHED,
     process::{Result, Runner, sources},
 };
@@ -131,13 +134,14 @@ pub(crate) fn msrv(runner: &Runner) -> Result<()> {
         // complete SDK library phase; do not run the full IDL library twice.
         let imported_provider = IMPORTED_INTERFACE_PROVIDER_TEST;
         let listing = fixture.cargo("1.85.0", &["test", "-p", "neocogi-idl", "--lib", "--locked", "--", "--list"])?;
-        require_tests(&listing, &[imported_provider])?;
+        require_tests(&listing, &[imported_provider, SHARED_SOURCE_CONSUMER_TEST])?;
         let execution = fixture.cargo(
             "1.85.0",
             &["test", "-p", "neocogi-idl", "--lib", "--locked", "--", "--exact", imported_provider],
         )?;
         require_execution(&execution)?;
-        fixture.run("rustup", words(&["run", "1.85.0", "cargo"]).into_iter().chain(libs))?;
+        let libraries = fixture.run("rustup", words(&["run", "1.85.0", "cargo"]).into_iter().chain(libs))?;
+        require_named_execution(&libraries, SHARED_SOURCE_CONSUMER_TEST)?;
         floor_semantics(&fixture)?;
         for args in [
             vec!["test", "--manifest-path", "tests/abi-spec/Cargo.toml", "--doc", "--locked"],
@@ -188,6 +192,8 @@ fn floor_semantics(runner: &Runner) -> Result<()> {
             "unsupported_syntax_diagnostics_preserve_source_parts",
             "rejects_rust_2024_keyword_members",
             "keyword_member_diagnostics_preserve_source_parts",
+            "rejects_invalid_logical_module_segments",
+            "logical_module_segment_diagnostics_preserve_source_parts",
         ],
     ));
     for (package, name, required) in rows {

@@ -81,7 +81,8 @@ native execution. Do not claim 32-bit support without running `cargo xtask abi-3
 with the target and matching C multilib toolchain. Other platforms remain
 unqualified unless their workload has actually run.
 
-The archive gate tests the shipped targets, named imported-provider case, docs,
+The archive gate tests the shipped targets, named imported-provider and independent
+SharedSources COM consumer cases, docs,
 reduced features, generated consumers and independently built tutorial. It uses
 only extracted SDKs. It is distinct from the normal registry dry-run below.
 
