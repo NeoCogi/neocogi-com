@@ -4,15 +4,21 @@ The current contract uses [core generation 18](docs/abi-v1.md). Entries below re
 its development; later entries can supersede older implementation details.
 Historical draft numbers do not define additional supported COM baselines.
 
-## Unreleased
+## 0.1.0 — 2026-10-29
 
+- Publish the six-crate SDK as its first non-prerelease `0.1.0` cohort, with exact
+  internal SDK requirements and Rust 1.85 as the supported compiler floor.
+- Retain core generation 18, runtime/descriptor family 1, IDL encoding v13 and
+  NCB format v1. Hosts, providers and generated bindings use the same SDK release.
+- Qualify the cohort through native Linux, Windows and macOS CI, extracted crate
+  tests, independent generated consumers and the complete host/plugin tutorial.
 - Keep the non-UTF-8-directory graph-encoding fixture on Linux so macOS archive
   tests can run on filesystems that reject such directory names. Portable output
   safety checks remain enabled; compiler and runtime behavior are unchanged.
 
-## 0.1.0-alpha.1 — release candidate
+## 0.1.0-alpha.1 — 2026-10-29
 
-Prepared on 2026-10-28; publication is pending.
+Initial public prerelease, prepared on 2026-10-28.
 
 - Build a small host and calculator plugin from the complete
   [getting-started example](examples/getting-started/README.md), including contract

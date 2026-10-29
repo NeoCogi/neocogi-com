@@ -207,7 +207,7 @@ dependencies = [
 
 [[package]]
 name = "neocogi-com"
-version = "0.1.0-alpha.1"
+version = "0.1.0"
 dependencies = [
  "neocogi-com-core",
  "neocogi-com-macros",
@@ -215,14 +215,14 @@ dependencies = [
 
 [[package]]
 name = "neocogi-com-core"
-version = "0.1.0-alpha.1"
+version = "0.1.0"
 dependencies = [
  "syn 2.0.119",
 ]
 
 [[package]]
 name = "neocogi-com-host"
-version = "0.1.0-alpha.1"
+version = "0.1.0"
 dependencies = [
  "neocogi-com",
  "neocogi-com-core",
@@ -230,7 +230,7 @@ dependencies = [
 
 [[package]]
 name = "neocogi-com-macros"
-version = "0.1.0-alpha.1"
+version = "0.1.0"
 dependencies = [
  "neocogi-idl",
  "syn 2.0.119",
@@ -238,7 +238,7 @@ dependencies = [
 
 [[package]]
 name = "neocogi-com-tests"
-version = "0.1.0-alpha.1"
+version = "0.1.0"
 dependencies = [
  "cc",
  "neocogi-com",
@@ -271,7 +271,7 @@ dependencies = [
 
 [[package]]
 name = "neocogi-idl"
-version = "0.1.0-alpha.1"
+version = "0.1.0"
 dependencies = [
  "libc",
  "neocogi-com-core",
@@ -286,7 +286,7 @@ dependencies = [
 
 [[package]]
 name = "neocogi-inspect"
-version = "0.1.0-alpha.1"
+version = "0.1.0"
 dependencies = [
  "neocogi-com-core",
  "neocogi-com-host",
@@ -297,7 +297,7 @@ dependencies = [
 
 [[package]]
 name = "neocogi-tooling-tests"
-version = "0.1.0-alpha.1"
+version = "0.1.0"
 dependencies = [
  "libc",
  "neocogi-com-core",
@@ -637,7 +637,7 @@ checksum = "23b97319f7b8343df12cc98938e5c3eb436064524c8d2b4e30a1d3a36eecdf81"
 
 [[package]]
 name = "xtask"
-version = "0.1.0-alpha.1"
+version = "0.1.0"
 dependencies = [
  "flate2",
  "percent-encoding",

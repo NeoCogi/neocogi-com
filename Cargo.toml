@@ -19,7 +19,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.1.0-alpha.1"
+version = "0.1.0"
 authors = ["Raja Lehtihet", "Wael El Oraiby"]
 edition = "2024"
 rust-version = "1.85"
@@ -27,11 +27,11 @@ license = "MIT"
 repository = "https://github.com/NeoCogi/neocogi-com"
 
 [workspace.dependencies]
-neocogi-com-core = { path = "crates/core", version = "=0.1.0-alpha.1", default-features = false }
-neocogi-idl = { path = "crates/idl", version = "=0.1.0-alpha.1" }
-neocogi-com-macros = { path = "crates/macros", version = "=0.1.0-alpha.1", default-features = false }
-neocogi-com-host = { path = "crates/host", version = "=0.1.0-alpha.1", default-features = false }
-neocogi-com = { path = "crates/com", version = "=0.1.0-alpha.1", default-features = false }
+neocogi-com-core = { path = "crates/core", version = "=0.1.0", default-features = false }
+neocogi-idl = { path = "crates/idl", version = "=0.1.0" }
+neocogi-com-macros = { path = "crates/macros", version = "=0.1.0", default-features = false }
+neocogi-com-host = { path = "crates/host", version = "=0.1.0", default-features = false }
+neocogi-com = { path = "crates/com", version = "=0.1.0", default-features = false }
 prettyplease = "0.2"
 proc-macro2 = { version = "1", features = ["span-locations"] }
 quote = "1"

@@ -30,7 +30,7 @@ encoding and NCB persistence format have their own authorities in the
 
 Prepare a user-facing changelog entry with features, migration instructions,
 known limits and actual platform results. Keep superseded development entries
-historical. The currently prepared alpha is a release candidate until uploaded.
+historical. The currently prepared version is a release candidate until uploaded.
 
 ## Apply the public version last
 
@@ -151,7 +151,7 @@ from the registry, and check the output and overflow assertion. Repeat on Rust
 1.85 to check fresh dependency resolution; SDK library lockfiles do not control
 a consumer's dependency selection.
 
-Install the explicit alpha inspector version with `--locked` into a fresh
+Install the explicit released inspector version with `--locked` into a fresh
 installation root. Run its `dump` and `check` commands against the tutorial
 plugin. A successful upload alone does not complete the release: record any
 docs, installation, runtime or platform failure and its follow-up action.
