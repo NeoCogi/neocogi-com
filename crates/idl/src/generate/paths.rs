@@ -53,8 +53,11 @@ impl RustModulePaths {
     /// registration is harmless when dependency graphs share one contract owner.
     /// COM's `validate_rust_path` defines the shared grammar and byte limit; valid
     /// raw identifiers and an optional leading `::` use that same policy.
+    /// The logical key separately uses ModuleName's nonraw segment rule and the
+    /// existing qualified-name metadata bound; Rust placement never rewrites it.
     pub fn insert(&mut self, module: &str, rust_path: &str) -> Result<(), GenerateError> {
         neocogi_com_core::validate_qualified_name(module).map_err(|error| GenerateError::new(format!("invalid IDL module {module:?}: {error}")))?;
+        crate::ModuleName::validate_dotted(module).map_err(|error| GenerateError::new(format!("invalid IDL module {module:?}: {error}")))?;
         let path = parse_rust_path(rust_path)?;
         match self.modules.entry(module.to_owned()) {
             Entry::Vacant(entry) => {

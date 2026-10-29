@@ -43,6 +43,104 @@ fn assert_syntax_diagnostic(error: ParseError, module: &str, path: &Path, source
     );
 }
 
+/// Owners and every authored module-reference form share one logical segment rule.
+#[test]
+fn rejects_invalid_logical_module_segments() {
+    let declaration = "#[version(1)] struct Value { value: u32 }";
+    for invalid in ["gen", "type", "async", "_", "self", "Self", "super", "crate", "r#type", "r#ordinary", "Café"] {
+        for name in [format!("{invalid}.owner"), format!("proof.{invalid}"), format!("proof.{invalid}.owner")] {
+            let directory = name.replace('.', "/");
+            let file = format!("{directory}.ncidl");
+            assert!(parse_module(Path::new(&file), declaration).is_err(), "accepted owner {name}");
+            let part = format!("{directory}/part.ncidl");
+            assert!(
+                parse_module_parts(
+                    Path::new(&directory),
+                    &[ModuleSource {
+                        path: Path::new(&part),
+                        text: declaration
+                    }]
+                )
+                .is_err(),
+                "accepted directory owner {name}"
+            );
+            let qualified = name.replace('.', "::");
+            for source in [
+                format!("extern {name}; {declaration}"),
+                format!("use {name}::Value; {declaration}"),
+                format!("#[version(1)] struct Unused<T> {{ value: {qualified}::Value }}"),
+                format!("#[version(1)] interface Unused<T>: {qualified}::Probe {{}}"),
+            ] {
+                assert!(parse_module(Path::new("proof/consumer.ncidl"), &source).is_err(), "accepted reference {source}");
+            }
+        }
+    }
+    for name in [
+        "union",
+        "safe",
+        "raw",
+        "macro_rules",
+        "types",
+        "_private",
+        "CaseName",
+        "case_name",
+        "generation",
+        "gen_value",
+    ] {
+        let owner = format!("proof.{name}");
+        let file = format!("proof/{name}.ncidl");
+        let module = parse_module(Path::new(&file), declaration).unwrap();
+        assert_eq!(module.name.to_string(), owner);
+        let source = format!("extern {owner}; use {owner}::Value; #[version(1)] struct Container {{ imported: Value, qualified: proof::{name}::Value }}");
+        let consumer = parse_module(Path::new("proof/consumer.ncidl"), &source).unwrap();
+        let graph = resolve_modules(vec![module, consumer]).unwrap();
+        generate_rust(&graph, "proof.consumer").unwrap();
+    }
+    parse_module(Path::new("ordinary.ncidl"), declaration).unwrap();
+    assert!(parse_module(Path::new("proof/consumer.ncidl"), "extern ordinary;").is_err());
+    // Organizational part filenames do not define the enclosing module identity.
+    parse_module_parts(
+        Path::new("proof/ordinary"),
+        &[ModuleSource {
+            path: Path::new("proof/ordinary/type.ncidl"),
+            text: declaration,
+        }],
+    )
+    .unwrap();
+}
+
+/// Namespace diagnostics own the exact identifier span after worker exit/reordering.
+#[test]
+fn logical_module_segment_diagnostics_preserve_source_parts() {
+    for invalid in ["gen", "r#ordinary"] {
+        let message = format!("IDL module segment {invalid:?} must be a nonraw ASCII identifier other than `_` or a Rust 2024 keyword");
+        for source in [
+            format!("// café\nextern proof.{invalid}.owner;\n"),
+            format!("// café\nuse proof.{invalid}::Value;\n"),
+            format!("#[version(1)]\nstruct Unused<T> {{ /* café */ value: proof::{invalid}::Value }}\n"),
+        ] {
+            let path = Path::new("proof/consumer.ncidl");
+            assert_syntax_diagnostic(parse_module(path, &source).unwrap_err(), "proof.consumer", path, &source, invalid, &message);
+            let path = Path::new("proof/consumer/z_invalid.ncidl");
+            let earlier = ModuleSource {
+                path: Path::new("proof/consumer/a_valid.ncidl"),
+                text: "#[version(1)] struct Earlier { value: u32 }",
+            };
+            let invalid_part = ModuleSource { path, text: &source };
+            for parts in [[earlier, invalid_part], [invalid_part, earlier]] {
+                assert_syntax_diagnostic(
+                    parse_module_parts(Path::new("proof/consumer"), &parts).unwrap_err(),
+                    "proof.consumer",
+                    path,
+                    &source,
+                    invalid,
+                    &message,
+                );
+            }
+        }
+    }
+}
+
 /// Rust-2024 keywords reject at member admission without restricting legal names.
 #[test]
 fn rejects_rust_2024_keyword_members() {

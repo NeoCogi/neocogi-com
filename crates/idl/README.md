@@ -102,6 +102,16 @@ conflicting roots fail before any output is written. Root order never hides a
 definition. Repeating the same canonical root is harmless. Source maps preserve
 the actual owning directory of each imported declaration.
 
+Logical module segments are nonraw ASCII identifiers. Standalone `_`, Rust 2024
+strict/reserved keywords (including `gen`) and `self`, `Self`, `super`, `crate`
+are rejected consistently in source identities, imports, qualified IDL prefixes
+and registration keys, before output publication. Weak/near-keywords and
+`_private` remain legal; case and underscores retain their exact identity bytes.
+Part filenames inside a multipart module only identify diagnostic source parts.
+This rule is separate from backend Rust placement: `.rust_path("api::r#type")`
+remains valid for a normally named logical module. See the
+[module dependency rules](https://github.com/NeoCogi/neocogi-com/blob/v0.1.0-alpha.1/docs/contracts/IDL_MODULES.md#module-names-and-dependencies).
+
 Existing inputs and directory membership are tracked by Cargo. Absent candidate
 paths watch their nearest existing source directory, so unchanged builds stay
 cached while added source parts or competing owners invalidate both consumers.

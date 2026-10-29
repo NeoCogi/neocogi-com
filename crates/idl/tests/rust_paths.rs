@@ -81,6 +81,23 @@ fn rust_locations_only_change_import_paths() {
 #[test]
 fn rust_locations_reject_invalid_and_conflicting_owners() {
     let mut paths = RustModulePaths::default();
+    for module in [
+        "proof.type",
+        "async.proof",
+        "proof.gen",
+        "proof._",
+        "proof.r#ordinary",
+        "proof.Café",
+        "proof.name:v1",
+        "proof..name",
+    ] {
+        assert!(paths.insert(module, "api::events").is_err(), "{module}");
+    }
+    // Raw binding metadata is independent of the logical namespace's spelling.
+    paths.insert("proof.union", "api::r#type").unwrap();
+    let maximum = neocogi_com_core::NC_DESCRIPTOR_QUALIFIED_NAME_MAX_LEN;
+    paths.insert(&"a".repeat(maximum), "api::events").unwrap();
+    assert!(paths.insert(&"a".repeat(maximum + 1), "api::events").is_err());
     for path in [
         "",
         "crate::events",

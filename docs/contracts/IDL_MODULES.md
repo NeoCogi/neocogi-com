@@ -620,6 +620,8 @@ so the fingerprint also detects an implicit-to-explicit edit when the author
 incorrectly retains the version. This additional check does not replace the
 requirement to increment that version.
 
+### Module names and dependencies
+
 External dependencies and lexical imports are deliberately separate:
 
 ```rust
@@ -633,6 +635,28 @@ introduces selected declarations as unqualified names. A `use` without its
 matching `extern` is rejected; an external declaration may instead be referred
 to explicitly as `neocogi::render::ITexture`. External module names are always
 fully qualified and never resolved relative to the current namespace.
+
+Logical module segments use nonraw ASCII identifiers: a letter or underscore,
+then letters, digits or underscores. Standalone `_`, Rust 2024 strict/reserved
+keywords (including `gen`) and the anchors `self`, `Self`, `super`, `crate` are
+rejected. Weak keywords such as `union`, near-keywords such as `types`, and
+`_private` remain legal. Source file/directory identity, dotted `extern`/`use`,
+qualified type prefixes and logical binding-registration keys share this rule.
+Invalid names fail before generation/output publication, including unused
+registrations and template references. `r#` is not an alternative logical identity
+spelling. Syn may reject a forbidden keyword in Rust-like type syntax before
+logical prefix validation; neither route makes that name legal.
+
+Spelling, case and underscores are preserved in logical identity bytes, UUID
+inputs and fingerprints. A standalone source module can have one segment;
+external module references require at least two. Organizational filenames within
+a selected multipart module do not define that module's name. Existing metadata
+length bounds still apply where names are transported; the Rust binding path's
+bound is not an additional per-segment IDL rule.
+
+Backend Rust binding paths retain their separate grammar: a logical module such
+as `proof.types` may map to `api::r#type`. That raw Rust location is valid metadata
+and never rewrites the logical module identity.
 
 An authored import of a closed interface also exposes its complete generated
 Rust family: `ITexture`, `ITextureAbi`, `ITextureVTable`, `ITextureVtblFor` and

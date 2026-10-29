@@ -12,6 +12,7 @@ use syn::{
     Attribute, Expr, ExprLit, ExprUnary, FnArg, GenericArgument, Ident, Lit, LitInt, LitStr, Pat, PathArguments, ReturnType, Token, TraitItemFn, Type,
     TypeParamBound, UnOp, braced, parenthesized,
     parse::{Parse, ParseStream},
+    ext::IdentExt,
     parse_str,
     punctuated::Punctuated,
     spanned::Spanned,
@@ -284,23 +285,36 @@ impl Parse for ModuleSyntax {
 /// Parses one canonical dotted external module dependency.
 fn parse_external(input: ParseStream<'_>) -> syn::Result<ExternalModule> {
     let extern_token = input.parse::<Token![extern]>()?;
+    let module = parse_module_reference(input)?;
+    input.parse::<Token![;]>()?;
+    Ok(ExternalModule {
+        span: SourceSpan::from_parser(extern_token.span),
+        module,
+    })
+}
+
+/// Read a dotted logical reference, keeping token spans at the shared admission.
+/// Tokenization admits keywords so this language's rule owns their rejection.
+fn parse_module_reference(input: ParseStream<'_>) -> syn::Result<String> {
     // Dots belong to the IDL module-name grammar; Rust `::` remains reserved
     // for paths to declarations inside an already-declared dependency.
-    let mut module = vec![input.parse::<Ident>()?.to_string()];
-    while input.peek(Token![.]) {
+    let mut module = Vec::new();
+    loop {
+        let identifier = input.call(Ident::parse_any)?;
+        let segment = identifier.to_string();
+        ModuleName::validate_segment(&segment).map_err(|error| syn::Error::new(identifier.span(), error))?;
+        module.push(segment);
+        if !input.peek(Token![.]) {
+            break;
+        }
         input.parse::<Token![.]>()?;
-        module.push(input.parse::<Ident>()?.to_string());
     }
     if module.len() < 2 {
         // Requiring a dotted absolute name prevents hidden parent-namespace
         // lookup from changing meaning when the importing module moves.
-        return Err(input.error("IDL external dependencies require a fully qualified dotted module name"));
+        return Err(input.error("IDL module references require a fully qualified dotted module name"));
     }
-    input.parse::<Token![;]>()?;
-    Ok(ExternalModule {
-        span: SourceSpan::from_parser(extern_token.span),
-        module: module.join("."),
-    })
+    Ok(module.join("."))
 }
 
 /// Parses one fixed-width bit set with explicit named flag patterns.
@@ -677,12 +691,16 @@ fn require_relative_path(path: &syn::Path) -> syn::Result<()> {
     Ok(())
 }
 
-/// Parses named type arguments without accepting lifetime, const, or associated-type syntax.
+/// Admits logical module prefixes separately from final names and type arguments.
+/// Lifetime, const and associated-type syntax remain outside named arguments.
 fn named_path(path: &syn::Path) -> syn::Result<NamedType> {
     require_relative_path(path)?;
     let mut segments = Vec::new();
     let mut arguments = Vec::new();
     for (index, segment) in path.segments.iter().enumerate() {
+        if index + 1 < path.segments.len() {
+            ModuleName::validate_segment(&segment.ident.to_string()).map_err(|error| syn::Error::new(segment.ident.span(), error))?;
+        }
         segments.push(segment.ident.to_string());
         match &segment.arguments {
             PathArguments::None => {}
@@ -866,14 +884,7 @@ fn parse_signed_integer(expression: &Expr) -> syn::Result<i64> {
 /// Parses one dotted module import with one name or a braced name list.
 fn parse_import(input: ParseStream<'_>) -> syn::Result<Vec<Import>> {
     input.parse::<Token![use]>()?;
-    let mut module = vec![input.parse::<Ident>()?.to_string()];
-    while input.peek(Token![.]) {
-        input.parse::<Token![.]>()?;
-        module.push(input.parse::<Ident>()?.to_string());
-    }
-    if module.len() < 2 {
-        return Err(input.error("IDL imports require a dotted module name"));
-    }
+    let module = parse_module_reference(input)?;
     input.parse::<Token![::]>()?;
 
     let names = if input.peek(syn::token::Brace) {
@@ -900,7 +911,7 @@ fn parse_import(input: ParseStream<'_>) -> syn::Result<Vec<Import>> {
         }
         normalized_names.push(Import {
             span,
-            module: module.join("."),
+            module: module.clone(),
             name: normalized,
         });
     }

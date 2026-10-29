@@ -395,6 +395,27 @@ mod tests {
             assert!(!work.path().join("output").exists());
         }
     }
+
+    /// Even unreachable registrations use logical admission before source lookup
+    /// or publication; an existing output remains byte-for-byte untouched.
+    #[test]
+    fn invalid_unused_logical_registrations_preserve_output() {
+        let work = tempfile::tempdir().unwrap();
+        let output = work.path().join("output");
+        fs::create_dir(&output).unwrap();
+        let sentinel = output.join("existing");
+        fs::write(&sentinel, b"unchanged").unwrap();
+        for invalid in ["proof.type", "proof.gen", "proof._", "proof.r#ordinary", "proof.Café", "proof..value"] {
+            let request = SharedSources::new(work.path())
+                .module("proof.root", "consumer::root")
+                .import(invalid, "values::api");
+            let error = request.build_at(&[work.path().to_owned()], &output).unwrap_err().to_string();
+            assert!(error.contains("invalid IDL module"), "{error}");
+            assert!(error.contains(invalid), "{error}");
+            assert_eq!(fs::read(&sentinel).unwrap(), b"unchanged");
+            assert_eq!(fs::read_dir(&output).unwrap().count(), 1);
+        }
+    }
     /// Separate subsystem roots resolve one graph with accurate source locations;
     /// duplicate roots are harmless, while a competing owner fails before output.
     #[test]

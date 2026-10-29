@@ -5,7 +5,9 @@ use std::{
     path::{Component, Path},
 };
 
-/// A validated dotted IDL module name such as `neocogi.ui`.
+/// A validated, byte-preserving dotted IDL module name such as `neocogi.ui`.
+/// Source identities and authored references share the same nonraw segment rule;
+/// Rust binding metadata has its separate COM-owned path grammar.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct ModuleName {
     /// Validated source-path segments in declaration order.
@@ -53,9 +55,7 @@ impl ModuleName {
             } else {
                 text
             };
-            if !is_identifier(segment) {
-                return Err(ModulePathError::InvalidSegment(segment.to_owned()));
-            }
+            Self::validate_segment(segment)?;
             segments.push(segment.to_owned());
         }
 
@@ -63,6 +63,31 @@ impl ModuleName {
             return Err(ModulePathError::Empty);
         }
         Ok(Self { segments })
+    }
+
+    /// Validate one logical segment without imposing a Rust metadata path bound.
+    /// ASCII/raw/underscore admission belongs here; only the existing typed Rust
+    /// keyword classification is shared with COM, as for authored IDL members.
+    pub(crate) fn validate_segment(segment: &str) -> Result<(), ModulePathError> {
+        if segment == "_"
+            || !is_identifier(segment)
+            || matches!(
+                neocogi_com_core::validate_rust_path(segment),
+                Err(neocogi_com_core::NcRustPathError::ReservedIdentifier { .. })
+            )
+        {
+            return Err(ModulePathError::InvalidSegment(segment.to_owned()));
+        }
+        Ok(())
+    }
+
+    /// Validate logical registration keys through the same source segment rule.
+    /// Callers keep their context's arity and transported metadata length bounds.
+    pub(crate) fn validate_dotted(name: &str) -> Result<(), ModulePathError> {
+        for segment in name.split('.') {
+            Self::validate_segment(segment)?;
+        }
+        Ok(())
     }
 
     /// Returns the validated path segments without exposing mutable identity state.
@@ -104,7 +129,7 @@ pub enum ModulePathError {
     NonUtf8,
     /// The path contained `.` or `..` and was not already normalized.
     NonCanonical,
-    /// One path component was not a portable IDL identifier.
+    /// One component violated the shared nonraw logical module segment rule.
     InvalidSegment(
         /// The exact invalid component, retained for a useful diagnostic.
         String,
@@ -120,14 +145,17 @@ impl fmt::Display for ModulePathError {
             Self::Extension => formatter.write_str("IDL source path must end in .ncidl"),
             Self::NonUtf8 => formatter.write_str("IDL source path must be valid UTF-8"),
             Self::NonCanonical => formatter.write_str("IDL source path must not contain . or .. components"),
-            Self::InvalidSegment(segment) => write!(formatter, "IDL module path segment {segment:?} is not a portable identifier"),
+            Self::InvalidSegment(segment) => write!(
+                formatter,
+                "IDL module segment {segment:?} must be a nonraw ASCII identifier other than `_` or a Rust 2024 keyword"
+            ),
         }
     }
 }
 
 impl std::error::Error for ModulePathError {}
 
-/// Returns whether one path segment is an ASCII identifier accepted on every host.
+/// Recognizes ASCII segment shape; ModuleName owns keyword/underscore admission.
 fn is_identifier(segment: &str) -> bool {
     let mut bytes = segment.bytes();
     let Some(first) = bytes.next() else {
@@ -161,5 +189,70 @@ mod tests {
             ModuleName::from_relative_source(Path::new("neocogi/../ui.ncidl")),
             Err(ModulePathError::NonCanonical)
         );
+    }
+
+    /// All identity constructors and logical keys reject the same unsupported words.
+    #[test]
+    fn logical_segments_share_source_and_registration_admission() {
+        for invalid in [
+            "type",
+            "async",
+            "gen",
+            "_",
+            "self",
+            "Self",
+            "super",
+            "crate",
+            "r#type",
+            "r#ordinary",
+            "Café",
+            "9name",
+            "",
+        ] {
+            for name in [format!("{invalid}.owner"), format!("proof.{invalid}"), format!("proof.{invalid}.owner")] {
+                assert!(ModuleName::validate_dotted(&name).is_err(), "{name}");
+                // Empty filesystem components normalize away; dotted keys still
+                // reject them. The constructors separately own canonical paths.
+                if invalid.is_empty() {
+                    continue;
+                }
+                let directory = name.replace('.', "/");
+                assert!(ModuleName::from_relative_directory(Path::new(&directory)).is_err(), "{directory}");
+                assert!(
+                    ModuleName::from_relative_source(Path::new(&format!("{directory}.ncidl"))).is_err(),
+                    "{directory}"
+                );
+            }
+        }
+    }
+
+    /// Legal spelling remains byte-exact, without importing metadata-only bounds.
+    #[test]
+    fn logical_segments_preserve_weak_names_case_and_unbounded_shape() {
+        for segment in [
+            "union",
+            "safe",
+            "raw",
+            "macro_rules",
+            "_private",
+            "CaseName",
+            "case_name",
+            "generation",
+            "gen_value",
+        ] {
+            let name = format!("proof.{segment}");
+            ModuleName::validate_dotted(&name).unwrap();
+            let module = ModuleName::from_relative_source(Path::new(&format!("proof/{segment}.ncidl"))).unwrap();
+            assert_eq!(module.to_string(), name);
+        }
+        let long = "a".repeat(neocogi_com_core::NC_DESCRIPTOR_RUST_PATH_MAX_LEN + 1);
+        ModuleName::validate_dotted(&long).unwrap();
+        ModuleName::from_relative_source(Path::new(&format!("{long}.ncidl"))).unwrap();
+        let names = ["proof/A_b.ncidl", "proof/a_b.ncidl", "proof/a/b.ncidl"].map(|path| ModuleName::from_relative_source(Path::new(path)).unwrap());
+        for (index, left) in names.iter().enumerate() {
+            for right in names.iter().skip(index + 1) {
+                assert_ne!(left, right);
+            }
+        }
     }
 }
