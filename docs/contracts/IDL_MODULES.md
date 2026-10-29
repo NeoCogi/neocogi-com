@@ -323,7 +323,7 @@ interface UiPluginFactory {
 These blocks illustrate the language; their small example contracts are independent
 of any external application framework. The generic examples above and both modules here
 are extracted from this document, resolved, generated and compiled by
-`cargo test -p neocogi-idl --test documentation`. The
+`cargo test -p neocogi-tooling-tests --test documentation`. The
 [COM README](../COM.md#idl) adds an executable
 implementation and factory bootstrap checked by the same test.
 

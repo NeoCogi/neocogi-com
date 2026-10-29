@@ -275,7 +275,7 @@ export, bootstrap and actual calls. The `ignore` fence here avoids pretending
 that one Rust block can run without its preceding generated contract.
 
 ```sh
-cargo test -p neocogi-idl --test documentation
+cargo test -p neocogi-tooling-tests --test documentation
 ```
 
 Dynamic hosts use `runtime.load_plugin_library(path)` for an application-selected

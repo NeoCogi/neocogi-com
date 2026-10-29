@@ -222,7 +222,7 @@ source-membership invalidation, which differ from avoiding unchanged file writes
 Run the maintained source-map integration suite from the workspace root:
 
 ```sh
-cargo test -p neocogi-idl --test source_maps
+cargo test -p neocogi-tooling-tests --test source_maps
 ```
 
 The suite checks emitted mappings and authored locations while compiling
