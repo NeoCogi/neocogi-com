@@ -1,0 +1,21 @@
+[package]
+name = "getting-started-plugin"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT"
+publish = false
+build = "../build.rs"
+
+[lib]
+crate-type = ["cdylib"]
+
+[features]
+default = ["dynamic-plugin"]
+dynamic-plugin = []
+
+[dependencies]
+neocogi-com = "=0.0.0"
+
+[build-dependencies]
+neocogi-idl = "=0.0.0"

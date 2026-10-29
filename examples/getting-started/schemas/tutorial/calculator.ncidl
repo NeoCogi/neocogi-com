@@ -1,0 +1,6 @@
+/// Checked integer addition supplied by a separately compiled plugin.
+#[version(1)]
+interface Calculator {
+    /// Adds two numbers, reporting an out-of-range result without overflowing.
+    fn add(&self, left: i32, right: i32) -> Result<i32>;
+}

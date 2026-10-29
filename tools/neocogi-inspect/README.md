@@ -6,6 +6,15 @@ dependencies, descriptor/core ABI versions, and full factory IID/signature and
 threading capability. There are no contract libraries or module graphs to load.
 Opened libraries remain pinned until the short-lived process exits.
 
+Install the matching SDK release after publication:
+
+```sh
+cargo install neocogi-inspect --version '=0.0.0' --locked
+```
+
+The [first application and plugin](https://github.com/NeoCogi/neocogi-com/blob/master/examples/getting-started/README.md)
+walkthrough creates a library you can inspect.
+
 ```sh
 neocogi-inspect dump path/to/plugin.so
 neocogi-inspect dump path/to/plugin.so --format text
@@ -23,7 +32,7 @@ JSON uses strict schema 9 and plugin descriptor ABI 1. The core object ABI
 is checked against the current COM runtime contract.
 Unknown fields and unsupported schema versions are rejected. The artifact records
 the plugin and its root factory. Source-level method and value definitions belong
-to [local IDL metadata](../../crates/com/src/idl_metadata.rs).
+to [local IDL metadata](https://docs.rs/neocogi-com/latest/neocogi_com/idl_metadata/index.html).
 
 `plan` rejects duplicate plugin identities, missing hard dependencies, and
 cycles, then prints deterministic provider-first order. Disconnected contract

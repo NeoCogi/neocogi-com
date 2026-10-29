@@ -200,6 +200,7 @@ pub(crate) fn sources(runner: &Runner) -> Result<(TempDir, Runner)> {
         "tools/xtask",
         "examples/com-plugin",
         "examples/com-host",
+        "examples/getting-started",
         "examples/schemas",
         "docs",
     ] {

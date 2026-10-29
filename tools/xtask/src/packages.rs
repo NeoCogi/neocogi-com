@@ -75,7 +75,7 @@ fn consumers(repository: &Path, root: &Path, version: &str) -> Result<()> {
     let members = toml::Value::Array(members.into_iter().map(toml::Value::String).collect());
     fs::write(
         root.join("Cargo.toml"),
-        format!("[workspace]\nresolver='3'\nexclude=['target','tmp']\nmembers={members}\n"),
+        format!("[workspace]\nresolver='3'\nexclude=['target','tmp','getting-started']\nmembers={members}\n"),
     )?;
     fs::create_dir(root.join(".cargo"))?;
     let mut patch = String::from("[patch.crates-io]\n");
@@ -117,6 +117,109 @@ fn consumers(repository: &Path, root: &Path, version: &str) -> Result<()> {
     )?;
     Ok(())
 }
+
+/// Native output requested from Cargo; library and executable records differ.
+#[derive(Clone, Copy)]
+enum NativeOutput {
+    /// One cdylib filename selected for the running platform.
+    Library,
+    /// One ordinary, non-test executable reported by Cargo.
+    Executable,
+}
+
+/// Select one actual fresh/cached artifact by manifest, target and output kind.
+/// Reject ambiguous or missing outputs instead of guessing target directories.
+fn native_artifact(output: &str, manifest: &Path, name: &str, kind: NativeOutput) -> Result<std::path::PathBuf> {
+    let manifest = manifest.canonicalize()?;
+    let mut selected = BTreeSet::new();
+    for line in output.lines().filter(|line| line.starts_with('{')) {
+        let record: serde_json::Value = serde_json::from_str(line)?;
+        if record["reason"] != "compiler-artifact" || record["target"]["name"] != name || record["profile"]["test"] != false {
+            continue;
+        }
+        let Some(owner) = record["manifest_path"].as_str() else { continue };
+        if Path::new(owner).canonicalize()? != manifest {
+            continue;
+        }
+        match kind {
+            NativeOutput::Executable if record["target"]["kind"] == serde_json::json!(["bin"]) => {
+                if let Some(path) = record["executable"].as_str() {
+                    selected.insert(std::path::PathBuf::from(path));
+                }
+            }
+            NativeOutput::Library
+                if record["target"]["kind"] == serde_json::json!(["cdylib"]) && record["target"]["crate_types"] == serde_json::json!(["cdylib"]) =>
+            {
+                let filename = format!("{}{name}{}", std::env::consts::DLL_PREFIX, std::env::consts::DLL_SUFFIX);
+                for path in record["filenames"].as_array().ok_or("missing Cargo artifact filenames")? {
+                    let path = Path::new(path.as_str().ok_or("invalid Cargo artifact filename")?);
+                    if path.file_name().is_some_and(|actual| actual == filename.as_str()) {
+                        selected.insert(path.to_path_buf());
+                    }
+                }
+            }
+            NativeOutput::Executable | NativeOutput::Library => {}
+        }
+    }
+    if selected.len() != 1 {
+        return Err(format!("expected one native artifact for {name}, found {}", selected.len()).into());
+    }
+    let path = selected.into_iter().next().unwrap();
+    crate::process::require_file(&path)?;
+    Ok(path.canonicalize()?)
+}
+
+/// Execute the documented independent host/provider using extracted SDKs only.
+fn walkthrough(runner: &Runner, version: &str) -> Result<()> {
+    let plugin = runner.root.join("getting-started/plugin/Cargo.toml");
+    let host = runner.root.join("getting-started/host/Cargo.toml");
+    for (manifest, forbidden) in [(&plugin, "neocogi-com-host"), (&host, "getting-started-plugin")] {
+        let tree = runner.cargo(
+            "1.85.0",
+            &[
+                "tree",
+                "--manifest-path",
+                manifest.to_str().ok_or("non-UTF8 tutorial manifest")?,
+                "--edges",
+                "normal,build",
+                "--prefix",
+                "none",
+            ],
+        )?;
+        if tree.contains(forbidden) {
+            return Err(format!("tutorial dependency direction includes {forbidden}").into());
+        }
+    }
+    let build = |manifest: &Path| -> Result<String> {
+        runner.cargo(
+            "1.85.0",
+            &[
+                "build",
+                "--manifest-path",
+                manifest.to_str().ok_or("non-UTF8 tutorial manifest")?,
+                "--message-format=json",
+            ],
+        )
+    };
+    let library = native_artifact(&build(&plugin)?, &plugin, "getting_started_plugin", NativeOutput::Library)?;
+    let executable = native_artifact(&build(&host)?, &host, "getting-started-host", NativeOutput::Executable)?;
+    let output = runner.run(executable, [library.as_os_str()])?;
+    if output.trim() != "2 + 3 = 5" {
+        return Err(format!("unexpected tutorial output: {output}").into());
+    }
+    let inspector = runner.root.join(format!("neocogi-inspect-{version}/Cargo.toml"));
+    let executable = native_artifact(&build(&inspector)?, &inspector, "neocogi-inspect", NativeOutput::Executable)?;
+    let output = runner.run(&executable, ["dump".as_ref(), library.as_os_str()])?;
+    let metadata: serde_json::Value = serde_json::from_str(&output)?;
+    let signature = metadata["factory"]["root_factory_signature"]
+        .as_str()
+        .ok_or("missing tutorial factory signature")?;
+    if metadata["plugin"]["name"] != "nc.tutorial.calculator" || signature.len() != 64 || !signature.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err("inspector did not identify the tutorial factory".into());
+    }
+    runner.run(&executable, ["check".as_ref(), library.as_os_str()])?;
+    Ok(())
+}
 /// Check shipped tests/docs and execute actual generated COM against only archives.
 pub(crate) fn run(runner: &Runner) -> Result<()> {
     let mut runner = runner.clone();
@@ -148,6 +251,7 @@ pub(crate) fn run(runner: &Runner) -> Result<()> {
             }
         }
         consumers(&runner.root, root, version)?;
+        crate::process::copy_tree(&runner.root.join("examples/getting-started"), &root.join("getting-started"))?;
         let mut verification = runner.clone();
         verification.root = root.to_path_buf();
         verification.env.insert("RUSTUP_TOOLCHAIN".into(), "1.85.0".into());
@@ -189,10 +293,11 @@ pub(crate) fn run(runner: &Runner) -> Result<()> {
         ] {
             verification.cargo("1.85.0", &options)?;
         }
+        walkthrough(&verification, version)?;
         Ok(())
     })();
     crate::process::retire(owner, result)?;
-    println!("package archive targets, shipped tests and downstream COM call passed");
+    println!("package archive targets, shipped tests, downstream COM and independent tutorial passed");
     Ok(())
 }
 
@@ -200,6 +305,40 @@ pub(crate) fn run(runner: &Runner) -> Result<()> {
 mod tests {
     use super::*;
     use std::io::Write;
+
+    /// Cached Cargo artifacts still require exact ownership and a non-test role.
+    #[test]
+    fn native_artifact_admission_rejects_wrong_owner_test_and_ambiguity() -> Result<()> {
+        let owner = tempfile::tempdir()?;
+        let manifest = owner.path().join("Cargo.toml");
+        let other_manifest = owner.path().join("other.toml");
+        fs::write(&manifest, "[package]")?;
+        fs::write(&other_manifest, "[package]")?;
+        let executable = owner.path().join("probe");
+        let other_executable = owner.path().join("other");
+        fs::write(&executable, b"artifact")?;
+        fs::write(&other_executable, b"artifact")?;
+        let record = serde_json::json!({
+            "reason": "compiler-artifact", "manifest_path": manifest,
+            "target": {"name": "probe", "kind": ["bin"]},
+            "profile": {"test": false}, "executable": executable, "fresh": true,
+        });
+        assert_eq!(
+            native_artifact(&record.to_string(), &manifest, "probe", NativeOutput::Executable)?,
+            executable.canonicalize()?
+        );
+        let mut wrong_owner = record.clone();
+        wrong_owner["manifest_path"] = serde_json::json!(other_manifest);
+        assert!(native_artifact(&wrong_owner.to_string(), &manifest, "probe", NativeOutput::Executable).is_err());
+        let mut test = record.clone();
+        test["profile"]["test"] = serde_json::json!(true);
+        assert!(native_artifact(&test.to_string(), &manifest, "probe", NativeOutput::Executable).is_err());
+        let mut different = record.clone();
+        different["executable"] = serde_json::json!(other_executable);
+        assert!(native_artifact(&format!("{record}\n{different}"), &manifest, "probe", NativeOutput::Executable).is_err());
+        assert!(native_artifact(&record.to_string(), &manifest, "probe", NativeOutput::Library).is_err());
+        Ok(())
+    }
 
     /// Construct real gzip/tar bytes using the same Rust libraries as extraction.
     fn archive(path: &Path, entries: &[(&str, &[u8])], link: bool) -> Result<()> {

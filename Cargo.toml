@@ -3,7 +3,7 @@ resolver = "3"
 # xtask stages nested workspaces under target and redirects their temporary
 # files to tmp. Generated Cargo projects (including Miri's sysroot builder)
 # must remain independent of every enclosing checkout or copied workspace.
-exclude = ["target", "tmp"]
+exclude = ["target", "tmp", "examples/getting-started"]
 members = [
     "crates/core",
     "crates/idl",

@@ -11,7 +11,7 @@ external archive utility is required by the task runner.
 | `cargo xtask quality` | Formatting, strict Clippy, allocation modes, ABI snippets, Markdown links and strict rustdoc |
 | `cargo xtask markdown` | Local Markdown files and heading anchors; external links are not fetched |
 | `cargo xtask msrv` | Rust 1.85 checks, library tests, exact semantic integration cases and feature boundaries |
-| `cargo xtask packages` | Six actual crate archives, shipped tests/docs and downstream COM consumers on Rust 1.85 |
+| `cargo xtask packages` | Six archives, shipped tests/docs, downstream COM, and the independent host/plugin tutorial on Rust 1.85 |
 | `cargo xtask abi-32` | Core and native-C tests for `NC_COM_32_BIT_TARGET`, defaulting to `i686-unknown-linux-gnu` |
 | `cargo xtask compatibility --suite linked` | Native C/ABI checks, relocated host-owned test executables and independent providers |
 | `cargo xtask compatibility --suite cross-version` | Stable host/nightly providers and the reverse direction |
@@ -68,7 +68,11 @@ Archive verification extracts with Rust gzip/tar libraries into a workspace
 containing only archive members and generated consumers, without shared package
 metadata. SDK patches point exclusively at extracted siblings. The authoritative
 strings/bytes example and its schema are copied from the checkout as consumer
-inputs; no checkout SDK code supplies an archive dependency.
+inputs; no checkout SDK code supplies an archive dependency. The getting-started
+host and plugin are copied with their common schema and built as separate projects
+against those same extracted SDKs. Cargo reports their actual native artifacts;
+qualification checks the real call, overflow status, and inspector dump/check.
+All three native CI platforms run this archive/tutorial gate.
 
 Compatibility accepts `--report PATH`. Relative paths belong to the caller's
 working directory. Receipts record the selected compiler/panic/LTO policies,

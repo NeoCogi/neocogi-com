@@ -1,15 +1,16 @@
 # NeoCogi COM
 
-A standalone Rust workspace for NeoCogi's experimental component ABI, IDL
-compiler, object helpers, host runtime, and plugin inspection tools. Separately
-built components communicate through explicit C ABI contracts.
+NeoCogi COM helps you build Rust applications with plugins compiled separately
+from the application. It provides interface definitions, object ownership,
+plugin loading, and inspection tools through an explicit C-compatible component
+protocol.
 
-Requires stable Rust 1.85 or newer. Repository checks use the unpublished Rust
-[`xtask`](tools/xtask/README.md); native integration tests also require a C
-compiler and the platform linker.
+This is experimental software. Build the host, plugins and generated interfaces
+with the same SDK release. Loaded plugins stay mapped until the process exits.
 
-The checkout's Rust toolchain includes `rust-src` so compile-fail tests produce
-consistent standard-library diagnostics locally and in CI.
+Start with the complete [application and calculator plugin walkthrough](examples/getting-started/README.md).
+It includes every source file, build script and dependency, plus commands for
+Linux, macOS and Windows. It requires Rust 1.85 or newer and a native linker.
 
 | Package | Purpose |
 | --- | --- |
@@ -31,9 +32,18 @@ The [host, caller and provider guide](docs/COM.md#hosts-callers-and-providers)
 defines their responsibilities, dependency graph and call flow. The SDK lives in
 `crates/com`; the host implementation lives in `crates/host`.
 
-The two unpublished example packages demonstrate a COM host and provider with
-both static and shared-library deployment. ABI fixtures remain isolated,
-unpublished workspaces so they can exercise independent compiler builds.
+The [advanced example](examples/com-plugin/README.md) adds static deployment,
+callbacks and persistence to the same host/provider model. The host alone owns
+the implementation; the SDK's `runtime` feature supplies clients for its services.
+Default SDK features provide `std` and macros. Reduced-feature users can select
+`alloc` or use the core without standard-library support.
+
+## Working on the repository
+
+Repository checks use the unpublished Rust [`xtask`](tools/xtask/README.md).
+Native integration tests also require a C compiler and platform linker.
+The checkout toolchain includes `rust-src` for consistent compiler diagnostics.
+Checkout-only integration fixtures remain unpublished.
 
 ```sh
 cargo test --workspace --all-features --locked

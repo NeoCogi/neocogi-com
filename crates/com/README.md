@@ -5,6 +5,13 @@ component ABI. It provides typed COM pointers, generated interface/object
 support, typed plugin roots, and optional clients for
 host-supplied runtime services.
 
+Start with the complete [first application and plugin](https://github.com/NeoCogi/neocogi-com/blob/master/examples/getting-started/README.md)
+walkthrough. It includes both dependency manifests, the shared IDL source,
+build script, provider and host, and the commands to run and inspect them.
+The SDK enables `std` and implementation macros by default. A final host also
+selects `neocogi-com-host` and enables SDK `runtime` clients; a provider uses the
+SDK and the host access supplied during acquisition.
+
 ## Hosts, callers and providers
 
 An interface caller calls an object; a provider implements its interfaces. A

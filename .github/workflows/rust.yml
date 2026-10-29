@@ -85,7 +85,10 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v6
-      - run: rustup toolchain install stable --profile minimal
+      - name: Install native and archive compilers
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup toolchain install 1.85.0 --profile minimal
       - run: cargo fetch --locked
       - name: Qualification driver regressions
         if: ${{ !cancelled() }}
@@ -96,6 +99,9 @@ jobs:
       - name: Native inspector argument tests
         if: ${{ !cancelled() }}
         run: cargo test -p neocogi-inspect --bin neocogi-inspect --locked
+      - name: Extracted SDK and independent first-use tutorial
+        if: ${{ !cancelled() }}
+        run: cargo xtask packages
       - name: Retain native qualification receipt
         if: ${{ always() }}
         uses: actions/upload-artifact@v7
@@ -109,7 +115,10 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v6
-      - run: rustup toolchain install stable --profile minimal
+      - name: Install native and archive compilers
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup toolchain install 1.85.0 --profile minimal
       - run: cargo fetch --locked
       - name: Qualification driver regressions
         if: ${{ !cancelled() }}
@@ -120,6 +129,9 @@ jobs:
       - name: Native inspector argument tests
         if: ${{ !cancelled() }}
         run: cargo test -p neocogi-inspect --bin neocogi-inspect --locked
+      - name: Extracted SDK and independent first-use tutorial
+        if: ${{ !cancelled() }}
+        run: cargo xtask packages
       - name: Retain native qualification receipt
         if: ${{ always() }}
         uses: actions/upload-artifact@v7

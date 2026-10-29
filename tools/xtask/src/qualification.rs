@@ -35,6 +35,22 @@ fn stable(runner: &Runner, label: &str, args: Vec<OsString>) -> Result<()> {
 /// Run formatting, strict Clippy, feature boundaries, ABI docs, links and rustdoc.
 pub(crate) fn quality(runner: &Runner) -> Result<()> {
     stable(runner, "format", words(&["fmt", "--all", "--check"]))?;
+    runner.run(
+        "rustup",
+        words(&[
+            "run",
+            "stable",
+            "rustfmt",
+            "--edition",
+            "2024",
+            "--check",
+            "--config-path",
+            "rustfmt.toml",
+            "examples/getting-started/build.rs",
+            "examples/getting-started/host/src/main.rs",
+            "examples/getting-started/plugin/src/lib.rs",
+        ]),
+    )?;
     let mut args = words(&["clippy"]);
     args.extend(selectors(true, true));
     args.extend(words(&["--all-targets", "--all-features", "--locked", "--", "-D", "warnings"]));
