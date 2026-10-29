@@ -54,7 +54,7 @@ fn authoring_guides_match_current_encoding_and_module_mangling() {
     }
 }
 
-/// The guides' ownership spelling, generated bindings and plugin bootstrap must work together.
+/// Guide blocks must agree on ownership, enum wire types and executable bootstrap.
 #[test]
 fn readme_factory_contract_and_bootstrap_execute_as_documented() {
     let document = include_str!("../../../docs/COM.md");
@@ -72,7 +72,7 @@ fn readme_factory_contract_and_bootstrap_execute_as_documented() {
     // every authored line below comes directly from its marked public block.
     let mut implementation = format!("mod example_contracts {{\n{generated}\n}}\n");
     let language = include_str!("../../../docs/contracts/IDL_MODULES.md");
-    for (label, module) in [("generic-stream", "stream"), ("generic-values", "values")] {
+    for (label, module) in [("generic-stream", "stream"), ("generic-values", "values"), ("enum-representation", "enums")] {
         let source = neocogi_idl::parse_module(Path::new(&format!("example/{module}.ncidl")), example(language, label)).unwrap();
         let graph = neocogi_idl::resolve_modules(vec![source]).unwrap();
         let generated = neocogi_idl::generate_rust(&graph, &format!("example.{module}")).unwrap();
@@ -96,6 +96,9 @@ fn readme_factory_contract_and_bootstrap_execute_as_documented() {
         implementation.push_str(example(document, label));
         implementation.push('\n');
     }
+    // Compile the guide's actual wire checks against the generated enum module.
+    implementation.push_str(example(language, "enum-wire-check"));
+    implementation.push('\n');
     implementation.push_str("#[test] fn documented_bootstrap() { static_example(unsafe { neocogi_com::Runtime::__from_host_api(neocogi_com_host::initialize_process()) }.unwrap()).unwrap(); }\n");
     fs::write(project.path().join("src/lib.rs"), implementation).unwrap();
     let output = Command::new("cargo")
@@ -113,10 +116,13 @@ fn readme_factory_contract_and_bootstrap_execute_as_documented() {
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
-    assert!(
-        String::from_utf8_lossy(&output.stdout).contains("test documented_bootstrap ... ok"),
-        "bootstrap must execute, not just compile"
-    );
+    let execution = String::from_utf8(output.stdout).unwrap();
+    for expected in ["test documented_bootstrap ... ok", "test documented_enum_wire_contract ... ok"] {
+        assert!(
+            execution.lines().any(|line| line == expected),
+            "documented example must execute: {expected}\n{execution}"
+        );
+    }
 }
 
 /// Scan every active normative guide, rather than only the page edited for a migration.

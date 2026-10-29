@@ -321,8 +321,8 @@ interface UiPluginFactory {
 ```
 
 These blocks illustrate the language; their small example contracts are independent
-of any external application framework. The generic examples above and both modules here
-are extracted from this document, resolved, generated and compiled by
+of any external application framework. The marked examples on this page are
+extracted from this document, resolved, generated and compiled by
 `cargo test -p neocogi-tooling-tests --test documentation`. The
 [COM README](../COM.md#idl) adds an executable
 implementation and factory bootstrap checked by the same test.
@@ -342,6 +342,7 @@ this foreign tag. Native Rust enum layout is not the foreign ABI and is not
 promised stable. See [native copied enums](RECURSIVE_VALUE_CONTRACT.md#native-copied-enums)
 for the checked wire contract.
 
+<!-- checked-example: enum-representation -->
 ```ncidl
 #[version(1)]
 /// Fieldless modes use the selected integer representation.
@@ -366,6 +367,42 @@ enum Choice: u8 {
 foreign tag: `Empty` is ordinal 0 and `Data` is ordinal 1, despite the `: u8`
 suffix. Access its foreign record through `<Choice as ComValue>::Wire` and the
 checked codecs, independently of the native Rust enum's size or layout.
+
+After generating these declarations into an `enums` module, this check observes
+the actual associated wire types and round-trips both payload-enum variants:
+
+<!-- checked-example: enum-wire-check -->
+```rust
+/// The source suffix and the physical payload tag have separate responsibilities.
+#[test]
+fn documented_enum_wire_contract() {
+    use enums::{Choice, Mode};
+
+    for (native, expected) in [(Mode::Off, 0_u8), (Mode::On, 1_u8)] {
+        let wire: <Mode as neocogi_com::ComValue>::Wire =
+            neocogi_com::encode_inline(&native).unwrap();
+        let integer: u8 = wire;
+        assert_eq!(core::mem::size_of_val(&wire), 1);
+        assert_eq!(integer, expected);
+    }
+
+    for (native, expected) in [(Choice::Empty, 0_i64), (Choice::Data(7), 1_i64)] {
+        let wire: <Choice as neocogi_com::ComValue>::Wire =
+            neocogi_com::encode_inline(&native).unwrap();
+        let tag: i64 = wire.tag;
+        assert_eq!(core::mem::size_of_val(&wire.tag), 8);
+        assert_eq!(tag, expected);
+        // SAFETY: encode_inline initialized the active wire record. These copied
+        // scalar variants retain no borrowed backing storage during decoding.
+        let decoded = unsafe { neocogi_com::decode_inline::<Choice>(wire) }.unwrap();
+        match (native, decoded) {
+            (Choice::Empty, Choice::Empty) => {}
+            (Choice::Data(expected), Choice::Data(actual)) => assert_eq!(actual, expected),
+            _ => panic!("variant changed"),
+        }
+    }
+}
+```
 
 Fieldless enum and flag wrappers, constants, checked live codecs, nominal
 signatures and eligible raw-integer persistence are emitted directly by the typed
