@@ -327,13 +327,45 @@ are extracted from this document, resolved, generated and compiled by
 [COM README](../COM.md#idl) adds an executable
 implementation and factory bootstrap checked by the same test.
 
-The optional suffix after an enum name selects its discriminant or tag type:
+The optional suffix after an enum name selects its integer representation and
+allowed discriminant range:
 `u8`, `u16`, `u32`, `i8`, `i16`, or `i32`. Omitting it defaults to `u32`.
 Representation is IDL syntax (`enum Name: u8`), not a Rust `#[repr]` attribute.
 An enum whose variants carry no payload generates a transparent fixed-width
-integer newtype and preserves unknown values. An enum with tuple or named
-payloads generates a tagged sum representation. This keeps ordinary protocol
-enumerations compact while making payload layout explicit.
+integer newtype with that representation and preserves unknown integer storage.
+Checked live COM conversion still validates the declared domain.
+
+An enum with tuple or named payloads generates a native Rust enum. Its foreign
+`ComValue::Wire` is a C record with an explicit `i64` tag and recursively lowered
+active payload. The suffix bounds the declaration ordinals; it does not narrow
+this foreign tag. Native Rust enum layout is not the foreign ABI and is not
+promised stable. See [native copied enums](RECURSIVE_VALUE_CONTRACT.md#native-copied-enums)
+for the checked wire contract.
+
+```ncidl
+#[version(1)]
+/// Fieldless modes use the selected integer representation.
+enum Mode: u8 {
+    /// Disabled mode.
+    Off = 0,
+    /// Enabled mode.
+    On = 1,
+}
+
+#[version(1)]
+/// A payload enum has a separate checked foreign wire.
+enum Choice: u8 {
+    /// No active payload.
+    Empty,
+    /// Carries one byte.
+    Data(u8),
+}
+```
+
+`Mode` has a one-byte integer wire. `Choice` still has an eight-byte `i64`
+foreign tag: `Empty` is ordinal 0 and `Data` is ordinal 1, despite the `: u8`
+suffix. Access its foreign record through `<Choice as ComValue>::Wire` and the
+checked codecs, independently of the native Rust enum's size or layout.
 
 Fieldless enum and flag wrappers, constants, checked live codecs, nominal
 signatures and eligible raw-integer persistence are emitted directly by the typed
