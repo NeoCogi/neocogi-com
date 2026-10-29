@@ -111,10 +111,11 @@ new candidate and rerun affected checks; refresh packaging/provenance evidence.
 
 ## Execute the release
 
-Create the matching annotated `vVERSION` tag at the verified commit, and publish
-the branch/tag through the project's normal Git workflow. Check that all rendered
-release documentation links now resolve to that tag and its intended files.
-This remote check happens after tag creation, not before version preparation.
+Merge and push the verified commit through the project's normal Git workflow.
+Create the matching annotated `vVERSION` tag locally at that exact commit. Keep
+the tag local until every package below is published and its registry contents
+are verified. Check release-tag link targets locally before uploading; their
+remote links become available after the tag is pushed.
 
 Publish only the six public packages, in dependency order:
 
@@ -135,6 +136,10 @@ source provenance with the saved candidate. Resume only missing packages when
 uploaded content matches. Never silently skip a mismatch or attempt to overwrite
 an existing version. Changed public content requires a new coordinated version,
 with an explicit follow-up/yank decision for unusable earlier versions.
+
+After all six packages are published and verified, push the annotated tag. Check
+that all rendered release documentation links resolve to that tag and its intended
+files. Do not push the tag after only a partial publication.
 
 ## Verify registry users' experience
 
