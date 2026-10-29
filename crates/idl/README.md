@@ -51,7 +51,8 @@ separate `proc-macro` crate because Rust requires that crate type for procedural
 entrypoints. Its calls to `neocogi_idl::codegen` reuse the same implementation
 as IDL generation. A macro-only consumer therefore also compiles the ordinary
 IDL library and its parser dependencies on the build machine. This adds no
-runtime dependency or registry and does not change the unreleased ABI-v1 contract.
+runtime dependency or registry. Binary compatibility follows the current core
+generation and exact interface signatures.
 
 Core remains independent of the compiler. Its checked-in persistence ABI stays
 freshness-checked against the same emitter. Backend emission unit

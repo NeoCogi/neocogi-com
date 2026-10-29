@@ -59,7 +59,7 @@ the value once, while its implicit weak owner keeps storage valid through that
 destructor. The final weak reference frees storage through the allocating
 provider. Each callback remains paired with the exact generated allocation.
 
-Runtime, plugin descriptor and core ABI remain v1. Handle layouts,
+Runtime and plugin descriptor discovery remain family 1; core uses generation 18. Handle layouts,
 threading and process-wide runtime authority are unchanged by typed storage.
 The compiler owns the separate [canonical signature encoding](IDL_MODULES.md#canonical-signatures).
 Earlier descriptions of cyclic construction are superseded by this pre-release

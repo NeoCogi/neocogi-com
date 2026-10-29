@@ -35,7 +35,7 @@ unsafe extern "C" fn destroy_messenger(_handle: u64) {}
 unsafe extern "C" fn destroy_context(_context: *mut NcPersistenceContext) {}
 static RUNTIME: NcRuntimeApiV1 = NcRuntimeApiV1 {
     size: size_of::<NcRuntimeApiV1>(),
-    core_abi_version: 1,
+    core_abi_version: NC_COM_CORE_ABI_VERSION,
     register_plugin_descriptor: register,
     load_plugin_library_utf8: load,
     acquire_factory_plugin: acquire,
@@ -51,7 +51,7 @@ static DEBUG: NcDebugApiV1 = NcDebugApiV1 {
 };
 static PERSISTENCE: NcPersistenceApiV1 = NcPersistenceApiV1 {
     size: size_of::<NcPersistenceApiV1>(),
-    core_abi_version: 1,
+    core_abi_version: NC_COM_CORE_ABI_VERSION,
     create_context: context,
     destroy_context,
     register_factory: factory,
@@ -61,7 +61,7 @@ static PERSISTENCE: NcPersistenceApiV1 = NcPersistenceApiV1 {
 static HOST: NcHostApiV1 = NcHostApiV1 {
     size: size_of::<NcHostApiV1>(),
     runtime_abi_version: 1,
-    core_abi_version: 1,
+    core_abi_version: NC_COM_CORE_ABI_VERSION,
     runtime: &RUNTIME,
     debug: &DEBUG,
     persistence: &PERSISTENCE,

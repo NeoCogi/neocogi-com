@@ -15,7 +15,7 @@ mod entry {
     /// Ordinary application body receives access and returns unit.
     pub fn main(runtime: neocogi_com::Runtime) {
         assert_eq!(runtime.runtime_abi_version(), 1);
-        assert_eq!(runtime.core_abi_version(), 1);
+        assert_eq!(runtime.core_abi_version(), 18);
         super::CALLS.fetch_add(1, super::Ordering::SeqCst);
     }
 }
@@ -26,7 +26,7 @@ mod result_entry {
     /// No conversion into a framework-specific application error is needed.
     pub fn main(runtime: neocogi_com::Runtime) -> Result<std::process::ExitCode, &'static str> {
         let admitted = Result::<_, &'static str>::Ok(runtime.core_abi_version())?;
-        assert_eq!(admitted, 1);
+        assert_eq!(admitted, neocogi_com::NC_COM_CORE_ABI_VERSION);
         Ok(std::process::ExitCode::SUCCESS)
     }
 }

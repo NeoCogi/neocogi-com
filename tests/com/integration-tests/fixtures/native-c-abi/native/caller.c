@@ -59,7 +59,7 @@ typedef struct NcPluginInfoV1 {
     size_t dependency_count;
 } NcPluginInfoV1;
 
-/* Complete pre-release v1 layout; the first three callback signatures are
+/* Current runtime-family-1 layout; the first three callback signatures are
  * retained as opaque pointers here because this test invokes metadata only. */
 typedef struct NcRuntimeApiV1 {
     size_t size;
@@ -105,7 +105,7 @@ typedef struct NcWeakRaw { NcWeakControl *control; } NcWeakRaw;
 _Static_assert(sizeof(NcWeakRaw) == sizeof(void *), "weak token must be one pointer");
 
 struct IUnknownVTable {
-    /* Exact selected contract; receivers are direct object addresses in core ABI v1. */
+    /* Exact selected contract; receivers are direct object addresses in the current core ABI. */
     const NcInterfaceId *interface_id;
     NcStatus (*query_interface)(
         void *self,
@@ -596,7 +596,7 @@ int32_t nc_c_exercise_choice_output(void *object, NativeChoiceOutput output,
 /* This checks a real typed bootstrap call, not merely function-pointer size. */
 int32_t nc_c_exercise_host_bootstrap(const NcHostApiV1 *host, NcAcquirePluginFactory acquire, NcStatus expected) {
     if (!host || host->size != sizeof(*host) || host->runtime_abi_version != 1 ||
-        host->core_abi_version != 1 || !host->runtime || !host->debug || !host->persistence) return 0;
+        host->core_abi_version != NC_COM_CORE_ABI_VERSION || !host->runtime || !host->debug || !host->persistence) return 0;
     IUnknown out = {0};
     NcStatus status = acquire(host, &out);
     return status == expected && out.object == NULL && out.vtable == NULL && host->runtime->plugin_count() == 17;

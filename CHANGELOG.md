@@ -1,8 +1,40 @@
 # Changelog
 
-The current contract is [pre-release ABI v1](docs/abi-v1.md). Entries below record
+The current contract uses [core generation 18](docs/abi-v1.md). Entries below record
 its development; later entries can supersede older implementation details.
 Historical draft numbers do not define additional supported COM baselines.
+
+## Unreleased — first public alpha
+
+Prepared on 2026-10-28; publication is pending.
+
+- Build a small host and calculator plugin from the complete
+  [getting-started example](examples/getting-started/README.md), including contract
+  generation, a real native call, checked errors and plugin inspection.
+- Public crates package without omitted-test warnings. Checkout-only compiler
+  and inspector suites have an unpublished owner, with their existing fixtures,
+  exact compiler-floor cases and real CLI coverage preserved.
+- Core compatibility generation 18 separates this baseline from retired
+  experimental layouts. Incompatible metadata is rejected before factory
+  bootstrap; runtime and descriptor discovery remain family 1. Hosts, providers
+  and generated bindings should use the same SDK release. IDL encoding v13 and
+  NCB format v1 retain their separate identities.
+- Ordinary package verification and the final publish dry-run use the public
+  registry index online. The independent archive gate still runs shipped tests,
+  docs, consumers and the standalone tutorial on Rust 1.85.
+
+Requires Rust 1.85 or newer. Native Linux, macOS and Windows CI includes archive
+and linked execution; candidate-specific successful runs are required before
+publication. Linux x86_64 is the local qualification environment. macOS/Windows
+results, other CPU architectures and 32-bit execution are not inferred from it.
+Plugins are trusted native code and remain loaded until process exit. Required
+loading failures diagnose and terminate the host; ordinary method failures are
+returned statuses. This custom component protocol provides no Windows system
+COM activation or marshalling. See the [ABI contract](docs/abi-v1.md) and
+[maintainer release procedure](docs/guides/RELEASING.md) for the complete rules.
+
+Older entries below describe development history and may be superseded by this
+baseline. They are not additional supported compatibility generations.
 
 ## Shared SDK and explicit host package
 

@@ -7,7 +7,7 @@ use std::{
 };
 use serde_json::Value;
 use crate::{
-    compatibility::{ABI_TESTS, IMPORTED_INTERFACE_PROVIDER_TEST, abi_sentinel, execute_tests, require_execution, require_tests, words},
+    compatibility::{ABI_TESTS, GENERATION_SENTINEL, IMPORTED_INTERFACE_PROVIDER_TEST, abi_sentinel, execute_tests, require_execution, require_tests, words},
     packages::PUBLISHED,
     process::{Result, Runner, sources},
 };
@@ -146,6 +146,7 @@ pub(crate) fn msrv(runner: &Runner) -> Result<()> {
 /// Exact semantic sentinels accompany complete integration target execution.
 fn floor_semantics(runner: &Runner) -> Result<()> {
     let mut rows = vec![
+        ("neocogi-com-tests", "plugin_abi_generation", vec![GENERATION_SENTINEL]),
         ("neocogi-com-tests", "client_views", vec![abi_sentinel("client_views")]),
         (
             "neocogi-com-tests",

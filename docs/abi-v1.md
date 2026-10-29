@@ -1,27 +1,36 @@
-# COM ABI v1
+# COM ABI
 
 This is the single current COM binary contract. The authoritative layouts are
 the public `#[repr(C)]` definitions in [core](../crates/core/src/lib.rs); this document
 describes how their calling, ownership, runtime and deployment rules compose.
 
-COM is pre-release. Core, runtime-table and plugin-descriptor discovery all
-currently report version **1**. Layouts and behavior may change in place before
-ratification: rebuild the runtime, host, plugins and generated contracts from
-the same checkout. Version 1 is not a promise of compatibility with an older
-checkout that also reported 1. There are no compatibility adapters for retired
-experimental layouts.
+The first public core compatibility generation is **18**. Runtime-table and
+plugin-descriptor discovery remain family **1**. These are separate from Cargo
+package versions, interface signatures and persistence formats.
+
+Deploy the host, plugins and generated bindings from the same published SDK
+release. Within a declared compatible core generation, layouts and callback
+signatures are frozen. Incompatible changes must select a new applicable
+generation before any full-record interpretation or callback invocation.
+
+Retired experimental checkouts reused core generation 1 across incompatible
+factory bootstrap signatures. Generation 18 is unused by those historical
+layouts, so their metadata is rejected before an acquisition callback can run.
+There are no adapters for retired layouts. Native library initializers and the
+fixed descriptor getter can already execute during opening; this admission
+check does not authenticate or sandbox code.
 
 | Identity or version | Current authority and purpose |
 | --- | --- |
-| Core ABI | `NC_COM_CORE_ABI_VERSION == 1`; object/lifetime/descriptor layout and behavior |
+| Core ABI | `NC_COM_CORE_ABI_VERSION == 18`; object/lifetime/descriptor layout and behavior |
 | Runtime ABI | `NC_COM_RUNTIME_ABI_VERSION == 1`; versioned C table discovery |
 | Plugin descriptor ABI | `NC_PLUGIN_DESCRIPTOR_ABI_VERSION == 1`; native getter and descriptor prefix |
 | Interface contract | IID plus exact 32-byte ABI signature, checked at connection boundaries |
 | IDL fingerprint encoding | `neocogi_idl::MODULE_ABI_ENCODING_DOMAIN`; compiler-owned canonical bytes, currently encoding v13 |
 | NCB format | Version 1 positional persistence encoding, separate from live COM wire values |
 
-The IDL encoding revision is not a COM ABI generation. Naming this contract v1
-does not reassign existing IIDs, built-in signature bytes, IDL fingerprints or
+The IDL encoding revision is not a COM core generation. Discovery family 1
+and core generation 18 do not reassign existing IIDs, signature bytes, fingerprints or
 application catalog schemas. Ordinary IDL signatures continue to describe exact
 transitive contracts; core discovery checks the enclosing binary contract.
 
@@ -102,7 +111,7 @@ fields tests the selected view. Table addresses alone are not contract identitie
 GUID and signature are authoritative. Implementations may share or duplicate
 identical static tables without changing those contracts.
 
-Discovery checks core ABI v1 before dispatch. Exact interface signatures do
+Discovery checks core generation 18 before dispatch. Exact interface signatures do
 not replace that global layout/behavior check. See the
 [storage rationale](contracts/COM_INTERFACE_STORAGE.md) for the
 object/table design and its measurement boundaries.
@@ -175,7 +184,7 @@ The public static constructor makes digest width a compile-time obligation:
 
 ```rust
 use neocogi_com::{NcAbiSignature, NC_COM_CORE_ABI_VERSION};
-assert_eq!(NC_COM_CORE_ABI_VERSION, 1);
+assert_eq!(NC_COM_CORE_ABI_VERSION, 18);
 static FIRST: [u8; 32] = [7; 32];
 static SECOND: [u8; 32] = [7; 32];
 let a = NcAbiSignature::from_static(&FIRST);
@@ -687,9 +696,9 @@ The accessor and native export return metadata without registration or acquisiti
 
 The descriptor's `description_abi_version` field remains the v1 discovery prefix,
 matching `NC_PLUGIN_DESCRIPTOR_ABI_VERSION`. Its next field is
-`core_abi_version`, currently 1. Both are checked before the remaining layout is
+`core_abi_version`, currently 18. Both are checked before the remaining layout is
 read. The two-word prefix must be checked before borrowing the complete descriptor.
-Matching version numbers alone do not make different pre-release checkouts compatible.
+Interface IID/signature and threading checks additionally select the exact callable contract.
 
 The provider owns the descriptor's storage and code. Static registration requires
 the entire graph to remain immutable for the process lifetime, including referenced
@@ -752,7 +761,7 @@ storage; scalar shape checks are not arbitrary-pointer validation.
 
 The implementation also exposes `neocogi_com_host::initialize_process()` as an ordinary
 Rust host entry. It initializes its existing singleton without provider calls
-and returns an immutable `NcHostApiV1`: byte size, runtime/core versions (both 1),
+and returns an immutable `NcHostApiV1`: byte size, runtime family 1 and core generation 18,
 and pointers to the runtime, debug and persistence tables. The complete service
 graph and callback code remain process/instance-lived, including after main
 returns. Copying this description does not create a registry.
@@ -763,7 +772,8 @@ the unsafe caller still guarantees readable backing, valid callable tables and
 coherent ownership. Validation retains nothing. Adopting references for process
 lifetime additionally requires that lifetime for every reachable table/code
 allocation; a static outer description alone proves no child lifetime. This is
-part of pre-release ABI-v1, with no new ABI generation or identity changes.
+part of the current core-generation contract; discovery family and interface
+identities remain separate.
 
 The supplied record replaces named runtime symbols. All three tables are required:
 `NcRuntimeApiV1` for plugin operations, `NcDebugApiV1` for diagnostics, and
@@ -774,7 +784,7 @@ return `NC_E_ABI_VERSION`; required null pointers return `NC_E_POINTER`.
 Handle copies can cross threads. Unsafe adoption therefore also guarantees
 concurrently callable host entrypoints; caller-owned persistence contexts keep
 their own thread-local and exclusive-borrow restrictions.
-The pre-release v1 layouts remain revision-specific: rebuild participants together.
+The published core generation freezes these layouts; deploy participants from one SDK release.
 
 | Runtime operation | Result and purpose |
 | --- | --- |
@@ -1227,7 +1237,7 @@ An ordinary runtime build must produce its host
 rlib; no COM runtime shared library is deployed. One temporary shared target
 cache avoids retaining one copy per package and is removed after verification. The gate also builds a fresh consumer
 with `build.rs`, generates an interface and executes its checked COM call. Runtime
-and descriptor discovery are asserted to remain v1. No-default and alloc-only
+and descriptor discovery remain family 1; core admission uses generation 18. No-default and alloc-only
 facade checks cover the portable feature boundary. CI runs this same gate.
 
 The unpublished `neocogi-com-tests` package at `tests/com` owns integration

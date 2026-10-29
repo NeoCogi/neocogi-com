@@ -17,6 +17,8 @@ pub(crate) const RUNTIME_TESTS: &[(&str, &str)] = &[
     ("factory_plugin_runtime", "generated_contract_factory_acquires_without_a_class_table"),
     ("object_persistence", "registry_ownership_is_local_and_releases_retained_factories"),
 ];
+/// Real legacy/current native controls required by native and compiler-floor gates.
+pub(crate) const GENERATION_SENTINEL: &str = "retired_bootstrap_is_rejected_before_its_callback";
 /// Pure ABI targets do not enable unused native runtime service clients.
 pub(crate) const ABI_TESTS: &[(&str, &str)] = &[
     ("client_views", "mutable_inherited_views_preserve_identity_and_lifecycle"),
@@ -444,6 +446,13 @@ fn qualification_tests(runner: &Runner, artifacts: BTreeMap<String, PathBuf>) ->
 fn ordinary_tests(runner: &Runner, build: Build, target: &Path, native: &str, sanitizer: Option<Sanitizer>) -> Result<Value> {
     let mut evidence = serde_json::Map::new();
     let mut tests: Vec<(String, Vec<OsString>, Vec<&str>)> = Vec::new();
+    if sanitizer.is_none() {
+        tests.push((
+            "plugin_abi_generation".into(),
+            words(&["test", "-p", "neocogi-com-tests", "--features", "runtime", "--test", "plugin_abi_generation"]),
+            vec![GENERATION_SENTINEL],
+        ));
+    }
     if cfg!(windows) {
         tests.push((
             "windows_plugin_paths".into(),

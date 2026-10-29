@@ -4,6 +4,8 @@
 `cargo xtask help` to list commands. No Python, Bash, PowerShell, pip packages or
 external archive utility is required by the task runner.
 
+Maintainers publish using the dedicated [release procedure](../../docs/guides/RELEASING.md).
+
 | Command | Checks |
 | --- | --- |
 | `cargo test -p xtask --locked` | Driver regressions, real harness admission, archive extraction and report failures |

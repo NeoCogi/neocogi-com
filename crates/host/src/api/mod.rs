@@ -140,7 +140,7 @@ mod tests {
         unsafe { &*user_data.cast::<AtomicI32>() }.store(status, Ordering::SeqCst);
     }
 
-    /// The pre-release contract changes in place within runtime ABI v1.
+    /// Runtime family 1 and core generation 18 identify separate contracts.
     #[test]
     fn host_runtime_version_remains_one() {
         assert_eq!(crate::initialize_process().runtime_abi_version, 1);

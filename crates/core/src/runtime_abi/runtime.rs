@@ -2,8 +2,9 @@
 //! Registration, loading, factory acquisition, lookup, enumeration and unregistered
 //! inspection share this table. Diagnostics and persistence have independent
 //! lifecycles and tables. Callers admit this immutable size-prefixed table through
-//! the host-supplied API description. Pre-release v1 changes in place;
-//! all participants must be rebuilt from the same checkout.
+//! the host-supplied API description. Runtime discovery stays family 1;
+//! the separately checked core generation freezes compatible table layouts and
+//! callbacks. Deploy all participants from the same published SDK release.
 
 use core::ffi::c_void;
 use crate::{IUnknown, NcPluginDescriptor, NcGuid, NcInterfaceId, NcStatus};

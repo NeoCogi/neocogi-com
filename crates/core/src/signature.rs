@@ -3,7 +3,7 @@
 //! IDL emits final SHA-256 bytes; runtime code neither serializes nor hashes a
 //! declaration graph. Structural arrays derive a const digest from their element
 //! identity and length. A signature view has exactly one pointer: null for an
-//! absent contract, otherwise a pointer to 32 immutable bytes. See core ABI v1.
+//! absent contract, otherwise a pointer to 32 immutable bytes. See the current core ABI contract.
 
 use core::hash::{Hash, Hasher};
 

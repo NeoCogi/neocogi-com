@@ -2,7 +2,8 @@
 //!
 //! This module groups plugin operations, diagnostics and persistence contracts while keeping their `repr(C)` layouts in the allocation-free
 //! core crate. Every table begins with a byte size checked by consumers. This
-//! pre-release v1 contract may change in place; all roles use the same checkout.
+//! runtime-family-1 discovery uses the separately checked core generation to
+//! select compatible frozen layouts; deploy all roles from one SDK release.
 
 mod debug;
 mod host;

@@ -19,7 +19,8 @@ use crate::{NC_COM_CORE_ABI_VERSION, NC_E_ABI_VERSION, NC_E_POINTER, NC_OK, NcSt
 /// support concurrent access. Caller-owned persistence contexts remain subject
 /// to their own thread-local and exclusive-borrow operation contracts.
 ///
-/// Pre-release ABI-v1 changes in place: rebuild host and providers together.
+/// Core generation 18 freezes this layout and its callbacks. Deploy host and
+/// providers from one published SDK release; discovery family 1 is separate.
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct NcHostApiV1 {

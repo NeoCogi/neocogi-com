@@ -13,10 +13,10 @@ fn example<'a>(document: &'a str, label: &str) -> &'a str {
     body.split_once("\n```").expect("example has a closing fence").0
 }
 
-/// One maintained specification owns the pre-release v1 baseline and its examples.
+/// One maintained specification owns the public core baseline and discovery families.
 #[test]
-fn com_abi_v1_has_one_specification_and_matching_discovery_versions() {
-    assert_eq!(neocogi_com_core::NC_COM_CORE_ABI_VERSION, 1);
+fn com_abi_has_one_specification_and_explicit_discovery_versions() {
+    assert_eq!(neocogi_com_core::NC_COM_CORE_ABI_VERSION, 18);
     assert_eq!(neocogi_com_core::NC_COM_RUNTIME_ABI_VERSION, 1);
     assert_eq!(neocogi_com_core::NC_PLUGIN_DESCRIPTOR_ABI_VERSION, 1);
     let directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs");
@@ -30,7 +30,7 @@ fn com_abi_v1_has_one_specification_and_matching_discovery_versions() {
     specifications.sort();
     assert_eq!(specifications, [directory.join("abi-v1.md")], "keep one COM ABI document");
     let document = include_str!("../../../docs/abi-v1.md");
-    assert!(document.starts_with("# COM ABI v1\n"));
+    assert!(document.starts_with("# COM ABI\n"));
 }
 
 /// Current guidance consumes the actual compiler encoding and Cargo name policy.

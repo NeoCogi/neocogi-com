@@ -1,0 +1,20 @@
+[package]
+name = "nc-legacy-bootstrap-fixture"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.85"
+publish = false
+
+[workspace]
+
+[lib]
+crate-type = ["cdylib"]
+
+[features]
+default = []
+current = []
+dynamic-plugin = []
+
+[dependencies]
+neocogi-com = { path = "../../../../../crates/com" }
+neocogi-com-core = { path = "../../../../../crates/core" }

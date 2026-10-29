@@ -9,5 +9,6 @@ publish = false
 neocogi-com = { path = "../../../../../crates/com" }
 
 [build-dependencies]
+neocogi-com-core = { path = "../../../../../crates/core" }
 neocogi-idl = { path = "../../../../../crates/idl" }
 cc = { version = "=1.2.0", default-features = false }

@@ -245,6 +245,7 @@ dependencies = [
  "neocogi-com-core",
  "neocogi-com-host",
  "neocogi-idl",
+ "serde_json",
  "tempfile",
  "trybuild",
 ]

@@ -9,6 +9,7 @@ directory to a fresh location outside the repository. It contains every input:
 
 | File | Purpose |
 | --- | --- |
+| [LICENSE-MIT](LICENSE-MIT) | License for copying this example |
 | [build.rs](build.rs) | Generate the shared interface in each consumer |
 | [calculator.ncidl](schemas/tutorial/calculator.ncidl) | The common interface |
 | [host/Cargo.toml](host/Cargo.toml) | SDK, host implementation and build dependencies |

@@ -348,6 +348,8 @@ mod tests {
         assert_eq!(core::mem::offset_of!(NcPluginDescriptor, core_abi_version), 4);
         for versions in [
             [NC_PLUGIN_DESCRIPTOR_ABI_VERSION, 0],
+            [NC_PLUGIN_DESCRIPTOR_ABI_VERSION, 1],
+            [NC_PLUGIN_DESCRIPTOR_ABI_VERSION, 17],
             [NC_PLUGIN_DESCRIPTOR_ABI_VERSION, 2],
             [NC_PLUGIN_DESCRIPTOR_ABI_VERSION, u32::MAX],
             [0, NC_COM_CORE_ABI_VERSION],

@@ -176,7 +176,7 @@ described above.
 Interfaces have no implementation-role discriminator in their canonical encoding.
 Canonical encoding v13 contains ordinary value and callable-interface contracts;
 IDL has no event-reference slots. Rebuild affected contracts, providers and hosts
-together, including built-in persistence bindings. Nominal IDs, core ABI v1,
+together, including built-in persistence bindings. Nominal IDs, core generation 18,
 source-graph schema and the host-owned runtime registry are separate contracts;
 runtime discovery remains ABI v1. Closed generic interfaces work as object
 contracts and plugin roots; open templates have no callable ABI.
@@ -843,7 +843,7 @@ those routes nor filesystem roots affect logical IDs or ABI signatures. Pure
 `generate_rust_with_paths` callers continue supplying accessible owner locations;
 Cargo-specific routes are selected by `Module::build`. Source graph schema 7
 requires providers with this namespace and rejects older sidecars. Runtime and
-plugin discovery and the core baseline remain ABI v1; source routes do not change
+plugin discovery remains family 1 and the core baseline uses generation 18; source routes do not change
 the [canonical signature encoding](#canonical-signatures).
 
 ### Diagnostics

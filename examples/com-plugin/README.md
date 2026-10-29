@@ -22,8 +22,8 @@ why using the SDK or its `runtime` clients selects no host implementation.
 The separate [host](../com-host) owns the runtime implementation. Its
 `#[neocogi_com::com_main]` entry receives a copyable handle and registers/acquires
 the provider. A dynamic provider uses the same host tables without importing
-runtime symbols or embedding an implementation. Core/runtime/plugin remain ABI v1;
-rebuild pre-release participants together.
+runtime symbols or embedding an implementation. Core admission uses generation 18; runtime
+and plugin discovery remain family 1. Deploy participants from one SDK release.
 
 From the repository root on Linux:
 

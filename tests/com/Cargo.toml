@@ -25,6 +25,7 @@ neocogi-com-host.workspace = true
 cc = { version = "=1.2.0", default-features = false }
 trybuild.workspace = true
 tempfile.workspace = true
+serde_json.workspace = true
 
 [features]
 default = ["macros", "std"]
@@ -166,4 +167,9 @@ required-features = ["runtime"]
 [[test]]
 name = "plugin_inspection"
 path = "integration-tests/plugin_inspection.rs"
+required-features = ["runtime"]
+
+[[test]]
+name = "plugin_abi_generation"
+path = "integration-tests/plugin_abi_generation.rs"
 required-features = ["runtime"]

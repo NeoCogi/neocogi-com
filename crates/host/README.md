@@ -74,7 +74,7 @@ library path; native handles remain private. The same descriptor reuses its
 registration, while conflicting descriptors are rejected. There is no module
 ID, module registry or module-to-plugin join. The limit is 1,024 distinct dynamic
 providers, excluding static registrations and repeats, and 64 active messengers.
-Plugin descriptor ABI v1 and core object ABI v1 remain independently versioned.
+Plugin descriptor ABI v1 and core object generation 18 remain independently versioned.
 
 ## Build and link
 
