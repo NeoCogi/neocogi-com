@@ -1,4 +1,3 @@
-#[version(1)]
 /// Unequal selected costs keep the default-count regression below the wire-byte limit.
 enum MaybeBytes: u8 {
     /// One logical value and no active payload.
@@ -7,28 +6,27 @@ enum MaybeBytes: u8 {
     Some([u8; 6]),
 }
 
-#[version(1)]
 /// Dynamic sibling sequences share the enclosing record's actual-value budget.
 struct Payload {
     /// Absent/present alternatives have different logical costs.
     batches: Vec<Vec<MaybeBytes>>,
 }
 
-#[id(1, "685bca29-af9d-510f-a243-0488bdbb329b")]
+#[id("685bca29-af9d-510f-a243-0488bdbb329b")]
 /// Receiver explicitly acquires its borrowed argument through the real ABI.
 interface IReceiver {
     /// Returns the acquired element count so both producer and receiver execute.
     fn retain(&mut self, value: &Payload) -> Result<u32>;
 }
 
-#[id(1, "bc9fc222-a967-56d2-9116-1801b271b1a8")]
+#[id("bc9fc222-a967-56d2-9116-1801b271b1a8")]
 /// Concrete transferred owner used to exercise consuming output admission.
 interface IItem {
     /// Confirms the same returned owner remains callable.
     fn value(&self) -> Result<u32>;
 }
 
-#[id(1, "f7154736-58d8-5eeb-8799-5dfc92f58385")]
+#[id("f7154736-58d8-5eeb-8799-5dfc92f58385")]
 /// Both ordinary and consuming methods must honor the same identity admission.
 interface IOutput {
     /// Produces a deep identity element through either writer entrypoint.

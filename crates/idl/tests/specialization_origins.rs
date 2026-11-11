@@ -38,13 +38,13 @@ fn specialization_cache_checks_meaning_before_reusing_a_uuid() {
                 let fields = if phantom { "value: u32" } else { "value: T" };
                 let common = format!(
                     r#"
-                    #[id(1, "{id}")] struct Alias {{ owned: String }}
-                    #[version(1)] struct Boxed<T> {{ {fields} }}
-                    #[version(1)] struct BSecond {{ value: Boxed<{second}> }}
-                    #[version(1)] interface Calls {{ fn send(&mut self, value: BSecond) -> Result<()>; }}
+                    #[id("{id}")] struct Alias {{ owned: String }}
+                    struct Boxed<T> {{ {fields} }}
+                    struct BSecond {{ value: Boxed<{second}> }}
+                    interface Calls {{ fn send(&mut self, value: BSecond) -> Result<()>; }}
                 "#
                 );
-                let unrelated = format!("#[version(1)] struct AFirst {{ value: Boxed<{first}> }}");
+                let unrelated = format!("struct AFirst {{ value: Boxed<{first}> }}");
                 for source in [format!("{unrelated}{common}"), format!("{common}{unrelated}")] {
                     for reversed in [false, true] {
                         let mut parsed = module("proof/collision.ncidl", &source);
@@ -62,10 +62,10 @@ fn specialization_cache_checks_meaning_before_reusing_a_uuid() {
     // The owning request alone stays owning and is rejected at its copied use.
     let source = format!(
         r#"
-        #[id(1, "{scalar}")] struct Alias {{ owned: String }}
-        #[version(1)] struct Boxed<T> {{ value: T }}
-        #[version(1)] struct BSecond {{ value: Boxed<Alias> }}
-        #[version(1)] interface Calls {{ fn send(&mut self, value: BSecond) -> Result<()>; }}
+        #[id("{scalar}")] struct Alias {{ owned: String }}
+        struct Boxed<T> {{ value: T }}
+        struct BSecond {{ value: Boxed<Alias> }}
+        interface Calls {{ fn send(&mut self, value: BSecond) -> Result<()>; }}
     "#
     );
     let error = resolve_modules(vec![module("proof/collision.ncidl", &source)]).unwrap_err().to_string();
@@ -78,12 +78,12 @@ fn canonical_admission_checks_origins_across_consumers() {
     let id = legacy(b"u32");
     let owner = format!(
         r#"
-        #[id(1, "{id}")] struct Alias {{ owned: String }}
-        #[version(1)] struct Boxed<T> {{ value: T }}
+        #[id("{id}")] struct Alias {{ owned: String }}
+        struct Boxed<T> {{ value: T }}
     "#
     );
-    let first = "extern proof.templates; #[version(1)] struct First { value: proof::templates::Boxed<u32> }";
-    let second = "extern proof.templates; #[version(1)] struct Second { value: proof::templates::Boxed<proof::templates::Alias> }";
+    let first = "extern proof.templates; struct First { value: proof::templates::Boxed<u32> }";
+    let second = "extern proof.templates; struct Second { value: proof::templates::Boxed<proof::templates::Alias> }";
     for swapped in [false, true] {
         let (a, b) = if swapped { (second, first) } else { (first, second) };
         let error = conflict(vec![
@@ -100,10 +100,10 @@ fn canonical_admission_checks_origins_across_consumers() {
 fn authored_names_cannot_impersonate_a_closed_canonical_definition() {
     for owner in ["aaa", "zzz"] {
         for template in ["struct Boxed<T> { value: T }", "enum Boxed<T> { Item(T), Empty }"] {
-            let definition = format!("#[version(1)] {template}");
-            let consumer = format!("extern proof.{owner}; #[version(1)] struct Payload {{ value: proof::{owner}::Boxed<u32> }}");
+            let definition = template;
+            let consumer = format!("extern proof.{owner}; struct Payload {{ value: proof::{owner}::Boxed<u32> }}");
             let control = resolve_modules(vec![
-                module(&format!("proof/{owner}.ncidl"), &definition),
+                module(&format!("proof/{owner}.ncidl"), definition),
                 module("proof/middle.ncidl", &consumer),
             ])
             .unwrap();
@@ -116,11 +116,7 @@ fn authored_names_cannot_impersonate_a_closed_canonical_definition() {
                 .find(|(source, _)| source.specialization.is_some())
                 .unwrap();
             for same_id in [false, true] {
-                let annotation = if same_id {
-                    format!("#[id(1, \"{}\")]", identity.id)
-                } else {
-                    "#[version(1)]".into()
-                };
+                let annotation = if same_id { format!("#[id(\"{}\")]", identity.id) } else { "".into() };
                 let authored = format!("{definition} {annotation} struct {} {{ owned: String }}", source.name);
                 for reversed in [false, true] {
                     let mut inputs = vec![module(&format!("proof/{owner}.ncidl"), &authored), module("proof/middle.ncidl", &consumer)];
@@ -140,13 +136,13 @@ fn authored_names_cannot_impersonate_a_closed_canonical_definition() {
 #[test]
 fn repeated_recursive_nested_and_phantom_projections_remain_legal() {
     let owner = r#"
-        #[version(1)] struct Data { value: u32 }
-        #[version(1)] struct Node<T> { value: T, children: Vec<Node<T>> }
-        #[version(1)] struct Phantom<T> { value: u32 }
+        struct Data { value: u32 }
+        struct Node<T> { value: T, children: Vec<Node<T>> }
+        struct Phantom<T> { value: u32 }
     "#;
     let source = r#"
         extern proof.templates; use proof.templates::{Data, Node, Phantom};
-        #[version(1)] struct Payload { first: Node<Data>, second: Node<proof::templates::Data>, phantom: Phantom<Node<Data>> }
+        struct Payload { first: Node<Data>, second: Node<proof::templates::Data>, phantom: Phantom<Node<Data>> }
     "#;
     let graph = resolve_modules(vec![
         module("proof/templates.ncidl", owner),

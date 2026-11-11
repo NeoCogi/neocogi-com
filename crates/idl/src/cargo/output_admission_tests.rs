@@ -52,9 +52,9 @@ impl Builder {
             Self::Shared => format!("Option<{scalar}>"),
             Self::File | Self::Directory => scalar.to_owned(),
         };
-        fs::write(source, format!("#[version(1)] struct Ready {{ value: {ty} }}")).unwrap();
+        fs::write(source, format!("struct Ready {{ value: {ty} }}")).unwrap();
         if matches!(self, Self::Shared) {
-            fs::write(root.join("schemas/proof/z.ncidl"), "#[version(1)] struct LongValue { value: u32 }").unwrap();
+            fs::write(root.join("schemas/proof/z.ncidl"), "struct LongValue { value: u32 }").unwrap();
         }
     }
     /// Uses the actual public API and Cargo environment installed by the parent.
@@ -301,7 +301,11 @@ fn expansion_limit_rejection_preserves_outputs() {
             Builder::Directory => "proof/a/part.ncidl",
             _ => "proof/a.ncidl",
         });
-        fs::write(path, "#[version(1)] struct Pair<A, B> { marker: u8 } #[version(1)] struct Grow<T> { children: Vec<Grow<Pair<T, T>>> } #[version(1)] struct Root { value: Grow<u8> }").unwrap();
+        fs::write(
+            path,
+            "struct Pair<A, B> { marker: u8 } struct Grow<T> { children: Vec<Grow<Pair<T, T>>> } struct Root { value: Grow<u8> }",
+        )
+        .unwrap();
         crate::bounded_child::cap();
         println!("begin budget rejection");
         let error = builder.build("proof::z", false).unwrap_err();

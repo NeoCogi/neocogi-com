@@ -9,7 +9,7 @@
 //! A contract source can declare:
 //!
 //! ```text
-//! #[version(1)]
+//!
 //! interface ICounter {
 //!     fn value(&self) -> Result<u32>;
 //!     fn replace(&mut self, value: u32) -> Result<()>;

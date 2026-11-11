@@ -7,12 +7,12 @@ use std::{fs, path::Path, process::Command};
 fn public_handle_names_reject_before_rust_generation() {
     for name in neocogi_com_core::NC_COM_HANDLE_METHOD_NAMES {
         for source in [
-            format!("#[version(1)] interface ICollision {{ fn {name}(&self) -> Result<u32>; }}"),
-            format!("#[version(1)] interface Collision {{ fn {name}(&self) -> Result<u32>; }}"),
-            format!("#[version(1)] interface Collision {{ fn {name}(&self) -> Result<u32>; }}"),
-            format!("#[version(1)] interface IBase {{ fn {name}(&self) -> Result<u32>; }} #[version(1)] interface IDerived: IBase {{}}"),
-            format!("#[version(1)] interface ICollision<T> {{ fn {name}(&self) -> Result<T>; }} #[version(1)] interface Closed: ICollision<u32> {{}}"),
-            format!("#[version(1)] interface IUnused<T> {{ fn {name}(&self) -> Result<T>; }}"),
+            format!("interface ICollision {{ fn {name}(&self) -> Result<u32>; }}"),
+            format!("interface Collision {{ fn {name}(&self) -> Result<u32>; }}"),
+            format!("interface Collision {{ fn {name}(&self) -> Result<u32>; }}"),
+            format!("interface IBase {{ fn {name}(&self) -> Result<u32>; }} interface IDerived: IBase {{}}"),
+            format!("interface ICollision<T> {{ fn {name}(&self) -> Result<T>; }} interface Closed: ICollision<u32> {{}}"),
+            format!("interface IUnused<T> {{ fn {name}(&self) -> Result<T>; }}"),
         ] {
             let module = neocogi_idl::parse_module(Path::new("proof/collision.ncidl"), &source).unwrap();
             let error = neocogi_idl::resolve_modules(vec![module]).unwrap_err();
@@ -25,10 +25,10 @@ fn public_handle_names_reject_before_rust_generation() {
         // Raw Rust method identifiers are not part of the IDL snake_case grammar;
         // they already reject before resolution. There is no parallel handwritten
         // Rust declaration frontend with a different admission rule.
-        let raw = format!("#[version(1)] interface ICollision {{ fn r#{name}(&self) -> Result<u32>; }}");
+        let raw = format!("interface ICollision {{ fn r#{name}(&self) -> Result<u32>; }}");
         assert!(neocogi_idl::parse_module(Path::new("proof/raw_collision.ncidl"), &raw).is_err());
     }
-    let source = "#[version(1)] interface ICapability { fn downgrade(&self) -> Result<WeakComPtr<ICapability>>; }";
+    let source = "interface ICapability { fn downgrade(&self) -> Result<WeakComPtr<ICapability>>; }";
     let module = neocogi_idl::parse_module(Path::new("proof/exact_return.ncidl"), source).unwrap();
     let neocogi_idl::ModuleGraphError::Resolution(error) = neocogi_idl::resolve_modules(vec![module]).unwrap_err() else {
         panic!("expected semantic diagnostics")

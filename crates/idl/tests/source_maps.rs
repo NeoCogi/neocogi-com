@@ -13,18 +13,18 @@ fn position(source: &str, needle: &str) -> SourceMapPosition {
 }
 
 /// Inline source with non-ASCII text before a declaration exercises the column convention.
-const TYPES: &str = r#"/* café 😀 */ #[version(1)] struct Size { width: u32, height: u32 }
-#[version(1)] enum Alignment: u8 { Left = 0, Right = 1 }
-#[version(1)] bitenum Flags: u16 { NONE = 0, ACTIVE = 1 }
-#[version(1)] struct Changed { text: String }
-#[version(1)] enum Completed { Accepted { text: String }, Cancelled }
+const TYPES: &str = r#"/* café 😀 */ struct Size { width: u32, height: u32 }
+enum Alignment: u8 { Left = 0, Right = 1 }
+bitenum Flags: u16 { NONE = 0, ACTIVE = 1 }
+struct Changed { text: String }
+enum Completed { Accepted { text: String }, Cancelled }
 "#;
 /// Both authored and synthesized interfaces originate in this separate part.
-const WIDGETS: &str = r#"#[version(1)] interface IStream<T> { fn post(&mut self, value: &T) -> Result<()>; }
-#[version(1)] interface Textbox: IStream<Changed> {
+const WIDGETS: &str = r#"interface IStream<T> { fn post(&mut self, value: &T) -> Result<()>; }
+interface Textbox: IStream<Changed> {
     fn resize(&mut self, size: Size) -> Result<()>;
 }
-#[version(1)] interface Widgets {
+interface Widgets {
     fn textbox(&self) -> Result<ComPtr<Textbox>>;
 }
 "#;
@@ -104,8 +104,8 @@ fn source_maps_are_deterministic_and_round_trip() {
 /// Imports point to the local authored use statement rather than a guessed dependency path.
 #[test]
 fn imported_bindings_keep_their_local_import_origin() {
-    let dependency = neocogi_idl::parse_module(Path::new("example/value.ncidl"), "#[version(1)] struct Value { value: u32 }").unwrap();
-    let text = "extern example.value;\nuse example.value::Value;\n#[version(1)] interface Reader { fn read(&self) -> Result<Value>; }";
+    let dependency = neocogi_idl::parse_module(Path::new("example/value.ncidl"), "struct Value { value: u32 }").unwrap();
+    let text = "extern example.value;\nuse example.value::Value;\ninterface Reader { fn read(&self) -> Result<Value>; }";
     let consumer = neocogi_idl::parse_module(Path::new("example/consumer.ncidl"), text).unwrap();
     let graph = resolve_modules(vec![dependency, consumer]).unwrap();
     let generated = generate_rust_with_source_map(&graph, "example.consumer").unwrap();
@@ -119,12 +119,8 @@ fn imported_bindings_keep_their_local_import_origin() {
 /// bindings to the same dependency authored in different source parts.
 #[test]
 fn split_imports_keep_each_identifier_and_do_not_change_the_abi() {
-    let dependency = neocogi_idl::parse_module(
-        Path::new("example/value.ncidl"),
-        "#[version(1)] struct First { value: u32 } #[version(1)] struct Second { value: u32 }",
-    )
-    .unwrap();
-    let a = "extern example.value; use example.value::First; #[version(1)] struct Pair { first: First, second: Second }";
+    let dependency = neocogi_idl::parse_module(Path::new("example/value.ncidl"), "struct First { value: u32 } struct Second { value: u32 }").unwrap();
+    let a = "extern example.value; use example.value::First; struct Pair { first: First, second: Second }";
     let z = "use example.value::Second;";
     let parts = [
         ModuleSource {
@@ -154,7 +150,7 @@ fn split_imports_keep_each_identifier_and_do_not_change_the_abi() {
     // Grouping both names in one statement changes provenance, not the contract.
     let grouped = neocogi_idl::parse_module(
         Path::new("example/pair.ncidl"),
-        "extern example.value; use example.value::{First, Second}; #[version(1)] struct Pair { first: First, second: Second }",
+        "extern example.value; use example.value::{First, Second}; struct Pair { first: First, second: Second }",
     )
     .unwrap();
     let grouped = resolve_modules(vec![dependency, grouped]).unwrap();
@@ -177,21 +173,21 @@ fn cargo_maps_resolve_transitive_templates_and_bundled_sources() {
         "[workspace]\nresolver='2'\nmembers=['maps-provider','maps-bridge','maps-host']\n",
     )
     .unwrap();
-    let first = "extern origin.bridge; use origin.bridge::{Derived, First};\n#[version(1)] interface Counter: Derived<u32> {}\n#[version(1)] struct Item { value: Option<u32> }\n#[version(1)] interface Plain { fn read(&self) -> Result<u32>; }\n";
-    let second = "use origin.bridge::Second;\n#[version(1)] struct Both { first: First, second: Second }\n";
+    let first = "extern origin.bridge; use origin.bridge::{Derived, First};\ninterface Counter: Derived<u32> {}\nstruct Item { value: Option<u32> }\ninterface Plain { fn read(&self) -> Result<u32>; }\n";
+    let second = "use origin.bridge::Second;\nstruct Both { first: First, second: Second }\n";
     for (package, module, input, source, dependency) in [
         (
             "maps-provider",
             "origin.generic",
             "origin/generic.ncidl",
-            "#[version(1)] interface Value<T> { fn get(&self) -> Result<T>; }",
+            "interface Value<T> { fn get(&self) -> Result<T>; }",
             None,
         ),
         (
             "maps-bridge",
             "origin.bridge",
             "origin/bridge.ncidl",
-            "extern origin.generic; use origin.generic::Value; #[version(1)] interface Derived<T>: Value<T> {} #[version(1)] struct First { value: u32 } #[version(1)] struct Second { value: u32 }",
+            "extern origin.generic; use origin.generic::Value; interface Derived<T>: Value<T> {} struct First { value: u32 } struct Second { value: u32 }",
             Some("maps-provider"),
         ),
         ("maps-host", "proof.maps", "proof/maps", first, Some("maps-bridge")),
@@ -450,8 +446,8 @@ fn declaration_metadata_and_nested_initializers_have_exact_identifier_origins() 
 /// origins may move independently of complete application spans used by diagnostics.
 #[test]
 fn imported_and_phantom_specializations_separate_definitions_from_use_sites() {
-    let templates = "/* café 😀 */ #[version(1)] struct Stored<T> { item: T }\n#[version(1)] interface Phantom<T> {}\n#[version(1)] interface Getter<T> { fn get(&self) -> Result<T>; }";
-    let consumer = "extern origins.templates; use origins.templates::{Stored, Phantom, Getter};\n#[version(1)] struct Size { width: u32 }\n#[version(1)] struct Bundle { stored: Stored<Size> }\n#[version(1)] interface Reader: Getter<Size> + Phantom<Size> {}";
+    let templates = "/* café 😀 */ struct Stored<T> { item: T }\ninterface Phantom<T> {}\ninterface Getter<T> { fn get(&self) -> Result<T>; }";
+    let consumer = "extern origins.templates; use origins.templates::{Stored, Phantom, Getter};\nstruct Size { width: u32 }\nstruct Bundle { stored: Stored<Size> }\ninterface Reader: Getter<Size> + Phantom<Size> {}";
     let mut first_fingerprint = None;
     // Shifts in both authored files and the template's physical path must change
     // provenance, while preserving semantic identity and deterministic transport.
@@ -541,12 +537,8 @@ fn imported_and_phantom_specializations_separate_definitions_from_use_sites() {
 /// an independent import and later local method retain their own exact origins.
 #[test]
 fn grouped_interface_imports_preserve_each_origin_and_later_member_offsets() {
-    let owner = neocogi_idl::parse_module(
-        Path::new("proof/base.ncidl"),
-        "#[version(1)] interface IBase {} #[version(1)] struct Value { value: u32 }",
-    )
-    .unwrap();
-    let a = "extern proof.base; use proof.base::IBase; #[version(1)] interface Later { fn get(&self) -> Result<u32>; }";
+    let owner = neocogi_idl::parse_module(Path::new("proof/base.ncidl"), "interface IBase {} struct Value { value: u32 }").unwrap();
+    let a = "extern proof.base; use proof.base::IBase; interface Later { fn get(&self) -> Result<u32>; }";
     let z = "use proof.base::Value;";
     let consumer = parse_module_parts(
         Path::new("proof/consumer"),

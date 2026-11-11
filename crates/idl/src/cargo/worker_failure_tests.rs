@@ -47,7 +47,7 @@ fn bundled_worker_failure_preserves_artifacts_and_metadata() {
             let source = fixture.path().join("idl").join(relative);
             let source = if directory { source.join("part.ncidl") } else { source };
             fs::create_dir_all(source.parent().unwrap()).unwrap();
-            fs::write(source, "#[version(1)] interface Plain {}").unwrap();
+            fs::write(source, "interface Plain {}").unwrap();
             if seeded {
                 for name in [
                     "proof_build.rs",

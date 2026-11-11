@@ -12,7 +12,7 @@ fn graph(source: &str) -> Result<neocogi_idl::ResolvedModules, neocogi_idl::Modu
 fn ownership_modes_have_distinct_revision_signatures() {
     let make = |owner: &str| {
         graph(&format!(
-            "#[version(1)] interface IValue {{}} #[version(1)] interface Factory {{ fn create(&self) -> Result<{owner}<IValue>>; }}"
+            "interface IValue {{}} interface Factory {{ fn create(&self) -> Result<{owner}<IValue>>; }}"
         ))
         .unwrap()
     };
@@ -29,13 +29,13 @@ fn ownership_modes_have_distinct_revision_signatures() {
 #[test]
 fn invalid_exclusive_positions_fail_in_the_resolver() {
     for body in [
-        "#[version(1)] struct Bad { owner: ComBox<IValue> }",
-        "#[version(1)] struct Bad { owner: Vec<ComBox<IValue>> }",
-        "#[version(1)] enum Bad { Owner(ComBox<IValue>) }",
-        "#[version(1)] interface Bad { fn take(&self, owner: ComBox<u32>) -> Result<()>; }",
-        "#[version(1)] interface Bad { fn get(&self) -> Result<ComBox<ComBox<IValue>>>; }",
+        "struct Bad { owner: ComBox<IValue> }",
+        "struct Bad { owner: Vec<ComBox<IValue>> }",
+        "enum Bad { Owner(ComBox<IValue>) }",
+        "interface Bad { fn take(&self, owner: ComBox<u32>) -> Result<()>; }",
+        "interface Bad { fn get(&self) -> Result<ComBox<ComBox<IValue>>>; }",
     ] {
-        assert!(graph(&format!("#[version(1)] interface IValue {{}} {body}")).is_err(), "accepted {body}");
+        assert!(graph(&format!("interface IValue {{}} {body}")).is_err(), "accepted {body}");
     }
 }
 
@@ -45,13 +45,13 @@ fn invalid_exclusive_positions_fail_in_the_resolver() {
 fn generated_factories_transfer_one_owner_through_real_abi_calls() {
     let graph = graph(
         r#"
-        #[version(1)] interface IValue { fn value(&self) -> Result<u32>; }
-        #[version(1)] interface IContainer {
+        interface IValue { fn value(&self) -> Result<u32>; }
+        interface IContainer {
             fn insert(&mut self, child: ComBox<IValue>) -> Result<()>;
             fn child(&self) -> Result<WeakComBox<IValue>>;
             fn remove(&mut self) -> Result<()>;
         }
-        #[version(1)] interface Factory { fn create(&self) -> Result<ComBox<IValue>>; }
+        interface Factory { fn create(&self) -> Result<ComBox<IValue>>; }
     "#,
     )
     .unwrap();

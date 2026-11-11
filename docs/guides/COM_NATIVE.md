@@ -43,4 +43,4 @@ independently, and executes relocated artifacts after removing their targets.
 The `build-flags` suite requires both stable and nightly compilers to exercise
 different layout, optimization, and panic policies. Optional safety and sanitizer
 suites require the nightly components documented in the
-[ABI qualification guide](../abi-v1.md#independent-build-compatibility).
+[ABI qualification guide](../abi-v2.md#independent-build-compatibility).

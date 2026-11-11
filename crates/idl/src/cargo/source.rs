@@ -195,8 +195,8 @@ mod tests {
         let module = root.join("neocogi/ui");
         let nested = module.join("input");
         fs::create_dir_all(&nested).unwrap();
-        fs::write(module.join("widgets.ncidl"), "#[version(1)] interface IWidget {}").unwrap();
-        fs::write(nested.join("geometry.ncidl"), "#[version(1)] struct Size { width: u32 }").unwrap();
+        fs::write(module.join("widgets.ncidl"), "interface IWidget {}").unwrap();
+        fs::write(nested.join("geometry.ncidl"), "struct Size { width: u32 }").unwrap();
         fs::write(module.join("README.md"), "not IDL").unwrap();
 
         let sources = ModuleSources::load(&root, Path::new("neocogi/ui")).unwrap();
@@ -221,8 +221,8 @@ mod tests {
         let temporary = tempdir().unwrap();
         let root = temporary.path().join("idl");
         fs::create_dir_all(root.join("neocogi/ui")).unwrap();
-        fs::write(root.join("neocogi/ui.ncidl"), "#[version(1)] struct Parent { value: u32 }").unwrap();
-        fs::write(root.join("neocogi/ui/child.ncidl"), "#[version(1)] struct Child { value: u32 }").unwrap();
+        fs::write(root.join("neocogi/ui.ncidl"), "struct Parent { value: u32 }").unwrap();
+        fs::write(root.join("neocogi/ui/child.ncidl"), "struct Child { value: u32 }").unwrap();
 
         let sources = ModuleSources::load(&root, Path::new("neocogi/ui.ncidl")).unwrap();
         let parsed = sources.parse().unwrap();

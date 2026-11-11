@@ -113,7 +113,7 @@ fn consumers(repository: &Path, root: &Path, version: &str) -> Result<()> {
     fs::write(consumer.join("src/main.rs"), include_str!("../fixtures/archive-main.rs"))?;
     fs::write(
         consumer.join("idl/proof/archive.ncidl"),
-        "/// Minimal extracted SDK proof.\n#[version(1)] interface Counter { fn read(&self) -> Result<u32>; }\n",
+        "/// Minimal extracted SDK proof.\ninterface Counter { fn read(&self) -> Result<u32>; }\n",
     )?;
     Ok(())
 }

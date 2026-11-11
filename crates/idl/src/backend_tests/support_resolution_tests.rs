@@ -33,9 +33,7 @@ fn decoder_source(style: Decoder, unrelated_return: bool, expand: bool) -> Strin
         }
         (Decoder::Copied | Decoder::Owned, _) => {
             let retained = if matches!(style, Decoder::Owned) { ", retained: Vec<u8>" } else { "" };
-            super::name_ownership_tests::contract(&format!(
-                "#[version(1)] #[persistence(default)] struct Settings {{ value: u32, enabled: bool{retained} }}"
-            ))
+            super::name_ownership_tests::contract(&format!("#[persistence(default)] struct Settings {{ value: u32, enabled: bool{retained} }}"))
         }
     };
     let retained = if matches!(style, Decoder::Owned) { ", retained: vec![]" } else { "" };
@@ -88,7 +86,7 @@ fn plugin_source(shadow: &str, explicit_version: bool, expand: bool) -> String {
     } else {
         quote! { #[neocogi_com::plugin(#args)] #function }.to_string()
     };
-    let bindings = super::name_ownership_tests::contract("#[version(1)] interface IRoot { fn value(&self) -> Result<u32>; }");
+    let bindings = super::name_ownership_tests::contract("interface IRoot { fn value(&self) -> Result<u32>; }");
     let expected = if explicit_version { "4.5.6" } else { "0.0.0" };
     format!(
         r#"

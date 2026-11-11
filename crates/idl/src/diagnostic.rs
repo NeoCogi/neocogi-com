@@ -132,7 +132,7 @@ impl SourceSpan {
 /// Visual role of one source label in a compiler diagnostic.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum LabelStyle {
-    /// Location at which the compiler detected the error.
+    /// Location at which the compiler detected the diagnostic.
     Primary,
     /// Related definition or earlier conflicting location.
     Secondary,
@@ -143,7 +143,7 @@ pub enum LabelStyle {
 pub struct DiagnosticLabel {
     /// Exact source range being annotated.
     pub span: SourceSpan,
-    /// Short explanation of the range's role in the error.
+    /// Short explanation of the range's role in the diagnostic.
     pub message: String,
     /// Primary or supporting visual role.
     pub style: LabelStyle,
@@ -152,9 +152,11 @@ pub struct DiagnosticLabel {
 /// One stable source-aware IDL compiler diagnostic.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Diagnostic {
-    /// Stable machine-readable error code.
+    /// Whether the diagnostic rejects compilation or reports an accepted construct.
+    pub severity: DiagnosticSeverity,
+    /// Stable machine-readable diagnostic code.
     pub code: String,
-    /// Concise description of the violated language rule.
+    /// Concise description of the violated rule or accepted deprecated syntax.
     pub message: String,
     /// Source annotations, with exactly one primary label when source exists.
     pub labels: Vec<DiagnosticLabel>,
@@ -164,16 +166,42 @@ pub struct Diagnostic {
     sources: BTreeMap<(String, String), SourceFile>,
 }
 
+/// Whether a compiler diagnostic rejects input or accompanies successful parsing.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum DiagnosticSeverity {
+    /// A violated contract or syntax rule that prevents compilation.
+    Error,
+    /// Accepted source that should be migrated, without affecting ABI identity.
+    Warning,
+}
+
 impl Diagnostic {
     /// Creates one diagnostic without a source location.
     pub(crate) fn new(code: &str, message: impl Into<String>) -> Self {
         Self {
+            severity: DiagnosticSeverity::Error,
             code: code.to_owned(),
             message: message.into(),
             labels: Vec::new(),
             notes: Vec::new(),
             sources: BTreeMap::new(),
         }
+    }
+
+    /// Creates a nonfatal diagnostic retained separately from contract data.
+    pub(crate) fn warning(code: &str, message: impl Into<String>) -> Self {
+        Self {
+            severity: DiagnosticSeverity::Warning,
+            ..Self::new(code, message)
+        }
+    }
+
+    /// Attaches the parsed part to labels before owned diagnostics leave the worker.
+    pub(crate) fn attach_source(&mut self, source: &SourceFile) {
+        for label in &mut self.labels {
+            label.span.attach(source);
+        }
+        self.sources.insert((source.module.clone(), source.path.clone()), source.clone());
     }
 
     /// Adds one source file used by this diagnostic's labels.
@@ -263,7 +291,11 @@ fn split_encoded_code(message: &str) -> (&str, &str) {
 impl fmt::Display for Diagnostic {
     /// Renders stable compiler-style locations, snippets, labels, and notes.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(formatter, "error[{}]: {}", self.code, self.message)?;
+        let severity = match self.severity {
+            DiagnosticSeverity::Error => "error",
+            DiagnosticSeverity::Warning => "warning",
+        };
+        writeln!(formatter, "{severity}[{}]: {}", self.code, self.message)?;
         let mut labels = self.labels.iter().collect::<Vec<_>>();
         labels.sort_by(|left, right| {
             let style = match (left.style, right.style) {

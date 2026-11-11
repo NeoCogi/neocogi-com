@@ -5,26 +5,26 @@ use neocogi_idl::{parse_module, resolve_modules};
 /// The original finding and its nested/generic forms must fail in IDL, not rustc.
 #[test]
 fn unsupported_deserialization_reports_the_missing_field_operation() {
-    let prefix = "#[version(1)] interface IToken {} ";
+    let prefix = "interface IToken {} ";
     for (source, reason) in [
         (
-            "#[version(1)] #[persistence(default)] struct Snapshot { token: ComPtr<IToken> }",
+            "#[persistence(default)] struct Snapshot { token: ComPtr<IToken> }",
             "object reconstruction contract",
         ),
         (
-            "#[version(1)] #[persistence(default)] struct Snapshot { tokens: Vec<Option<ComPtr<IToken>>> }",
+            "#[persistence(default)] struct Snapshot { tokens: Vec<Option<ComPtr<IToken>>> }",
             "object reconstruction contract",
         ),
         (
-            "#[version(1)] #[persistence(default)] struct Snapshot { tokens: [ComPtr<IToken>; 2] }",
+            "#[persistence(default)] struct Snapshot { tokens: [ComPtr<IToken>; 2] }",
             "object reconstruction contract",
         ),
         (
-            "#[version(1)] #[persistence(default)] struct Data<T> { value: T } #[version(1)] struct Snapshot { data: Data<ComPtr<IToken>> }",
+            "#[persistence(default)] struct Data<T> { value: T } struct Snapshot { data: Data<ComPtr<IToken>> }",
             "object reconstruction contract",
         ),
         (
-            "#[version(1)] #[persistence(default)] struct Node<T> { children: Vec<Node<T>>, value: T } #[version(1)] struct Snapshot { data: Node<ComPtr<IToken>> }",
+            "#[persistence(default)] struct Node<T> { children: Vec<Node<T>>, value: T } struct Snapshot { data: Node<ComPtr<IToken>> }",
             "object reconstruction contract",
         ),
     ] {
@@ -41,10 +41,10 @@ fn unsupported_deserialization_reports_the_missing_field_operation() {
 #[test]
 fn transport_and_local_deserialization_are_separate_capabilities() {
     let source = r#"
-        #[version(1)] interface IToken {}
-        #[version(1)] struct Snapshot { token: ComPtr<IToken> }
-        #[version(1)] interface IInput { fn accept(&mut self, value: &Snapshot) -> Result<()>; }
-        #[version(1)]  struct Unused<T> { value: T }
+        interface IToken {}
+        struct Snapshot { token: ComPtr<IToken> }
+        interface IInput { fn accept(&mut self, value: &Snapshot) -> Result<()>; }
+        struct Unused<T> { value: T }
     "#;
     let module = parse_module(Path::new("proof/operations.ncidl"), source).unwrap();
     let graph = resolve_modules(vec![module]).unwrap();
@@ -58,13 +58,13 @@ fn transport_and_local_deserialization_are_separate_capabilities() {
 #[test]
 fn accepted_generic_deserializers_compile_and_reconstruct_values() {
     let source = r#"
-        #[version(1)]  struct Node<T> { value: T, children: Vec<Node<T>> }
-        #[version(1)]  struct Flags { enabled: bool }
-        #[version(1)] struct Pair<T> { first: T, second: T }
-        #[version(1)]  struct Snapshot {
+        struct Node<T> { value: T, children: Vec<Node<T>> }
+        struct Flags { enabled: bool }
+        struct Pair<T> { first: T, second: T }
+        struct Snapshot {
             root: Node<String>, optional: Option<Flags>, mask: [bool; 3], pair: Pair<u32>, units: Vec<()>,
         }
-        #[version(1)] #[persistence(default)] struct Config { enabled: bool }
+        #[persistence(default)] struct Config { enabled: bool }
     "#;
     let module = parse_module(Path::new("proof/operations.ncidl"), source).unwrap();
     let graph = resolve_modules(vec![module]).unwrap();
@@ -168,14 +168,10 @@ fn accepted_generic_deserializers_compile_and_reconstruct_values() {
 /// A generic policy failure identifies both the template field and its closed use.
 #[test]
 fn imported_decoder_failure_preserves_both_source_locations() {
-    let template = parse_module(
-        Path::new("proof/template.ncidl"),
-        "#[version(1)] #[persistence(default)] struct Data<T> { value: T }",
-    )
-    .unwrap();
+    let template = parse_module(Path::new("proof/template.ncidl"), "#[persistence(default)] struct Data<T> { value: T }").unwrap();
     let consumer = parse_module(
         Path::new("proof/consumer.ncidl"),
-        "extern proof.template; use proof.template::Data; #[version(1)] struct Snapshot { data: Data<ComPtr<IUnknown>> }",
+        "extern proof.template; use proof.template::Data; struct Snapshot { data: Data<ComPtr<IUnknown>> }",
     )
     .unwrap();
     let diagnostic = resolve_modules(vec![consumer, template]).unwrap_err().to_string();
@@ -189,8 +185,8 @@ fn imported_decoder_failure_preserves_both_source_locations() {
 #[test]
 fn generated_ncb_values_execute_without_allocation_features() {
     let source = r#"
-        #[version(1)] struct Point { x: u32, y: u32 }
-        #[version(1)] enum Choice { Empty, Pair(u8, u16), Record { enabled: bool }, Point(Point) }
+        struct Point { x: u32, y: u32 }
+        enum Choice { Empty, Pair(u8, u16), Record { enabled: bool }, Point(Point) }
     "#;
     let graph = resolve_modules(vec![parse_module(Path::new("proof/values.ncidl"), source).unwrap()]).unwrap();
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize().unwrap();

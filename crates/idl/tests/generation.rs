@@ -15,7 +15,7 @@ fn dense_public_members_match_admission_inventory() {
     use std::collections::BTreeSet;
     /// Reads the actual inherent public members from the production emitter.
     fn members(attributes: &str) -> BTreeSet<String> {
-        let source = format!("#[version(1)] {attributes} enum Choice: u8 {{ Ready = 0, Other = 1 }}");
+        let source = format!("{attributes} enum Choice: u8 {{ Ready = 0, Other = 1 }}");
         let graph = resolve_modules(vec![module("proof/public.ncidl", &source)]).unwrap();
         let source = neocogi_idl::generate_rust(&graph, "proof.public").unwrap();
         /// Inherent APIs may live inside their implementation-owned anonymous scope.
@@ -60,7 +60,7 @@ fn dense_public_members_match_admission_inventory() {
 fn imported_getters_use_the_declaring_module() {
     let message = module(
         "example/messages.ncidl",
-        " #[version(1)] struct Changed { value: u32 } #[version(1)] interface IChanged { fn value(&self) -> Result<Changed>; }",
+        " struct Changed { value: u32 } interface IChanged { fn value(&self) -> Result<Changed>; }",
     );
     let source = module(
         "example/source.ncidl",
@@ -68,8 +68,8 @@ fn imported_getters_use_the_declaring_module() {
         extern example.messages;
         use example.messages::IChanged;
 
-        #[version(1)] interface ISourceFactory { fn create(&self, events: &Option<u32>) -> Result<ComPtr<ISource>>; }
-        #[version(1)] interface ISource: IChanged {}
+        interface ISourceFactory { fn create(&self, events: &Option<u32>) -> Result<ComPtr<ISource>>; }
+        interface ISource: IChanged {}
     "#,
     );
     let graph = resolve_modules(vec![message, source]).unwrap();
@@ -92,14 +92,11 @@ fn generates_rust_bindings_for_a_module_graph() {
         r#"
             /// Pixel dimensions.
 
-            #[version(1)]
             struct Size { width: u32, height: u32 }
 
             // Status supports both live transport and automatic persistence.
-            #[version(1)]
             struct StatusValue { status: Status }
 
-            #[version(2)]
             interface ITexture { fn size(&self) -> Result<Size>; }
 
         "#,
@@ -109,7 +106,6 @@ fn generates_rust_bindings_for_a_module_graph() {
         use neocogi.render::{ITexture, Size};
 
         /// Texture sampling filter.
-        #[version(1)]
         #[dense]
         #[names(snake_case)]
         enum Filter: u8 {
@@ -118,20 +114,17 @@ fn generates_rust_bindings_for_a_module_graph() {
             Linear = 1,
         }
 
-        #[version(1)]
         bitenum WindowOptions: u16 {
             NONE = 0,
             RESIZABLE = 1,
             TITLED = 2,
         }
 
-        #[version(1)]
         interface Button: ITexture {
             fn resize(&mut self, size: Size) -> Result<()>;
         }
 
         #[threading(shared)]
-        #[version(3)]
         interface UiFactory {
             fn create(&self, size: Size, texture: &ITexture) -> Result<ComPtr<Button>>;
             fn read(&self, output: &mut [u8]) -> Result<u32>;
@@ -191,7 +184,6 @@ fn preserves_documentation_without_making_it_an_abi_input() {
         "example/value.ncidl",
         r#"
             /// Public generated value.
-            #[version(1)]
             struct Value {
                 /// Copied numeric payload.
                 number: u64,
@@ -211,8 +203,8 @@ fn preserves_documentation_without_making_it_an_abi_input() {
 /// affect the fingerprint or generated Rust behavior; provenance records the new locations.
 #[test]
 fn multipart_permutations_preserve_bindings_except_provenance() {
-    let geometry = "/// Size docs.\n#[version(1)] struct Size { width: u32, height: u32 }";
-    let widgets = "/// Widget docs.\n#[version(1)] interface IWidget { fn resize(&mut self, size: Size) -> Result<()>; }";
+    let geometry = "/// Size docs.\nstruct Size { width: u32, height: u32 }";
+    let widgets = "/// Widget docs.\ninterface IWidget { fn resize(&mut self, size: Size) -> Result<()>; }";
     let first_parts = [
         ModuleSource {
             path: Path::new("example/contract/z_geometry.ncidl"),
@@ -270,8 +262,8 @@ fn multipart_permutations_preserve_bindings_except_provenance() {
 fn generates_negative_signed_enum_discriminants() {
     let source = neocogi_idl::parse_module(
         std::path::Path::new("example/signed.ncidl"),
-        "#[version(1)] enum State: i8 { Failed = -1, Ready = 0 } \
-         #[version(1)] enum Response: i16 { Rejected, Accepted(i32) }",
+        "enum State: i8 { Failed = -1, Ready = 0 } \
+         enum Response: i16 { Rejected, Accepted(i32) }",
     )
     .unwrap();
     let graph = neocogi_idl::resolve_modules(vec![source]).unwrap();
@@ -287,17 +279,17 @@ fn generated_interface_exposes_its_idl_event_and_nested_message_shape() {
     let source = module(
         "example/widget.ncidl",
         r#"
-        #[version(1)] struct Bounds { x: i32, y: i32 }
-        #[version(1)] enum State: u8 { Idle = 0, Busy = 1 }
-        #[version(1)] bitenum Flags: u8 { NONE = 0, READY = 1 }
-        #[version(1)] struct Changed { text: String }
-        #[version(1)] enum WidgetEvent: u8 {
+        struct Bounds { x: i32, y: i32 }
+        enum State: u8 { Idle = 0, Busy = 1 }
+        bitenum Flags: u8 { NONE = 0, READY = 1 }
+        struct Changed { text: String }
+        enum WidgetEvent: u8 {
             Changed(Changed),
             Submitted,
         }
 
-        #[version(1)] interface WidgetFactory { fn create(&self, events: &Option<u32>) -> Result<ComPtr<Widget>>; }
-        #[version(1)] interface Widget {}
+        interface WidgetFactory { fn create(&self, events: &Option<u32>) -> Result<ComPtr<Widget>>; }
+        interface Widget {}
     "#,
     );
     let graph = resolve_modules(vec![source]).unwrap();
@@ -318,15 +310,15 @@ fn direct_design_shape_resolution_preserves_variant_grouping_and_tags() {
     let source = module(
         "example/shapes.ncidl",
         r#"
-        #[version(1)] struct Point { x: i32, y: i32 }
-        #[version(1)] enum Action: u8 {
+        struct Point { x: i32, y: i32 }
+        enum Action: u8 {
             Move { point: Point, speed: f32 },
             Say(String),
             Pause,
         }
 
-        #[version(1)] interface ShapeFactory { fn create(&self, events: &Option<u32>) -> Result<ComPtr<Actor>>; }
-        #[version(1)] interface Actor {}
+        interface ShapeFactory { fn create(&self, events: &Option<u32>) -> Result<ComPtr<Actor>>; }
+        interface Actor {}
     "#,
     );
     let graph = resolve_modules(vec![source]).unwrap();

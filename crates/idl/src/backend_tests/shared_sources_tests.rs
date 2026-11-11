@@ -15,21 +15,21 @@ fn independent_shared_source_consumers_call_through_their_own_bindings() {
     fs::create_dir_all(root.join("provider-schemas/proof/service")).unwrap();
     fs::create_dir_all(root.join("schemas/proof")).unwrap();
     fs::create_dir_all(root.join("provider/src")).unwrap();
-    fs::write(root.join("schemas/proof/value.ncidl"), "#[version(1)] struct Value { count: u32 }").unwrap();
+    fs::write(root.join("schemas/proof/value.ncidl"), "struct Value { count: u32 }").unwrap();
     fs::write(
         root.join("schemas/proof/union.ncidl"),
-        "/// A value in a legal weak-keyword namespace.\n#[version(1)] struct NearValue { count: u32 }",
+        "/// A value in a legal weak-keyword namespace.\nstruct NearValue { count: u32 }",
     )
     .unwrap();
     fs::write(
         root.join("schemas/proof/_private.ncidl"),
-        "/// A value in a legal underscore namespace.\n#[version(1)] struct PrivateValue { count: u32 }",
+        "/// A value in a legal underscore namespace.\nstruct PrivateValue { count: u32 }",
     )
     .unwrap();
     fs::write(
         root.join("provider-schemas/proof/service/main.ncidl"),
         "extern proof.value; use proof.value::Value; extern proof.union; use proof.union::NearValue; extern proof._private; \
-         #[version(1)] interface Service { fn increment(&self, value: Value) -> Result<Value>; \
+         interface Service { fn increment(&self, value: Value) -> Result<Value>; \
          /// Contrasts an imported input with a qualified namespace output.\n\
          fn contrast(&self, value: NearValue) -> Result<proof::_private::PrivateValue>; }",
     )
@@ -156,7 +156,7 @@ fn independent_shared_source_consumers_call_through_their_own_bindings() {
     assert_eq!(runs(), first.map(|value| value + 1));
     // A new competing owner must invalidate the previously successful cached
     // build. Root order must never silently choose the old directory owner.
-    fs::write(root.join("schemas/proof/service.ncidl"), "#[version(1)] interface Service {}").unwrap();
+    fs::write(root.join("schemas/proof/service.ncidl"), "interface Service {}").unwrap();
     let conflict = run();
     assert!(!conflict.status.success());
     assert!(String::from_utf8_lossy(&conflict.stderr).contains("ambiguous source owners"));

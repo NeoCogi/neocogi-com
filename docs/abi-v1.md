@@ -1,6 +1,7 @@
 # COM ABI
 
-This is the single current COM binary contract. The authoritative layouts are
+This records the released 0.1.0 COM binary contract. The 0.2.0 development
+contract is maintained in [ABI v2](abi-v2.md). The authoritative layouts are
 the public `#[repr(C)]` definitions in [core](../crates/core/src/lib.rs); this document
 describes how their calling, ownership, runtime and deployment rules compose.
 

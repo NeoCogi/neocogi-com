@@ -28,6 +28,19 @@ pub use source::ModuleSources;
 mod shared_sources;
 pub use shared_sources::SharedSources;
 
+/// Reports accepted deprecated syntax once per source occurrence in the resolved
+/// graph. Every rendered line uses Cargo's warning channel, including locations
+/// and migration help; pure parsing/generation leave reporting to their caller.
+fn emit_warnings(resolved: &crate::ResolvedModules) {
+    for module in resolved.modules() {
+        for warning in &module.source.warnings {
+            for line in warning.to_string().lines() {
+                println!("cargo::warning={line}");
+            }
+        }
+    }
+}
+
 /// Declarative build request for exactly one contract module crate.
 #[derive(Clone, Debug)]
 pub struct Module {
@@ -192,6 +205,7 @@ impl Module {
             })
             .collect::<Result<Vec<_>, BuildError>>()?;
         let resolved = resolve_modules(parsed).map_err(BuildError::Resolve)?;
+        emit_warnings(&resolved);
         let resolved_module = resolved
             .module(&own_module.name.to_string())
             .ok_or_else(|| BuildError::Idl("resolved graph lost the crate's own module".into()))?;

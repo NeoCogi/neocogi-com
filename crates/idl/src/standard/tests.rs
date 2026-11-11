@@ -6,9 +6,9 @@ use crate::{ModuleGraphError, ParseError, parse_module, resolve_modules, syntax:
 #[test]
 fn bundled_worker_failure_is_returned_for_plain_and_standard_consumers() {
     for source in [
-        "#[version(1)] interface Plain {}",
-        "#[version(1)] struct Value { value: Option<u32> }",
-        "extern neocogi.lang; use neocogi.lang::Option; #[version(1)] struct Value { value: Option<u32> }",
+        "interface Plain {}",
+        "struct Value { value: Option<u32> }",
+        "extern neocogi.lang; use neocogi.lang::Option; struct Value { value: Option<u32> }",
     ] {
         let module = parse_module(Path::new("proof/admission.ncidl"), source).unwrap();
         // Only the bundled parser remains: authored syntax has already been admitted.
@@ -30,7 +30,7 @@ fn bundled_worker_failure_is_returned_for_plain_and_standard_consumers() {
 /// Empty inputs need no worker; reserved source checks follow bundled syntax admission.
 #[test]
 fn graph_failure_precedence_preserves_semantic_diagnostics() {
-    let reserved = parse_module(Path::new("neocogi/lang.ncidl"), "#[version(1)] interface Reserved {}").unwrap();
+    let reserved = parse_module(Path::new("neocogi/lang.ncidl"), "interface Reserved {}").unwrap();
     let denial = failure::after(0);
     let ModuleGraphError::Resolution(empty) = resolve_modules(vec![]).unwrap_err() else {
         panic!("expected empty-input diagnostic")

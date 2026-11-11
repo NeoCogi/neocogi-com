@@ -11,8 +11,7 @@ fn resolve(source: &str) -> Result<crate::ResolvedModules, crate::ModuleGraphErr
 fn physical_prefix_conflicts_are_rejected_at_authored_methods() {
     for generic in ["", "<T>"] {
         for (base, name) in [("", "unknown"), (": Parent", "base")] {
-            let source =
-                format!("#[version(1)] interface Parent {{}}\n#[version(1)] interface Invalid{generic}{base} {{\n fn {name}(&self) -> Result<u32>;\n}}");
+            let source = format!("interface Parent {{}}\ninterface Invalid{generic}{base} {{\n fn {name}(&self) -> Result<u32>;\n}}");
             let error = resolve(&source).unwrap_err();
             let crate::ModuleGraphError::Resolution(error) = error else {
                 panic!("expected semantic diagnostics")
@@ -24,7 +23,7 @@ fn physical_prefix_conflicts_are_rejected_at_authored_methods() {
             assert!(text.contains(&format!("fn {name}")), "{text}");
         }
     }
-    resolve("#[version(1)] interface Parent {} #[version(1)] interface Root<T> { fn base(&self, unknown: T) -> Result<T>; } #[version(1)] interface Child<T>: Parent { fn unknown(&self, base: T) -> Result<T>; } #[version(1)] interface Closed: Child<u32> {}").unwrap();
+    resolve("interface Parent {} interface Root<T> { fn base(&self, unknown: T) -> Result<T>; } interface Child<T>: Parent { fn unknown(&self, base: T) -> Result<T>; } interface Closed: Child<u32> {}").unwrap();
 }
 
 /// Prelude methods are rejected even in unused templates; parameter names remain legal.
@@ -32,11 +31,11 @@ fn physical_prefix_conflicts_are_rejected_at_authored_methods() {
 fn supported_receiver_surface_includes_standard_prelude_blankets() {
     for name in ["into", "try_into", "to_owned", "clone_into"] {
         for generic in ["", "<T>"] {
-            let error = resolve(&format!("#[version(1)] interface Invalid{generic} {{\n fn {name}(&self) -> Result<u32>;\n}}")).unwrap_err();
+            let error = resolve(&format!("interface Invalid{generic} {{\n fn {name}(&self) -> Result<u32>;\n}}")).unwrap_err();
             let text = error.to_string();
             assert!(text.contains("EIDL100") && text.contains("proof/names.ncidl:2:"), "{text}");
         }
-        resolve(&format!("#[version(1)] interface Valid {{ fn value(&self, {name}: u32) -> Result<u32>; }}")).unwrap();
+        resolve(&format!("interface Valid {{ fn value(&self, {name}: u32) -> Result<u32>; }}")).unwrap();
     }
 }
 
@@ -44,14 +43,15 @@ fn supported_receiver_surface_includes_standard_prelude_blankets() {
 #[test]
 fn flag_metadata_conflict_is_source_local_and_other_public_names_stay_legal() {
     {
-        let error = resolve("#[version(1)] bitenum Flags: u8 {\n IDL_TYPE = 1\n}").unwrap_err();
+        let error = resolve("bitenum Flags: u8 {\n IDL_TYPE = 1\n}").unwrap_err();
         let text = error.to_string();
         assert!(
             text.contains("EIDL021") && text.contains("proof/names.ncidl:2:") && text.contains("per-value metadata"),
             "{text}"
         );
     }
-    let graph = resolve("#[version(1)] struct Data { idl_type: u32 } #[version(1)] enum Plain: u8 { COUNT = 0, ALL = 1, NAMES = 2 } #[version(1)] bitenum Flags: u8 { KNOWN_BITS = 1, USER_BITS = 2 }").unwrap();
+    let graph =
+        resolve("struct Data { idl_type: u32 } enum Plain: u8 { COUNT = 0, ALL = 1, NAMES = 2 } bitenum Flags: u8 { KNOWN_BITS = 1, USER_BITS = 2 }").unwrap();
     let rust = crate::generate_rust(&graph, "proof.names").unwrap();
     let file = syn::parse_file(&rust).unwrap();
     for name in ["Data", "Plain", "Flags"] {
@@ -77,10 +77,10 @@ fn flag_metadata_conflict_is_source_local_and_other_public_names_stay_legal() {
 fn accepted_names_execute_through_shared_borrowed_exclusive_and_weak_clients() {
     let bindings = super::name_ownership_tests::contract(
         r#"
-        #[version(1)] interface Parent {}
-        #[version(1)] interface Root { fn base(&self, into: u32, try_into: u32, to_owned: u32, clone_into: u32) -> Result<u32>; }
-        #[version(1)] interface Child: Parent { fn unknown(&self) -> Result<u32>; }
-        #[version(1)] bitenum Flags: u8 { KNOWN_BITS = 1, USER_BITS = 2 }
+        interface Parent {}
+        interface Root { fn base(&self, into: u32, try_into: u32, to_owned: u32, clone_into: u32) -> Result<u32>; }
+        interface Child: Parent { fn unknown(&self) -> Result<u32>; }
+        bitenum Flags: u8 { KNOWN_BITS = 1, USER_BITS = 2 }
     "#,
     );
     let source = r#"
@@ -156,7 +156,7 @@ fn plugin_export_spelling_is_legal_with_dynamic_feature_off_and_on() {
     let mut cargo = fs::read_to_string(&manifest).unwrap();
     cargo += "\n[features]\ndynamic-plugin=[]\n";
     fs::write(&manifest, cargo).unwrap();
-    let bindings = super::name_ownership_tests::contract("#[version(1)] interface Root { fn value(&self) -> Result<u32>; }");
+    let bindings = super::name_ownership_tests::contract("interface Root { fn value(&self) -> Result<u32>; }");
     for printed in [false, true] {
         let function: syn::ItemFn = syn::parse_quote! {
             fn nc_get_plugin_descriptor_v1(_runtime: neocogi_com::Runtime) -> Result<neocogi_com::ComPtr<RootAbi>, neocogi_com::NcStatus> {
@@ -212,12 +212,12 @@ fn imported_template_conflicts_keep_the_definition_span() {
     for name in ["unknown", "into", "try_into", "to_owned", "clone_into"] {
         let definition = crate::parse_module(
             Path::new("proof/definitions.ncidl"),
-            &format!("#[version(1)] interface Template<T> {{\n fn {name}(&self) -> Result<T>;\n}}"),
+            &format!("interface Template<T> {{\n fn {name}(&self) -> Result<T>;\n}}"),
         )
         .unwrap();
         let consumer = crate::parse_module(
             Path::new("proof/consumer.ncidl"),
-            "extern proof.definitions; use proof.definitions::Template; #[version(1)] interface Closed: Template<u32> {}",
+            "extern proof.definitions; use proof.definitions::Template; interface Closed: Template<u32> {}",
         )
         .unwrap();
         let error = crate::resolve_modules(vec![consumer, definition]).unwrap_err().to_string();
@@ -231,9 +231,8 @@ fn accepted_client_and_prelude_controls_compile_without_std_or_alloc() {
     let consumer = super::test_consumer::Consumer::new("public-name-no-std-controls");
     let manifest = consumer.directory.path().join("Cargo.toml");
     fs::write(&manifest, format!("[package]\nname='public-name-no-std-controls'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?},default-features=false}}\n", consumer.facade)).unwrap();
-    let bindings = super::name_ownership_tests::contract(
-        "#[version(1)] interface Root { fn base(&self, into: u32, try_into: u32, to_owned: u32, clone_into: u32) -> Result<u32>; }",
-    );
+    let bindings =
+        super::name_ownership_tests::contract("interface Root { fn base(&self, into: u32, try_into: u32, to_owned: u32, clone_into: u32) -> Result<u32>; }");
     fs::write(
         consumer.directory.path().join("src/lib.rs"),
         format!(

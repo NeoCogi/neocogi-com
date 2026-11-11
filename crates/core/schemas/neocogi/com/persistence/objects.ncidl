@@ -1,4 +1,3 @@
-#[version(1)]
 /// An ordered, owning list used only while constructing a persistent parent.
 interface IObjectChildren {
     /// Returns the number of fully initialized child objects.
@@ -7,7 +6,6 @@ interface IObjectChildren {
     fn get(&self, index: u32) -> Result<ComPtr<IUnknown>>;
 }
 
-#[version(1)]
 /// Optional snapshot capability for an owned construction tree.
 interface IPersistable {
     /// Identifies the registered construction recipe, not this object instance.
@@ -22,7 +20,6 @@ interface IPersistable {
     fn child(&self, index: u32) -> Result<ComPtr<IUnknown>>;
 }
 
-#[version(1)]
 /// A provider bound to the runtime services required by its construction recipe.
 interface IPersistenceFactory {
     /// Rejects unsupported revisions before any child object is constructed.

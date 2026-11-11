@@ -13,10 +13,7 @@ use budget::{Budget, Descent, Limits};
 #[cfg(test)]
 mod tests;
 use neocogi_com_core::{NcGuid, guid_from_name, guid_from_qualified_name};
-use crate::{
-    AbiType, Declaration, DeclarationKind, DeclarationId, Diagnostic, ExternalModule, Module, NamedType, ResolutionError, SourceSpan, Specialization,
-    VariantFields,
-};
+use crate::{AbiType, Declaration, DeclarationKind, Diagnostic, ExternalModule, Module, NamedType, ResolutionError, SourceSpan, Specialization, VariantFields};
 
 /// Expands one admitted batch with one private compiler allowance.
 pub(crate) fn expand(modules: Vec<Module>, limits: Limits) -> Result<Vec<Module>, ResolutionError> {
@@ -234,10 +231,7 @@ impl Expansion {
         self.budget.header(&name, &name.span)?;
         declaration.specialization = Some(Specialization { template: name.clone(), arguments });
         declaration.name = local.clone();
-        declaration.id = DeclarationId {
-            version: declaration.id.version,
-            explicit: Some(identity),
-        };
+        declaration.explicit_id = Some(identity);
         declaration.span = name.span.clone();
         declaration.parameters.clear();
         // Materialize nested arguments even when the template does not store
@@ -336,9 +330,8 @@ impl Expansion {
         let (owner, declaration) = self.declaration(name)?;
         let module = &self.originals[owner];
         let id = declaration
-            .id
-            .explicit
-            .unwrap_or_else(|| crate::resolve::derive_declaration_id(&module.name.qualify(&declaration.name), declaration.id.version));
+            .explicit_id
+            .unwrap_or_else(|| crate::resolve::derive_declaration_id(&module.name.qualify(&declaration.name)));
         if arguments.is_empty() {
             return Ok(id);
         }
@@ -566,9 +559,8 @@ fn named_signature(graph: &crate::ResolvedModules, name: &NamedType, arguments: 
         .find(|template| &template.name == local)
         .ok_or_else(|| failure(&name.span, "declaration template is absent"))?;
     let id = template
-        .id
-        .explicit
-        .unwrap_or_else(|| crate::resolve::derive_declaration_id(&module.source.name.qualify(local), template.id.version));
+        .explicit_id
+        .unwrap_or_else(|| crate::resolve::derive_declaration_id(&module.source.name.qualify(local)));
     bytes.extend_from_slice(&module.abi_fingerprint);
     bytes.extend_from_slice(&id.to_uuid_bytes());
     for argument in arguments {

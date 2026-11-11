@@ -153,6 +153,7 @@ impl SharedSources {
             modules.insert(name, (sources, parsed));
         }
         let resolved = crate::resolve_modules(modules.values().map(|(_, module)| module.clone()).collect()).map_err(BuildError::Resolve)?;
+        super::emit_warnings(&resolved);
         // A repository may declare locations for several independent graphs.
         // Only the reachable closure belongs to this generation invocation.
         let mut paths = RustModulePaths::default();
@@ -312,7 +313,7 @@ mod tests {
         for (index, name) in names.into_iter().enumerate() {
             let source = root.join(name.replace('.', "/")).with_extension("ncidl");
             fs::create_dir_all(source.parent().unwrap()).unwrap();
-            fs::write(&source, "#[version(1)] struct Value { value: u32 }").unwrap();
+            fs::write(&source, "struct Value { value: u32 }").unwrap();
             request = request.module(name, format!("first::module{index}"));
         }
         let output = work.path().join("generated");
@@ -350,10 +351,10 @@ mod tests {
         fs::create_dir_all(root.join("proof")).unwrap();
         fs::write(
             root.join("proof/root.ncidl"),
-            "extern proof.value; use proof.value::Value; #[version(1)] struct Root { value: Value }",
+            "extern proof.value; use proof.value::Value; struct Root { value: Value }",
         )
         .unwrap();
-        fs::write(root.join("proof/value.ncidl"), "#[version(1)] struct Value { value: u32 }").unwrap();
+        fs::write(root.join("proof/value.ncidl"), "struct Value { value: u32 }").unwrap();
         let output = work.path().join("output");
         let request = SharedSources::new(&root).module("proof.root", "consumer::root");
         assert!(
@@ -425,10 +426,10 @@ mod tests {
         let ui = work.path().join("ui/schemas");
         fs::create_dir_all(com.join("proof")).unwrap();
         fs::create_dir_all(ui.join("proof")).unwrap();
-        fs::write(com.join("proof/value.ncidl"), "#[version(1)] struct Value { value: u32 }").unwrap();
+        fs::write(com.join("proof/value.ncidl"), "struct Value { value: u32 }").unwrap();
         fs::write(
             ui.join("proof/root.ncidl"),
-            "extern proof.value; use proof.value::Value; #[version(1)] struct Root { value: Value }",
+            "extern proof.value; use proof.value::Value; struct Root { value: Value }",
         )
         .unwrap();
         let request = SharedSources::new(&ui)

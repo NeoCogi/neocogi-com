@@ -1,4 +1,3 @@
-#[version(1)]
 /// Accepts a generic capability borrow before application-specific retention.
 interface IRetainer {
     /// The adapter may retain shared ownership or report its exact acquisition failure.

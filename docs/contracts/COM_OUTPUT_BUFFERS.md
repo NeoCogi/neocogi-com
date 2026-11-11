@@ -87,7 +87,7 @@ enums, vectors, allocator ownership, or writer layout across a plugin boundary.
 The output migration includes real generated thunks, owner failure injection,
 malformed outputs, native C, and independently compiled host/plugin checks.
 Output-bearing interfaces use exact contract signatures. The current
-[ABI compatibility rule](../abi-v1.md) also requires rebuilding peers
+[ABI compatibility rule](../abi-v2.md) also requires rebuilding peers
 from the same checkout; equal discovery versions alone do not establish
 pre-release compatibility.
 
@@ -99,4 +99,4 @@ count reaches the outer thunk.
 The built-in `INcBytes` and `INcString` exact-range byte-copy methods retain
 their three-argument pointer protocol and descriptor category. They never read
 old bytes, contain no restricted native elements, and are independent of the
-removed generic mutable buffer. See [ABI v1](../abi-v1.md).
+removed generic mutable buffer. See [development ABI](../abi-v2.md).

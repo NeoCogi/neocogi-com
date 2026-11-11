@@ -7,10 +7,10 @@ use std::{fs, path::Path, process::Command};
 fn unit_values_use_checked_storage_in_copied_calls() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize().unwrap();
     let source = r#"
-        #[version(1)] enum Completion { Done(()), Idle }
-        #[version(1)] struct Mixed { before: u32, unit: (), enabled: bool, after: u32 }
-        #[version(1)] struct Arrays { nested: [[(); 2]; 2], empty: [(); 0] }
-        #[version(1)] interface IUnits {
+        enum Completion { Done(()), Idle }
+        struct Mixed { before: u32, unit: (), enabled: bool, after: u32 }
+        struct Arrays { nested: [[(); 2]; 2], empty: [(); 0] }
+        interface IUnits {
             fn status(&self) -> Result<()>;
             fn completion(&mut self, value: Completion) -> Result<Completion>;
             fn optional(&self, value: Option<()>) -> Result<Option<()>>;
@@ -62,10 +62,6 @@ fn unit_values_use_checked_storage_in_copied_calls() {
     assert!(String::from_utf8_lossy(&output.stdout).contains("unit_calls_and_malformed_storage ... ok"));
 
     // Bare unit input remains deliberately excluded from the method language.
-    let module = neocogi_idl::parse_module(
-        Path::new("proof/bare.ncidl"),
-        "#[version(1)] interface Bare { fn accept(&self, value: ()) -> Result<()>; }",
-    )
-    .unwrap();
+    let module = neocogi_idl::parse_module(Path::new("proof/bare.ncidl"), "interface Bare { fn accept(&self, value: ()) -> Result<()>; }").unwrap();
     assert!(neocogi_idl::resolve_modules(vec![module]).unwrap_err().to_string().contains("EIDL061"));
 }

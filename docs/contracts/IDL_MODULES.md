@@ -81,12 +81,12 @@ Structs, enums, and interfaces can declare type parameters. Each use must supply
 
 <!-- checked-example: generic-stream -->
 ```ncidl
-#[version(1)] struct Snapshot<T> { value: T }
-#[version(1)] interface IValue<T> {
+struct Snapshot<T> { value: T }
+interface IValue<T> {
     fn get(&self) -> Result<Snapshot<T>>;
 }
-#[version(1)] interface Counter: IValue<u32> {}
-#[version(1)] interface Counters {
+interface Counter: IValue<u32> {}
+interface Counters {
     fn create(&self) -> Result<ComBox<Counter>>;
 }
 ```
@@ -113,7 +113,7 @@ batch, in addition to materialization-depth and instance limits.
 
 Template parameter names are local binders. Fingerprints encode their zero-based
 positions, so `Pair<T> { value: T }` and `Pair<Item> { value: Item }` have the same
-signature when authored under the same module/name/version. This applies through
+signature when authored under the same qualified name. This applies through
 nested arguments, recursive values, enum payloads, direct interface bases,
 and method inputs/results. Parameter count and order remain significant: exchanging which
 parameter a field uses changes the template signature, even if a particular use
@@ -151,14 +151,14 @@ slot, and bare unit inputs remain excluded. The
 [recursive value contract](RECURSIVE_VALUE_CONTRACT.md) defines conversion and budgets.
 
 Templates and concrete declarations share the explicit binary declaration
-encoder under `neocogi-idl:module-abi:v13`. The former separate template string
+encoder under `neocogi-idl:module-abi:v14`. The former separate template string
 encoding and its Debug-formatted policy values are removed. Both paths encode
 parameter positions, resolved free identities, member order, authored enum
 assignment presence, and declaration policies. Regenerate bindings and rebuild
 all contracts/consumers after adopting this encoding; there is no compatibility
 adapter for the old signatures. Module-wide revision checking is retained.
-Changing implicit enum values to explicit assignments still requires a declaration
-version increment; see [contract changes and versions](#contract-changes-and-versions).
+Changing implicit enum values to explicit assignments changes the fingerprint even
+when the resolved integers agree; see [contract changes](#contract-changes).
 
 Base reference slots encode a discriminator before either the bound
 parameter ordinal or the free module/declaration IDs and recursively encoded
@@ -174,7 +174,7 @@ followed by its element type. Base slots retain the explicit bound/free grammar
 described above.
 
 Interfaces have no implementation-role discriminator in their canonical encoding.
-Canonical encoding v13 contains ordinary value and callable-interface contracts;
+Canonical encoding v14 contains ordinary value and callable-interface contracts;
 IDL has no event-reference slots. Rebuild affected contracts, providers and hosts
 together, including built-in persistence bindings. Nominal IDs, core generation 18,
 source-graph schema and the host-owned runtime registry are separate contracts;
@@ -185,16 +185,12 @@ Generic values can nest and recurse through explicit sequences:
 
 <!-- checked-example: generic-values -->
 ```ncidl
-#[version(1)]
 struct Node<T> { value: T, children: Vec<Node<T>> }
 
-#[version(1)]
 enum Change<T>: u8 { Set(T), Clear }
 
-#[version(1)]
 struct Handle<I> { object: ComPtr<I> }
 
-#[version(1)]
 interface ITreeInput {
     fn accept(&mut self, change: &Change<Node<String>>) -> Result<()>;
     fn inspect(&self, handle: &Handle<IUnknown>) -> Result<()>;
@@ -248,7 +244,6 @@ example uses a small texture contract as its dependency:
 <!-- checked-example: language-render -->
 ```ncidl
 // File: example/render.ncidl
-#[version(1)]
 interface ITexture {}
 ```
 
@@ -262,45 +257,38 @@ extern example.render;
 
 use example.render::ITexture;
 
-#[version(1)]
 struct WidgetOptions {
     enabled: bool,
     width: i32,
     height: i32,
 }
 
-#[version(1)]
 interface IImageConsumer {
     fn set_image(&self, image: &ITexture) -> Result<()>;
 }
 
-#[version(1)]
 enum FlowDirection: u8 {
     Horizontal,
     Vertical,
 }
 
-#[version(1)]
 bitenum WindowOptions: u16 {
     NONE = 0,
     RESIZABLE = 1,
     TITLED = 2,
 }
 
-#[version(1)]
 interface IWidget {
     fn enabled(&self) -> Result<bool>;
     fn set_enabled(&mut self, enabled: bool) -> Result<()>;
 }
 
-#[version(1)]
 interface Button: IWidget {
     fn label(&self) -> Result<ComPtr<INcString>>;
     fn set_label(&mut self, label: &[u8]) -> Result<()>;
     fn set_image(&mut self, image: &ITexture) -> Result<()>;
 }
 
-#[version(1)]
 interface UiFactory {
     fn create_button(
         &self,
@@ -309,12 +297,10 @@ interface UiFactory {
     ) -> Result<ComBox<Button>>;
 }
 
-#[version(1)]
 interface UiRuntime {
     fn widgets(&self) -> Result<ComPtr<UiFactory>>;
 }
 
-#[version(3)]
 interface UiPluginFactory {
     fn create_runtime(&self) -> Result<ComPtr<UiRuntime>>;
 }
@@ -344,7 +330,6 @@ for the checked wire contract.
 
 <!-- checked-example: enum-representation -->
 ```ncidl
-#[version(1)]
 /// Fieldless modes use the selected integer representation.
 enum Mode: u8 {
     /// Disabled mode.
@@ -353,7 +338,6 @@ enum Mode: u8 {
     On = 1,
 }
 
-#[version(1)]
 /// A payload enum has a separate checked foreign wire.
 enum Choice: u8 {
     /// No active payload.
@@ -462,7 +446,6 @@ observer interfaces use the ordinary method and value rules.
 Declare ordinary data and use it in an explicitly declared delivery interface or typed stream:
 
 ```rust
-#[version(1)]
 /// Complete editor value after one committed user edit.
 struct TextChanged {
     /// Owned text captured at the edit.
@@ -471,7 +454,6 @@ struct TextChanged {
     cursor: u64,
 }
 
-#[version(1)]
 interface Editor {
     /// Ordinary application command, independent from its constructor receiver.
     fn set_text(&mut self, text: &[u8]) -> Result<()>;
@@ -522,7 +504,6 @@ A zero-based unit enum used as a complete table axis may opt into generated
 domain metadata:
 
 ```rust
-#[version(1)]
 #[dense]
 #[names(snake_case)]
 enum FontRole: u8 {
@@ -540,85 +521,75 @@ usize`, while payload enums retain their semantic structure instead of being
 flattened into arithmetic offsets. These authored policies do not change native layout, but they do participate
 in the shared declaration fingerprint, equally for templates and concrete enums.
 
-The ordinary identity form is:
+Ordinary declarations need no identity attribute:
 
 ```rust
-#[version(1)]
 interface IWidget {}
 ```
 
-An imported ABI, a moved declaration, or an identity retained during migration
-can use an explicit UUID:
+The exact qualified name derives the nominal UUID. An imported ABI, a moved
+declaration, or an identity retained during migration can use an explicit UUID:
 
 ```rust
-#[id(1, "9be73186-f123-47bc-8140-4a57825eeb21")]
+#[id("9be73186-f123-47bc-8140-4a57825eeb21")]
 interface IWidget {}
 ```
 
 The explicit UUID does not change the diagnostic name. The example remains
-named `neocogi.ui.core.IWidget`.
+named `neocogi.ui.core.IWidget`. The current `#[id]` spelling takes one UUID string;
+duplicate overrides are rejected. Deprecated `#[version(N)]` attributes and the
+number in `#[id(N, "UUID")]` are accepted but ignored, with a source-located
+`WIDL001` warning for every occurrence. Their integers never enter semantic
+identity or fingerprints, even when they differ between consumers.
 
-### Contract changes and versions
+### Contract changes
 
-The initial production IDL baseline uses `#[version(1)]` for every declaration,
-including bundled library types. Test fixtures and examples may use other
-versions to exercise contract evolution and compatibility.
+Nominal identity and exact contract compatibility have separate authorities.
+The qualified name, or an explicit UUID override, identifies the declaration.
+Its SHA-256 ABI signature captures the canonical typed module, including
+transitive dependency fingerprints. Changing member names, types, order,
+ownership, threading, numeric assignments or declaration policies changes the
+signature automatically. No manual declaration version or historical-source
+comparison is required. Connection boundaries check both nominal identity and
+exact signature; matching layout alone is insufficient.
 
-A declaration version identifies an authored contract, not merely its physical
-layout or the integers ultimately carried across COM. Increment `#[version(N)]`
-when changing that contract. In particular, replacing implicit enum values with
-explicit assignments, or the reverse, requires a new version even when every
-resolved numeric value is unchanged. Changing member names, types, order,
-ownership or numeric values also requires a new version.
-
-These are successive revisions of one module's source file, compiled separately:
+For example, these successive revisions retain the same nominal ID and have
+different signatures, even though their resolved integers are identical:
 
 ```rust
-// Original contract, in the original checkout.
-#[version(1)]
-enum State: u32 {
-    Empty,
-    Ready,
-}
+// Original contract, compiled separately.
+enum State: u32 { Empty, Ready }
 ```
 
 ```rust
-// Replacement contract, in the updated checkout.
-#[version(2)]
-enum State: u32 {
-    Empty = 0,
-    Ready = 1,
-}
+// Replacement contract, compiled separately.
+enum State: u32 { Empty = 0, Ready = 1 }
 ```
 
-Keeping version 1 in the replacement is a contract-authoring error; identical
-resolved tags do not make that edit a supported same-version change. Do not put
-both declarations in one module: duplicate names are rejected (`EIDL010`), even
-if their versions differ. Putting them in different modules instead gives them
-different qualified identities, not two spellings of the same type.
+Changes that cannot be expressed in the IDL, such as changing a quantity's units
+without changing its field type, are not detectable by hashing. Use a distinct
+named type or interface to express that semantic distinction. Duplicate names
+in one module are rejected (`EIDL010`); declarations in different modules have
+different qualified identities. Keeping an explicit UUID does not bypass exact
+signature checking.
 
-For ordinary `#[version(N)]` declarations, the qualified name and version derive
-the nominal ID. An explicit `#[id(N, "UUID")]` still has a version that must be
-incremented on contract changes; retaining its UUID does not bypass the exact
-revision signature. Module-wide fingerprints and transitive dependency revisions
-remain part of compatibility checking. Independently built plugins may use
-different supported compiler versions and flags, but must agree on the versioned
-contract and supported ABI; matching layout alone is insufficient.
+Comments, formatting, source-part placement, backend Rust paths, and consistent
+renaming of generic parameter binders preserve signatures when their positions
+and uses are unchanged. Field, variant and method member names retain their
+contract meaning. Independently built plugins may use different supported
+compilers and flags, but must agree on the exact transitive contract.
 
-The documented exceptions are changes that do not alter the contract: comments,
-formatting, source-part placement, backend Rust paths, and consistent renaming of
-generic parameter binders while preserving their positions and uses. The
-parameter-position rule does not authorize changes to field/variant names or
-explicit enum assignments under an unchanged version.
+This supersedes the mandatory declaration-version policy from 0.1.0. Remove
+`#[version(N)]` and replace `#[id(N, "UUID")]` with `#[id("UUID")]` to clear
+deprecation warnings. `Module::warnings` retains structured nonfatal diagnostics
+for parser API callers; both Cargo build helpers emit them through
+`cargo::warning`. Warnings retain original source-part coordinates and do not
+enter generated contract data. Malformed attribute syntax and duplicate explicit
+UUID overrides remain errors.
 
-This is an authoring requirement, not a claim that the current compiler compares
-against previously released source. Compilation resolves the supplied graph; it
-does not load a historical contract baseline to enforce version increments.
-Fingerprints provide compatibility checks, not permission to reuse a version
-after a contract edit. Both encoders now preserve authored enum assignment presence,
-so the fingerprint also detects an implicit-to-explicit edit when the author
-incorrectly retains the version. This additional check does not replace the
-requirement to increment that version.
+Generated nominal IDs and signatures change: rebuild contracts, providers and
+hosts together. Compiler encoding v14 records the versionless contract; COM
+discovery remains v1 during 0.2.0 development, with ABI v2 selected at release.
 
 ### Module names and dependencies
 
@@ -1139,13 +1110,11 @@ Factory results transfer the sole owner; container parameters consume it.
 `WeakComBox<T>` results transfer cached observers without retaining the value:
 
 ```rust,ignore
-#[version(1)]
 interface IContainer {
     fn insert(&mut self, child: ComBox<IWidget>) -> Result<()>;
     fn child(&self, index: u32) -> Result<WeakComBox<IWidget>>;
 }
 
-#[version(1)]
 interface Widgets {
     fn button(&self) -> Result<ComBox<Button>>;
 }
@@ -1171,7 +1140,7 @@ budgeting. See [prepared output completion](COM_OUTPUT_COMPLETION.md) for an IDL
 example, enum limits, and real generated-call regressions.
 
 The provider threading guarantee is preserved for all three owner/observer
-wrappers. See the [current core ABI](../abi-v1.md) for lifetime and concurrency rules.
+wrappers. See the [current core ABI](../abi-v2.md) for lifetime and concurrency rules.
 
 ## Interpreting generated names
 

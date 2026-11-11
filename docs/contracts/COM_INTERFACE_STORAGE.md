@@ -3,7 +3,7 @@
 The current ABI uses **`{object, interface_vtable}` handles**. A generated object
 contains one concrete Rust value and a common lifetime header. Shared objects keep
 a separate call-borrow gate; exclusive objects combine owner presence and borrowing
-in the header's atomic state. The [current ABI specification](../abi-v1.md)
+in the header's atomic state. The [current ABI specification](../abi-v2.md)
 defines both ownership policies. This guide explains interface storage; its size
 tables record the named historical revisions, not current allocation costs.
 Interfaces add no fields to each allocation. A handle selects a static table and
@@ -82,7 +82,7 @@ an IUnknown projection. This matters at plugin bootstrap: it transfers an erased
 interface view, the runtime validates/returns the factory view, and typed factory
 clients adopt it directly. Clients asking for IUnknown query that exact contract.
 
-The [COM ABI v1 contract](../abi-v1.md) specifies this layout,
+The [development COM ABI contract](../abi-v2.md) specifies this layout,
 calling convention and ownership behavior. Discovery checks that baseline before
 acquisition; exact interface signatures additionally select the callable contract.
 
@@ -390,7 +390,7 @@ measure query plus release, not application throughput. Save logs/binaries outsi
 
 Shared objects use strong and weak reference counts. Exclusive objects have one
 owner and may expose weak observers. Applications select their ownership policy;
-the [ABI specification](../abi-v1.md#weak-lifetime-references) defines both policies.
+the [ABI specification](../abi-v2.md#weak-lifetime-references) defines both policies.
 
 The strong object/table handle remains two words; a weak handle now contains one
 control pointer. Generated allocations use the common COM header in place of
@@ -407,7 +407,7 @@ call gate: the existing gate continues to enforce typed mutable/shared access.
 Final strong release destroys the value and its resources, while weak owners keep
 only the allocation capacity and class metadata alive. Objects always start from
 initialized values; no cyclic constructor or rollback protocol exists. Exact
-promotion semantics are specified in [ABI v1](../abi-v1.md#weak-lifetime-references).
+promotion semantics are specified in [development ABI](../abi-v2.md#weak-lifetime-references).
 
 A historical matched full/Vulkan comparison reduced deployment from 1,536,440 to 1,505,688 bytes: 30,752 fewer bytes (2.00%).
 Instruction/table/relocation changes and allocation-header costs remain distinct

@@ -64,9 +64,9 @@ The caller's original path remains in errors and first-registration provenance.
 Native inspection accepts UTF-16 paths; SDK path adapters require UTF-8. Paths
 and ABI identities do not authenticate native code: providers and their native
 dependencies must be trusted. See the
-[native loading contract](https://github.com/NeoCogi/neocogi-com/blob/v0.1.0/docs/abi-v1.md#runtime-and-global-registry).
+[native loading contract](https://github.com/NeoCogi/neocogi-com/blob/0.2.0-wip/docs/abi-v2.md#runtime-and-global-registry).
 
-[Runtime ABI v1](https://github.com/NeoCogi/neocogi-com/blob/v0.1.0/docs/abi-v1.md#runtime-and-global-registry) has three C tables:
+[Runtime ABI v1](https://github.com/NeoCogi/neocogi-com/blob/0.2.0-wip/docs/abi-v2.md#runtime-and-global-registry) has three C tables:
 complete plugin operations, diagnostics and persistence. Plugin lookup and
 enumeration share one projection containing identity, factory and dependencies. Loading
 returns a plugin GUID. Plugin inspection reports static origin or the first

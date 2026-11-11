@@ -30,10 +30,10 @@ mod type_display;
 pub use standard::is_bundled_module;
 
 pub use model::{
-    PersistencePolicy, AbiType, BitEnum, BitFlag, Declaration, DeclarationId, DeclarationKind, Enum, EnumNames, EnumRepr, EnumVariant, ExternalModule, Field,
-    Import, Interface, Method, NamedType, Parameter, Receiver, Struct, Threading, VariantFields, Specialization,
+    PersistencePolicy, AbiType, BitEnum, BitFlag, Declaration, DeclarationKind, Enum, EnumNames, EnumRepr, EnumVariant, ExternalModule, Field, Import,
+    Interface, Method, NamedType, Parameter, Receiver, Struct, Threading, VariantFields, Specialization,
 };
-pub use diagnostic::{Diagnostic, DiagnosticLabel, LabelStyle, SourceFile, SourcePosition, SourceSpan};
+pub use diagnostic::{Diagnostic, DiagnosticLabel, DiagnosticSeverity, LabelStyle, SourceFile, SourcePosition, SourceSpan};
 pub use parser::{ModuleSource, ParseError, parse_module, parse_module_parts};
 pub use path::{ModuleName, ModulePathError};
 pub use resolve::{
@@ -48,6 +48,9 @@ pub struct Module {
     pub name: ModuleName,
     /// Every source part in normalized path order.
     pub sources: Vec<SourceFile>,
+    /// Nonfatal source diagnostics in canonical path/position order. They do not
+    /// enter ABI fingerprints; Cargo helpers report them as build warnings.
+    pub warnings: Vec<Diagnostic>,
     /// Direct external dependencies in canonical module-name order.
     pub externals: Vec<ExternalModule>,
     /// Explicit imports in canonical module and declaration-name order.

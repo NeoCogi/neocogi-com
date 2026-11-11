@@ -13,16 +13,16 @@ fn weak_shared_identity_and_capabilities_are_distinct() {
     let mut fingerprints = std::collections::BTreeSet::new();
     for wrapper in ["ComPtr", "WeakComPtr", "ComBox", "WeakComBox"] {
         let g = graph(&format!(
-            "#[version(1)] interface IValue {{}} #[version(1)] interface Source {{ fn get(&self) -> Result<{wrapper}<IValue>>; }}"
+            "interface IValue {{}} interface Source {{ fn get(&self) -> Result<{wrapper}<IValue>>; }}"
         ))
         .unwrap();
         assert!(fingerprints.insert(g.module("proof.weak").unwrap().abi_fingerprint));
     }
     let g = graph(
         r#"
-        #[version(1)] interface IValue {}
-        #[version(1)] struct Handle<T> { value: T }
-        #[version(1)] struct References {
+        interface IValue {}
+        struct Handle<T> { value: T }
+        struct References {
             strong: Handle<ComPtr<IValue>>,
             weak: Handle<WeakComPtr<IValue>>,
             nested: Option<Vec<WeakComPtr<INcString>>>,
@@ -44,21 +44,21 @@ fn weak_shared_identity_and_capabilities_are_distinct() {
 #[test]
 fn invalid_weak_positions_and_targets_are_rejected() {
     for body in [
-        "#[version(1)] struct Bad { value: WeakComPtr<u32> }",
-        "#[version(1)] struct Bad { value: WeakComPtr<ComPtr<IValue>> }",
-        "#[version(1)] struct Bad { value: WeakComPtr<Unknown> }",
-        "#[version(1)] interface Bad { fn take(&self, value: WeakComPtr<IValue>) -> Result<()>; }",
-        "#[version(1)] interface Bad { fn take(&self, value: &[WeakComPtr<IValue>]) -> Result<()>; }",
-        "#[version(1)] interface Bad { fn get(&self) -> Result<Vec<WeakComPtr<IValue>>>; }",
-        "#[version(1)] struct WeakComPtr { value: u32 }",
-        "#[version(1)] struct Bad { value: WeakLocalCom<IValue> }",
-        "#[version(1)] #[persistence(default)] struct Bad { value: WeakComPtr<IValue> }",
-        "#[version(1)] struct Record { value: WeakComPtr<IValue> } #[version(1)] interface Bad { fn take(&self, value: Record) -> Result<()>; }",
+        "struct Bad { value: WeakComPtr<u32> }",
+        "struct Bad { value: WeakComPtr<ComPtr<IValue>> }",
+        "struct Bad { value: WeakComPtr<Unknown> }",
+        "interface Bad { fn take(&self, value: WeakComPtr<IValue>) -> Result<()>; }",
+        "interface Bad { fn take(&self, value: &[WeakComPtr<IValue>]) -> Result<()>; }",
+        "interface Bad { fn get(&self) -> Result<Vec<WeakComPtr<IValue>>>; }",
+        "struct WeakComPtr { value: u32 }",
+        "struct Bad { value: WeakLocalCom<IValue> }",
+        "#[persistence(default)] struct Bad { value: WeakComPtr<IValue> }",
+        "struct Record { value: WeakComPtr<IValue> } interface Bad { fn take(&self, value: Record) -> Result<()>; }",
     ] {
-        assert!(graph(&format!("#[version(1)] interface IValue {{}} {body}")).is_err(), "accepted {body}");
+        assert!(graph(&format!("interface IValue {{}} {body}")).is_err(), "accepted {body}");
     }
     for ty in ["WeakComPtr<>", "WeakComPtr<IValue, IValue>"] {
-        assert!(parse_module(Path::new("proof/weak.ncidl"), &format!("#[version(1)] struct Bad {{ value: {ty} }}")).is_err());
+        assert!(parse_module(Path::new("proof/weak.ncidl"), &format!("struct Bad {{ value: {ty} }}")).is_err());
     }
 }
 
@@ -67,18 +67,18 @@ fn invalid_weak_positions_and_targets_are_rejected() {
 fn generated_weak_values_and_results_preserve_lifetime_and_validation() {
     let g = graph(
         r#"
-        #[version(1)] interface Counter {
+        interface Counter {
             fn value(&self) -> Result<u32>;
             fn set_value(&mut self, value: u32) -> Result<()>;
         }
-        #[version(1)] #[threading(shared)] interface Shared { fn value(&self) -> Result<u32>; }
-        #[version(1)] struct References {
+        #[threading(shared)] interface Shared { fn value(&self) -> Result<u32>; }
+        struct References {
             one: WeakComPtr<Counter>,
             many: Vec<WeakComPtr<Counter>>,
             fixed: [WeakComPtr<Counter>; 2],
         }
-        #[version(1)] enum WeakEvent { Observed(WeakComPtr<Counter>), Empty }
-        #[version(1)] interface Store {
+        enum WeakEvent { Observed(WeakComPtr<Counter>), Empty }
+        interface Store {
             fn get(&self) -> Result<WeakComPtr<Counter>>;
             fn capture(&mut self, values: &References) -> Result<()>;
             fn shared(&self) -> Result<WeakComPtr<Shared>>;

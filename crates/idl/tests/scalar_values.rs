@@ -11,17 +11,17 @@ fn scalar_bindings_compile_and_execute_without_default_features_or_alloc() {
         "{}\n{}",
         include_str!("../../../schemas/nc/tests/scalar_values.ncidl"),
         r#"
-        #[version(1)] enum SignedRuns: i8 {
+        enum SignedRuns: i8 {
             Minimum = -128, PositiveLast = 6, NegativeLast = -1, Zero = 0,
             NegativeFirst = -3, PositiveFirst = 4, PositiveMiddle = 5,
             NegativeMiddle = -2, Maximum = 127,
         }
-        #[version(1)] enum UnsignedRuns: u8 {
+        enum UnsignedRuns: u8 {
             Maximum = 255, Middle = 3, Zero = 0, First = 2, Last = 4,
         }
-        #[version(1)] bitenum OverlapFlags: u8 { NONE = 0, LOW = 1, MID = 2, BOTH = 3, HIGH = 128 }
-        #[version(1)] bitenum EmptyFlags: u8 { NONE = 0 }
-        #[version(1)] bitenum FullFlags: u8 { ALL = 255 }
+        bitenum OverlapFlags: u8 { NONE = 0, LOW = 1, MID = 2, BOTH = 3, HIGH = 128 }
+        bitenum EmptyFlags: u8 { NONE = 0 }
+        bitenum FullFlags: u8 { ALL = 255 }
         "#,
     );
     let module = parse_module(Path::new("proof/scalars.ncidl"), &source).unwrap();

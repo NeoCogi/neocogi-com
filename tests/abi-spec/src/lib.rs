@@ -1,1 +1,1 @@
-#![doc = include_str!("../../../docs/abi-v1.md")]
+#![doc = include_str!("../../../docs/abi-v2.md")]

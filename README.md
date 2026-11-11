@@ -67,7 +67,7 @@ a downstream consumer using only those extracted packages. Install that compiler
 registry inputs; run `cargo fetch --locked` first on a fresh machine.
 
 Read the [component guide](docs/COM.md),
-[ABI specification](docs/abi-v1.md),
+[ABI specification](docs/abi-v2.md),
 [IDL reference](docs/contracts/IDL_MODULES.md), and
 [dynamic/static example](examples/com-plugin/README.md).
 

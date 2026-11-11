@@ -10,22 +10,22 @@ pub const MODULE_ID: ::neocogi_com::NcGuid = ::neocogi_com::NcGuid::from_fields(
 );
 /// Transitive canonical ABI fingerprint of this generated module.
 pub const ABI_FINGERPRINT: [::core::primitive::u8; 32] = [
-    33u8, 81u8, 246u8, 243u8, 125u8, 56u8, 133u8, 202u8, 30u8, 147u8, 202u8, 41u8, 37u8,
-    62u8, 129u8, 194u8, 191u8, 148u8, 242u8, 247u8, 144u8, 113u8, 167u8, 228u8, 197u8,
-    22u8, 157u8, 140u8, 99u8, 107u8, 123u8, 101u8,
+    36u8, 144u8, 119u8, 154u8, 50u8, 93u8, 13u8, 144u8, 21u8, 120u8, 69u8, 64u8, 220u8,
+    16u8, 34u8, 138u8, 24u8, 122u8, 4u8, 194u8, 199u8, 178u8, 103u8, 40u8, 133u8, 246u8,
+    118u8, 240u8, 238u8, 40u8, 55u8, 79u8,
 ];
 /// Exact dotted module name derived from the normalized IDL path.
 pub const MODULE_NAME: &::core::primitive::str = "neocogi.com.persistence";
 /// An ordered, owning list used only while constructing a persistent parent.
-/// IDL source: `neocogi/com/persistence/objects.ncidl:3:11` (module `neocogi.com.persistence`).
+/// IDL source: `neocogi/com/persistence/objects.ncidl:2:11` (module `neocogi.com.persistence`).
 pub trait IObjectChildren {
     /// Returns the number of fully initialized child objects.
-    /// IDL source: `neocogi/com/persistence/objects.ncidl:5:8` (module `neocogi.com.persistence`).
+    /// IDL source: `neocogi/com/persistence/objects.ncidl:4:8` (module `neocogi.com.persistence`).
     fn count(
         &self,
     ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus>;
     /// Returns an owned reference; indices must be less than count.
-    /// IDL source: `neocogi/com/persistence/objects.ncidl:7:8` (module `neocogi.com.persistence`).
+    /// IDL source: `neocogi/com/persistence/objects.ncidl:6:8` (module `neocogi.com.persistence`).
     fn get(
         &self,
         index: ::core::primitive::u32,
@@ -42,7 +42,7 @@ pub struct IObjectChildrenVTable {
     /// Common identity, query and reference-count slots.
     pub unknown: ::neocogi_com::IUnknownVTable,
     /// Returns the number of fully initialized child objects.
-    /// IDL source: `neocogi/com/persistence/objects.ncidl:5:8` (module `neocogi.com.persistence`).
+    /// IDL source: `neocogi/com/persistence/objects.ncidl:4:8` (module `neocogi.com.persistence`).
     ///Raw COM ABI vtable slot for [`IObjectChildren::count`].
     ///
     ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
@@ -61,7 +61,7 @@ pub struct IObjectChildrenVTable {
         __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
     ) -> ::neocogi_com::NcStatus,
     /// Returns an owned reference; indices must be less than count.
-    /// IDL source: `neocogi/com/persistence/objects.ncidl:7:8` (module `neocogi.com.persistence`).
+    /// IDL source: `neocogi/com/persistence/objects.ncidl:6:8` (module `neocogi.com.persistence`).
     ///Raw COM ABI vtable slot for [`IObjectChildren::get`].
     ///
     ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
@@ -84,17 +84,17 @@ pub struct IObjectChildrenVTable {
 }
 unsafe impl ::neocogi_com::ComInterface for IObjectChildrenAbi {
     const IID: ::neocogi_com::NcGuid = ::neocogi_com::NcGuid {
-        data1: 3044267551u32,
-        data2: 19810u16,
-        data3: 22379u16,
-        data4: [135u8, 249u8, 36u8, 136u8, 103u8, 45u8, 179u8, 255u8],
+        data1: 2422821477u32,
+        data2: 38314u16,
+        data3: 22971u16,
+        data4: [152u8, 38u8, 218u8, 182u8, 237u8, 193u8, 229u8, 147u8],
     };
     const INTERFACE_ID: ::neocogi_com::NcInterfaceId = ::neocogi_com::NcInterfaceId::new(
         ::neocogi_com::NcGuid {
-            data1: 3044267551u32,
-            data2: 19810u16,
-            data3: 22379u16,
-            data4: [135u8, 249u8, 36u8, 136u8, 103u8, 45u8, 179u8, 255u8],
+            data1: 2422821477u32,
+            data2: 38314u16,
+            data3: 22971u16,
+            data4: [152u8, 38u8, 218u8, 182u8, 237u8, 193u8, 229u8, 147u8],
         },
         IObjectChildrenAbi::ABI_SIGNATURE,
     );
@@ -149,7 +149,7 @@ const _: () = {
         __NcThreading: ::neocogi_com::ThreadingModel,
     > IObjectChildrenClient<__NcThreading> {
         /// Returns the number of fully initialized child objects.
-        /// IDL source: `neocogi/com/persistence/objects.ncidl:5:8` (module `neocogi.com.persistence`).
+        /// IDL source: `neocogi/com/persistence/objects.ncidl:4:8` (module `neocogi.com.persistence`).
         ///
         ///Calls [`IObjectChildren::count`] through the generated COM ABI vtable.
         ///
@@ -179,7 +179,7 @@ const _: () = {
             ::core::result::Result::Ok(__nc_result_0)
         }
         /// Returns an owned reference; indices must be less than count.
-        /// IDL source: `neocogi/com/persistence/objects.ncidl:7:8` (module `neocogi.com.persistence`).
+        /// IDL source: `neocogi/com/persistence/objects.ncidl:6:8` (module `neocogi.com.persistence`).
         ///
         ///Calls [`IObjectChildren::get`] through the generated COM ABI vtable.
         ///
@@ -219,7 +219,7 @@ const _: () = {
 impl IObjectChildrenAbi {
     ///Canonical validation form of this interface's typed ABI contract.
     pub const ABI_SIGNATURE: ::neocogi_com::NcAbiSignature = ::neocogi_com::NcAbiSignature::from_static(
-        b"\x19\x90\x98fW\x9D\x12\x9DI\xD6,{\xDA\xD7[\x8Bt6\xD1*\xF6\xED\x04r\xD2*o'\xDF|s\x84",
+        b")\x06\xFE\xB4\xE2\xA1\xE5\xCE:\xE0Tv\xCCu\x81]\xBC\x80\x90g\x1B\x940\x8A\xD3B\xF1\x83\x1B H\xD9",
     );
     ///Static descriptors for this interface's ABI methods.
     pub const METHOD_DESCRIPTORS: [::neocogi_com::NcMethodDescriptor; 2usize] = [
@@ -281,20 +281,20 @@ impl IObjectChildrenAbi {
     )] = ::neocogi_com::__nc_interface_chain(&Self::INTERFACE_DESCRIPTOR, &[]);
 }
 /// Optional snapshot capability for an owned construction tree.
-/// IDL source: `neocogi/com/persistence/objects.ncidl:12:11` (module `neocogi.com.persistence`).
+/// IDL source: `neocogi/com/persistence/objects.ncidl:10:11` (module `neocogi.com.persistence`).
 pub trait IPersistable {
     /// Identifies the registered construction recipe, not this object instance.
-    /// IDL source: `neocogi/com/persistence/objects.ncidl:14:8` (module `neocogi.com.persistence`).
+    /// IDL source: `neocogi/com/persistence/objects.ncidl:12:8` (module `neocogi.com.persistence`).
     fn type_id(
         &self,
     ) -> ::core::result::Result<::neocogi_com::NcGuid, ::neocogi_com::NcStatus>;
     /// Identifies the persistent initialization schema, independently of COM ABI.
-    /// IDL source: `neocogi/com/persistence/objects.ncidl:16:8` (module `neocogi.com.persistence`).
+    /// IDL source: `neocogi/com/persistence/objects.ncidl:14:8` (module `neocogi.com.persistence`).
     fn schema_version(
         &self,
     ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus>;
     /// Exports initialization data only: no receivers, runtime pointers or caches.
-    /// IDL source: `neocogi/com/persistence/objects.ncidl:18:8` (module `neocogi.com.persistence`).
+    /// IDL source: `neocogi/com/persistence/objects.ncidl:16:8` (module `neocogi.com.persistence`).
     fn save_state(
         &self,
     ) -> ::core::result::Result<
@@ -302,12 +302,12 @@ pub trait IPersistable {
         ::neocogi_com::NcStatus,
     >;
     /// Returns the number of owned persistent children; parent links are excluded.
-    /// IDL source: `neocogi/com/persistence/objects.ncidl:20:8` (module `neocogi.com.persistence`).
+    /// IDL source: `neocogi/com/persistence/objects.ncidl:18:8` (module `neocogi.com.persistence`).
     fn child_count(
         &self,
     ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus>;
     /// Returns one child in the order described by the parent's initialization.
-    /// IDL source: `neocogi/com/persistence/objects.ncidl:22:8` (module `neocogi.com.persistence`).
+    /// IDL source: `neocogi/com/persistence/objects.ncidl:20:8` (module `neocogi.com.persistence`).
     fn child(
         &self,
         index: ::core::primitive::u32,
@@ -324,7 +324,7 @@ pub struct IPersistableVTable {
     /// Common identity, query and reference-count slots.
     pub unknown: ::neocogi_com::IUnknownVTable,
     /// Identifies the registered construction recipe, not this object instance.
-    /// IDL source: `neocogi/com/persistence/objects.ncidl:14:8` (module `neocogi.com.persistence`).
+    /// IDL source: `neocogi/com/persistence/objects.ncidl:12:8` (module `neocogi.com.persistence`).
     ///Raw COM ABI vtable slot for [`IPersistable::type_id`].
     ///
     ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
@@ -343,7 +343,7 @@ pub struct IPersistableVTable {
         __nc_out: *mut <::neocogi_com::NcGuid as ::neocogi_com::ComValue>::Wire,
     ) -> ::neocogi_com::NcStatus,
     /// Identifies the persistent initialization schema, independently of COM ABI.
-    /// IDL source: `neocogi/com/persistence/objects.ncidl:16:8` (module `neocogi.com.persistence`).
+    /// IDL source: `neocogi/com/persistence/objects.ncidl:14:8` (module `neocogi.com.persistence`).
     ///Raw COM ABI vtable slot for [`IPersistable::schema_version`].
     ///
     ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
@@ -362,7 +362,7 @@ pub struct IPersistableVTable {
         __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
     ) -> ::neocogi_com::NcStatus,
     /// Exports initialization data only: no receivers, runtime pointers or caches.
-    /// IDL source: `neocogi/com/persistence/objects.ncidl:18:8` (module `neocogi.com.persistence`).
+    /// IDL source: `neocogi/com/persistence/objects.ncidl:16:8` (module `neocogi.com.persistence`).
     ///Raw COM ABI vtable slot for [`IPersistable::save_state`].
     ///
     ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
@@ -381,7 +381,7 @@ pub struct IPersistableVTable {
         __nc_out: *mut ::neocogi_com::ComRaw<::neocogi_com::INcBytesAbi>,
     ) -> ::neocogi_com::NcStatus,
     /// Returns the number of owned persistent children; parent links are excluded.
-    /// IDL source: `neocogi/com/persistence/objects.ncidl:20:8` (module `neocogi.com.persistence`).
+    /// IDL source: `neocogi/com/persistence/objects.ncidl:18:8` (module `neocogi.com.persistence`).
     ///Raw COM ABI vtable slot for [`IPersistable::child_count`].
     ///
     ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
@@ -400,7 +400,7 @@ pub struct IPersistableVTable {
         __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
     ) -> ::neocogi_com::NcStatus,
     /// Returns one child in the order described by the parent's initialization.
-    /// IDL source: `neocogi/com/persistence/objects.ncidl:22:8` (module `neocogi.com.persistence`).
+    /// IDL source: `neocogi/com/persistence/objects.ncidl:20:8` (module `neocogi.com.persistence`).
     ///Raw COM ABI vtable slot for [`IPersistable::child`].
     ///
     ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
@@ -423,17 +423,17 @@ pub struct IPersistableVTable {
 }
 unsafe impl ::neocogi_com::ComInterface for IPersistableAbi {
     const IID: ::neocogi_com::NcGuid = ::neocogi_com::NcGuid {
-        data1: 3211114322u32,
-        data2: 3431u16,
-        data3: 21153u16,
-        data4: [164u8, 211u8, 23u8, 32u8, 218u8, 170u8, 154u8, 0u8],
+        data1: 1888826366u32,
+        data2: 2270u16,
+        data3: 21695u16,
+        data4: [141u8, 234u8, 184u8, 83u8, 224u8, 13u8, 180u8, 88u8],
     };
     const INTERFACE_ID: ::neocogi_com::NcInterfaceId = ::neocogi_com::NcInterfaceId::new(
         ::neocogi_com::NcGuid {
-            data1: 3211114322u32,
-            data2: 3431u16,
-            data3: 21153u16,
-            data4: [164u8, 211u8, 23u8, 32u8, 218u8, 170u8, 154u8, 0u8],
+            data1: 1888826366u32,
+            data2: 2270u16,
+            data3: 21695u16,
+            data4: [141u8, 234u8, 184u8, 83u8, 224u8, 13u8, 180u8, 88u8],
         },
         IPersistableAbi::ABI_SIGNATURE,
     );
@@ -494,7 +494,7 @@ const _: () = {
         __NcThreading: ::neocogi_com::ThreadingModel,
     > IPersistableClient<__NcThreading> {
         /// Identifies the registered construction recipe, not this object instance.
-        /// IDL source: `neocogi/com/persistence/objects.ncidl:14:8` (module `neocogi.com.persistence`).
+        /// IDL source: `neocogi/com/persistence/objects.ncidl:12:8` (module `neocogi.com.persistence`).
         ///
         ///Calls [`IPersistable::type_id`] through the generated COM ABI vtable.
         ///
@@ -524,7 +524,7 @@ const _: () = {
             ::core::result::Result::Ok(__nc_result_0)
         }
         /// Identifies the persistent initialization schema, independently of COM ABI.
-        /// IDL source: `neocogi/com/persistence/objects.ncidl:16:8` (module `neocogi.com.persistence`).
+        /// IDL source: `neocogi/com/persistence/objects.ncidl:14:8` (module `neocogi.com.persistence`).
         ///
         ///Calls [`IPersistable::schema_version`] through the generated COM ABI vtable.
         ///
@@ -554,7 +554,7 @@ const _: () = {
             ::core::result::Result::Ok(__nc_result_1)
         }
         /// Exports initialization data only: no receivers, runtime pointers or caches.
-        /// IDL source: `neocogi/com/persistence/objects.ncidl:18:8` (module `neocogi.com.persistence`).
+        /// IDL source: `neocogi/com/persistence/objects.ncidl:16:8` (module `neocogi.com.persistence`).
         ///
         ///Calls [`IPersistable::save_state`] through the generated COM ABI vtable.
         ///
@@ -587,7 +587,7 @@ const _: () = {
             ::core::result::Result::Ok(__nc_result_2)
         }
         /// Returns the number of owned persistent children; parent links are excluded.
-        /// IDL source: `neocogi/com/persistence/objects.ncidl:20:8` (module `neocogi.com.persistence`).
+        /// IDL source: `neocogi/com/persistence/objects.ncidl:18:8` (module `neocogi.com.persistence`).
         ///
         ///Calls [`IPersistable::child_count`] through the generated COM ABI vtable.
         ///
@@ -617,7 +617,7 @@ const _: () = {
             ::core::result::Result::Ok(__nc_result_3)
         }
         /// Returns one child in the order described by the parent's initialization.
-        /// IDL source: `neocogi/com/persistence/objects.ncidl:22:8` (module `neocogi.com.persistence`).
+        /// IDL source: `neocogi/com/persistence/objects.ncidl:20:8` (module `neocogi.com.persistence`).
         ///
         ///Calls [`IPersistable::child`] through the generated COM ABI vtable.
         ///
@@ -657,7 +657,7 @@ const _: () = {
 impl IPersistableAbi {
     ///Canonical validation form of this interface's typed ABI contract.
     pub const ABI_SIGNATURE: ::neocogi_com::NcAbiSignature = ::neocogi_com::NcAbiSignature::from_static(
-        b"\xDD-g\xB5n\xEF\xB3\xCB)P\x02\xFA\xCE\x1C\x86\xAE_9\xD4}{P\x03\xF7~\xDF\xCC#\xE6<\x07\xC1",
+        b"\xEBB[\xCA/\xB5\x98K@G\x1D$\x13\x18U39\n\x15d\xEE7\xAFt\xB4~\xCF\xF5p%\x1A\x9C",
     );
     ///Static descriptors for this interface's ABI methods.
     pub const METHOD_DESCRIPTORS: [::neocogi_com::NcMethodDescriptor; 5usize] = [
@@ -761,10 +761,10 @@ impl IPersistableAbi {
     )] = ::neocogi_com::__nc_interface_chain(&Self::INTERFACE_DESCRIPTOR, &[]);
 }
 /// A provider bound to the runtime services required by its construction recipe.
-/// IDL source: `neocogi/com/persistence/objects.ncidl:27:11` (module `neocogi.com.persistence`).
+/// IDL source: `neocogi/com/persistence/objects.ncidl:24:11` (module `neocogi.com.persistence`).
 pub trait IPersistenceFactory {
     /// Rejects unsupported revisions before any child object is constructed.
-    /// IDL source: `neocogi/com/persistence/objects.ncidl:29:8` (module `neocogi.com.persistence`).
+    /// IDL source: `neocogi/com/persistence/objects.ncidl:26:8` (module `neocogi.com.persistence`).
     fn validate(
         &self,
         version: ::core::primitive::u32,
@@ -773,7 +773,7 @@ pub trait IPersistenceFactory {
     ) -> ::core::result::Result<(), ::neocogi_com::NcStatus>;
     /// Returns a fully initialized object; every child is already constructed.
     /// Failure must release resources acquired by this call and publish no root.
-    /// IDL source: `neocogi/com/persistence/objects.ncidl:32:8` (module `neocogi.com.persistence`).
+    /// IDL source: `neocogi/com/persistence/objects.ncidl:29:8` (module `neocogi.com.persistence`).
     fn restore(
         &self,
         version: ::core::primitive::u32,
@@ -792,7 +792,7 @@ pub struct IPersistenceFactoryVTable {
     /// Common identity, query and reference-count slots.
     pub unknown: ::neocogi_com::IUnknownVTable,
     /// Rejects unsupported revisions before any child object is constructed.
-    /// IDL source: `neocogi/com/persistence/objects.ncidl:29:8` (module `neocogi.com.persistence`).
+    /// IDL source: `neocogi/com/persistence/objects.ncidl:26:8` (module `neocogi.com.persistence`).
     ///Raw COM ABI vtable slot for [`IPersistenceFactory::validate`].
     ///
     ///Returns `NcStatus`; success is represented by the returned status and there is no `out` pointer.
@@ -819,7 +819,7 @@ pub struct IPersistenceFactoryVTable {
     ) -> ::neocogi_com::NcStatus,
     /// Returns a fully initialized object; every child is already constructed.
     /// Failure must release resources acquired by this call and publish no root.
-    /// IDL source: `neocogi/com/persistence/objects.ncidl:32:8` (module `neocogi.com.persistence`).
+    /// IDL source: `neocogi/com/persistence/objects.ncidl:29:8` (module `neocogi.com.persistence`).
     ///Raw COM ABI vtable slot for [`IPersistenceFactory::restore`].
     ///
     ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
@@ -848,17 +848,17 @@ pub struct IPersistenceFactoryVTable {
 }
 unsafe impl ::neocogi_com::ComInterface for IPersistenceFactoryAbi {
     const IID: ::neocogi_com::NcGuid = ::neocogi_com::NcGuid {
-        data1: 1927987790u32,
-        data2: 295u16,
-        data3: 23997u16,
-        data4: [164u8, 199u8, 47u8, 172u8, 222u8, 225u8, 180u8, 131u8],
+        data1: 3732855007u32,
+        data2: 16637u16,
+        data3: 23717u16,
+        data4: [187u8, 2u8, 64u8, 199u8, 96u8, 184u8, 142u8, 53u8],
     };
     const INTERFACE_ID: ::neocogi_com::NcInterfaceId = ::neocogi_com::NcInterfaceId::new(
         ::neocogi_com::NcGuid {
-            data1: 1927987790u32,
-            data2: 295u16,
-            data3: 23997u16,
-            data4: [164u8, 199u8, 47u8, 172u8, 222u8, 225u8, 180u8, 131u8],
+            data1: 3732855007u32,
+            data2: 16637u16,
+            data3: 23717u16,
+            data4: [187u8, 2u8, 64u8, 199u8, 96u8, 184u8, 142u8, 53u8],
         },
         IPersistenceFactoryAbi::ABI_SIGNATURE,
     );
@@ -931,7 +931,7 @@ const _: () = {
         __NcThreading: ::neocogi_com::ThreadingModel,
     > IPersistenceFactoryClient<__NcThreading> {
         /// Rejects unsupported revisions before any child object is constructed.
-        /// IDL source: `neocogi/com/persistence/objects.ncidl:29:8` (module `neocogi.com.persistence`).
+        /// IDL source: `neocogi/com/persistence/objects.ncidl:26:8` (module `neocogi.com.persistence`).
         ///
         ///Calls [`IPersistenceFactory::validate`] through the generated COM ABI vtable.
         ///
@@ -971,7 +971,7 @@ const _: () = {
         }
         /// Returns a fully initialized object; every child is already constructed.
         /// Failure must release resources acquired by this call and publish no root.
-        /// IDL source: `neocogi/com/persistence/objects.ncidl:32:8` (module `neocogi.com.persistence`).
+        /// IDL source: `neocogi/com/persistence/objects.ncidl:29:8` (module `neocogi.com.persistence`).
         ///
         ///Calls [`IPersistenceFactory::restore`] through the generated COM ABI vtable.
         ///
@@ -1027,7 +1027,7 @@ const _: () = {
 impl IPersistenceFactoryAbi {
     ///Canonical validation form of this interface's typed ABI contract.
     pub const ABI_SIGNATURE: ::neocogi_com::NcAbiSignature = ::neocogi_com::NcAbiSignature::from_static(
-        b"\x8B\xB3\x1F\xFD_\xFB\x10\xF3\x8A\xD5G\xE87\x929\x03\xF0\xE1|\xDA\x02%_\xA5\xE5H\xAEo\0\x04\xE9\xCE",
+        b"\xF9P\xB5\xD8B\r\xFBy67~7\x8C\x7F\n\xFD\x1D\x83w\x88T\xD1=k\"\x98r6\xEB\xF2\xA0\0",
     );
     ///Static descriptors for this interface's ABI methods.
     pub const METHOD_DESCRIPTORS: [::neocogi_com::NcMethodDescriptor; 2usize] = [

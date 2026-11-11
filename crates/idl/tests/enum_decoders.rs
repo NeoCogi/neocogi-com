@@ -6,22 +6,22 @@ use neocogi_idl::{parse_module, resolve_modules};
 #[test]
 fn ordinary_enum_decoders_compile_and_reconstruct_every_payload_shape() {
     let source = r#"
-        #[version(1)]  enum Mode: u8 { First = 3, Second = 9 }
-        #[version(1)]  enum Packet { Empty, Flag(bool), Pair(u8, u16), Values { flags: [bool; 3] } }
-        #[version(1)]  enum Owned { Empty, Text(String), Pair(String, String), Values { values: Vec<u32> } }
-        #[version(1)]  enum Tree { Leaf(u32), Nodes(Vec<Tree>) }
-        #[version(1)]  enum Maybe<T> { None, Some(T) }
-        #[version(1)]  struct Number { value: Maybe<u32> }
+        enum Mode: u8 { First = 3, Second = 9 }
+        enum Packet { Empty, Flag(bool), Pair(u8, u16), Values { flags: [bool; 3] } }
+        enum Owned { Empty, Text(String), Pair(String, String), Values { values: Vec<u32> } }
+        enum Tree { Leaf(u32), Nodes(Vec<Tree>) }
+        enum Maybe<T> { None, Some(T) }
+        struct Number { value: Maybe<u32> }
         // These former public companions are now ordinary authored names.
-        #[version(1)] struct PacketAbi { value: Packet }
-        #[version(1)] struct PacketTag { value: u32 }
-        #[version(1)] struct PacketPayload { value: u32 }
-        #[version(1)] struct PacketFlagPayload { value: u32 }
-        #[version(1)] interface IToken {}
-        #[version(1)] struct Live { value: Maybe<ComPtr<IToken>> }
-        #[version(1)] bitenum Flags: u16 { ONE = 1, TWO = 2 }
-        #[version(1)] struct Scalars { id: Guid, status: Status, flags: Flags, mode: Mode }
-        #[version(1)] struct Position { x: i32, y: i32 }
+        struct PacketAbi { value: Packet }
+        struct PacketTag { value: u32 }
+        struct PacketPayload { value: u32 }
+        struct PacketFlagPayload { value: u32 }
+        interface IToken {}
+        struct Live { value: Maybe<ComPtr<IToken>> }
+        bitenum Flags: u16 { ONE = 1, TWO = 2 }
+        struct Scalars { id: Guid, status: Status, flags: Flags, mode: Mode }
+        struct Position { x: i32, y: i32 }
     "#;
     let graph = resolve_modules(vec![parse_module(Path::new("proof/enums.ncidl"), source).unwrap()]).unwrap();
     assert_eq!(graph.values.definitions["proof.enums.Number"].persistence, neocogi_idl::Persistence::Supported);
@@ -87,11 +87,11 @@ fn rejects_obsolete_opt_ins_and_inapplicable_format_policies() {
         "#[persistence(default)]",
         "#[persistence(sequence)]",
     ] {
-        let source = format!("#[version(1)] {attribute} enum Wrong {{ Value(u32) }}");
+        let source = format!("{attribute} enum Wrong {{ Value(u32) }}");
         assert!(parse_module(Path::new("proof/enums.ncidl"), &source).is_err());
     }
     for policy in ["sequence", "if_supported", "default, sequence", ""] {
-        let source = format!("#[version(1)] #[persistence({policy})] struct Wrong {{ value: u32 }}");
+        let source = format!("#[persistence({policy})] struct Wrong {{ value: u32 }}");
         assert!(parse_module(Path::new("proof/enums.ncidl"), &source).is_err());
     }
 }

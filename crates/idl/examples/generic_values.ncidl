@@ -3,14 +3,12 @@ extern neocogi.lang;
 use neocogi.lang::Option;
 
 /// A live capability whose implementation is not a persistence value.
-#[version(1)]
 interface IToken {
     /// Reads a value from the supplied implementation.
     fn value(&self) -> Result<u32>;
 }
 
 /// The same generic enum can contain copied scalars, owned text, or owned COM refs.
-#[version(1)]
 struct OptionalValues {
     /// Copied tagged scalar, eligible for copied arguments and results.
     count: Option<u32>,
@@ -23,7 +21,6 @@ struct OptionalValues {
 }
 
 /// Demonstrates copied and borrowed use sites of the same ordinary enum template.
-#[version(1)]
 interface IValues {
     /// Copies a finite optional scalar in both directions.
     fn number(&mut self, value: Option<u32>) -> Result<Option<u32>>;

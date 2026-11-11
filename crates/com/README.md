@@ -34,7 +34,7 @@ only their shared contract and SDK features, independently of plugin deployment.
 Public cross-library contracts should be authored as Rust-like `.ncidl`
 modules. See [IDL contract modules](https://github.com/NeoCogi/neocogi-com/blob/v0.1.0/docs/contracts/IDL_MODULES.md) for their
 source, crate, signature, and tooling model. The
-[current core ABI specification](https://github.com/NeoCogi/neocogi-com/blob/v0.1.0/docs/abi-v1.md) defines the binary boundary.
+[current core ABI specification](https://github.com/NeoCogi/neocogi-com/blob/0.2.0-wip/docs/abi-v2.md) defines the binary boundary.
 
 ## Contracts and concrete objects
 
@@ -42,7 +42,6 @@ Write the contract in shared `.ncidl` sources; each consumer can generate its
 own bindings during its ordinary Cargo build:
 
 ```text
-#[version(1)]
 interface ICalculator {
     fn add(&self, a: i32, b: i32) -> Result<i32>;
 }
@@ -266,7 +265,7 @@ release version, static/dynamic origin, single `FactoryInfo` and hard dependency
 GUIDs. `Runtime::plugins()` returns these complete owned records in registration
 order, without separate factory or dependency queries. Repeated provider loads reuse the
 first registration and origin; conflicting providers are rejected. See
-[runtime ABI v1](https://github.com/NeoCogi/neocogi-com/blob/v0.1.0/docs/abi-v1.md#runtime-and-global-registry).
+[runtime ABI v1](https://github.com/NeoCogi/neocogi-com/blob/0.2.0-wip/docs/abi-v2.md#runtime-and-global-registry).
 
 Inspection is a separate operation that can report errors without registering
 or acquiring a plugin factory. Its fallible result does not make live loading optional.
@@ -278,7 +277,7 @@ Windows module reuse/redirection. Deploy private dependencies beside the DLL.
 Later provider-issued loads and delay loads have their own search policy.
 The SDK requires UTF-8 paths and preserves the original spelling as provenance.
 Both the provider and its native dependencies remain trusted code; see the
-[loading contract](https://github.com/NeoCogi/neocogi-com/blob/v0.1.0/docs/abi-v1.md#runtime-and-global-registry).
+[loading contract](https://github.com/NeoCogi/neocogi-com/blob/0.2.0-wip/docs/abi-v2.md#runtime-and-global-registry).
 
 For static assemblies, register the descriptor before using the same typed
 acquisition method:

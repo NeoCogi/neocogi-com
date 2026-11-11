@@ -19,7 +19,7 @@ fn payload_enum_tags_are_compiler_owned_for_every_variant_shape() {
     ] {
         for parameters in ["", "<T>"] {
             let body = if parameters.is_empty() { body.replace("T", "u32") } else { body.into() };
-            let source = format!("#[version(1)] enum Choice{parameters} {{ {body} }}");
+            let source = format!("enum Choice{parameters} {{ {body} }}");
             let error = resolve_modules(vec![module("example/tags.ncidl", &source)]).unwrap_err().to_string();
             assert!(error.contains("EIDL073"), "{source}: {error}");
             assert!(error.contains("declaration order"), "{error}");
@@ -35,7 +35,7 @@ fn integer_assignments_and_automatic_payload_tags_remain_supported() {
         "enum Choice<T> { Empty, Value(T) }",
         "enum Choice { Empty, Zero(()), Record { value: () } }",
     ] {
-        resolve_modules(vec![module("example/tags.ncidl", &format!("#[version(1)] {declaration}"))]).unwrap();
+        resolve_modules(vec![module("example/tags.ncidl", declaration)]).unwrap();
     }
 }
 
@@ -46,8 +46,8 @@ fn nongeneric_values_reject_type_arguments() {
     let source = module(
         "example/events.ncidl",
         &format!(
-            "#[version(1)] struct Settings {{ enabled: bool }} #[version(1)] {declaration} #[version(1)] interface SourceFactory {{ fn create(&self, events: &Settings<Source, Changed>) -> Result<ComPtr<Source>>; }}
-    #[version(1)] interface Source {{}}"
+            "struct Settings {{ enabled: bool }} {declaration} interface SourceFactory {{ fn create(&self, events: &Settings<Source, Changed>) -> Result<ComPtr<Source>>; }}
+    interface Source {{}}"
         ),
     );
     match resolve_modules(vec![source]) {
@@ -62,10 +62,8 @@ fn resolves_a_contract_dependency_graph() {
     let render = module(
         "neocogi/render.ncidl",
         r#"
-            #[version(1)]
             struct Size { width: u32, height: u32 }
 
-            #[version(1)]
             interface ITexture { fn size(&self) -> Result<Size>; }
         "#,
     );
@@ -75,12 +73,10 @@ fn resolves_a_contract_dependency_graph() {
             extern neocogi.render;
             use neocogi.render::{ITexture, Size};
 
-            #[version(1)]
             interface Button {
                 fn set_image(&mut self, image: &ITexture) -> Result<()>;
             }
 
-            #[version(1)]
             interface UiFactory {
                 fn create_button(&self, size: Size) -> Result<ComPtr<Button>>;
             }
@@ -105,8 +101,8 @@ fn resolves_a_contract_dependency_graph() {
 /// Confirms symbol imports cannot create hidden contract dependency edges.
 #[test]
 fn requires_extern_before_use() {
-    let render = module("neocogi/render.ncidl", "#[version(1)] struct Size { width: u32 }");
-    let ui = module("neocogi/ui.ncidl", "use neocogi.render::Size; #[version(1)] struct Widget { size: Size }");
+    let render = module("neocogi/render.ncidl", "struct Size { width: u32 }");
+    let ui = module("neocogi/ui.ncidl", "use neocogi.render::Size; struct Widget { size: Size }");
 
     let error = resolve_modules(vec![ui, render]).unwrap_err().to_string();
     assert!(error.contains("error[EIDL035]"), "{error}");
@@ -117,11 +113,8 @@ fn requires_extern_before_use() {
 /// introducing an unqualified source name.
 #[test]
 fn resolves_qualified_types_through_extern() {
-    let render = module("neocogi/render.ncidl", "#[version(1)] struct Size { width: u32 }");
-    let ui = module(
-        "neocogi/ui.ncidl",
-        "extern neocogi.render; #[version(1)] struct Widget { size: neocogi::render::Size }",
-    );
+    let render = module("neocogi/render.ncidl", "struct Size { width: u32 }");
+    let ui = module("neocogi/ui.ncidl", "extern neocogi.render; struct Widget { size: neocogi::render::Size }");
 
     let modules = resolve_modules(vec![ui, render]).unwrap();
     assert_eq!(modules.module("neocogi.ui").unwrap().dependencies.len(), 1);
@@ -130,12 +123,11 @@ fn resolves_qualified_types_through_extern() {
 /// Confirms comments and whitespace do not change an ABI fingerprint.
 #[test]
 fn ignores_documentation_and_formatting_in_fingerprints() {
-    let compact = module("neocogi/ui.ncidl", "#[version(1)] struct Size { width: u32, height: u32 }");
+    let compact = module("neocogi/ui.ncidl", "struct Size { width: u32, height: u32 }");
     let documented = module(
         "neocogi/ui.ncidl",
         r#"
             /// A documented size.
-            #[version(1)]
             struct Size {
                 /// Horizontal extent.
                 width: u32,
@@ -156,29 +148,23 @@ fn fingerprints_typed_layout_and_callable_changes() {
         resolve_modules(vec![module("example/contract.ncidl", source)]).unwrap().modules()[0].abi_fingerprint
     }
 
+    assert_ne!(fingerprint("struct Value { number: u32 }"), fingerprint("struct Value { number: u64 }"));
+    assert_ne!(fingerprint("enum State: u8 { Ready = 1 }"), fingerprint("enum State: u16 { Ready = 1 }"));
     assert_ne!(
-        fingerprint("#[version(1)] struct Value { number: u32 }"),
-        fingerprint("#[version(1)] struct Value { number: u64 }")
+        fingerprint("interface IService { fn load(&self, key: u32) -> Result<u32>; }"),
+        fingerprint("interface IService { fn load(&mut self, key: u32) -> Result<u32>; }")
     );
     assert_ne!(
-        fingerprint("#[version(1)] enum State: u8 { Ready = 1 }"),
-        fingerprint("#[version(1)] enum State: u16 { Ready = 1 }")
+        fingerprint("interface IService { fn load(&self, key: u32) -> Result<u32>; }"),
+        fingerprint("interface IService { fn load(&self, key: u64) -> Result<u32>; }")
     );
     assert_ne!(
-        fingerprint("#[version(1)] interface IService { fn load(&self, key: u32) -> Result<u32>; }"),
-        fingerprint("#[version(1)] interface IService { fn load(&mut self, key: u32) -> Result<u32>; }")
+        fingerprint("interface IBase {} interface IService: IBase {}"),
+        fingerprint("interface IBase {} interface IService {}")
     );
     assert_ne!(
-        fingerprint("#[version(1)] interface IService { fn load(&self, key: u32) -> Result<u32>; }"),
-        fingerprint("#[version(1)] interface IService { fn load(&self, key: u64) -> Result<u32>; }")
-    );
-    assert_ne!(
-        fingerprint("#[version(1)] interface IBase {} #[version(1)] interface IService: IBase {}"),
-        fingerprint("#[version(1)] interface IBase {} #[version(1)] interface IService {}")
-    );
-    assert_ne!(
-        fingerprint("#[threading(shared)] #[version(1)] interface Service {}"),
-        fingerprint("#[threading(local)] #[version(1)] interface Service {}")
+        fingerprint("#[threading(shared)] interface Service {}"),
+        fingerprint("#[threading(local)] interface Service {}")
     );
 }
 
@@ -192,24 +178,24 @@ fn fingerprints_member_order() {
     }
 
     assert_ne!(
-        fingerprint("#[version(1)] struct Pair { first: u32, second: u64 }"),
-        fingerprint("#[version(1)] struct Pair { second: u64, first: u32 }")
+        fingerprint("struct Pair { first: u32, second: u64 }"),
+        fingerprint("struct Pair { second: u64, first: u32 }")
     );
     assert_ne!(
-        fingerprint("#[version(1)] enum State: u8 { First = 0, Second = 1 }"),
-        fingerprint("#[version(1)] enum State: u8 { Second = 1, First = 0 }")
+        fingerprint("enum State: u8 { First = 0, Second = 1 }"),
+        fingerprint("enum State: u8 { Second = 1, First = 0 }")
     );
     assert_ne!(
-        fingerprint("#[version(1)] interface IService { fn first(&self) -> Result<()>; fn second(&self) -> Result<()>; }"),
-        fingerprint("#[version(1)] interface IService { fn second(&self) -> Result<()>; fn first(&self) -> Result<()>; }")
+        fingerprint("interface IService { fn first(&self) -> Result<()>; fn second(&self) -> Result<()>; }"),
+        fingerprint("interface IService { fn second(&self) -> Result<()>; fn first(&self) -> Result<()>; }")
     );
     assert_ne!(
-        fingerprint("#[version(1)] interface IService { fn call(&self, first: u32, second: u64) -> Result<()>; }"),
-        fingerprint("#[version(1)] interface IService { fn call(&self, second: u64, first: u32) -> Result<()>; }")
+        fingerprint("interface IService { fn call(&self, first: u32, second: u64) -> Result<()>; }"),
+        fingerprint("interface IService { fn call(&self, second: u64, first: u32) -> Result<()>; }")
     );
     assert_ne!(
-        fingerprint("#[version(1)] interface IFirst {} #[version(1)] interface ISecond {} #[version(1)] interface IService: IFirst + ISecond {}"),
-        fingerprint("#[version(1)] interface IFirst {} #[version(1)] interface ISecond {} #[version(1)] interface IService: ISecond + IFirst {}")
+        fingerprint("interface IFirst {} interface ISecond {} interface IService: IFirst + ISecond {}"),
+        fingerprint("interface IFirst {} interface ISecond {} interface IService: ISecond + IFirst {}")
     );
 }
 
@@ -217,16 +203,8 @@ fn fingerprints_member_order() {
 /// the identity of individual types within that module.
 #[test]
 fn declaration_signatures_are_typed_and_revision_scoped() {
-    let first = resolve_modules(vec![module(
-        "example/contract.ncidl",
-        "#[version(1)] struct Left { value: u32 } #[version(1)] struct Right { value: u32 }",
-    )])
-    .unwrap();
-    let revised = resolve_modules(vec![module(
-        "example/contract.ncidl",
-        "#[version(1)] struct Left { value: u64 } #[version(1)] struct Right { value: u32 }",
-    )])
-    .unwrap();
+    let first = resolve_modules(vec![module("example/contract.ncidl", "struct Left { value: u32 } struct Right { value: u32 }")]).unwrap();
+    let revised = resolve_modules(vec![module("example/contract.ncidl", "struct Left { value: u64 } struct Right { value: u32 }")]).unwrap();
     let first = first.module("example.contract").unwrap();
     let revised = revised.module("example.contract").unwrap();
 
@@ -250,10 +228,8 @@ fn rejects_ambiguous_object_parameter_ownership() {
     let source = module(
         "neocogi/ui.ncidl",
         r#"
-            #[version(1)]
             interface Button {}
 
-            #[version(1)]
             interface UiFactory {
                 fn adopt(&self, button: Button) -> Result<()>;
             }
@@ -271,7 +247,6 @@ fn rejects_contract_dependency_cycles() {
         r#"
             extern example.second;
             use example.second::Second;
-            #[version(1)]
             struct First { second: Second }
         "#,
     );
@@ -280,7 +255,6 @@ fn rejects_contract_dependency_cycles() {
         r#"
             extern example.first;
             use example.first::First;
-            #[version(1)]
             struct Second { first: First }
         "#,
     );
@@ -296,12 +270,11 @@ fn fingerprints_exact_dependency_revisions() {
         r#"
             extern neocogi.render;
             use neocogi.render::Size;
-            #[version(1)]
             struct WidgetOptions { size: Size }
         "#,
     );
-    let render_v1 = module("neocogi/render.ncidl", "#[version(1)] struct Size { width: u32 }");
-    let render_v2 = module("neocogi/render.ncidl", "#[version(1)] struct Size { width: u32, height: u32 }");
+    let render_v1 = module("neocogi/render.ncidl", "struct Size { width: u32 }");
+    let render_v2 = module("neocogi/render.ncidl", "struct Size { width: u32, height: u32 }");
 
     let first = resolve_modules(vec![ui.clone(), render_v1]).unwrap();
     let second = resolve_modules(vec![ui, render_v2]).unwrap();
@@ -314,8 +287,8 @@ fn fingerprints_exact_dependency_revisions() {
 /// Confirms caller file discovery order is not an ABI input.
 #[test]
 fn ignores_module_input_order_in_fingerprints() {
-    let geometry = module("example/geometry.ncidl", "#[version(1)] struct Point { x: f32, y: f32 }");
-    let paint = module("example/paint.ncidl", "#[version(1)] struct Color { rgba: u32 }");
+    let geometry = module("example/geometry.ncidl", "struct Point { x: f32, y: f32 }");
+    let paint = module("example/paint.ncidl", "struct Color { rgba: u32 }");
     let canvas = module(
         "example/canvas.ncidl",
         r#"
@@ -323,7 +296,7 @@ fn ignores_module_input_order_in_fingerprints() {
             extern example.paint;
             use example.paint::Color;
             use example.geometry::Point;
-            #[version(1)] struct Vertex { point: Point, color: Color }
+            struct Vertex { point: Point, color: Color }
         "#,
     );
 
@@ -340,11 +313,11 @@ fn ignores_module_input_order_in_fingerprints() {
 fn rejects_cross_module_identity_collisions() {
     let first = module(
         "example/first.ncidl",
-        r#"#[id(1, "9be73186-f123-47bc-8140-4a57825eeb21")] struct First { value: u32 }"#,
+        r#"#[id("9be73186-f123-47bc-8140-4a57825eeb21")] struct First { value: u32 }"#,
     );
     let second = module(
         "example/second.ncidl",
-        r#"#[id(1, "9be73186-f123-47bc-8140-4a57825eeb21")] struct Second { value: u32 }"#,
+        r#"#[id("9be73186-f123-47bc-8140-4a57825eeb21")] struct Second { value: u32 }"#,
     );
 
     let error = resolve_modules(vec![first, second]).unwrap_err();
@@ -355,11 +328,11 @@ fn rejects_cross_module_identity_collisions() {
 /// the later value.
 #[test]
 fn reports_both_locations_for_duplicate_enum_discriminants() {
-    let source = module("neocogi/ui.ncidl", "#[version(1)]\nenum State: u8 {\n    Ready = 1,\n    Running = 1,\n}");
+    let source = module("neocogi/ui.ncidl", "enum State: u8 {\n    Ready = 1,\n    Running = 1,\n}");
     let error = resolve_modules(vec![source]).unwrap_err().to_string();
 
     assert!(error.contains("error[EIDL046]: enum State variant Running repeats discriminant 1"), "{error}");
-    assert!(error.contains("neocogi/ui.ncidl:4:5"), "{error}");
+    assert!(error.contains("neocogi/ui.ncidl:2:5"), "{error}");
     assert!(error.contains("neocogi/ui.ncidl:3:5"), "{error}");
     assert!(error.contains("discriminant first assigned here"), "{error}");
 }
@@ -371,11 +344,11 @@ fn reports_definition_for_mismatched_field_type() {
     let parts = [
         ModuleSource {
             path: Path::new("neocogi/ui/rendering.ncidl"),
-            text: "#[version(1)] interface ITexture {}",
+            text: "interface ITexture {}",
         },
         ModuleSource {
             path: Path::new("neocogi/ui/assets.ncidl"),
-            text: "#[version(1)] interface Asset { fn take(&self, texture: ITexture) -> Result<()>; }",
+            text: "interface Asset { fn take(&self, texture: ITexture) -> Result<()>; }",
         },
     ];
     let source = parse_module_parts(Path::new("neocogi/ui"), &parts).unwrap();
@@ -383,7 +356,7 @@ fn reports_definition_for_mismatched_field_type() {
 
     assert!(error.contains("must borrow interface values"), "{error}");
     assert!(error.contains("neocogi/ui/assets.ncidl:1:"), "{error}");
-    assert!(error.contains("neocogi/ui/rendering.ncidl:1:25"), "{error}");
+    assert!(error.contains("neocogi/ui/rendering.ncidl:1:11"), "{error}");
     assert!(error.contains("interface values require an explicit borrow"), "{error}");
     assert!(error.contains("borrow the object type"), "{error}");
 }
@@ -392,8 +365,8 @@ fn reports_definition_for_mismatched_field_type() {
 /// same semantic diagnostic text.
 #[test]
 fn semantic_diagnostics_are_independent_of_input_order() {
-    let first = module("example/first.ncidl", "#[version(1)] struct Value { missing: Missing }");
-    let second = module("example/second.ncidl", "#[version(1)] struct Other { value: u32 }");
+    let first = module("example/first.ncidl", "struct Value { missing: Missing }");
+    let second = module("example/second.ncidl", "struct Other { value: u32 }");
 
     let forward = resolve_modules(vec![first.clone(), second.clone()]).unwrap_err().to_string();
     let reverse = resolve_modules(vec![second, first]).unwrap_err().to_string();
@@ -409,8 +382,8 @@ fn collects_independent_type_errors() {
     let source = module(
         "example/errors.ncidl",
         r#"
-            #[version(1)] struct Alpha { missing: Missing }
-            #[version(1)] struct Beta { text: &str }
+            struct Alpha { missing: Missing }
+            struct Beta { text: &str }
         "#,
     );
     let error = resolve_modules(vec![source]).unwrap_err();
@@ -432,8 +405,8 @@ fn rejects_recursive_value_layouts() {
     let source = module(
         "example/recursive.ncidl",
         r#"
-            #[version(1)] struct First { second: Option<Second> }
-            #[version(1)] struct Second { first: First }
+            struct First { second: Option<Second> }
+            struct Second { first: First }
         "#,
     );
     let error = resolve_modules(vec![source]).unwrap_err().to_string();
@@ -452,14 +425,13 @@ fn preserves_explicit_identity_without_rewriting_names() {
     let source = module(
         "neocogi/ui.ncidl",
         r#"
-            #[id(7, "9be73186-f123-47bc-8140-4a57825eeb21")]
+            #[id("9be73186-f123-47bc-8140-4a57825eeb21")]
             interface IWidget {}
         "#,
     );
     let modules = resolve_modules(vec![source]).unwrap();
     let identity = modules.module("neocogi.ui").unwrap().declaration("IWidget").unwrap();
     assert_eq!(identity.qualified_name, "neocogi.ui.IWidget");
-    assert_eq!(identity.version, 7);
     assert_eq!(identity.id.to_string(), "9be73186-f123-47bc-8140-4a57825eeb21");
 }
 
@@ -469,7 +441,6 @@ fn rejects_sparse_dense_enums() {
     let source = module(
         "neocogi/ui.ncidl",
         r#"
-            #[version(1)]
             #[dense]
             enum Direction: u8 { Horizontal = 0, Vertical = 2 }
         "#,
@@ -484,7 +455,6 @@ fn rejects_payload_dense_enums() {
     let source = module(
         "neocogi/ui.ncidl",
         r#"
-            #[version(1)]
             #[dense]
             enum Event: u8 { Idle, Pointer(i32, i32) }
         "#,
@@ -499,7 +469,6 @@ fn rejects_named_non_dense_enums() {
     let source = module(
         "neocogi/ui.ncidl",
         r#"
-            #[version(1)]
             #[names(snake_case)]
             enum Direction: u8 { Horizontal, Vertical }
         "#,
@@ -511,11 +480,11 @@ fn rejects_named_non_dense_enums() {
 /// Confirms bit patterns fit their selected storage and remain unambiguous.
 #[test]
 fn rejects_invalid_bit_enum_values() {
-    let overflow = module("neocogi/ui.ncidl", "#[version(1)] bitenum WindowOptions: u8 { NONE = 0, OVERFLOW = 256 }");
+    let overflow = module("neocogi/ui.ncidl", "bitenum WindowOptions: u8 { NONE = 0, OVERFLOW = 256 }");
     let error = resolve_modules(vec![overflow]).unwrap_err();
     assert!(error.to_string().contains("value 256 does not fit"));
 
-    let duplicate = module("neocogi/ui.ncidl", "#[version(1)] bitenum WindowOptions: u16 { FIRST = 1, SECOND = 1 }");
+    let duplicate = module("neocogi/ui.ncidl", "bitenum WindowOptions: u16 { FIRST = 1, SECOND = 1 }");
     let error = resolve_modules(vec![duplicate]).unwrap_err();
     assert!(error.to_string().contains("repeats value 1"));
 }
@@ -523,10 +492,10 @@ fn rejects_invalid_bit_enum_values() {
 /// Common interfaces preserve thread-safety promises in signatures.
 #[test]
 fn interface_threading_is_a_contract_identity_input() {
-    // Keep the nominal name/version equal so only the threading capability differs.
+    // Keep the nominal name equal so only the threading capability differs.
     let fingerprint = |source: &str| resolve_modules(vec![module("example/contract.ncidl", source)]).unwrap().modules()[0].abi_fingerprint;
-    let ordinary = fingerprint("#[version(1)] interface Root {}");
-    let shared = fingerprint("#[version(1)] #[threading(shared)] interface Root {}");
+    let ordinary = fingerprint("interface Root {}");
+    let shared = fingerprint("#[threading(shared)] interface Root {}");
     assert_ne!(ordinary, shared);
 }
 
@@ -534,13 +503,10 @@ fn interface_threading_is_a_contract_identity_input() {
 #[test]
 fn rejects_recursive_and_weakened_required_interfaces() {
     for (source, diagnostic) in [
-        ("#[version(1)] interface Root: Root {}", "recursive interface projections"),
+        ("interface Root: Root {}", "recursive interface projections"),
+        ("interface Root: Child {} interface Child: Root {}", "recursive interface projections"),
         (
-            "#[version(1)] interface Root: Child {} #[version(1)] interface Child: Root {}",
-            "recursive interface projections",
-        ),
-        (
-            "#[version(1)] #[threading(shared)] interface Shared {} #[version(1)] interface Local: Shared {}",
+            "#[threading(shared)] interface Shared {} interface Local: Shared {}",
             "cannot weaken the shared threading promise",
         ),
     ] {
@@ -554,7 +520,7 @@ fn rejects_recursive_and_weakened_required_interfaces() {
 fn reserves_all_visible_macro_companions() {
     for suffix in ["Abi", "VTable", "VtblFor", "Client"] {
         let name = format!("IFoo{suffix}");
-        let source = format!("#[version(1)] interface IFoo {{}} #[version(1)] struct {name} {{ value: u32 }}");
+        let source = format!("interface IFoo {{}} struct {name} {{ value: u32 }}");
         let error = resolve_modules(vec![module("example/interfaces.ncidl", &source)]).unwrap_err().to_string();
         assert!(error.contains("error[EIDL021]") && error.contains(&name), "{error}");
     }
@@ -563,9 +529,9 @@ fn reserves_all_visible_macro_companions() {
         let name = format!("Editor{suffix}");
         let source = format!(
             r#"
-                #[version(1)] enum EditorEvent {{ Changed }}
-                #[version(1)] interface Editor {{ fn post(&mut self, event: &EditorEvent) -> Result<()>; }}
-                #[version(1)] struct {name} {{ value: u32 }}
+                enum EditorEvent {{ Changed }}
+                interface Editor {{ fn post(&mut self, event: &EditorEvent) -> Result<()>; }}
+                struct {name} {{ value: u32 }}
             "#
         );
         let error = resolve_modules(vec![module("example/observers.ncidl", &source)]).unwrap_err().to_string();
@@ -576,11 +542,11 @@ fn reserves_all_visible_macro_companions() {
     // available to authored values; only internal checked wire helpers remain.
     for payload in ["u32", "String"] {
         let source = format!(
-            "#[version(1)] enum Choice {{ Selected({payload}) }}
-             #[version(1)] struct ChoiceAbi {{ value: u32 }}
-             #[version(1)] struct ChoiceTag {{ value: u32 }}
-             #[version(1)] struct ChoicePayload {{ value: u32 }}
-             #[version(1)] struct ChoiceSelectedPayload {{ value: u32 }}"
+            "enum Choice {{ Selected({payload}) }}
+             struct ChoiceAbi {{ value: u32 }}
+             struct ChoiceTag {{ value: u32 }}
+             struct ChoicePayload {{ value: u32 }}
+             struct ChoiceSelectedPayload {{ value: u32 }}"
         );
         resolve_modules(vec![module("example/values.ncidl", &source)]).unwrap();
     }
@@ -590,8 +556,8 @@ fn reserves_all_visible_macro_companions() {
     let owned_message = module(
         "example/owned_messages.ncidl",
         r#"
-            #[version(1)] enum Choice { Selected(String) }
-            #[version(1)] struct ChoiceAbi { value: u32 }
+            enum Choice { Selected(String) }
+            struct ChoiceAbi { value: u32 }
         "#,
     );
     let graph = resolve_modules(vec![owned_message]).unwrap();
@@ -603,18 +569,15 @@ fn reserves_all_visible_macro_companions() {
 /// Generated ABI and output companions share a Rust namespace with authored and imported names.
 #[test]
 fn rejects_generated_rust_name_collisions_before_emission() {
-    let local = module(
-        "example/local.ncidl",
-        "#[version(1)] interface IFoo {} #[version(1)] struct IFooAbi { value: u32 }",
-    );
+    let local = module("example/local.ncidl", "interface IFoo {} struct IFooAbi { value: u32 }");
     let error = resolve_modules(vec![local]).unwrap_err().to_string();
     assert!(error.contains("error[EIDL021]"), "{error}");
     assert!(error.contains("IFooAbi"), "{error}");
 
-    let origin = module("example/origin.ncidl", "#[version(1)] struct IFooAbi { value: u32 }");
+    let origin = module("example/origin.ncidl", "struct IFooAbi { value: u32 }");
     let consumer = module(
         "example/consumer.ncidl",
-        "extern example.origin; use example.origin::IFooAbi; #[version(1)] interface IFoo {}",
+        "extern example.origin; use example.origin::IFooAbi; interface IFoo {}",
     );
     let error = resolve_modules(vec![origin, consumer]).unwrap_err().to_string();
     assert!(error.contains("error[EIDL021]"), "{error}");
@@ -628,7 +591,7 @@ fn dense_member_conflicts_are_source_aware_and_policy_specific() {
         for name in ["COUNT", "ALL", "NAMES"] {
             for named in [false, true] {
                 let policy = if named { "#[names(snake_case)]" } else { "" };
-                let source = format!("#[version(1)] #[dense] {policy} enum Choice{generic}: u8 {{ {name} = 0, Ready = 1 }}");
+                let source = format!("#[dense] {policy} enum Choice{generic}: u8 {{ {name} = 0, Ready = 1 }}");
                 let result = resolve_modules(vec![module("proof/dense.ncidl", &source)]);
                 if name == "NAMES" && !named {
                     result.unwrap();
@@ -642,11 +605,7 @@ fn dense_member_conflicts_are_source_aware_and_policy_specific() {
         }
     }
     // An ordinary integer enum has no dense helpers and keeps all three names.
-    resolve_modules(vec![module(
-        "proof/plain.ncidl",
-        "#[version(1)] enum Choice: u8 { COUNT = 0, ALL = 1, NAMES = 2 }",
-    )])
-    .unwrap();
+    resolve_modules(vec![module("proof/plain.ncidl", "enum Choice: u8 { COUNT = 0, ALL = 1, NAMES = 2 }")]).unwrap();
 }
 
 /// Imported interface families reserve every public name at the actual use
@@ -656,12 +615,12 @@ fn imported_interface_companions_have_source_aware_collision_admission() {
     for kind in neocogi_com_core::NcComInterfaceCompanion::ALL {
         let name = format!("IBase{}", kind.suffix());
         for separate_import in [false, true] {
-            let base = module("proof/base.ncidl", "#[version(1)] interface IBase {}");
-            let a = "extern proof.base; use proof.base::IBase; #[version(1)] struct Anchor { value: u32 }";
+            let base = module("proof/base.ncidl", "interface IBase {}");
+            let a = "extern proof.base; use proof.base::IBase; struct Anchor { value: u32 }";
             let z = if separate_import {
                 format!("extern proof.other; use proof.other::{name};")
             } else {
-                format!("#[version(1)] struct {name} {{ value: u32 }}")
+                format!("struct {name} {{ value: u32 }}")
             };
             let consumer = parse_module_parts(
                 Path::new("proof/consumer"),
@@ -679,7 +638,7 @@ fn imported_interface_companions_have_source_aware_collision_admission() {
             .unwrap();
             let mut modules = vec![base, consumer];
             if separate_import {
-                modules.push(module("proof/other.ncidl", &format!("#[version(1)] struct {name} {{ value: u32 }}")));
+                modules.push(module("proof/other.ncidl", &format!("struct {name} {{ value: u32 }}")));
             }
             let error = resolve_modules(modules).unwrap_err();
             let neocogi_idl::ModuleGraphError::Resolution(error) = error else {
@@ -720,14 +679,12 @@ fn value_and_open_interface_imports_do_not_acquire_phantom_companions() {
     for consumed in [false, true] {
         let owner = module(
             "proof/owner.ncidl",
-            "#[version(1)] struct Value { value: u32 } #[version(1)] interface Template<T> { fn echo(&self, value: T) -> Result<T>; }",
+            "struct Value { value: u32 } interface Template<T> { fn echo(&self, value: T) -> Result<T>; }",
         );
-        let usage = if consumed { "#[version(1)] interface User: Template<u32> {}" } else { "" };
+        let usage = if consumed { "interface User: Template<u32> {}" } else { "" };
         let consumer = module(
             "proof/consumer.ncidl",
-            &format!(
-                "extern proof.owner; use proof.owner::{{Value, Template}}; #[version(1)] struct ValueAbi {{ value: u32 }} #[version(1)] struct TemplateAbi {{ value: u32 }} {usage}"
-            ),
+            &format!("extern proof.owner; use proof.owner::{{Value, Template}}; struct ValueAbi {{ value: u32 }} struct TemplateAbi {{ value: u32 }} {usage}"),
         );
         let graph = resolve_modules(vec![owner, consumer]).unwrap();
         let file: syn::File = syn::parse_str(&neocogi_idl::generate_rust(&graph, "proof.consumer").unwrap()).unwrap();

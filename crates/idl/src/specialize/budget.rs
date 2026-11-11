@@ -266,7 +266,7 @@ impl Budget {
             span: source,
             docs,
             name,
-            id: _,
+            explicit_id: _,
             parameters,
             specialization,
             kind,

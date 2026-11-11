@@ -24,15 +24,6 @@ pub struct Import {
     pub name: String,
 }
 
-/// Version and optional explicitly assigned identity for one declaration.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct DeclarationId {
-    /// Positive author-controlled declaration version.
-    pub version: u32,
-    /// Canonical UUID bytes when `#[id]` overrides derived identity.
-    pub explicit: Option<NcGuid>,
-}
-
 /// One source declaration together with its stable identity inputs.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Declaration {
@@ -42,8 +33,9 @@ pub struct Declaration {
     pub docs: Vec<String>,
     /// Identifier exactly as declared in source.
     pub name: String,
-    /// Version and optional explicit UUID parsed from attributes.
-    pub id: DeclarationId,
+    /// Authored UUID override; absence derives identity from the qualified name.
+    /// Closed specializations store their template/argument-derived UUID here.
+    pub explicit_id: Option<NcGuid>,
     /// Ordered parameters of a struct, enum, or interface template; empty after specialization.
     pub parameters: Vec<String>,
     /// Canonical origin of an instantiated declaration template, when applicable.

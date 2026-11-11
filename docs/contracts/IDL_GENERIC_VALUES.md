@@ -45,7 +45,6 @@ interface projection as `WeakComPtr<I>` across the ABI.
 The compiler ships [this ordinary declaration](../../crates/idl/stdlib/neocogi/lang.ncidl):
 
 ```rust
-#[version(1)]
 enum Option<T> {
     None,
     Some(T),
@@ -88,7 +87,6 @@ flowchart TD
 ## Copied and owned optional values
 
 ```rust
-#[version(1)]
 interface IExample {
     fn exchange(&mut self, value: Option<u32>) -> Result<Option<u32>>;
     fn inspect_text(&self, value: &Option<String>) -> Result<()>;
@@ -135,13 +133,11 @@ fingerprints. They are compiled separately, not placed together in one module:
 
 ```rust
 // Before
-#[version(1)]
 struct Pair<T, U> { first: T, second: U }
 ```
 
 ```rust
-// After: same module, declaration name, version and dependency revisions
-#[version(1)]
+// After: same module, declaration name and dependency revisions
 struct Pair<Left, Right> { first: Left, second: Right }
 ```
 
@@ -161,13 +157,11 @@ when a template also declares an unqualified parameter named `T`.
 | Change an unrelated declaration in the defining module | Still changes the module revision and dependent signatures |
 | Change Rust output paths or parameter source locations | Does not enter the canonical contract identity |
 
-The table distinguishes which information participates in hashing. Observing a
-changed signature with an unchanged declaration ID does not authorize retaining
-the old version after a contract edit. Contract changes require a declaration
-version increment under the [versioning rule](IDL_MODULES.md#contract-changes-and-versions);
-the parameter-binder rename above is an explicit exception because the binding
-positions and uses are unchanged. An ordinary version increment changes the
-template's nominal ID and consequently its closed nominal IDs as well.
+The table distinguishes nominal identity from exact compatibility. Contract
+changes automatically produce different signatures under the
+[contract-change rule](IDL_MODULES.md#contract-changes). Parameter-binder renames
+preserve signatures because their binding positions and uses are unchanged.
+Semantic distinctions that the IDL does not express require distinct named types.
 
 Templates and concrete declarations share the
 [canonical binary declaration encoder](IDL_MODULES.md#canonical-signatures);
@@ -183,9 +177,8 @@ remain source-level validation errors rather than internal fingerprint failures.
 
 Both integer-enum paths encode whether a value was explicitly assigned, as well
 as its resolved integer. An implicit-to-explicit edit therefore changes the
-fingerprint even if an author mistakenly retains the version. The author must
-still increment the declaration version; no historical release comparison is
-performed. Payload enums reject all explicit assignments before specialization.
+fingerprint even when every resolved integer remains unchanged. No manual
+declaration version or historical release comparison is required. Payload enums reject all explicit assignments before specialization.
 Authored persistent-format, dense-domain and naming policies use the same explicit tags
 for templates and concrete declarations. Matching physical layouts never erase
 these contract distinctions.
@@ -205,7 +198,6 @@ COM negotiation must reject its revision with `NC_E_ABI_VERSION`.
 `Option<Node>` stores its selected payload inline. Therefore this is invalid:
 
 ```rust
-#[version(1)]
 struct Node { child: Option<Node> }
 ```
 
@@ -240,7 +232,7 @@ Rust `Default` for an omitted trailing suffix. Every NCB record already reads an
 writes fields positionally; `#[persistence(sequence)]` is rejected. The default
 policy requires supported fields or IDL reports `EIDL064` at the field/closed use.
 It applies only to records and enters the common contract fingerprint. Changing
-an authored persistence policy requires a declaration version increment.
+an authored persistence policy changes the exact signature automatically.
 
 These implementations are ordinary static Rust traits, not COM object classes,
 vtables or factories. Automatic codec generation does not alter value ownership.

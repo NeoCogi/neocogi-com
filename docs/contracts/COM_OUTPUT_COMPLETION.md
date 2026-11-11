@@ -5,7 +5,7 @@ A generated call accepting `ComBox` inputs must finish resource preparation
 all original owners; success consumes them. Generated completion cannot retrieve
 an owner already stored in an arbitrary application field.
 
-[ABI v1](../abi-v1.md) retains that transaction boundary and
+[development ABI](../abi-v2.md) retains that transaction boundary and
 replaces the old bidirectional writable buffer with fresh output. IDL and
 IDL method/value plans share one typed backend and checked value codecs.
 Persistence serialization is a separate protocol, not part of these getters.
@@ -13,7 +13,7 @@ Persistence serialization is a separate protocol, not part of these getters.
 ## Example
 
 ```rust,ignore
-#[version(1)] interface IContainer {
+interface IContainer {
     fn accept(&mut self, item: ComBox<IItem>, flags: &mut [bool]) -> Result<()>;
 }
 ```

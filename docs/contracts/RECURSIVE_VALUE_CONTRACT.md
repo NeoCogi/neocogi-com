@@ -14,7 +14,7 @@ alive. It can be stored recursively in borrowed aggregates or returned directly;
 its wire is `NcWeakRaw`. Acquisition validates shared ownership and the exact
 interface, then retains a weak token without promotion. Expired tokens remain
 valid transport values. Weak fields have distinct design metadata and do not
-acquire copied-buffer or persistence capability. See [ABI v1](../abi-v1.md#shared-weak-result-and-value-transport).
+acquire copied-buffer or persistence capability. See [development ABI](../abi-v2.md#shared-weak-result-and-value-transport).
 
 A value consists of scalar leaves or recursively composed aggregates: records,
 tagged enum alternatives, fixed arrays, and sequences. `Option<T>` is a bundled
@@ -221,13 +221,10 @@ an explicit `ComPtr<I>` constructor. There are no implicit boxes, erased generic
 values, or runtime generic vtables.
 
 ```rust
-#[version(1)]
 struct Handle<I> { value: ComPtr<I> }
 
-#[version(1)]
 struct Node<T> { value: T, children: Vec<Node<T>> }
 
-#[version(1)]
 struct ApplicationData {
     object: Handle<IUnknown>, // Transport is valid; automatic restoration is not.
     tree: Node<String>,      // Transport and both persistence traits are supported.
@@ -264,8 +261,8 @@ contract crate. Present malformed fields remain errors and encoding still writes
 every field. The compiler proves that every field supports both directions for
 the explicit record-only default policy, or reports `EIDL064`
 before generation. Handwritten Rust implementations cannot silently override the
-IDL capability proof. Authored policy changes require version increments
-and participate in the shared template/concrete fingerprint.
+IDL capability proof. Authored policy changes participate in the shared template/concrete fingerprint
+and change exact compatibility automatically.
 
 ```mermaid
 flowchart TD
@@ -364,15 +361,13 @@ that claims ownership has been restored.
 External native adapters must explicitly implement the generated contract's
 checked wire semantics. Native C layout alone does not prove restricted field
 validity. IDL owns no native packing, alignment, or external-field mode. See the
-[current ABI entrypoint](../abi-v1.md) for binary versions.
+[current ABI entrypoint](../abi-v2.md) for binary versions.
 
 ## Current IDL spelling and supported use sites
 
 ```rust
-#[version(1)]
 struct Flags { enabled: bool }
 
-#[version(1)]
 struct Node {
     flags: Flags,
     children: Vec<Node>, // Explicit owned indirection in both IDL and Rust.
@@ -380,7 +375,6 @@ struct Node {
     mask: [bool; 3],
 }
 
-#[version(1)]
 interface ITreeSink {
     fn accept(&mut self, value: &Node) -> Result<()>;
 }
@@ -398,7 +392,7 @@ text, or COM references use the borrowed named-value form. Owning aggregate
 returns remain rejected; a fixed array is eligible exactly when its element is.
 
 An application declares ordinary interfaces for message delivery and commands.
-The owning [IDL reference](IDL_MODULES.md#contract-changes-and-versions)
+The owning [IDL reference](IDL_MODULES.md#contract-changes)
 tracks the current canonical encoding independently of the core ABI.
 
 ## COM inspection graph
@@ -410,7 +404,7 @@ exact tag. An interface's `IDL_INTERFACE.values` contains the definitions reache
 through its ordinary methods and required projections. Object references remain
 capabilities; their additional methods have separate interface metadata.
 
-The runtime's [plugin inspection](../abi-v1.md#runtime-and-global-registry)
+The runtime's [plugin inspection](../abi-v2.md#runtime-and-global-registry)
 reads plugin and root-factory descriptors. Source-level value definitions remain
 local static metadata. An application that transports an introspection graph
 must define its own COM contract and validate the received graph.

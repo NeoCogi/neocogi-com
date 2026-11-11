@@ -5,7 +5,8 @@ through an explicit C-shaped ABI. Rust-like IDL is the source of public contract
 truth; generated COM interfaces carry calls, and plugins expose one typed root
 factory.
 
-The [current COM contract](abi-v1.md) is experimental and may change before ratification.
+The [0.2.0 development COM contract](abi-v2.md) is in progress; discovery remains
+ABI v1 until ABI v2 is selected for release.
 
 ## Component model
 
@@ -28,7 +29,7 @@ plugin as a shared library and as an rlib statically linked into a monolith.
 
 See [IDL contract modules](contracts/IDL_MODULES.md) for authoring and native
 builds, [component design](architecture/COM_DESIGN.md) for responsibility
-boundaries, and [the current ABI specification](abi-v1.md) for the binary model.
+boundaries, and [the current ABI specification](abi-v2.md) for the binary model.
 
 ## Hosts, callers and providers
 
@@ -128,23 +129,19 @@ declarations and members are public by definition:
 
 <!-- checked-example: idl -->
 ```ncidl
-#[version(1)]
 struct Extent {
     width: u32,
     height: u32,
 }
 
-#[version(1)]
 interface IMeasured {
     fn extent(&self) -> Result<Extent>;
 }
 
-#[version(1)]
 interface ExampleObject: IMeasured {
     fn resize(&mut self, extent: Extent) -> Result<()>;
 }
 
-#[version(1)]
 interface ExampleFactory {
     fn create(&self, extent: Extent) -> Result<ComPtr<ExampleObject>>;
 }
@@ -152,7 +149,8 @@ interface ExampleFactory {
 
 The file path supplies the dotted module name. Declaration names preserve exact
 casing, so `IWidget` in `neocogi/ui.ncidl` is `neocogi.ui.IWidget`.
-`#[version(N)]` derives identity; `#[id(N, "UUID")]` supplies an explicit one.
+Qualified names derive nominal identity without attributes; `#[id("UUID")]`
+supplies an explicit one. Exact SHA-256 signatures detect contract changes.
 An enum may select `u8`, `u16`, `u32`, `i8`, `i16`, or `i32` after its name;
 the default is `u32`.
 
@@ -294,7 +292,7 @@ Runtime ABI v1 has one complete plugin-operation table, plus debug and
 caller-scoped persistence tables. Lookup and enumeration return the same complete
 plugin description, including its factory contract and dependency GUIDs. Loading returns the plugin GUID; inspection
 reports its first static/dynamic origin. Separate module identities and module
-queries were removed. See [the runtime contract](abi-v1.md#runtime-and-global-registry).
+queries were removed. See [the runtime contract](abi-v2.md#runtime-and-global-registry).
 Acquisition checks the exact factory signature before bootstrap. Unconnected
 contract revisions can coexist; incompatible pointer transfers are rejected.
 `neocogi-inspect` emits schema 9 with plugin/dependency/root-factory metadata,
@@ -375,7 +373,7 @@ objects through a typed factory and reconnects its application-defined observer.
 
 ## Executed compatibility checks
 
-The [compatibility matrix](abi-v1.md#independent-build-compatibility) defines independent host/runtime and
+The [compatibility matrix](abi-v2.md#independent-build-compatibility) defines independent host/runtime and
 provider builds, mixed compiler/profile policies, relocated execution,
 and the separate Miri/sanitizer checks. One unpublished Rust
 [`xtask`](../tools/xtask/README.md) owns these checks on Linux, macOS and Windows;

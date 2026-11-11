@@ -1,5 +1,4 @@
 /// Optional capability implemented by the example class.
-#[version(2)]
 interface IMeasured {
     /// Returns the current copied dimensions.
     fn extent(&self) -> Result<Extent>;
@@ -8,21 +7,18 @@ interface IMeasured {
 }
 
 /// Public object shape constructed only by `ExampleFactory`.
-#[version(2)]
 interface ExampleObject: IMeasured {
     /// Replaces the dimensions using an exclusive implementation borrow.
     fn resize(&mut self, extent: Extent) -> Result<()>;
 }
 
 /// Typed construction surface for the example object.
-#[version(2)]
 interface ExampleFactory {
     /// Creates one initialized example object.
     fn create(&self, extent: Extent, events: &ExtentBinding) -> Result<ComPtr<ExampleObject>>;
 }
 
 /// Opaque composition exposes only its mountable root, never internal controls.
-#[version(1)]
 interface ICompositionRoot {
     /// Returns the root capability for a host-specific mount operation.
     fn take_root(&mut self) -> Result<ComBox<IUnknown>>;
@@ -31,7 +27,6 @@ interface ICompositionRoot {
 }
 
 /// Domain-specific observer; COM gives this interface no event semantics.
-#[version(1)]
 interface IExtentObserver {
     /// Captures an immutable extent and a non-owning producer identity.
     fn changed(&mut self, notification: &ExtentNotification) -> Result<()>;

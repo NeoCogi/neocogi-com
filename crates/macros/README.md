@@ -144,4 +144,4 @@ Executable package tests own their fixtures and ask Cargo for the actual core
 and facade package locations. They also run against extracted SDK archives;
 `cargo xtask packages` supplies the matching SDK offline and
 checks all shipped test targets. Checkout-only integration suites remain in
-repository CI. See [archive validation](https://github.com/NeoCogi/neocogi-com/blob/v0.1.0/docs/abi-v1.md#published-archive-validation).
+repository CI. See [archive validation](https://github.com/NeoCogi/neocogi-com/blob/0.2.0-wip/docs/abi-v2.md#published-archive-validation).

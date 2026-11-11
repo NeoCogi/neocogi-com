@@ -200,7 +200,7 @@ pub(crate) fn contract(source: &str) -> String {
 /// Concrete generic object binders remain private in both implementation modes.
 #[test]
 fn object_bindings_preserve_owned_generic_state_after_printing() {
-    let bindings = contract("#[version(1)] interface IValue { fn value(&self) -> Result<u32>; fn replace(&mut self, value: u32) -> Result<()>; }");
+    let bindings = contract("interface IValue { fn value(&self) -> Result<u32>; fn replace(&mut self, value: u32) -> Result<()>; }");
     let implementations = r#"
         #[neocogi_com::com_object(interfaces(IValue))]
         struct Object<const value: usize, const contracts: usize, const __nc_initial_value: usize> { saved: u32 }
@@ -275,7 +275,7 @@ fn object_bindings_preserve_owned_generic_state_after_printing() {
 /// path. Both success and failure execute the actual C acquisition adapter.
 #[test]
 fn plugin_implementation_items_have_private_lexical_ownership() {
-    let bindings = contract("#[version(1)] interface IRoot { fn value(&self) -> Result<u32>; }");
+    let bindings = contract("interface IRoot { fn value(&self) -> Result<u32>; }");
     let cases = [false, true].map(|expand| {
         let mut source = String::from("#![allow(dead_code)]\n");
         for (index, identifier) in ["NC_COM_PLUGIN_DESCRIPTOR", "__NC_PROVIDED_GUID", "__NC_DERIVED_GUID", "PROVIDED"]
@@ -578,7 +578,7 @@ impl ValueFamily {
             format!("struct Record {{ value: u32{retained} }}")
         };
         contract(&format!(
-            "#[version(1)] {declaration} #[version(1)] interface IValue {{ fn observe(&self, value: &Record) -> Result<u32>; }}"
+            "{declaration} interface IValue {{ fn observe(&self, value: &Record) -> Result<u32>; }}"
         ))
     }
 
@@ -696,7 +696,7 @@ fn value_support_has_trait_and_lexical_owners_in_normal_and_printed_code() {
 #[test]
 fn authored_wire_names_are_distinct_from_private_wire_definitions() {
     let cases = [false, true].map(|expand| {
-        let first = contract("#[version(1)] struct Wire { value: u32 } #[version(1)] enum Selection: u8 { Wire(Wire), Storage(Wire) }");
+        let first = contract("struct Wire { value: u32 } enum Selection: u8 { Wire(Wire), Storage(Wire) }");
         let second = "";
         (
             format!("printed={expand}"),
@@ -725,9 +725,9 @@ fn authored_wire_names_are_distinct_from_private_wire_definitions() {
 fn core_support_cannot_be_replaced_by_application_traits_or_macros() {
     let cases = [false, true].map(|expand| {
         let declaration = contract(
-            "#[version(1)] enum Tag: u8 { Ready = 1, Other = 3 } \
-             #[version(1)] bitenum Flags: u8 { KNOWN_BITS = 1, WRITABLE = 2 } \
-             #[version(1)] interface IValue { fn echo(&self, value: u32) -> Result<u32>; }",
+            "enum Tag: u8 { Ready = 1, Other = 3 } \
+             bitenum Flags: u8 { KNOWN_BITS = 1, WRITABLE = 2 } \
+             interface IValue { fn echo(&self, value: u32) -> Result<u32>; }",
         );
         let source = format!(
             r#"

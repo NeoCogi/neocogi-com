@@ -24,9 +24,12 @@ The compatibility rule is separate from Cargo versions. Deploy hosts, providers
 and generated bindings from one SDK release. Core generation 18 freezes the
 first public layouts and callback signatures; an incompatible change needs a
 fresh applicable generation before interpreting a full record or invoking code.
-Runtime and descriptor discovery retain family 1. Interface signatures, IDL
+On `0.2.0-wip`, runtime and descriptor discovery retain family 1. At the 0.2.0
+release, select ABI v2 and update the applicable discovery constants, exported
+entrypoints, documentation and admission tests together. This is a release step,
+not part of removing declaration versions. Interface signatures, IDL
 encoding and NCB persistence format have their own authorities in the
-[ABI contract](../abi-v1.md).
+[ABI contract](../abi-v2.md).
 
 Prepare a user-facing changelog entry with features, migration instructions,
 known limits and actual platform results. Keep superseded development entries

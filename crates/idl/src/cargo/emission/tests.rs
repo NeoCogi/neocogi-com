@@ -24,12 +24,8 @@ fn sources(root: &Path, changed: bool) {
     } else {
         ("", "u64")
     };
-    fs::write(
-        root.join("proof/a.ncidl"),
-        format!("{prefix}#[version(1)] struct Ready {{ value: Option<{scalar}> }}"),
-    )
-    .unwrap();
-    fs::write(root.join("proof/z.ncidl"), "#[version(1)] struct Later { value: u32 }").unwrap();
+    fs::write(root.join("proof/a.ncidl"), format!("{prefix}struct Ready {{ value: Option<{scalar}> }}")).unwrap();
+    fs::write(root.join("proof/z.ncidl"), "struct Later { value: u32 }").unwrap();
 }
 
 /// Prepares real source records, paired generator results and graph bytes without writing output.
@@ -167,10 +163,10 @@ fn use_names(tree: &syn::UseTree) -> Vec<String> {
 #[test]
 fn imported_interface_export_inventory_matches_both_actual_surfaces() {
     use std::collections::BTreeSet;
-    let base = crate::parse_module(Path::new("proof/base.ncidl"), "#[version(1)] interface IBase { fn get(&self) -> Result<u32>; }").unwrap();
+    let base = crate::parse_module(Path::new("proof/base.ncidl"), "interface IBase { fn get(&self) -> Result<u32>; }").unwrap();
     let consumer = crate::parse_module(
         Path::new("proof/consumer.ncidl"),
-        "extern proof.base; use proof.base::IBase; #[version(1)] struct Anchor { value: u32 }",
+        "extern proof.base; use proof.base::IBase; struct Anchor { value: u32 }",
     )
     .unwrap();
     let graph = crate::resolve_modules(vec![base, consumer]).unwrap();

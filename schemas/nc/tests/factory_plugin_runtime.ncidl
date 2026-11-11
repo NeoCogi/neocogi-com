@@ -1,4 +1,4 @@
-#[id(1, "5ac178f5-016a-58c6-8f0d-948b92ebb89b")]
+#[id("5ac178f5-016a-58c6-8f0d-948b92ebb89b")]
 #[threading(shared)]
 /// Ordinary service whose state is initialized in Rust.
 interface ServiceRootIService {

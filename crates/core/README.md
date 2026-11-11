@@ -3,7 +3,7 @@
 The C-shaped ABI shared by generated contracts, hosts, plugins, and the process
 runtime. Its default configuration is allocation-free; optional `alloc` helpers
 own decoded values and binary documents. Most authors use the `neocogi-com`
-facade. The [current object ABI](https://github.com/NeoCogi/neocogi-com/blob/v0.1.0/docs/abi-v1.md) remains experimental.
+facade. The [current object ABI](https://github.com/NeoCogi/neocogi-com/blob/0.2.0-wip/docs/abi-v2.md) remains experimental.
 
 Core defines statuses, GUIDs, exact signatures, typed metadata, raw object/table pairs
 and vtables, `IUnknown`, `ComPtr`, and `ComRef`. `ComInterface` owns identity and
@@ -32,9 +32,9 @@ bootstrap function or live factory reference. These records have different roles
 and do not own the storage behind their pointers.
 
 Runtime discovery stays v1, with three tables: complete plugin operations, debug,
-and persistence. See [runtime ABI v1](https://github.com/NeoCogi/neocogi-com/blob/v0.1.0/docs/abi-v1.md#runtime-and-global-registry) for descriptor
+and persistence. See [runtime ABI v1](https://github.com/NeoCogi/neocogi-com/blob/0.2.0-wip/docs/abi-v2.md#runtime-and-global-registry) for descriptor
 lifetimes, inspection and acquisition, and the
-[ABI specification entrypoint](https://github.com/NeoCogi/neocogi-com/blob/v0.1.0/docs/abi-v1.md) for object layouts.
+[ABI specification entrypoint](https://github.com/NeoCogi/neocogi-com/blob/0.2.0-wip/docs/abi-v2.md) for object layouts.
 
 ## Interface safety
 
@@ -269,7 +269,8 @@ the existing C-shaped persistence handles and byte buffers. The removed
 NCB uses declaration order and variant ordinals for derived enum payloads. IDL
 scalar integer enums and flags retain their existing raw-integer persistence;
 this change does not replace those integers with ordinals. Authored contract
-changes follow the [IDL version contract](https://github.com/NeoCogi/neocogi-com/blob/v0.1.0/docs/contracts/IDL_MODULES.md#contract-changes-and-versions).
+changes automatically alter exact signatures under the
+[IDL contract-change rule](https://github.com/NeoCogi/neocogi-com/blob/0.2.0-wip/docs/contracts/IDL_MODULES.md#contract-changes).
 
 This change does not make runtime persistence services optional. They have real
 snapshot/restore consumers. Omitting those services from a deployment is a

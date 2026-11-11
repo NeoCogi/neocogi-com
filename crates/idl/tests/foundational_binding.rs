@@ -12,32 +12,28 @@ fn module(path: &str, source: &str) -> Module {
 fn qualified_local_references_do_not_depend_on_unused_templates() {
     let source = r#"
 
-        #[version(1)] struct Local { value: u32 }
-        #[version(1)] struct Holder { value: proof::binding::Local }
-        #[version(1)] interface IBase { fn read(&self) -> Result<proof::binding::Local>; }
-        #[version(1)] interface Fact { fn value(&self) -> Result<proof::binding::Local>; }
-        #[version(1)] interface Receiver: proof::binding::IBase {
+        struct Local { value: u32 }
+        struct Holder { value: proof::binding::Local }
+        interface IBase { fn read(&self) -> Result<proof::binding::Local>; }
+        interface Fact { fn value(&self) -> Result<proof::binding::Local>; }
+        interface Receiver: proof::binding::IBase {
             fn echo(&self, value: &proof::binding::Holder) -> Result<proof::binding::Local>;
         }
     "#;
-    for unused in ["", "#[version(1)] struct Unused<T> { value: T }"] {
+    for unused in ["", "struct Unused<T> { value: T }"] {
         let graph = resolve_modules(vec![module("proof/binding.ncidl", &format!("{source}\n{unused}"))]).unwrap();
         neocogi_idl::generate_rust(&graph, "proof.binding").unwrap();
     }
-    let error = resolve_modules(vec![module(
-        "proof/binding.ncidl",
-        "extern proof.binding; #[version(1)] struct Local { value:u32 }",
-    )])
-    .unwrap_err();
+    let error = resolve_modules(vec![module("proof/binding.ncidl", "extern proof.binding; struct Local { value:u32 }")]).unwrap_err();
     assert!(error.to_string().contains("cannot depend on itself"));
 }
 
 /// Independent diagnostics keep their classification, source and count across generic use.
 #[test]
 fn independent_name_and_storage_errors_have_one_source_aware_policy() {
-    let source = "#[version(1)] struct Broken { first: Missing, second: Other }\n#[version(1)] struct Borrowed { text: &str }\n";
+    let source = "struct Broken { first: Missing, second: Other }\nstruct Borrowed { text: &str }\n";
     let mut previous = None;
-    for unused in ["", "#[version(1)] struct Unused<T> { value: T }"] {
+    for unused in ["", "struct Unused<T> { value: T }"] {
         let error = resolve_modules(vec![module("proof/errors.ncidl", &format!("{source}{unused}"))]).unwrap_err();
         let neocogi_idl::ModuleGraphError::Resolution(error) = error else {
             panic!("expected semantic diagnostics")
@@ -63,11 +59,11 @@ fn independent_name_and_storage_errors_have_one_source_aware_policy() {
         previous = Some(observed);
     }
     for (reference, expected) in [("missing::module::Local", "EIDL071"), ("proof::other::Local", "EIDL072")] {
-        for unused in ["", "#[version(1)] struct Unused<T> { value:T }"] {
-            let source = format!("#[version(1)] struct Holder {{ value: {reference} }} {unused}");
+        for unused in ["", "struct Unused<T> { value:T }"] {
+            let source = format!("struct Holder {{ value: {reference} }} {unused}");
             let error = resolve_modules(vec![
                 module("proof/errors.ncidl", &source),
-                module("proof/other.ncidl", "#[version(1)] struct Local { value:u32 }"),
+                module("proof/other.ncidl", "struct Local { value:u32 }"),
             ])
             .unwrap_err();
             let neocogi_idl::ModuleGraphError::Resolution(error) = error else {
@@ -82,7 +78,7 @@ fn independent_name_and_storage_errors_have_one_source_aware_policy() {
 #[test]
 fn nil_callable_ids_are_rejected_before_specialization_or_generation() {
     for parameters in ["", "<T>"] {
-        let source = format!("#[id(1, \"00000000-0000-0000-0000-000000000000\")] interface Invalid{parameters} {{}}");
+        let source = format!("#[id(\"00000000-0000-0000-0000-000000000000\")] interface Invalid{parameters} {{}}");
         let error = resolve_modules(vec![module("proof/nil.ncidl", &source)]).unwrap_err();
         let neocogi_idl::ModuleGraphError::Resolution(error) = error else {
             panic!("expected semantic diagnostics")
@@ -94,7 +90,7 @@ fn nil_callable_ids_are_rejected_before_specialization_or_generation() {
     // Nominal value identity remains a separate contract from callable IIDs.
     resolve_modules(vec![module(
         "proof/nil_value.ncidl",
-        "#[id(1, \"00000000-0000-0000-0000-000000000000\")] struct Value { number:u32 }",
+        "#[id(\"00000000-0000-0000-0000-000000000000\")] struct Value { number:u32 }",
     )])
     .unwrap();
 }
@@ -102,27 +98,21 @@ fn nil_callable_ids_are_rejected_before_specialization_or_generation() {
 /// Builds the same genuine provider/consumer graph with optional unrelated projections.
 fn projection_graph(bystander: bool) -> ResolvedModules {
     let mut modules = vec![
-        module(
-            "demo/ext.ncidl",
-            "#[version(1)] struct Inner<T> { value:T } #[version(1)] struct Boxed<T> { nested:Inner<T> }",
-        ),
+        module("demo/ext.ncidl", "struct Inner<T> { value:T } struct Boxed<T> { nested:Inner<T> }"),
         module(
             "demo/mid.ncidl",
             r#"
             extern demo.ext;
-            #[version(1)] interface IBase { fn get(&self) -> Result<demo::ext::Boxed<u32>>; }
-            #[version(1)] interface Fact { fn value(&self) -> Result<demo::ext::Boxed<u32>>; }
+            interface IBase { fn get(&self) -> Result<demo::ext::Boxed<u32>>; }
+            interface Fact { fn value(&self) -> Result<demo::ext::Boxed<u32>>; }
         "#,
         ),
-        module(
-            "demo/leaf.ncidl",
-            "extern demo.mid; #[version(1)] interface IChild: demo::mid::IBase + demo::mid::Fact {}",
-        ),
+        module("demo/leaf.ncidl", "extern demo.mid; interface IChild: demo::mid::IBase + demo::mid::Fact {}"),
     ];
     if bystander {
         modules.push(module(
             "aaa/other.ncidl",
-            "extern demo.ext; #[version(1)] interface Other { fn get(&self) -> Result<demo::ext::Boxed<u32>>; }",
+            "extern demo.ext; interface Other { fn get(&self) -> Result<demo::ext::Boxed<u32>>; }",
         ));
     }
     resolve_modules(modules).unwrap()

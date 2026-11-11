@@ -7,9 +7,9 @@ use neocogi_idl::{ResolvedModules, parse_module, resolve_modules};
 fn graph(arguments: &str) -> ResolvedModules {
     let source = format!(
         r#"
-        #[version(1)] struct Phantom<A,B,C,D,E> {{ data:E }}
-        #[version(1)] struct Shell<T> {{ inner:Phantom<{arguments}> }}
-        #[version(1)] interface Exchange<T> {{ fn accept(&self,value:&Shell<T>)->Result<u32>; }}
+        struct Phantom<A,B,C,D,E> {{ data:E }}
+        struct Shell<T> {{ inner:Phantom<{arguments}> }}
+        interface Exchange<T> {{ fn accept(&self,value:&Shell<T>)->Result<u32>; }}
     "#
     );
     resolve_modules(vec![
@@ -18,7 +18,7 @@ fn graph(arguments: &str) -> ResolvedModules {
             Path::new("proof/consumer.ncidl"),
             r#"
             extern proof.generic;
-            #[version(1)] interface Root:proof::generic::Exchange<u32> {}
+            interface Root:proof::generic::Exchange<u32> {}
         "#,
         )
         .unwrap(),

@@ -93,10 +93,12 @@ fn selected_contracts_execute() {
             for (_, dependency, imported, _) in &packages[..4] {
                 text.push_str(&format!("extern {dependency};\nuse {dependency}::{imported};\n"));
             }
-            text.push_str("#[version(1)] struct Combined { left: Left, right: Right, upper: Upper, lower: Lower }\n#[version(1)] interface Host { fn sum(&self, value: Combined) -> Result<u32>; }\n");
+            text.push_str(
+                "struct Combined { left: Left, right: Right, upper: Upper, lower: Lower }\ninterface Host { fn sum(&self, value: Combined) -> Result<u32>; }\n",
+            );
             text
         } else {
-            format!("#[version(1)] struct {name} {{ value: u32 }}\n")
+            format!("struct {name} {{ value: u32 }}\n")
         };
         fs::write(source, idl).unwrap();
         fs::write(path.join("src/lib.rs"), library).unwrap();
@@ -133,8 +135,8 @@ fn imported_generics_use_typed_routes_through_direct_providers() {
             "leaf::r#type",
             vec![],
             r#"
-            #[version(1)] struct Fixed { count: u32 }
-            #[version(1)] interface Service { fn read(&self) -> Result<Fixed>; }
+            struct Fixed { count: u32 }
+            interface Service { fn read(&self) -> Result<Fixed>; }
         "#,
         ),
         (
@@ -144,8 +146,8 @@ fn imported_generics_use_typed_routes_through_direct_providers() {
             vec!["leaf"],
             r#"
             extern proof.leaf;
-            #[version(1)] struct Wrapper<T> { fixed: proof::leaf::Fixed, value: T }
-            #[version(1)] interface Reader<T> {
+            struct Wrapper<T> { fixed: proof::leaf::Fixed, value: T }
+            interface Reader<T> {
                 fn read(&self, source: &proof::leaf::Service, extra: T) -> Result<proof::leaf::Fixed>;
             }
         "#,
@@ -157,7 +159,7 @@ fn imported_generics_use_typed_routes_through_direct_providers() {
             vec!["leaf"],
             r#"
             extern proof.leaf;
-            #[version(1)] struct Other<T> { fixed: proof::leaf::Fixed, value: T }
+            struct Other<T> { fixed: proof::leaf::Fixed, value: T }
         "#,
         ),
         (
@@ -168,10 +170,10 @@ fn imported_generics_use_typed_routes_through_direct_providers() {
             r#"
             extern proof.left;
             extern proof.right;
-            #[version(1)] struct Combined<T> {
+            struct Combined<T> {
                 left: proof::left::Wrapper<T>, right: proof::right::Other<T>
             }
-            #[version(1)] interface Root<T>: proof::left::Reader<T> {}
+            interface Root<T>: proof::left::Reader<T> {}
         "#,
         ),
         (
@@ -181,8 +183,8 @@ fn imported_generics_use_typed_routes_through_direct_providers() {
             vec!["bridge"],
             r#"
             extern proof.bridge;
-            #[version(1)] struct Input { value: proof::bridge::Combined<u32> }
-            #[version(1)] interface Client: proof::bridge::Root<u32> {
+            struct Input { value: proof::bridge::Combined<u32> }
+            interface Client: proof::bridge::Root<u32> {
                 fn sum(&self, input: Input) -> Result<u32>;
             }
         "#,

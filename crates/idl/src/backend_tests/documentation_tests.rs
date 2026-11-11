@@ -11,9 +11,9 @@ fn deeply_nested_output_types_generate_and_map_on_a_one_mebibyte_stack() {
         .spawn(|| {
             let element = (0..65).fold(String::from("u8"), |element, _| format!("[{element}; 1]"));
             let methods = format!(
-                "#[version(1)] interface Deep {{\nfn ordinary(&self, output: &mut [{element}]) -> Result<()>;\nfn consuming(&self, owner: ComBox<Owned>, output: &mut [{element}]) -> Result<ComBox<Owned>>;\n}}"
+                "interface Deep {{\nfn ordinary(&self, output: &mut [{element}]) -> Result<()>;\nfn consuming(&self, owner: ComBox<Owned>, output: &mut [{element}]) -> Result<ComBox<Owned>>;\n}}"
             );
-            let owner = "#[version(1)] interface Owned {}";
+            let owner = "interface Owned {}";
             let single = crate::parse_module(Path::new("proof/deep.ncidl"), &format!("{methods}\n{owner}")).unwrap();
             let parts = crate::parse_module_parts(
                 Path::new("proof/deep"),
@@ -50,7 +50,7 @@ fn deeply_nested_duplicate_parameters_keep_their_source_after_worker_exit() {
         .stack_size(1024 * 1024)
         .spawn(|| {
             let element = (0..65).fold(String::from("u8"), |element, _| format!("[{element}; 1]"));
-            let source = format!("#[version(1)] interface Deep {{\nfn ordinary(&self,\noutput: &mut [{element}],\noutput: u8) -> Result<()>;\n}}");
+            let source = format!("interface Deep {{\nfn ordinary(&self,\noutput: &mut [{element}],\noutput: u8) -> Result<()>;\n}}");
             crate::parse_module(Path::new("proof/deep.ncidl"), &source).unwrap_err()
         })
         .unwrap()
@@ -98,9 +98,9 @@ impl<'ast> Visit<'ast> for Docs {
 fn descriptions_are_literals_across_all_method_shapes_and_printed_consumers() {
     let source = r#"
         /// Authored α "quotes" and :: neocogi_com remain literal prose.
-        #[version(1)] interface Owned {}
-        #[version(1)] struct Payload { text: String }
-        #[version(1)] interface Shapes {
+        interface Owned {}
+        struct Payload { text: String }
+        interface Shapes {
             /// Authored method documentation stays before generated descriptions.
             fn echo(&self, raw_0: [u8; 2]) -> Result<[u8; 2]>;
             fn borrow(&self, value: &Payload, object: &Owned) -> Result<()>;
@@ -169,7 +169,7 @@ fn descriptions_are_literals_across_all_method_shapes_and_printed_consumers() {
             )
             .replace(
                 "$CALL_BINDING",
-                &super::name_ownership_tests::contract("#[version(1)] interface Call { fn echo(&self, raw_0: [u8;2]) -> Result<[u8;2]>; }"),
+                &super::name_ownership_tests::contract("interface Call { fn echo(&self, raw_0: [u8;2]) -> Result<[u8;2]>; }"),
             );
             (format!("{poison}, printed={printed}"), source)
         })
@@ -194,11 +194,11 @@ fn definition_docs(attributes: &[syn::Attribute]) -> String {
 fn raw_documentation_matches_physical_slots_and_returned_ownership() {
     use quote::ToTokens;
     let source = r#"
-        #[version(1)] enum Action { Idle, Set(u32) }
-        #[version(1)] enum Mode: u8 { Off = 0, On = 1 }
-        #[version(1)] struct Payload { value: u32 }
-        #[version(1)] interface Owned {}
-        #[version(1)] interface Shapes {
+        enum Action { Idle, Set(u32) }
+        enum Mode: u8 { Off = 0, On = 1 }
+        struct Payload { value: u32 }
+        interface Owned {}
+        interface Shapes {
             fn actions(&self, input: &[Action], output: &mut [Action]) -> Result<()>;
             fn modes(&self, input: &[Mode]) -> Result<Mode>;
             fn borrow(&self, value: &Payload, object: &Owned) -> Result<()>;
@@ -334,8 +334,8 @@ fn canonical_bootstrap_with_consuming_proofs_builds_against_core_only() {
     let consumer = super::test_consumer::Consumer::new("bootstrap-core-root-control");
     let source = r#"
         /// Literal :: neocogi_com text; link [`::neocogi_com::ComBox`].
-        #[version(1)] interface Owned {}
-        #[version(1)] interface Takes { fn take(&mut self, owner: ComBox<Owned>) -> Result<u32>; }
+        interface Owned {}
+        interface Takes { fn take(&mut self, owner: ComBox<Owned>) -> Result<u32>; }
     "#;
     let graph = crate::resolve_modules(vec![crate::parse_module(Path::new("proof/bootstrap.ncidl"), source).unwrap()]).unwrap();
     let generated = crate::generate::generate_bootstrap(&graph, "proof.bootstrap").unwrap();

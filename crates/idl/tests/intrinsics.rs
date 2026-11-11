@@ -11,10 +11,10 @@ fn graph(source: &str) -> neocogi_idl::ResolvedModules {
 #[test]
 fn array_and_slice_shorthands_have_identical_fingerprints() {
     let bracket = graph(
-        "#[version(1)] struct Data { values: [bool; 3] } #[version(1)] interface IInput { fn read(&self, values: &[u32]) -> Result<()>; fn write(&self, values: &mut [u32]) -> Result<()>; }",
+        "struct Data { values: [bool; 3] } interface IInput { fn read(&self, values: &[u32]) -> Result<()>; fn write(&self, values: &mut [u32]) -> Result<()>; }",
     );
     let named = graph(
-        "#[version(1)] struct Data { values: Array<bool, 3> } #[version(1)] interface IInput { fn read(&self, values: &Slice<u32>) -> Result<()>; fn write(&self, values: &mut Slice<u32>) -> Result<()>; }",
+        "struct Data { values: Array<bool, 3> } interface IInput { fn read(&self, values: &Slice<u32>) -> Result<()>; fn write(&self, values: &mut Slice<u32>) -> Result<()>; }",
     );
     assert_eq!(bracket.modules()[0].abi_fingerprint, named.modules()[0].abi_fingerprint);
     for name in ["Data", "IInput"] {
@@ -28,8 +28,7 @@ fn array_and_slice_shorthands_have_identical_fingerprints() {
 /// Closing a borrowed generic referent selects the ordinary slice calling convention.
 #[test]
 fn generic_slice_referents_normalize_after_substitution() {
-    let resolved =
-        graph("#[version(1)] interface IInput<T> { fn read(&self, values: &T) -> Result<()>; } #[version(1)] interface Reader: IInput<Slice<u32>> {}");
+    let resolved = graph("interface IInput<T> { fn read(&self, values: &T) -> Result<()>; } interface Reader: IInput<Slice<u32>> {}");
     let module = &resolved.modules()[0];
     let instance = module.source.declarations.iter().find(|value| value.specialization.is_some()).unwrap();
     let DeclarationKind::Interface(interface) = &instance.kind else {
@@ -43,13 +42,13 @@ fn generic_slice_referents_normalize_after_substitution() {
 /// A borrowed spelling cannot silently become owned storage in a record.
 #[test]
 fn vector_fields_own_values_and_slice_fields_are_rejected() {
-    let resolved = graph("#[version(1)] struct Node { children: Vec<Node> }");
+    let resolved = graph("struct Node { children: Vec<Node> }");
     assert!(matches!(
         resolved.values.definitions["proof.intrinsics.Node"].fields[0],
         neocogi_idl::ValueType::Sequence(_)
     ));
     for field in ["&[u8]", "&Slice<u8>", "Slice<u8>", "[u8]", "Vec<Slice<u8>>"] {
-        let source = format!("#[version(1)] struct Data {{ items: {field} }}");
+        let source = format!("struct Data {{ items: {field} }}");
         let parsed = parse_module(Path::new("proof/invalid.ncidl"), &source).unwrap();
         let error = resolve_modules(vec![parsed]).unwrap_err().to_string();
         assert!(error.contains("EIDL060"), "{field}: {error}");
@@ -67,10 +66,10 @@ fn arrays_reject_invalid_counts_and_arity() {
         "Array<u8, {1 + 1}>",
         "Vec<u8, u32>",
     ] {
-        let source = format!("#[version(1)] struct Data {{ items: {ty} }}");
+        let source = format!("struct Data {{ items: {ty} }}");
         assert!(parse_module(Path::new("proof/invalid.ncidl"), &source).is_err(), "{ty}");
     }
-    graph("#[version(1)] struct Empty { items: Array<u8, 0> }");
+    graph("struct Empty { items: Array<u8, 0> }");
 }
 
 /// Resolver acceptance is backed by compiling and calling generated bindings.
@@ -78,8 +77,8 @@ fn arrays_reject_invalid_counts_and_arity() {
 fn copied_arrays_compile_and_cross_real_com_thunks() {
     let resolved = graph(
         r#"
-        #[version(1)] struct Flags { bits: Array<[bool; 2], 2> }
-        #[version(1)] interface IArrays {
+        struct Flags { bits: Array<[bool; 2], 2> }
+        interface IArrays {
             fn echo(&mut self, value: Array<bool, 3>) -> Result<[bool; 3]>;
             fn record(&mut self, value: Flags) -> Result<Flags>;
             fn input(&mut self, values: &[Array<bool, 3>]) -> Result<u32>;

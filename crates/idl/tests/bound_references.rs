@@ -13,20 +13,20 @@ fn graph(parameters: (&str, &str), base: &str, event: &str, instantiate: bool) -
     let templates = format!(
         r#"
 
-        #[version(1)] interface IBase {{ fn value(&self) -> Result<u32>; }}
-        #[version(1)] interface IChanged {{ fn number(&self) -> Result<u32>; }}
-        #[version(1)] interface ForwardBase<{base_parameter}>: {base} {{}}
-        #[version(1)] interface ForwardCapability<{event_parameter}>: {event} {{}}
+        interface IBase {{ fn value(&self) -> Result<u32>; }}
+        interface IChanged {{ fn number(&self) -> Result<u32>; }}
+        interface ForwardBase<{base_parameter}>: {base} {{}}
+        interface ForwardCapability<{event_parameter}>: {event} {{}}
     "#
     );
     let consumer = if instantiate {
         r#"
         extern proof.templates;
         use proof.templates::{ForwardBase, ForwardCapability, IBase, IChanged};
-        #[version(1)] interface Counter: ForwardBase<IBase> + ForwardCapability<IChanged> {}
+        interface Counter: ForwardBase<IBase> + ForwardCapability<IChanged> {}
     "#
     } else {
-        "#[version(1)] interface Anchor {}"
+        "interface Anchor {}"
     };
     resolve_modules(vec![module("proof/templates.ncidl", &templates), module("proof/consumer.ncidl", consumer)])
 }
@@ -75,18 +75,18 @@ fn switching_base_or_method_parameter_changes_revision_without_changing_nominal_
     for event in [false, true] {
         let resolve = |selected: &str| {
             let declaration = if event {
-                format!("#[version(1)] interface Select<A, B> {{ fn selected(&self) -> Result<ComPtr<{selected}>>; }}")
+                format!("interface Select<A, B> {{ fn selected(&self) -> Result<ComPtr<{selected}>>; }}")
             } else {
-                format!("#[version(1)] interface Select<A, B>: {selected} {{}}")
+                format!("interface Select<A, B>: {selected} {{}}")
             };
             let argument = if event { "IChanged" } else { "IBase" };
             let source = format!(
                 r#"
 
-                #[version(1)] interface IBase {{}}
-                #[version(1)] interface IChanged {{}}
+                interface IBase {{}}
+                interface IChanged {{}}
                 {declaration}
-                #[version(1)] interface Concrete: Select<{argument}, {argument}> {{}}
+                interface Concrete: Select<{argument}, {argument}> {{}}
             "#
             );
             resolve_modules(vec![module("proof/selection.ncidl", &source)]).unwrap()
@@ -107,16 +107,13 @@ fn switching_base_or_method_parameter_changes_revision_without_changing_nominal_
 #[test]
 fn invalid_closed_references_have_source_diagnostics() {
     for (declaration, code) in [
-        ("#[version(1)] interface Select<B>: B {} #[version(1)] interface Bad: Select<u32> {}", "EIDL060"),
-        (
-            "#[version(1)] interface Select<B>: B {} #[version(1)] interface Bad: Select<Data> {}",
-            "EIDL060",
-        ),
-        ("#[version(1)] interface Select<E>: E {} #[version(1)] interface Bad: Select<u32> {}", "EIDL060"),
-        ("#[version(1)] interface Select<B>: B<u32> {}", "EIDL060"),
-        ("#[version(1)] interface Select<E>: E<u32> {}", "EIDL060"),
+        ("interface Select<B>: B {} interface Bad: Select<u32> {}", "EIDL060"),
+        ("interface Select<B>: B {} interface Bad: Select<Data> {}", "EIDL060"),
+        ("interface Select<E>: E {} interface Bad: Select<u32> {}", "EIDL060"),
+        ("interface Select<B>: B<u32> {}", "EIDL060"),
+        ("interface Select<E>: E<u32> {}", "EIDL060"),
     ] {
-        let source = format!("#[version(1)] struct Data {{ value: u32 }} #[version(1)] interface Ordinary {{}} {declaration}");
+        let source = format!("struct Data {{ value: u32 }} interface Ordinary {{}} {declaration}");
         let error = resolve_modules(vec![module("proof/invalid.ncidl", &source)]).unwrap_err();
         let neocogi_idl::ModuleGraphError::Resolution(error) = error else {
             panic!("expected semantic diagnostics")

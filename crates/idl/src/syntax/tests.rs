@@ -43,7 +43,7 @@ fn worker_panic_keeps_its_original_message() {
 /// File, multipart, normal and bootstrap entries classify their own startup failures.
 #[test]
 fn parser_and_generator_failures_keep_their_phase() {
-    let source = "#[version(1)] interface Plain {}";
+    let source = "interface Plain {}";
     let module = crate::parse_module(Path::new("proof/phases.ncidl"), source).unwrap();
     let graph = crate::resolve_modules(vec![module]).unwrap();
     for multipart in [false, true] {
@@ -77,7 +77,7 @@ fn parser_and_generator_failures_keep_their_phase() {
 /// Invalid path/part admission precedes syntax work and cannot consume its denial.
 #[test]
 fn early_parser_errors_are_not_worker_errors() {
-    let source = "#[version(1)] interface Plain {}";
+    let source = "interface Plain {}";
     let _denial = failure::after(0);
     let path = crate::parse_module(Path::new(""), "").unwrap_err();
     assert!(path.source().is_some());

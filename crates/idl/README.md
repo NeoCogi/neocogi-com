@@ -225,8 +225,12 @@ locations use `generate::generate_rust_with_paths_and_source_map`. These provena
 artifacts do not affect ABI identity. See [source mapping](https://github.com/NeoCogi/neocogi-com/blob/v0.1.0/docs/guides/IDL_SOURCE_MAPS.md)
 for schema, coordinates, path resolution and macro-expansion limits.
 
-The resolver gives IDL declarations a UUID derived from their qualified name and
-binary version, or the explicit UUID from `#[id]`. The typed backend embeds that
+The resolver gives IDL declarations a UUID derived from their exact qualified name,
+or the explicit UUID from `#[id("UUID")]`. Ordinary declarations need no
+identity attribute. Deprecated `#[version(N)]` attributes and numbered
+`#[id(N, "UUID")]` forms are ignored with `WIDL001` warnings; only the UUID
+is retained. Parser callers can inspect `Module::warnings`; Cargo helpers
+report the warnings during the build. The typed backend embeds that
 identity directly in the generated ABI. The declaration signature includes
 the module fingerprint and declaration UUID; runtime calls compare those exact
 identity/signature bytes.
@@ -325,8 +329,10 @@ protocol; fieldless enums and bit sets preserve their raw scalar values.
 Record-only `#[persistence(default)]` retains an omitted trailing suffix from a
 host-authored Rust Default. Every NCB record is positional; `persistence(sequence)`
 and the old decoder opt-ins are rejected. Both generic and concrete
-contracts share canonical module encoding v13, including authored assignments,
-versions, trailing-default policy and positional generic binders.
+contracts share canonical module encoding v14, including authored assignments,
+trailing-default policy and positional generic binders. Exact SHA-256 signatures
+detect contract changes without declaration version numbers; use distinct named
+types for semantic distinctions that the IDL cannot express.
 
 `Option<T>` comes from the bundled [ordinary IDL enum](stdlib/neocogi/lang.ncidl).
 It follows lexical lookup and normal specialization; copied payloads permit

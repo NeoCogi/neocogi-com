@@ -1,18 +1,15 @@
-#[version(1)]
 /// A plain record containing a restricted scalar.
 struct Flags {
     /// A byte on the wire and a bool only after validation.
     enabled: bool,
 }
 
-#[version(1)]
 /// Nested ordinary records must recursively lower their fields.
 struct Settings {
     /// Validation cannot stop at this named type boundary.
     flags: Flags,
 }
 
-#[version(1)]
 /// Enum payload uses the same nested record converter.
 enum Action: u8 {
     /// Selects a nested checked payload.
@@ -21,14 +18,13 @@ enum Action: u8 {
     Idle,
 }
 
-#[version(1)]
 /// Copied records and fixed arrays store native enums, not public tag/union wrappers.
 struct ActionSet {
     /// Alternatives of unequal payload size still lower each active value.
     actions: [Action; 2],
 }
 
-#[id(1, "957e9157-6c05-5e40-ab6d-29c3daa36ae0")]
+#[id("957e9157-6c05-5e40-ab6d-29c3daa36ae0")]
 /// Real copied, enum, and buffer slots for adversarial raw callers.
 interface ICheck {
     /// Returns the input after the thunk validates it.
@@ -45,7 +41,6 @@ interface ICheck {
     fn output(&self, value: &mut [Settings]) -> Result<()>;
 }
 
-#[version(1)]
 /// Numeric render-style records need no validation or allocation when borrowed.
 struct Coordinates {
     /// Every floating-point bit pattern is a valid initialized Rust value.
@@ -54,7 +49,6 @@ struct Coordinates {
     y: f32,
 }
 
-#[version(1)]
 /// Mixes fixed records, a selected enum variant, and variable-length ownership.
 struct MixedSettings {
     /// This fixed record is counted together with the enclosing root.

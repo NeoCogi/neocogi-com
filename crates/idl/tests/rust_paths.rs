@@ -11,9 +11,9 @@ fn rust_locations_only_change_import_paths() {
     let owner = parse_module(
         Path::new("example/contract.ncidl"),
         r#"
-        #[version(1)] struct Value { number: u32 }
-        #[version(1)] interface IBase { fn value(&self) -> Result<Value>; }
-        #[version(1)] struct Changed { value: u32 }
+        struct Value { number: u32 }
+        interface IBase { fn value(&self) -> Result<Value>; }
+        struct Changed { value: u32 }
     "#,
     )
     .unwrap();
@@ -22,7 +22,7 @@ fn rust_locations_only_change_import_paths() {
         r#"
         extern example.contract;
         use example.contract::{Value, IBase, Changed};
-        #[version(1)] interface IConsumer: IBase {
+        interface IConsumer: IBase {
             fn changed(&mut self, value: &Changed) -> Result<()>;
             fn set(&mut self, value: Value, source: &IBase) -> Result<()>;
         }
@@ -115,20 +115,14 @@ fn rust_locations_reject_invalid_and_conflicting_owners() {
     paths.insert("example.events", "api::events").unwrap();
     paths.insert("example.events", "::api::events").unwrap();
     assert!(paths.insert("example.events", "other_api::events").is_err());
-    let graph = resolve_modules(vec![
-        parse_module(Path::new("example/value.ncidl"), "#[version(1)] struct Value { value: u32 }").unwrap(),
-    ])
-    .unwrap();
+    let graph = resolve_modules(vec![parse_module(Path::new("example/value.ncidl"), "struct Value { value: u32 }").unwrap()]).unwrap();
     assert!(generate_rust_with_paths(&graph, "example.value", &paths).is_err());
 }
 
 /// The final transported spelling includes the declaration, not just its module prefix.
 #[test]
 fn public_metadata_paths_charge_the_complete_spelling() {
-    let graph = resolve_modules(vec![
-        parse_module(Path::new("example/value.ncidl"), "#[version(1)] struct Value { value: u32 }").unwrap(),
-    ])
-    .unwrap();
+    let graph = resolve_modules(vec![parse_module(Path::new("example/value.ncidl"), "struct Value { value: u32 }").unwrap()]).unwrap();
     let maximum = neocogi_com_core::NC_DESCRIPTOR_RUST_PATH_MAX_LEN;
     let mut paths = RustModulePaths::default();
     paths.insert("example.value", &"a".repeat(maximum - "::Value".len())).unwrap();

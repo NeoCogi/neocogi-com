@@ -11,7 +11,7 @@ fn graph(templates: &str, consumer: &str) -> ResolvedModules {
         parse_module(Path::new("positions/library.ncidl"), templates).unwrap(),
         parse_module(
             Path::new("positions/consumer.ncidl"),
-            &format!("extern positions.library; #[version(1)] interface IAnchor {{}} {consumer}"),
+            &format!("extern positions.library; interface IAnchor {{}} {consumer}"),
         )
         .unwrap(),
     ])
@@ -34,22 +34,22 @@ fn assert_same_contract(before: &ResolvedModules, after: &ResolvedModules) {
 #[test]
 fn parameter_renames_preserve_nested_records_and_enum_payloads() {
     let before = r#"
-        #[version(1)] struct Node<T, I> {
+        struct Node<T, I> {
             value: T, children: Vec<Node<T, I>>, slots: [Option<T>; 2], object: ComPtr<I>
         }
-        #[version(1)] enum Change<T, I>: u8 {
+        enum Change<T, I>: u8 {
             Empty, Tuple(T, Node<T, I>), Named { value: Option<T>, object: ComPtr<I> }
         }
     "#;
     let after = r#"
-        #[version(1)] struct Node<Item, Capability> {
+        struct Node<Item, Capability> {
             value: Item, children: Vec<Node<Item, Capability>>, slots: [Option<Item>; 2], object: ComPtr<Capability>
         }
-        #[version(1)] enum Change<Value, Object>: u8 {
+        enum Change<Value, Object>: u8 {
             Empty, Tuple(Value, Node<Value, Object>), Named { value: Option<Value>, object: ComPtr<Object> }
         }
     "#;
-    let consumer = "use positions.library::Change; #[version(1)] struct Payload { event: Change<bool, IUnknown> }";
+    let consumer = "use positions.library::Change; struct Payload { event: Change<bool, IUnknown> }";
     assert_same_contract(&graph(before, consumer), &graph(after, consumer));
 }
 
@@ -57,32 +57,32 @@ fn parameter_renames_preserve_nested_records_and_enum_payloads() {
 #[test]
 fn parameter_renames_preserve_interface_signatures() {
     let before = r#"
-        #[version(1)] struct Payload { text: String }
-        #[version(1)] interface IBase<T> { fn read(&self) -> Result<T>; }
-        #[version(1)] interface IBuffer<T>: IBase<T> {
+        struct Payload { text: String }
+        interface IBase<T> { fn read(&self) -> Result<T>; }
+        interface IBuffer<T>: IBase<T> {
             fn accept(&self, values: &[T]) -> Result<()>;
             fn fill(&mut self, values: &mut [T]) -> Result<()>;
         }
-        #[version(1)] interface IInspect<T, S> {
+        interface IInspect<T, S> {
             fn inspect(&self, value: &T) -> Result<()>;
             fn items(&self, values: &S) -> Result<()>;
         }
     "#;
     let after = r#"
-        #[version(1)] struct Payload { text: String }
-        #[version(1)] interface IBase<ResultType> { fn read(&self) -> Result<ResultType>; }
-        #[version(1)] interface IBuffer<Element>: IBase<Element> {
+        struct Payload { text: String }
+        interface IBase<ResultType> { fn read(&self) -> Result<ResultType>; }
+        interface IBuffer<Element>: IBase<Element> {
             fn accept(&self, values: &[Element]) -> Result<()>;
             fn fill(&mut self, values: &mut [Element]) -> Result<()>;
         }
-        #[version(1)] interface IInspect<Value, Sequence> {
+        interface IInspect<Value, Sequence> {
             fn inspect(&self, value: &Value) -> Result<()>;
             fn items(&self, values: &Sequence) -> Result<()>;
         }
     "#;
     let consumer = r#"
         use positions.library::{IBuffer, IInspect, Payload};
-        #[version(1)] interface Object: IBuffer<u32> + IInspect<Payload, Slice<u32>> {}
+        interface Object: IBuffer<u32> + IInspect<Payload, Slice<u32>> {}
     "#;
     assert_same_contract(&graph(before, consumer), &graph(after, consumer));
 }
@@ -91,14 +91,14 @@ fn parameter_renames_preserve_interface_signatures() {
 #[test]
 fn parameter_renames_preserve_lexical_binding_and_source_names() {
     let before = r#"
-        #[version(1)] struct Local { value: u32 }
-        #[version(1)] struct Record<T> { value: T, other: positions::library::Local }
+        struct Local { value: u32 }
+        struct Record<T> { value: T, other: positions::library::Local }
     "#;
     let after = r#"
-        #[version(1)] struct Local { value: u32 }
-        #[version(1)] struct Record<Local> { value: Local, other: positions::library::Local }
+        struct Local { value: u32 }
+        struct Record<Local> { value: Local, other: positions::library::Local }
     "#;
-    let consumer = "use positions.library::Record; #[version(1)] struct Payload { value: Record<bool> }";
+    let consumer = "use positions.library::Record; struct Payload { value: Record<bool> }";
     let first = graph(before, consumer);
     let second = graph(after, consumer);
     assert_same_contract(&first, &second);
@@ -110,10 +110,10 @@ fn parameter_renames_preserve_lexical_binding_and_source_names() {
 /// Unused/open templates still contribute parameter arity, but never parameter spelling.
 #[test]
 fn unused_parameter_names_are_ignored_but_arity_is_preserved() {
-    let first = graph("#[version(1)] struct Marker<T> { value: u32 }", "");
-    let renamed = graph("#[version(1)] struct Marker<Unused> { value: u32 }", "");
+    let first = graph("struct Marker<T> { value: u32 }", "");
+    let renamed = graph("struct Marker<Unused> { value: u32 }", "");
     assert_same_contract(&first, &renamed);
-    let extra_parameter = graph("#[version(1)] struct Marker<T, U> { value: u32 }", "");
+    let extra_parameter = graph("struct Marker<T, U> { value: u32 }", "");
     assert_ne!(
         first.module("positions.library").unwrap().abi_fingerprint,
         extra_parameter.module("positions.library").unwrap().abi_fingerprint
@@ -125,29 +125,29 @@ fn unused_parameter_names_are_ignored_but_arity_is_preserved() {
 fn parameter_positions_remain_significant_with_identical_concrete_arguments() {
     for (before, after, consumer) in [
         (
-            "#[version(1)] struct Pair<A, B> { first: A, second: B }",
-            "#[version(1)] struct Pair<A, B> { first: B, second: A }",
-            "use positions.library::Pair; #[version(1)] struct Payload { value: Pair<u32, u32> }",
+            "struct Pair<A, B> { first: A, second: B }",
+            "struct Pair<A, B> { first: B, second: A }",
+            "use positions.library::Pair; struct Payload { value: Pair<u32, u32> }",
         ),
         (
-            "#[version(1)] struct Pair<A, B> { first: A, second: B }",
-            "#[version(1)] struct Pair<B, A> { first: A, second: B }",
-            "use positions.library::Pair; #[version(1)] struct Payload { value: Pair<u32, u32> }",
+            "struct Pair<A, B> { first: A, second: B }",
+            "struct Pair<B, A> { first: A, second: B }",
+            "use positions.library::Pair; struct Payload { value: Pair<u32, u32> }",
         ),
         (
-            "#[version(1)] struct Leaf<A, B> { first: A, second: B } #[version(1)] struct Pair<A, B> { value: Vec<Option<Leaf<A, B>>> }",
-            "#[version(1)] struct Leaf<A, B> { first: A, second: B } #[version(1)] struct Pair<A, B> { value: Vec<Option<Leaf<B, A>>> }",
-            "use positions.library::Pair; #[version(1)] struct Payload { value: Pair<u32, u32> }",
+            "struct Leaf<A, B> { first: A, second: B } struct Pair<A, B> { value: Vec<Option<Leaf<A, B>>> }",
+            "struct Leaf<A, B> { first: A, second: B } struct Pair<A, B> { value: Vec<Option<Leaf<B, A>>> }",
+            "use positions.library::Pair; struct Payload { value: Pair<u32, u32> }",
         ),
         (
-            "#[version(1)] enum Choice<A, B> { First(A), Second { value: B } }",
-            "#[version(1)] enum Choice<A, B> { First(B), Second { value: A } }",
-            "use positions.library::Choice; #[version(1)] struct Payload { value: Choice<u32, u32> }",
+            "enum Choice<A, B> { First(A), Second { value: B } }",
+            "enum Choice<A, B> { First(B), Second { value: A } }",
+            "use positions.library::Choice; struct Payload { value: Choice<u32, u32> }",
         ),
         (
-            "#[version(1)] interface IValue<A, B> { fn value(&self) -> Result<A>; }",
-            "#[version(1)] interface IValue<A, B> { fn value(&self) -> Result<B>; }",
-            "use positions.library::IValue; #[version(1)] interface Object: IValue<u32, u32> {}",
+            "interface IValue<A, B> { fn value(&self) -> Result<A>; }",
+            "interface IValue<A, B> { fn value(&self) -> Result<B>; }",
+            "use positions.library::IValue; interface Object: IValue<u32, u32> {}",
         ),
     ] {
         let first = graph(before, consumer);
@@ -180,8 +180,8 @@ fn parameter_normalization_preserves_member_contract_changes() {
         ("enum Record<T>: u8 { Zero = 0 }", "enum Record<T>: u8 { Zero = 7 }"),
         ("enum Record<T>: u8 { Value(T) }", "enum Record<T>: u8 { Renamed(T) }"),
     ] {
-        let first = graph(&format!("#[version(1)] {before}"), "");
-        let changed = graph(&format!("#[version(1)] {after}"), "");
+        let first = graph(before, "");
+        let changed = graph(after, "");
         assert_ne!(
             first.module("positions.library").unwrap().abi_fingerprint,
             changed.module("positions.library").unwrap().abi_fingerprint,

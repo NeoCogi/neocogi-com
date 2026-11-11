@@ -16,16 +16,16 @@ use crate::{
 };
 
 /// Physically equal records with exchanged meaning reproduce the original bug.
-const OLD_VALUES: &str = "#[version(1)] struct Value { width: u32, height: u32 }";
+const OLD_VALUES: &str = "struct Value { width: u32, height: u32 }";
 /// A second same-layout name makes nominal admission independent of layout.
-const CURRENT_VALUES: &str = "#[version(1)] struct Value { height: u32, width: u32 } #[version(1)] struct Other { height: u32, width: u32 }";
+const CURRENT_VALUES: &str = "struct Value { height: u32, width: u32 } struct Other { height: u32, width: u32 }";
 /// Independent provider and host must agree on the actual copied codec.
-const SERVICE: &str = "extern proof.value; use proof.value::Value; #[version(1)] interface Service { fn increment(&self, value: Value) -> Result<Value>; }";
+const SERVICE: &str = "extern proof.value; use proof.value::Value; interface Service { fn increment(&self, value: Value) -> Result<Value>; }";
 
 /// Both bases have the same physical slot types but opposite method meanings.
-const OLD_BASE: &str = "#[version(1)] interface Base { fn width(&self) -> Result<u32>; fn height(&self) -> Result<u32>; }";
+const OLD_BASE: &str = "interface Base { fn width(&self) -> Result<u32>; fn height(&self) -> Result<u32>; }";
 /// The actual checked marker must determine this height/width ordering.
-const CURRENT_BASE: &str = "#[version(1)] interface Base { fn height(&self) -> Result<u32>; fn width(&self) -> Result<u32>; }";
+const CURRENT_BASE: &str = "interface Base { fn height(&self) -> Result<u32>; fn width(&self) -> Result<u32>; }";
 
 /// Owns one real helper/provider/host consumer graph for successive facade cases.
 struct Fixture {
@@ -233,26 +233,23 @@ fn imported_declaration_checks_cover_each_lowering_route() {
     let fixture = Fixture::new("binding-route-proof", OLD_VALUES, CURRENT_VALUES);
     fixture.select("pub use super::old::Value;");
     for (label, service) in [
-        ("unused emitted import", "use proof.value::Value; #[version(1)] interface Service {}"),
+        ("unused emitted import", "use proof.value::Value; interface Service {}"),
         (
             "fully qualified",
-            "#[version(1)] interface Service { fn value(&self, value: proof::value::Value) -> Result<proof::value::Value>; }",
+            "interface Service { fn value(&self, value: proof::value::Value) -> Result<proof::value::Value>; }",
         ),
-        (
-            "nested array field",
-            "use proof.value::Value; #[version(1)] struct Nested { values: [Value; 2] }",
-        ),
+        ("nested array field", "use proof.value::Value; struct Nested { values: [Value; 2] }"),
         (
             "borrowed value",
-            "use proof.value::Value; #[version(1)] interface Service { fn value(&self, value: &Value) -> Result<()>; }",
+            "use proof.value::Value; interface Service { fn value(&self, value: &Value) -> Result<()>; }",
         ),
         (
             "read buffer",
-            "use proof.value::Value; #[version(1)] interface Service { fn value(&self, value: &[Value]) -> Result<()>; }",
+            "use proof.value::Value; interface Service { fn value(&self, value: &[Value]) -> Result<()>; }",
         ),
         (
             "output buffer",
-            "use proof.value::Value; #[version(1)] interface Service { fn value(&self, value: &mut [Value]) -> Result<()>; }",
+            "use proof.value::Value; interface Service { fn value(&self, value: &mut [Value]) -> Result<()>; }",
         ),
     ] {
         fixture.provider(CURRENT_VALUES, &format!("extern proof.value; {service}"), "binding_helper::r#mod::r#type", "");
@@ -268,26 +265,20 @@ fn imported_interface_identity_rejects_stale_markers() {
     let fixture = Fixture::new("binding-interface-proof", OLD_BASE, CURRENT_BASE);
     fixture.select("pub use super::old::{Base, BaseAbi, BaseVTable, BaseVtblFor, BaseClient};");
     for (label, source) in [
-        ("base", "use proof.value::Base; #[version(1)] interface Service: Base {}"),
-        (
-            "borrowed",
-            "#[version(1)] interface Service { fn value(&self, value: &proof::value::Base) -> Result<()>; }",
-        ),
-        (
-            "strong result",
-            "#[version(1)] interface Service { fn value(&self) -> Result<ComPtr<proof::value::Base>>; }",
-        ),
+        ("base", "use proof.value::Base; interface Service: Base {}"),
+        ("borrowed", "interface Service { fn value(&self, value: &proof::value::Base) -> Result<()>; }"),
+        ("strong result", "interface Service { fn value(&self) -> Result<ComPtr<proof::value::Base>>; }"),
         (
             "weak result",
-            "#[version(1)] interface Service { fn value(&self) -> Result<WeakComPtr<proof::value::Base>>; }",
+            "interface Service { fn value(&self) -> Result<WeakComPtr<proof::value::Base>>; }",
         ),
         (
             "exclusive transfer",
-            "#[version(1)] interface Service { fn value(&self, value: ComBox<proof::value::Base>) -> Result<ComBox<proof::value::Base>>; }",
+            "interface Service { fn value(&self, value: ComBox<proof::value::Base>) -> Result<ComBox<proof::value::Base>>; }",
         ),
         (
             "exclusive weak result",
-            "#[version(1)] interface Service { fn value(&self) -> Result<WeakComBox<proof::value::Base>>; }",
+            "interface Service { fn value(&self) -> Result<WeakComBox<proof::value::Base>>; }",
         ),
     ] {
         fixture.provider(CURRENT_BASE, &format!("extern proof.value; {source}"), "binding_helper::selected", "");
@@ -301,32 +292,24 @@ fn imported_interface_identity_rejects_stale_markers() {
 #[test]
 fn imported_value_families_all_require_their_own_identity() {
     for (label, old, current) in [
-        (
-            "scalar",
-            "#[version(1)] enum Value: u8 { Ready = 1 }",
-            "#[version(1)] enum Value: u8 { Ready = 2 }",
-        ),
-        (
-            "flags",
-            "#[version(1)] bitenum Value: u8 { READY = 1 }",
-            "#[version(1)] bitenum Value: u8 { READY = 2 }",
-        ),
+        ("scalar", "enum Value: u8 { Ready = 1 }", "enum Value: u8 { Ready = 2 }"),
+        ("flags", "bitenum Value: u8 { READY = 1 }", "bitenum Value: u8 { READY = 2 }"),
         (
             "owned",
-            "#[version(1)] struct Value { width: String, height: String }",
-            "#[version(1)] struct Value { height: String, width: String }",
+            "struct Value { width: String, height: String }",
+            "struct Value { height: String, width: String }",
         ),
         (
             "payload",
-            "#[version(1)] enum Value: u8 { Pair { width: u32, height: u32 }, Empty }",
-            "#[version(1)] enum Value: u8 { Pair { height: u32, width: u32 }, Empty }",
+            "enum Value: u8 { Pair { width: u32, height: u32 }, Empty }",
+            "enum Value: u8 { Pair { height: u32, width: u32 }, Empty }",
         ),
     ] {
         let fixture = Fixture::new(&format!("binding-{label}-proof"), old, current);
         fixture.select("pub use super::old::Value;");
         fixture.provider(
             current,
-            "extern proof.value; use proof.value::Value; #[version(1)] interface Service { fn value(&self, value: &Value) -> Result<()>; }",
+            "extern proof.value; use proof.value::Value; interface Service { fn value(&self, value: &Value) -> Result<()>; }",
             "binding_helper::selected",
             "",
         );
@@ -338,11 +321,10 @@ fn imported_value_families_all_require_their_own_identity() {
 /// Their local closed projections still select/check actual external free types.
 #[test]
 fn closed_specializations_check_free_types_without_requiring_open_rust_types() {
-    let template = " #[version(1)] struct Envelope<T> { supplied: T, free: Value }";
+    let template = " struct Envelope<T> { supplied: T, free: Value }";
     let old = format!("{OLD_VALUES}{template}");
     let current = format!("{CURRENT_VALUES}{template}");
-    let service =
-        "extern proof.value; use proof.value::Envelope; #[version(1)] interface Service { fn value(&self, value: Envelope<u32>) -> Result<Envelope<u32>>; }";
+    let service = "extern proof.value; use proof.value::Envelope; interface Service { fn value(&self, value: Envelope<u32>) -> Result<Envelope<u32>>; }";
     let fixture = Fixture::new("binding-specialization-proof", &old, &current);
     fixture.provider(&current, service, "binding_helper::selected", "");
     fixture.select("pub use super::old::Value;");
@@ -364,7 +346,7 @@ fn inherited_calls_use_checked_marker_associations_instead_of_stale_names() {
     let mut source = fs::read_to_string(&manifest).unwrap();
     source.push_str("binding-helper={path='helper'}\n");
     fs::write(manifest, source).unwrap();
-    let service = "extern proof.value; use proof.value::Base; #[version(1)] interface Service: Base {}";
+    let service = "extern proof.value; use proof.value::Base; interface Service: Base {}";
     let graph = graph(&current, Some(service));
     let mut paths = RustModulePaths::default();
     paths.insert("proof.value", "binding_helper::selected").unwrap();
@@ -506,9 +488,8 @@ fn transitive_template_free_types_require_the_selected_leaf_identity() {
     let root = fixture.consumer.directory.path();
     fs::create_dir_all(root.join("schemas/proof")).unwrap();
     fs::create_dir_all(root.join("bridge/src")).unwrap();
-    let bridge =
-        "extern proof.value; #[version(1)] interface Forward<T> { fn increment(&self, value: proof::value::Value, amount: T) -> Result<proof::value::Value>; }";
-    let service = "extern proof.bridge; #[version(1)] interface Service: proof::bridge::Forward<u32> {}";
+    let bridge = "extern proof.value; interface Forward<T> { fn increment(&self, value: proof::value::Value, amount: T) -> Result<proof::value::Value>; }";
+    let service = "extern proof.bridge; interface Service: proof::bridge::Forward<u32> {}";
     let graph = crate::resolve_modules(vec![
         crate::parse_module(Path::new("proof/value.ncidl"), CURRENT_VALUES).unwrap(),
         crate::parse_module(Path::new("proof/bridge.ncidl"), bridge).unwrap(),
@@ -614,11 +595,11 @@ fn semantic_templates_and_unused_mappings_do_not_require_rust_owners() {
     let fixture = Fixture::new("binding-unused-proof", OLD_VALUES, CURRENT_VALUES);
     fixture.select("");
     let graph = crate::resolve_modules(vec![
-        crate::parse_module(Path::new("proof/open.ncidl"), "#[version(1)] struct Envelope<T> { item: T }").unwrap(),
-        crate::parse_module(Path::new("proof/unused.ncidl"), "#[version(1)] struct NeverSelected { item: u32 }").unwrap(),
+        crate::parse_module(Path::new("proof/open.ncidl"), "struct Envelope<T> { item: T }").unwrap(),
+        crate::parse_module(Path::new("proof/unused.ncidl"), "struct NeverSelected { item: u32 }").unwrap(),
         crate::parse_module(
             Path::new("proof/service.ncidl"),
-            "extern proof.open; use proof.open::Envelope; #[version(1)] interface Service { fn value(&self, value: Envelope<u32>) -> Result<Envelope<u32>>; }",
+            "extern proof.open; use proof.open::Envelope; interface Service { fn value(&self, value: Envelope<u32>) -> Result<Envelope<u32>>; }",
         )
         .unwrap(),
     ])
@@ -637,12 +618,12 @@ fn semantic_templates_and_unused_mappings_do_not_require_rust_owners() {
 /// different interface in that same module has indistinguishable slot types.
 #[test]
 fn nominal_interface_substitution_is_rejected() {
-    let values = format!("{CURRENT_BASE} #[version(1)] interface Other {{ fn height(&self) -> Result<u32>; fn width(&self) -> Result<u32>; }}");
+    let values = format!("{CURRENT_BASE} interface Other {{ fn height(&self) -> Result<u32>; fn width(&self) -> Result<u32>; }}");
     let fixture = Fixture::new("binding-nominal-interface", &values, &values);
     fixture.select("pub use super::current::{Other as Base, OtherAbi as BaseAbi};");
     fixture.provider(
         &values,
-        "extern proof.value; use proof.value::Base; #[version(1)] interface Service {}",
+        "extern proof.value; use proof.value::Base; interface Service {}",
         "binding_helper::selected",
         "",
     );
@@ -658,7 +639,7 @@ fn object_projection_identity_still_rejects_a_stale_root_provider() {
     fixture.select("pub use super::old::BaseVtblFor;");
     fixture.provider(
         CURRENT_BASE,
-        "#[version(1)] interface Service {}",
+        "interface Service {}",
         "binding_helper::selected",
         r#"
         #[neocogi_com::com_object(interfaces(binding_helper::selected::Base))]
@@ -686,9 +667,9 @@ fn object_projection_identity_still_rejects_a_stale_root_provider() {
 
 /// Source owner for the imported-provider regressions; no locally derived
 /// interface may substitute for this imported trait as the object's root.
-const IMPORTED_BASE: &str = "#[version(1)] interface IBase { fn get(&self) -> Result<u32>; }";
+const IMPORTED_BASE: &str = "interface IBase { fn get(&self) -> Result<u32>; }";
 /// An otherwise unrelated local value keeps the consuming module concrete.
-const IMPORTING_MODULE: &str = "extern proof.value; use proof.value::IBase; #[version(1)] struct Anchor { value: u32 }";
+const IMPORTING_MODULE: &str = "extern proof.value; use proof.value::IBase; struct Anchor { value: u32 }";
 
 /// Selects the actual procedural macro or its printed expansion without changing
 /// the provider's authored trait, state, imported bindings or method body.

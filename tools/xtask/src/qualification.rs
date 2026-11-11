@@ -71,7 +71,7 @@ pub(crate) fn quality(runner: &Runner) -> Result<()> {
     }
     stable(
         runner,
-        "ABI v1 normative snippets",
+        "Development ABI normative snippets",
         words(&[
             "test",
             "--manifest-path",

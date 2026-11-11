@@ -1,5 +1,4 @@
 /// Copied dimensions used by the example object surface.
-#[version(1)]
 struct Extent {
     /// Horizontal extent.
     width: u32,
@@ -9,7 +8,6 @@ struct Extent {
 
 /// Copied report used by dynamic and monolithic ABI qualification.
 /// Copied payload enum used to verify one-way outputs across independently built plugins.
-#[version(1)]
 enum ExtentReport {
     /// Current dimensions and a recursively checked boolean.
     Current { extent: Extent, usable: bool },
@@ -18,14 +16,12 @@ enum ExtentReport {
 }
 
 /// Immutable domain fact with a source which cannot retain the producer.
-#[version(1)]
 struct ExtentNotification {
     source: WeakComPtr<ExampleObject>,
     extent: Extent,
 }
 
 /// Construction selects one domain observer for the lifetime of this object.
-#[version(1)]
 enum ExtentBinding {
     Unobserved,
     Observed(ComPtr<IExtentObserver>),

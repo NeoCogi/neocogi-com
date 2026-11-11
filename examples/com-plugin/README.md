@@ -69,7 +69,7 @@ removes targets, and executes a relocated deployment. Its independent peer B
 publishes a host-visible marker and acquires A through supplied access. The host
 also checks that a conflicting descriptor leaves the shared catalog unchanged.
 The [static relocation test](../com-host/tests/build_modes.rs) covers the monolith.
-See [qualification](../../docs/abi-v1.md#independent-build-compatibility).
+See [qualification](../../docs/abi-v2.md#independent-build-compatibility).
 
 The allocation probe executes 10,000 delivered notifications and 10,000 unobserved
 updates, checking that unobserved updates allocate nothing:

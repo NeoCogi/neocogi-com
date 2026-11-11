@@ -16,10 +16,10 @@ fn shared_provider_minimum_is_independent_of_class_mode() {
     fs::write(
         project.path().join("contract.ncidl"),
         r#"
-        #[version(1)] interface Local { fn value(&self) -> Result<u32>; }
-        #[version(1)] #[threading(shared)] interface Shared { fn value(&self) -> Result<u32>; }
-        #[version(1)] #[threading(shared)] interface Derived: Shared {}
-        #[version(1)] #[threading(shared)] interface Combined: Local + Shared {}
+        interface Local { fn value(&self) -> Result<u32>; }
+        #[threading(shared)] interface Shared { fn value(&self) -> Result<u32>; }
+        #[threading(shared)] interface Derived: Shared {}
+        #[threading(shared)] interface Combined: Local + Shared {}
     "#,
     )
     .unwrap();

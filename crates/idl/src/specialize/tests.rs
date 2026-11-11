@@ -16,15 +16,12 @@ fn resolve(text: &str, limits: Limits) -> Result<crate::ResolvedModules, ModuleG
 }
 
 /// One finite phantom instantiation, without unrelated stored layout constraints.
-const FINITE: &str = "#[version(1)] struct Marker<T> { value: u8 } #[version(1)] struct Root { item: Marker<u32> }";
+const FINITE: &str = "struct Marker<T> { value: u8 } struct Root { item: Marker<u32> }";
 
 /// No specialization means no generated allowance, however many authored fields.
 #[test]
 fn semantic_budget_excludes_source_normalization() {
-    let text = format!(
-        "#[version(1)] struct Source {{ {} }}",
-        (0..200).map(|i| format!("field{i}: u32,")).collect::<String>()
-    );
+    let text = format!("struct Source {{ {} }}", (0..200).map(|i| format!("field{i}: u32,")).collect::<String>());
     resolve(
         &text,
         Limits {
@@ -42,10 +39,7 @@ fn semantic_budget_excludes_source_normalization() {
 fn semantic_budget_gates_real_declaration_and_argument_copies() {
     for (kind, text) in [
         (CopyKind::Declaration, FINITE.to_owned()),
-        (
-            CopyKind::Type,
-            "#[version(1)] struct Twice<T> { a: T, b: T } #[version(1)] struct Root { item: Twice<u32> }".to_owned(),
-        ),
+        (CopyKind::Type, "struct Twice<T> { a: T, b: T } struct Root { item: Twice<u32> }".to_owned()),
     ] {
         let error = resolve(
             &text,
@@ -83,7 +77,7 @@ fn semantic_budget_cache_hits_spend_batch_work() {
     let limits = Limits { work: 100, ..Limits::default() };
     resolve(FINITE, limits).unwrap();
     let repeated = format!(
-        "#[version(1)] struct Marker<T> {{ value: u8 }} #[version(1)] struct Root {{ {} }}",
+        "struct Marker<T> {{ value: u8 }} struct Root {{ {} }}",
         (0..100).map(|i| format!("field{i}: Marker<u32>,")).collect::<String>()
     );
     let error = resolve(&repeated, limits).unwrap_err().to_string();
@@ -94,16 +88,8 @@ fn semantic_budget_cache_hits_spend_batch_work() {
 /// Module entry cannot refresh the shared generated-storage allowance.
 #[test]
 fn semantic_budget_is_shared_across_consumer_modules() {
-    let template = source(
-        "proof/template.ncidl",
-        &format!("/// {}\n#[version(1)] struct Marker<T> {{ value: u8 }}", "x".repeat(8192)),
-    );
-    let consumer = |name: &str| {
-        source(
-            name,
-            "extern proof.template; use proof.template::Marker; #[version(1)] struct Root { value: Marker<u8> }",
-        )
-    };
+    let template = source("proof/template.ncidl", &format!("/// {}\nstruct Marker<T> {{ value: u8 }}", "x".repeat(8192)));
+    let consumer = |name: &str| source(name, "extern proof.template; use proof.template::Marker; struct Root { value: Marker<u8> }");
     // Each individual copy fits; two copies of the 8 KiB docs alone exceed 12 KiB.
     let limits = Limits { bytes: 12 * 1024, ..Limits::default() };
     crate::resolve::resolve_with_limits(vec![template.clone(), consumer("proof/a.ncidl")], limits).unwrap();
@@ -126,7 +112,7 @@ fn semantic_budget_charges_generated_documentation() {
 /// Separate template and argument heights fitting does not authorize their sum.
 #[test]
 fn semantic_budget_checks_destination_plus_argument_height() {
-    let text = "#[version(1)] struct Place<T> { value: Vec<Vec<T>> } #[version(1)] struct Root { value: Place<Vec<Vec<u8>>> }";
+    let text = "struct Place<T> { value: Vec<Vec<T>> } struct Root { value: Place<Vec<Vec<u8>>> }";
     let error = resolve(text, Limits { descent: 6, ..Limits::default() }).unwrap_err().to_string();
     assert!(error.contains("compiler nesting limit"), "{error}");
     resolve(text, Limits::default()).unwrap();
@@ -135,7 +121,7 @@ fn semantic_budget_checks_destination_plus_argument_height() {
 /// A finite permutation cycle must preserve descent across declaration reentry.
 #[test]
 fn semantic_budget_composes_reentrant_descent() {
-    let text = "#[version(1)] struct Rotate<A, B> { next: Vec<Vec<Vec<Rotate<B, A>>>> } #[version(1)] struct Root { value: Rotate<u8, u16> }";
+    let text = "struct Rotate<A, B> { next: Vec<Vec<Vec<Rotate<B, A>>>> } struct Root { value: Rotate<u8, u16> }";
     let error = resolve(text, Limits { descent: 10, ..Limits::default() }).unwrap_err().to_string();
     assert!(error.contains("compiler nesting limit"), "{error}");
     resolve(text, Limits::default()).unwrap();
@@ -144,7 +130,7 @@ fn semantic_budget_composes_reentrant_descent() {
 /// At the admission boundary, an exact active cache hit is not a new instance.
 #[test]
 fn semantic_budget_preserves_recursive_reuse_at_admission_limit() {
-    let text = "#[version(1)] struct Node<T> { value: T, children: Vec<Node<T>> } #[version(1)] struct Root { value: Node<u8> }";
+    let text = "struct Node<T> { value: T, children: Vec<Node<T>> } struct Root { value: Node<u8> }";
     resolve(
         text,
         Limits {
@@ -161,8 +147,8 @@ fn semantic_budget_preserves_recursive_reuse_at_admission_limit() {
 #[test]
 fn semantic_budget_covers_bases_and_borrowed_slice_substitutions() {
     for text in [
-        "#[version(1)] interface IBase<T> { fn take(&self, value: &T) -> Result<()>; } #[version(1)] interface IDerived: IBase<Slice<u8>> {}",
-        "#[version(1)] interface IBase<T> {} #[version(1)] interface IDerived: IBase<u8> {}",
+        "interface IBase<T> { fn take(&self, value: &T) -> Result<()>; } interface IDerived: IBase<Slice<u8>> {}",
+        "interface IBase<T> {} interface IDerived: IBase<u8> {}",
     ] {
         let error = resolve(
             text,
@@ -182,7 +168,7 @@ fn semantic_budget_covers_bases_and_borrowed_slice_substitutions() {
 /// signatures and qualified borrowed documentation, not just expansion alone.
 #[test]
 fn bounded_application_generates_qualified_spelling() {
-    let text = "#[version(1)] struct Pair<A, B> { marker: u8 } #[version(1)] struct Marker<T> { marker: u8 } #[version(1)] struct Root { value: Marker<Pair<Pair<u8, u8>, Pair<u8, u8>>> }";
+    let text = "struct Pair<A, B> { marker: u8 } struct Marker<T> { marker: u8 } struct Root { value: Marker<Pair<Pair<u8, u8>, Pair<u8, u8>>> }";
     let graph = resolve(
         text,
         Limits {
@@ -198,7 +184,7 @@ fn bounded_application_generates_qualified_spelling() {
 
 /// Tiny input that formerly manufactured an exponentially duplicated phantom tree.
 #[cfg(all(target_os = "linux", not(miri)))]
-const PAIR_GROWTH: &str = "#[version(1)] struct Pair<A, B> { marker: u8 } #[version(1)] struct Grow<T> { children: Vec<Grow<Pair<T, T>>> } #[version(1)] struct Root { value: Grow<u8> }";
+const PAIR_GROWTH: &str = "struct Pair<A, B> { marker: u8 } struct Grow<T> { children: Vec<Grow<Pair<T, T>>> } struct Root { value: Grow<u8> }";
 
 /// Public production limits, including real bundled parsing, must return a
 /// source-located error under a memory ceiling and on a one-MiB semantic caller.
@@ -211,14 +197,14 @@ fn public_expansion_limits_are_bounded_on_small_caller_stack() {
         let text = match case.as_str() {
             "pair" => PAIR_GROWTH.to_owned(),
             "triple" => PAIR_GROWTH.replace("Pair<A, B>", "Pair<A, B, C>").replace("Pair<T, T>", "Pair<T, T, T>"),
-            "linear" => "#[version(1)] struct Grow<T> { children: Vec<Grow<Option<T>>> } #[version(1)] struct Root { value: Grow<u8> }".to_owned(),
+            "linear" => "struct Grow<T> { children: Vec<Grow<Option<T>>> } struct Root { value: Grow<u8> }".to_owned(),
             "finite" => FINITE.to_owned(),
             "boundary" => {
                 let mut text = String::new();
                 for index in 0..64 {
-                    text.push_str(&format!("#[version(1)] struct Link{index}<T> {{ next: Vec<Link{}<T>> }}", (index + 1).min(63)));
+                    text.push_str(&format!("struct Link{index}<T> {{ next: Vec<Link{}<T>> }}", (index + 1).min(63)));
                 }
-                text.push_str("#[version(1)] struct Root { value: Link0<u8> }");
+                text.push_str("struct Root { value: Link0<u8> }");
                 text
             }
             other => panic!("unknown child {other}"),
@@ -275,11 +261,7 @@ fn public_expansion_limits_are_bounded_on_small_caller_stack() {
 /// A retained output-slice argument must not be documented as a readable slice.
 #[test]
 fn closed_output_slice_spelling_is_preserved() {
-    let graph = resolve(
-        "#[version(1)] struct Marker<T> { marker: u8 } #[version(1)] struct Root { value: Marker<&mut [u8]> }",
-        Limits::default(),
-    )
-    .unwrap();
+    let graph = resolve("struct Marker<T> { marker: u8 } struct Root { value: Marker<&mut [u8]> }", Limits::default()).unwrap();
     let generated = crate::generate_rust(&graph, "proof.budget").unwrap();
     assert!(generated.contains("proof::budget::Marker<&mut [u8]>"), "{generated}");
 }

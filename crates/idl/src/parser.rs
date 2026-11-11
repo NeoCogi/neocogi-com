@@ -19,9 +19,8 @@ use syn::{
 };
 
 use crate::{
-    PersistencePolicy, AbiType, BitEnum, BitFlag, Declaration, DeclarationId, DeclarationKind, Diagnostic, Enum, EnumNames, EnumRepr, EnumVariant,
-    ExternalModule, Field, Import, Interface, Method, Module, ModuleName, ModulePathError, NamedType, Parameter, Receiver, SourceFile, SourceSpan, Struct,
-    Threading, VariantFields,
+    PersistencePolicy, AbiType, BitEnum, BitFlag, Declaration, DeclarationKind, Diagnostic, Enum, EnumNames, EnumRepr, EnumVariant, ExternalModule, Field,
+    Import, Interface, Method, Module, ModuleName, ModulePathError, NamedType, Parameter, Receiver, SourceFile, SourceSpan, Struct, Threading, VariantFields,
 };
 
 mod keyword {
@@ -38,8 +37,9 @@ pub enum ParseError {
     ModulePath(ModulePathError),
     /// The source violated the supported IDL grammar or structural rules.
     Source(
-        /// Structured compiler diagnostic with exact source annotations.
-        Diagnostic,
+        /// Owned source diagnostic, boxed to keep fallible compiler APIs small
+        /// as structured diagnostics gain nonfatal severity and source metadata.
+        Box<Diagnostic>,
     ),
     /// The compiler could not create its explicitly sized IDL syntax worker.
     Worker(
@@ -77,6 +77,13 @@ impl From<ModulePathError> for ParseError {
     }
 }
 
+impl From<Diagnostic> for ParseError {
+    /// Transfers a source failure without copying its source graph or large record.
+    fn from(diagnostic: Diagnostic) -> Self {
+        Self::Source(Box::new(diagnostic))
+    }
+}
+
 /// One borrowed source part supplied to [`parse_module_parts`].
 #[derive(Clone, Copy, Debug)]
 pub struct ModuleSource<'a> {
@@ -110,7 +117,7 @@ pub fn parse_module_parts(relative_directory: &Path, parts: &[ModuleSource<'_>])
                 .components()
                 .all(|component| matches!(component, Component::Normal(value) if value.to_str().is_some()));
         if !normalized || part.path.extension().and_then(|extension| extension.to_str()) != Some("ncidl") || !part.path.starts_with(relative_directory) {
-            return Err(ParseError::Source(Diagnostic::new(
+            return Err(ParseError::from(Diagnostic::new(
                 "EIDL002",
                 format!(
                     "IDL part {} must be a .ncidl file below module directory {}",
@@ -139,23 +146,25 @@ fn assemble_module<'a>(name: ModuleName, parts: impl IntoIterator<Item = ModuleS
 
     let mut source_paths = HashSet::new();
     let mut sources = Vec::with_capacity(parts.len());
+    let mut warnings = Vec::new();
     let mut externals = BTreeMap::<String, ExternalModule>::new();
     let mut imports = Vec::new();
     let mut declarations = BTreeMap::<String, Declaration>::new();
     for part in parts {
         let source_file = SourceFile::new(&name, part.path, part.text);
         if !source_paths.insert(source_file.path().to_owned()) {
-            return Err(ParseError::Source(
+            return Err(ParseError::from(
                 Diagnostic::new("EIDL003", format!("IDL module contains source path {:?} more than once", source_file.path())).with_source(&source_file),
             ));
         }
-        let mut syntax = parse_str::<ModuleSyntax>(part.text).map_err(|error| ParseError::Source(Diagnostic::from_syn(&source_file, error)))?;
+        let mut syntax = parse_str::<ModuleSyntax>(part.text).map_err(|error| ParseError::from(Diagnostic::from_syn(&source_file, error)))?;
         syntax.attach_source(&source_file);
+        warnings.extend(syntax.warnings);
         // A dependency is a module-level fact, so repeating it in another
         // part is an error rather than an instruction to merge two edges.
         for external in syntax.externals {
             if let Some(previous) = externals.get(&external.module) {
-                return Err(ParseError::Source(
+                return Err(ParseError::from(
                     Diagnostic::new("EIDL019", format!("duplicate external dependency {:?}", external.module))
                         .with_sources(&[sources.as_slice(), std::slice::from_ref(&source_file)].concat())
                         .primary(&external.span, "duplicate external dependency")
@@ -167,7 +176,7 @@ fn assemble_module<'a>(name: ModuleName, parts: impl IntoIterator<Item = ModuleS
         imports.extend(syntax.imports);
         for declaration in syntax.declarations {
             if let Some(previous) = declarations.get(&declaration.name) {
-                return Err(ParseError::Source(
+                return Err(ParseError::from(
                     Diagnostic::new("EIDL010", format!("duplicate declaration {:?}", declaration.name))
                         .with_sources(&[sources.as_slice(), std::slice::from_ref(&source_file)].concat())
                         .primary(&declaration.span, "duplicate declaration")
@@ -180,14 +189,16 @@ fn assemble_module<'a>(name: ModuleName, parts: impl IntoIterator<Item = ModuleS
     }
 
     if declarations.is_empty() {
-        return Err(ParseError::Source(
+        return Err(ParseError::from(
             Diagnostic::new("EIDL004", "an IDL module must declare at least one ABI item").with_sources(&sources),
         ));
     }
 
+    warnings.sort_by(Diagnostic::stable_cmp);
     Ok(Module {
         name,
         sources,
+        warnings,
         externals: externals.into_values().collect(),
         imports: canonical_imports(imports),
         declarations: declarations.into_values().collect(),
@@ -207,6 +218,8 @@ fn canonical_imports(imports: Vec<Import>) -> Vec<Import> {
 
 /// Parsed top-level source before its path-derived module name is attached.
 struct ModuleSyntax {
+    /// Nonfatal attribute diagnostics before source paths are attached.
+    warnings: Vec<Diagnostic>,
     /// External module dependencies retained for graph construction.
     externals: Vec<ExternalModule>,
     /// One source-bearing import per declaration name.
@@ -218,6 +231,9 @@ struct ModuleSyntax {
 impl ModuleSyntax {
     /// Attaches one source path recursively to every retained syntax range.
     fn attach_source(&mut self, source: &SourceFile) {
+        for warning in &mut self.warnings {
+            warning.attach_source(source);
+        }
         for external in &mut self.externals {
             external.span.attach(source);
         }
@@ -236,6 +252,7 @@ impl Parse for ModuleSyntax {
         let mut externals = Vec::new();
         let mut imports = Vec::new();
         let mut declarations = Vec::new();
+        let mut warnings = Vec::new();
         let mut declaration_names = HashMap::new();
 
         while !input.is_empty() {
@@ -260,16 +277,27 @@ impl Parse for ModuleSyntax {
                 continue;
             }
 
-            let Parsed { value: declaration, span } = if input.peek(Token![struct]) {
-                parse_struct(attributes, input)?
+            let context = if input.peek(Token![struct]) {
+                AttributeContext::Plain
             } else if input.peek(Token![enum]) {
-                parse_enum(attributes, input)?
+                AttributeContext::Enum
             } else if input.peek(keyword::bitenum) {
-                parse_bit_enum(attributes, input)?
+                AttributeContext::BitEnum
             } else if input.peek(keyword::interface) {
-                parse_interface(attributes, input)?
+                AttributeContext::Interface
             } else {
                 return Err(input.error("expected `extern`, `use`, `struct`, `enum`, `bitenum`, or `interface`"));
+            };
+            let mut metadata = parse_attributes(attributes, context)?;
+            warnings.append(&mut metadata.warnings);
+            let Parsed { value: declaration, span } = if input.peek(Token![struct]) {
+                parse_struct(metadata, input)?
+            } else if input.peek(Token![enum]) {
+                parse_enum(metadata, input)?
+            } else if input.peek(keyword::bitenum) {
+                parse_bit_enum(metadata, input)?
+            } else {
+                parse_interface(metadata, input)?
             };
 
             if let Some(previous) = declaration_names.insert(declaration.name.clone(), span) {
@@ -278,7 +306,12 @@ impl Parse for ModuleSyntax {
             declarations.push(declaration);
         }
 
-        Ok(Self { externals, imports, declarations })
+        Ok(Self {
+            warnings,
+            externals,
+            imports,
+            declarations,
+        })
     }
 }
 
@@ -318,8 +351,7 @@ fn parse_module_reference(input: ParseStream<'_>) -> syn::Result<String> {
 }
 
 /// Parses one fixed-width bit set with explicit named flag patterns.
-fn parse_bit_enum(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Result<Parsed<Declaration>> {
-    let metadata = parse_attributes(attributes, AttributeContext::BitEnum)?;
+fn parse_bit_enum(metadata: Attributes, input: ParseStream<'_>) -> syn::Result<Parsed<Declaration>> {
     input.parse::<keyword::bitenum>()?;
     let name = input.parse::<Ident>()?;
     require_upper_camel_case(&name, "bit enum")?;
@@ -349,8 +381,7 @@ fn parse_bit_enum(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Re
 }
 
 /// Parses one copied record declaration.
-fn parse_struct(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Result<Parsed<Declaration>> {
-    let metadata = parse_attributes(attributes, AttributeContext::Plain)?;
+fn parse_struct(metadata: Attributes, input: ParseStream<'_>) -> syn::Result<Parsed<Declaration>> {
     input.parse::<Token![struct]>()?;
     let name = input.parse::<Ident>()?;
     require_upper_camel_case(&name, "struct")?;
@@ -381,8 +412,7 @@ fn parse_struct(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Resu
 }
 
 /// Parses one enum with unit, tuple, or named payload variants.
-fn parse_enum(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Result<Parsed<Declaration>> {
-    let metadata = parse_attributes(attributes, AttributeContext::Enum)?;
+fn parse_enum(metadata: Attributes, input: ParseStream<'_>) -> syn::Result<Parsed<Declaration>> {
     input.parse::<Token![enum]>()?;
     let name = input.parse::<Ident>()?;
     require_upper_camel_case(&name, "enum")?;
@@ -416,8 +446,7 @@ fn parse_enum(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Result
 }
 
 /// Parses one callable contract with threading, projections and ordinary methods.
-fn parse_interface(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Result<Parsed<Declaration>> {
-    let metadata = parse_attributes(attributes, AttributeContext::Interface)?;
+fn parse_interface(metadata: Attributes, input: ParseStream<'_>) -> syn::Result<Parsed<Declaration>> {
     let threading = metadata_threading(&metadata);
     // Dispatch already identified the keyword. Consuming it here keeps one
     // grammar for identity, projections, threading, and callable ordering.
@@ -443,7 +472,7 @@ fn declaration(name: Ident, parameters: Vec<String>, metadata: Attributes, kind:
             span: SourceSpan::from_parser(name.span()),
             docs: metadata.docs,
             name: name.to_string(),
-            id: metadata.id,
+            explicit_id: metadata.explicit_id,
             parameters,
             specialization: None,
             kind,
@@ -1093,10 +1122,12 @@ enum AttributeContext {
 /// Fully parsed common declaration attributes.
 #[derive(Clone)]
 struct Attributes {
+    /// Accepted deprecated syntax, drained before constructing semantic declarations.
+    warnings: Vec<Diagnostic>,
     /// Documentation lines retained for generated APIs and tools.
     docs: Vec<String>,
-    /// Required version and optional explicit UUID.
-    id: DeclarationId,
+    /// Optional UUID override; ordinary declarations need no identity attribute.
+    explicit_id: Option<NcGuid>,
     /// Interface threading capability.
     threading: Option<Threading>,
     /// Typed construction policy selected independently of live transport.
@@ -1109,6 +1140,7 @@ struct Attributes {
 
 /// Parses common attributes and rejects ambiguous or inapplicable combinations.
 fn parse_attributes(attributes: Vec<Attribute>, context: AttributeContext) -> syn::Result<Attributes> {
+    let mut warnings = Vec::new();
     let mut docs = Vec::new();
     let mut id = None;
     let mut threading = None;
@@ -1120,23 +1152,30 @@ fn parse_attributes(attributes: Vec<Attribute>, context: AttributeContext) -> sy
         if attribute.path().is_ident("doc") {
             docs.push(parse_doc_attribute(&attribute)?);
         } else if attribute.path().is_ident("version") {
-            if id.is_some() {
-                return Err(syn::Error::new_spanned(attribute, "specify exactly one of `version` or `id`"));
-            }
-            let version = attribute.parse_args::<LitInt>()?.base10_parse::<u32>()?;
-            id = Some(DeclarationId {
-                version: positive_version(version, &attribute)?,
-                explicit: None,
-            });
+            // Parse the former integer grammar without storing or interpreting it.
+            // Even zero and large literals are inert; identity uses names alone.
+            attribute.parse_args::<LitInt>()?;
+            warnings.push(
+                Diagnostic::warning("WIDL001", "declaration versions are deprecated and ignored")
+                    .primary(&SourceSpan::from_parser(attribute.span()), "remove this version attribute")
+                    .note("use distinct named types for different semantic contracts"),
+            );
         } else if attribute.path().is_ident("id") {
             if id.is_some() {
-                return Err(syn::Error::new_spanned(attribute, "specify exactly one of `version` or `id`"));
+                return Err(syn::Error::new_spanned(attribute, "duplicate explicit ID"));
             }
-            let arguments = attribute.parse_args::<IdArguments>()?;
-            id = Some(DeclarationId {
-                version: positive_version(arguments.version, &attribute)?,
-                explicit: Some(NcGuid::from_uuid_bytes(parse_uuid(&arguments.uuid)?)),
-            });
+            let uuid = match attribute.parse_args::<IdArguments>()? {
+                IdArguments::Current(uuid) => uuid,
+                IdArguments::Deprecated(uuid) => {
+                    warnings.push(
+                        Diagnostic::warning("WIDL001", "the version argument of `id` is deprecated and ignored")
+                            .primary(&SourceSpan::from_parser(attribute.span()), "keep only the UUID argument")
+                            .note("write #[id(\"UUID\")]"),
+                    );
+                    uuid
+                }
+            };
+            id = Some(NcGuid::from_uuid_bytes(parse_uuid(&uuid)?));
         } else if attribute.path().is_ident("threading") && matches!(context, AttributeContext::Interface) {
             if threading.is_some() {
                 return Err(syn::Error::new_spanned(attribute, "duplicate threading capability"));
@@ -1169,15 +1208,39 @@ fn parse_attributes(attributes: Vec<Attribute>, context: AttributeContext) -> sy
         }
     }
 
-    let id = id.ok_or_else(|| syn::Error::new(Span::call_site(), "every IDL declaration requires `#[version(N)]` or `#[id(N, \"UUID\")]`"))?;
     Ok(Attributes {
+        warnings,
         docs,
-        id,
+        explicit_id: id,
         threading,
         persistence,
         dense,
         enum_names,
     })
+}
+
+/// Explicit identity spelling; a former integer argument has no semantic storage.
+enum IdArguments {
+    /// Current UUID-only syntax.
+    Current(LitStr),
+    /// Accepted numbered syntax requiring a migration warning.
+    Deprecated(LitStr),
+}
+
+impl Parse for IdArguments {
+    /// Consumes a deprecated integer when present, retaining only its UUID.
+    fn parse(input: ParseStream<'_>) -> syn::Result<Self> {
+        let deprecated = input.peek(LitInt);
+        if deprecated {
+            input.parse::<LitInt>()?;
+            input.parse::<Token![,]>()?;
+        }
+        let uuid = input.parse::<LitStr>()?;
+        if !input.is_empty() {
+            return Err(input.error("`id` accepts one UUID string"));
+        }
+        Ok(if deprecated { Self::Deprecated(uuid) } else { Self::Current(uuid) })
+    }
 }
 
 /// Parses one mutually exclusive construction policy without ambiguous boolean states.
@@ -1195,36 +1258,6 @@ fn parse_persistence(attribute: &Attribute) -> syn::Result<PersistencePolicy> {
 /// Returns a callable object's declared capability or the conservative local default.
 fn metadata_threading(metadata: &Attributes) -> Threading {
     metadata.threading.unwrap_or(Threading::Local)
-}
-
-/// Arguments accepted by `#[id(version, "UUID")]`.
-struct IdArguments {
-    /// Positive declaration version.
-    version: u32,
-    /// Canonical hyphenated UUID text.
-    uuid: LitStr,
-}
-
-impl Parse for IdArguments {
-    /// Parses exactly two comma-separated identity arguments.
-    fn parse(input: ParseStream<'_>) -> syn::Result<Self> {
-        let version = input.parse::<LitInt>()?.base10_parse::<u32>()?;
-        input.parse::<Token![,]>()?;
-        let uuid = input.parse::<LitStr>()?;
-        if !input.is_empty() {
-            return Err(input.error("`id` accepts exactly a version and UUID"));
-        }
-        Ok(Self { version, uuid })
-    }
-}
-
-/// Rejects zero because it is reserved for missing or malformed metadata.
-fn positive_version(version: u32, source: &impl quote::ToTokens) -> syn::Result<u32> {
-    if version == 0 {
-        Err(syn::Error::new_spanned(source, "IDL declaration versions must be greater than zero"))
-    } else {
-        Ok(version)
-    }
 }
 
 /// Parses an optional `: integer` enum suffix, defaulting to `u32`.

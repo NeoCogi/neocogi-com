@@ -23,8 +23,6 @@ const NC_IDL_IDENTITY_NAMESPACE: NcGuid = guid_from_qualified_name("neocogi.idl.
 pub struct DeclarationIdentity {
     /// Exact dotted qualified name used in descriptions and diagnostics.
     pub qualified_name: String,
-    /// Positive source version from the version or ID attribute.
-    pub version: u32,
     /// Derived or explicitly supplied 128-bit ABI identity.
     pub id: NcGuid,
     /// Tool-computed identity of this declaration in the exact module revision.
@@ -554,17 +552,14 @@ fn build_entries(modules: Vec<Module>) -> Result<Vec<ModuleEntry>, ResolutionErr
                 }
                 None => module.name.qualify(&declaration.name),
             };
-            let id = declaration
-                .id
-                .explicit
-                .unwrap_or_else(|| derive_declaration_id(&qualified_name, declaration.id.version));
+            let id = declaration.explicit_id.unwrap_or_else(|| derive_declaration_id(&qualified_name));
             if matches!(declaration.kind, DeclarationKind::Interface(_)) && id.is_nil() {
                 return Err(source_error(
                     &module,
                     "EIDL074",
                     &declaration.span,
                     "a callable interface ID must not be nil",
-                    "choose a nonnil explicit ID or a derived versioned identity",
+                    "choose a nonnil explicit ID or an identity derived from the qualified name",
                 ));
             }
             if let Some(previous) = declaration_ids.insert(id, declaration.span.clone()) {
@@ -602,7 +597,6 @@ fn build_entries(modules: Vec<Module>) -> Result<Vec<ModuleEntry>, ResolutionErr
             local_symbols.insert(declaration.name.clone(), symbol);
             declaration_identities.push(DeclarationIdentity {
                 qualified_name,
-                version: declaration.id.version,
                 id,
                 // The final value depends on the transitive module fingerprint,
                 // which is available only after the complete graph is resolved.
@@ -1807,14 +1801,14 @@ fn fingerprint_module(
 /// This compiler/build-time encoding revision is independent of runtime and
 /// plugin descriptor discovery ABI v1. Documentation checks use this same prefix;
 /// changing source provenance or Cargo name mangling must not change its bytes.
-/// Revision 13 removes UI event publication edges from ordinary callable contracts.
-pub const MODULE_ABI_ENCODING_DOMAIN: &[u8] = b"neocogi-idl:module-abi:v13\0";
+/// Revision 14 removes authored declaration versions from every contract.
+pub const MODULE_ABI_ENCODING_DOMAIN: &[u8] = b"neocogi-idl:module-abi:v14\0";
 
 /// Encodes one module into canonical bytes and hashes the result.
 fn encode_module(index: usize, entries: &[ModuleEntry], dependencies: &[(usize, [u8; 32])]) -> Result<[u8; 32], ResolutionError> {
     let entry = &entries[index];
     let mut encoder = CanonicalEncoder::new();
-    // Templates and concrete declarations share this v13 encoding, including
+    // Templates and concrete declarations share this v14 encoding, including
     // ordinary type dependencies and authored policies. Build/debug locations are absent.
     encoder.bytes(MODULE_ABI_ENCODING_DOMAIN);
     encoder.guid(entry.module_id);
@@ -1823,9 +1817,8 @@ fn encode_module(index: usize, entries: &[ModuleEntry], dependencies: &[(usize, 
     encoder.u32(u32_len(entry.module.templates.len(), &entry.name, "template count")?);
     for template in &entry.module.templates {
         let id = template
-            .id
-            .explicit
-            .unwrap_or_else(|| derive_declaration_id(&entry.module.name.qualify(&template.name), template.id.version));
+            .explicit_id
+            .unwrap_or_else(|| derive_declaration_id(&entry.module.name.qualify(&template.name)));
         encode_declaration(index, template, id, entries, &mut encoder)?;
     }
 
@@ -1921,7 +1914,6 @@ fn encode_declaration(
     };
     encoder.u32(u32_len(scope.parameters.len(), &entries[index].name, "type parameter count")?);
     encoder.text(&declaration.name, &entries[index].name)?;
-    encoder.u32(declaration.id.version);
     encoder.guid(id);
     match &declaration.kind {
         DeclarationKind::Struct(record) => {
@@ -2184,9 +2176,8 @@ fn encode_free_declaration(
         .find(|declaration| declaration.name == key.name)
         .ok_or_else(|| error(Some(&entries[module].name), "bound free declaration is absent"))?;
     let id = declaration
-        .id
-        .explicit
-        .unwrap_or_else(|| derive_declaration_id(&entries[module].module.name.qualify(&key.name), declaration.id.version));
+        .explicit_id
+        .unwrap_or_else(|| derive_declaration_id(&entries[module].module.name.qualify(&key.name)));
     encoder.guid(entries[module].module_id);
     encoder.guid(id);
     encoder.u32(u32_len(name.arguments.len(), &entries[scope.module].name, "type argument count")?);
@@ -2272,13 +2263,14 @@ fn derive_module_id(module_name: &str) -> NcGuid {
     guid_from_name(NC_IDL_IDENTITY_NAMESPACE, &preimage)
 }
 
-/// Derives one declaration ID from exact name and binary version fields.
-pub(crate) fn derive_declaration_id(qualified_name: &str, version: u32) -> NcGuid {
+/// Derives nominal identity from the exact qualified name alone.
+/// Structural changes are distinguished by the separate ABI signature; semantic
+/// contracts that need different nominal identities use different names.
+pub(crate) fn derive_declaration_id(qualified_name: &str) -> NcGuid {
     let mut preimage = Vec::with_capacity(qualified_name.len() + 40);
-    preimage.extend_from_slice(b"neocogi-idl:declaration:v1\0");
+    preimage.extend_from_slice(b"neocogi-idl:declaration:v2\0");
     preimage.extend_from_slice(&(qualified_name.len() as u64).to_be_bytes());
     preimage.extend_from_slice(qualified_name.as_bytes());
-    preimage.extend_from_slice(&version.to_be_bytes());
     guid_from_name(NC_IDL_IDENTITY_NAMESPACE, &preimage)
 }
 
@@ -2446,7 +2438,7 @@ mod reference_encoding_tests {
     /// Free UUID bytes cannot impersonate a bound ordinal: both cases have tags.
     #[test]
     fn named_references_discriminate_free_identity_and_parameter_positions() {
-        let source = crate::parse_module(std::path::Path::new("proof/codec.ncidl"), "#[version(1)] interface B {}").unwrap();
+        let source = crate::parse_module(std::path::Path::new("proof/codec.ncidl"), "interface B {}").unwrap();
         let entries = build_entries(vec![source]).unwrap();
         let parameters = vec!["A".to_owned(), "B".to_owned()];
         let scope = EncodingScope { module: 0, parameters: &parameters };
@@ -2488,7 +2480,7 @@ mod reference_encoding_tests {
     /// of its payload length or a following sibling's bytes.
     #[test]
     fn type_expression_prefixes_are_disjoint() {
-        let source = crate::parse_module(std::path::Path::new("proof/tags.ncidl"), "#[version(1)] interface Item {}").unwrap();
+        let source = crate::parse_module(std::path::Path::new("proof/tags.ncidl"), "interface Item {}").unwrap();
         let entries = build_entries(vec![source]).unwrap();
         let parameters = vec!["T".to_owned()];
         let scope = EncodingScope { module: 0, parameters: &parameters };

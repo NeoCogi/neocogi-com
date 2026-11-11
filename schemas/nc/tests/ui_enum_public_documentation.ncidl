@@ -1,4 +1,3 @@
-#[version(1)]
 /// Public semantic choice with all three supported payload shapes.
 enum Documented: u8 {
     /// Variant without payload data.

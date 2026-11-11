@@ -102,7 +102,7 @@ fn printed_object_bindings_keep_storage_and_support_names_private() {
         struct ExclusiveComObject;
     "#,
     );
-    generated += &super::name_ownership_tests::contract("#[version(1)] interface IValue { fn value(&self) -> Result<u32>; }");
+    generated += &super::name_ownership_tests::contract("interface IValue { fn value(&self) -> Result<u32>; }");
     for (name, options) in [
         ("Shared", quote! { interfaces(IValue), thread_safe }),
         ("Exclusive", quote! { IValue, ownership = exclusive }),

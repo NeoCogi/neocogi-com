@@ -12,15 +12,15 @@ fn templates() -> Module {
     module(
         "test/transport.ncidl",
         r#"
-        #[version(1)] interface IReceiver<T> { fn post(&mut self, message: &T) -> Result<()>; }
-        #[version(1)] interface IStream<T> { fn attach(&mut self, queue: &IReceiver<T>) -> Result<()>; }
+        interface IReceiver<T> { fn post(&mut self, message: &T) -> Result<()>; }
+        interface IStream<T> { fn attach(&mut self, queue: &IReceiver<T>) -> Result<()>; }
     "#,
     )
 }
 
 /// An event lives independently of the modules that instantiate its stream.
 fn messages() -> Module {
-    module("test/messages.ncidl", "#[version(1)] enum Event { Changed(u32), Submitted }")
+    module("test/messages.ncidl", "enum Event { Changed(u32), Submitted }")
 }
 
 /// Builds a concrete class with generic sibling interfaces and a constructor.
@@ -33,9 +33,9 @@ fn consumer(name: &str, extra: &str) -> Module {
         extern test.messages;
         use test.transport::IStream;
         use test.messages::Event;
-        #[version(1)] interface IObject {{ fn value(&self) -> Result<u32>; }}
-        #[version(1)] interface Object: IObject + IStream<Event> {{}}
-        #[version(1)] interface Factory {{ fn create(&self) -> Result<ComPtr<Object>>; }}
+        interface IObject {{ fn value(&self) -> Result<u32>; }}
+        interface Object: IObject + IStream<Event> {{}}
+        interface Factory {{ fn create(&self) -> Result<ComPtr<Object>>; }}
         {extra}
     "#
         ),
@@ -59,7 +59,7 @@ fn instances(graph: &ResolvedModules, owner: &str) -> Vec<(String, neocogi_com_c
 #[test]
 fn independent_consumers_share_specialization_identity_and_signature() {
     let first = resolve_modules(vec![templates(), messages(), consumer("first", "")]).unwrap();
-    let second = resolve_modules(vec![consumer("second", "#[version(1)] struct Extra { count: u64 }"), messages(), templates()]).unwrap();
+    let second = resolve_modules(vec![consumer("second", "struct Extra { count: u64 }"), messages(), templates()]).unwrap();
     assert_eq!(instances(&first, "test.first"), instances(&second, "test.second"));
     assert_eq!(instances(&first, "test.first").len(), 2);
     let together = resolve_modules(vec![templates(), messages(), consumer("first", ""), consumer("second", "")]).unwrap();
@@ -76,7 +76,7 @@ fn independent_consumers_share_specialization_identity_and_signature() {
 #[test]
 fn changing_argument_layout_changes_signature_but_not_nominal_identity() {
     let first = resolve_modules(vec![templates(), messages(), consumer("first", "")]).unwrap();
-    let changed = module("test/messages.ncidl", "#[version(1)] enum Event { Changed(u64), Submitted }");
+    let changed = module("test/messages.ncidl", "enum Event { Changed(u64), Submitted }");
     let second = resolve_modules(vec![templates(), changed, consumer("first", "")]).unwrap();
     for ((_, left_id, left_sig), (_, right_id, right_sig)) in instances(&first, "test.first").into_iter().zip(instances(&second, "test.first")) {
         assert_eq!(left_id, right_id);
@@ -94,13 +94,13 @@ fn rejects_open_and_invalid_specializations() {
                 r#"
             extern test.transport; extern test.messages;
             use test.transport::IStream; use test.messages::Event;
-            #[version(1)] interface Invalid: {reference} {{}}
+            interface Invalid: {reference} {{}}
         "#
             ),
         );
         assert!(resolve_modules(vec![templates(), messages(), source]).is_err(), "{reference} must fail");
     }
-    assert!(parse_module(Path::new("test/generic.ncidl"), "#[version(1)] interface Object<T> {}").is_ok());
+    assert!(parse_module(Path::new("test/generic.ncidl"), "interface Object<T> {}").is_ok());
 }
 
 /// Ordinary ABI-safe values also work; generics are not an event-language feature.
@@ -109,8 +109,8 @@ fn generic_interface_accepts_scalar_arguments_in_valid_positions() {
     let source = module(
         "test/scalars.ncidl",
         r#"
-        #[version(1)] interface IValue<T> { fn get(&self) -> Result<T>; fn set(&mut self, value: T) -> Result<()>; }
-        #[version(1)] interface Counter: IValue<u32> {}
+        interface IValue<T> { fn get(&self) -> Result<T>; fn set(&mut self, value: T) -> Result<()>; }
+        interface Counter: IValue<u32> {}
     "#,
     );
     let graph = resolve_modules(vec![source]).unwrap();
@@ -124,9 +124,9 @@ fn closed_generic_calls_cross_generated_module_boundaries() {
     use std::{fs, process::Command};
     let template = module(
         "proof/contracts.ncidl",
-        "#[version(1)] interface IValue<T> { fn get(&self) -> Result<T>; fn set(&mut self, value: T) -> Result<()>; }",
+        "interface IValue<T> { fn get(&self) -> Result<T>; fn set(&mut self, value: T) -> Result<()>; }",
     );
-    let source = "extern proof.contracts; use proof.contracts::IValue; #[version(1)] interface Counter: IValue<u32> {}";
+    let source = "extern proof.contracts; use proof.contracts::IValue; interface Counter: IValue<u32> {}";
     let graph = resolve_modules(vec![template, module("proof/producer.ncidl", source), module("proof/consumer.ncidl", source)]).unwrap();
     let owner = graph.module("proof.producer").unwrap();
     let contract = &owner.source.declarations.iter().find(|source| source.specialization.is_some()).unwrap().name;
@@ -207,22 +207,19 @@ fn closed_generic_calls_cross_generated_module_boundaries() {
 #[test]
 fn generic_values_reject_invalid_closed_layout_and_ownership() {
     for body in [
-        "#[version(1)] struct Boxed<T> { value: T } #[version(1)] struct Bad { value: Boxed<IToken> }",
-        "#[version(1)] struct Handle<I> { value: ComPtr<I> } #[version(1)] struct Bad { value: Handle<u32> }",
-        "#[version(1)] struct Loop<T> { child: Option<Loop<T>> } #[version(1)] struct Bad { value: Loop<u32> }",
-        "#[version(1)] struct Boxed<T> { value: T } #[version(1)] struct Bad { value: Boxed }",
-        "#[version(1)] enum Choice<T> { Value(T) } #[version(1)] struct Bad { value: Choice<u32, bool> }",
-        "#[version(1)] struct Grow<T> { children: Vec<Grow<Option<T>>> } #[version(1)] struct Bad { value: Grow<u32> }",
-        "#[version(1)] struct Marker<T> { value: u32 } #[version(1)] struct Bad { value: Marker<ComPtr<u32>> }",
-        "#[version(1)] struct Boxed<T> { value: T } #[version(1)] interface IBad { fn get(&self) -> Result<Boxed<String>>; }",
+        "struct Boxed<T> { value: T } struct Bad { value: Boxed<IToken> }",
+        "struct Handle<I> { value: ComPtr<I> } struct Bad { value: Handle<u32> }",
+        "struct Loop<T> { child: Option<Loop<T>> } struct Bad { value: Loop<u32> }",
+        "struct Boxed<T> { value: T } struct Bad { value: Boxed }",
+        "enum Choice<T> { Value(T) } struct Bad { value: Choice<u32, bool> }",
+        "struct Grow<T> { children: Vec<Grow<Option<T>>> } struct Bad { value: Grow<u32> }",
+        "struct Marker<T> { value: u32 } struct Bad { value: Marker<ComPtr<u32>> }",
+        "struct Boxed<T> { value: T } interface IBad { fn get(&self) -> Result<Boxed<String>>; }",
     ] {
-        let source = module("proof/bad.ncidl", &format!("#[version(1)] interface IToken {{}} {body}"));
+        let source = module("proof/bad.ncidl", &format!("interface IToken {{}} {body}"));
         assert!(resolve_modules(vec![source]).is_err(), "must reject {body}");
     }
-    for source in [
-        "#[version(1)] struct Invalid<String> { value: String }",
-        "#[version(1)] struct Boxed<T, T> { value: T }",
-    ] {
+    for source in ["struct Invalid<String> { value: String }", "struct Boxed<T, T> { value: T }"] {
         assert!(parse_module(Path::new("proof/bad.ncidl"), source).is_err());
     }
 }
@@ -234,31 +231,31 @@ fn parameter_renames_preserve_cross_module_calls_and_event_adapters() {
     use std::{fs, process::Command};
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize().unwrap();
     let template_source = r#"
-        #[version(1)] struct Pair<T, U> { first: T, second: U }
-        #[version(1)] struct Node<T> { value: T, children: Vec<Node<T>> }
-        #[version(1)] enum Change<T>: u8 { Set(T), Clear }
-        #[version(1)] struct Handle<I> { object: ComPtr<I> }
-        #[version(1)] interface IValueReceiver<T> { fn accept(&mut self, value: &T) -> Result<()>; }
-        #[version(1)] interface IExchange<T> { fn roundtrip(&self, value: T) -> Result<T>; }
+        struct Pair<T, U> { first: T, second: U }
+        struct Node<T> { value: T, children: Vec<Node<T>> }
+        enum Change<T>: u8 { Set(T), Clear }
+        struct Handle<I> { object: ComPtr<I> }
+        interface IValueReceiver<T> { fn accept(&mut self, value: &T) -> Result<()>; }
+        interface IExchange<T> { fn roundtrip(&self, value: T) -> Result<T>; }
     "#;
     // Each declaration selects its own binder names, including recursive uses.
     // Only spelling changes; the consumer is compiled from a separate graph.
     let renamed_template_source = r#"
-        #[version(1)] struct Pair<Left, Right> { first: Left, second: Right }
-        #[version(1)] struct Node<Item> { value: Item, children: Vec<Node<Item>> }
-        #[version(1)] enum Change<Payload>: u8 { Set(Payload), Clear }
-        #[version(1)] struct Handle<Object> { object: ComPtr<Object> }
-        #[version(1)] interface IValueReceiver<Item> { fn accept(&mut self, value: &Item) -> Result<()>; }
-        #[version(1)] interface IExchange<Value> { fn roundtrip(&self, value: Value) -> Result<Value>; }
+        struct Pair<Left, Right> { first: Left, second: Right }
+        struct Node<Item> { value: Item, children: Vec<Node<Item>> }
+        enum Change<Payload>: u8 { Set(Payload), Clear }
+        struct Handle<Object> { object: ComPtr<Object> }
+        interface IValueReceiver<Item> { fn accept(&mut self, value: &Item) -> Result<()>; }
+        interface IExchange<Value> { fn roundtrip(&self, value: Value) -> Result<Value>; }
     "#;
     let consumer_source = r#"
         extern proof.templates;
         use proof.templates::{Pair, Node, Change, Handle, IExchange, IValueReceiver};
 
-        #[version(1)] interface ExchangeFactory { fn create(&self, events: &Option<u32>) -> Result<ComPtr<Exchange>>; }
-        #[version(1)] interface Exchange: IExchange<Pair<bool, bool>> {}
-        #[version(1)] interface Receiver: IValueReceiver<Change<Node<String>>> {}
-        #[version(1)] interface IData { fn inspect(&self, owner: &Handle<IUnknown>) -> Result<()>; }
+        interface ExchangeFactory { fn create(&self, events: &Option<u32>) -> Result<ComPtr<Exchange>>; }
+        interface Exchange: IExchange<Pair<bool, bool>> {}
+        interface Receiver: IValueReceiver<Change<Node<String>>> {}
+        interface IData { fn inspect(&self, owner: &Handle<IUnknown>) -> Result<()>; }
     "#;
     // Resolve independently: accidental dependence on the other consumer's
     // generated declarations cannot make this ABI compatibility proof pass.
@@ -398,10 +395,10 @@ fn parameter_renames_preserve_cross_module_calls_and_event_adapters() {
 fn value_template_layout_is_part_of_specialized_signatures() {
     let graph = |fields: &str| {
         resolve_modules(vec![
-            module("proof/templates.ncidl", &format!("#[version(1)] struct Pair<T> {{ {fields} }}")),
+            module("proof/templates.ncidl", &format!("struct Pair<T> {{ {fields} }}")),
             module(
                 "proof/consumer.ncidl",
-                "extern proof.templates; use proof.templates::Pair; #[version(1)] struct Payload { pair: Pair<bool> }",
+                "extern proof.templates; use proof.templates::Pair; struct Payload { pair: Pair<bool> }",
             ),
         ])
         .unwrap()

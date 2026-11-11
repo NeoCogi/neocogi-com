@@ -148,7 +148,7 @@ mod spelling_tests {
             "&mut [u8]",
             "[u8; 4]",
         ] {
-            let source = format!("#[version(1)] struct Marker<T> {{ value: u8 }} #[version(1)] struct Root {{ value: Marker<{argument}> }}");
+            let source = format!("struct Marker<T> {{ value: u8 }} struct Root {{ value: Marker<{argument}> }}");
             let module = crate::parse_module(std::path::Path::new("proof/spelling.ncidl"), &source).unwrap();
             let crate::DeclarationKind::Struct(record) = &module.declaration("Root").unwrap().kind else {
                 panic!("record")

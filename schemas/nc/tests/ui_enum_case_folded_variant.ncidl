@@ -1,4 +1,3 @@
-#[version(1)]
 enum CaseFoldedVariant: u8 {
     Foo(u8),
     FOO(u16),

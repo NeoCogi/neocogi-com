@@ -66,13 +66,13 @@ a Rust reference; conflicting or reentrant access returns `NC_E_BUSY`. Shared
 objects keep their method borrow state separate from strong counting. Exclusive
 objects combine owner presence and reader/writer admission in one atomic word.
 The ABI implementation contains the necessary `UnsafeCell`; semantic state stays
-in ordinary fields. See the [current ABI](../abi-v1.md) for layouts,
+in ordinary fields. See the [current ABI](../abi-v2.md) for layouts,
 ownership transfer and the limits of concurrent Drop.
 
 ## Independent-build compatibility
 
 The [IDL reference](../contracts/IDL_MODULES.md) owns canonical fingerprint encoding and
-declaration version rules. Each exact declaration signature includes the module's
+name-derived identities and contract-change rules. Each exact declaration signature includes the module's
 transitive revision. Generic binder spelling is normalized by parameter position;
 authored members and policies remain contract inputs. Interface identity alone
 does not establish compatibility with a different revision.
@@ -93,8 +93,8 @@ Dynamic and static assemblies use the same typed acquisition. Dynamic builds exp
 `nc_get_plugin_descriptor_v1`; monoliths register the same provider's Rust
 descriptor and link the runtime statically. Independent compiler versions and
 build flags are supported when the target C ABI, core generation and exact contract
-signatures agree. The [compatibility matrix](../abi-v1.md#independent-build-compatibility)
-records actual cross-build verification. The [current contract index](../abi-v1.md)
+signatures agree. The [compatibility matrix](../abi-v2.md#independent-build-compatibility)
+records actual cross-build verification. The [current contract index](../abi-v2.md)
 separates core ABI generation from discovery versions and IDL hash encoding.
 
 Inspection exposes plugin identity, dependencies, threading and the exact root

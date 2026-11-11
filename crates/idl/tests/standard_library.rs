@@ -7,17 +7,17 @@ fn graph(name: &str, source: &str) -> neocogi_idl::ResolvedModules {
     resolve_modules(vec![parse_module(Path::new(&format!("proof/{name}.ncidl")), source).unwrap()]).unwrap()
 }
 
-/// The initial bundled version reaches closed identities through both import
+/// The bundled template reaches identical closed identities through both import
 /// paths; prelude lookup still preserves ordinary lexical shadowing.
 #[test]
 fn option_is_an_ordinary_shadowable_library_enum() {
     let library = parse_module(Path::new("neocogi/lang.ncidl"), include_str!("../stdlib/neocogi/lang.ncidl")).unwrap();
-    assert_eq!(library.declaration("Option").unwrap().id.version, 1, "the bundled template starts at version 1");
-    let implicit = graph("first", "#[version(1)] struct Value { value: Option<u32> }");
-    let explicit = graph(
-        "second",
-        "extern neocogi.lang; use neocogi.lang::Option; #[version(1)] struct Value { value: Option<u32> }",
+    assert!(
+        library.declaration("Option").unwrap().explicit_id.is_none(),
+        "the bundled template derives identity from its name"
     );
+    let implicit = graph("first", "struct Value { value: Option<u32> }");
+    let explicit = graph("second", "extern neocogi.lang; use neocogi.lang::Option; struct Value { value: Option<u32> }");
     let instance = |graph: &neocogi_idl::ResolvedModules, owner| {
         let module = graph.module(owner).unwrap();
         let declaration = module
@@ -32,21 +32,14 @@ fn option_is_an_ordinary_shadowable_library_enum() {
         assert_eq!(value.variants.iter().map(|variant| variant.name.as_str()).collect::<Vec<_>>(), ["None", "Some"]);
         assert!(graph.values.definitions[&module.declaration(&declaration.name).unwrap().qualified_name].copied);
         let identity = module.declaration(&declaration.name).unwrap();
-        assert_eq!(identity.version, 1, "closed instances preserve the bundled template's declaration version");
         identity.clone()
     };
     let first = instance(&implicit, "proof.first");
     let second = instance(&explicit, "proof.second");
     assert_eq!((first.id, first.abi_signature), (second.id, second.abi_signature));
-    let local = graph(
-        "local",
-        "#[version(1)] enum Option<T> { Missing, Present(T) } #[version(1)] struct Value { value: Option<u32> }",
-    );
+    let local = graph("local", "enum Option<T> { Missing, Present(T) } struct Value { value: Option<u32> }");
     assert!(local.module("neocogi.lang").is_none());
-    let named = graph(
-        "named",
-        "#[version(1)] struct Option { value: u32 } #[version(1)] struct Value { value: Option }",
-    );
+    let named = graph("named", "struct Option { value: u32 } struct Value { value: Option }");
     assert!(named.module("neocogi.lang").is_none());
 }
 
@@ -54,19 +47,19 @@ fn option_is_an_ordinary_shadowable_library_enum() {
 #[test]
 fn ordinary_optional_payload_rules_apply_at_every_use_site() {
     for source in [
-        "#[version(1)] struct Invalid { value: Option<&IUnknown> }",
-        "#[version(1)] interface Invalid { fn use_it(&self, value: Option<&IUnknown>) -> Result<()>; }",
-        "#[version(1)] interface Invalid { fn text(&self) -> Result<Option<String>>; }",
-        "#[version(1)] struct Invalid { child: Option<Invalid> }",
-        "#[version(1)] struct Invalid { value: Option<Slice<u8>> }",
+        "struct Invalid { value: Option<&IUnknown> }",
+        "interface Invalid { fn use_it(&self, value: Option<&IUnknown>) -> Result<()>; }",
+        "interface Invalid { fn text(&self) -> Result<Option<String>>; }",
+        "struct Invalid { child: Option<Invalid> }",
+        "struct Invalid { value: Option<Slice<u8>> }",
     ] {
         assert!(
             resolve_modules(vec![parse_module(Path::new("proof/invalid.ncidl"), source).unwrap()]).is_err(),
             "{source}"
         );
     }
-    graph("tree", "#[version(1)] struct Tree { children: Option<Vec<Tree>> }");
-    let source = "#[version(1)] enum Substitute<T> { Value(T) }";
+    graph("tree", "struct Tree { children: Option<Vec<Tree>> }");
+    let source = "enum Substitute<T> { Value(T) }";
     assert!(resolve_modules(vec![parse_module(Path::new("neocogi/lang.ncidl"), source).unwrap()]).is_err());
 }
 

@@ -46,7 +46,7 @@ fn assert_syntax_diagnostic(error: ParseError, module: &str, path: &Path, source
 /// Owners and every authored module-reference form share one logical segment rule.
 #[test]
 fn rejects_invalid_logical_module_segments() {
-    let declaration = "#[version(1)] struct Value { value: u32 }";
+    let declaration = "struct Value { value: u32 }";
     for invalid in ["gen", "type", "async", "_", "self", "Self", "super", "crate", "r#type", "r#ordinary", "Café"] {
         for name in [format!("{invalid}.owner"), format!("proof.{invalid}"), format!("proof.{invalid}.owner")] {
             let directory = name.replace('.', "/");
@@ -68,8 +68,8 @@ fn rejects_invalid_logical_module_segments() {
             for source in [
                 format!("extern {name}; {declaration}"),
                 format!("use {name}::Value; {declaration}"),
-                format!("#[version(1)] struct Unused<T> {{ value: {qualified}::Value }}"),
-                format!("#[version(1)] interface Unused<T>: {qualified}::Probe {{}}"),
+                format!("struct Unused<T> {{ value: {qualified}::Value }}"),
+                format!("interface Unused<T>: {qualified}::Probe {{}}"),
             ] {
                 assert!(parse_module(Path::new("proof/consumer.ncidl"), &source).is_err(), "accepted reference {source}");
             }
@@ -91,7 +91,7 @@ fn rejects_invalid_logical_module_segments() {
         let file = format!("proof/{name}.ncidl");
         let module = parse_module(Path::new(&file), declaration).unwrap();
         assert_eq!(module.name.to_string(), owner);
-        let source = format!("extern {owner}; use {owner}::Value; #[version(1)] struct Container {{ imported: Value, qualified: proof::{name}::Value }}");
+        let source = format!("extern {owner}; use {owner}::Value; struct Container {{ imported: Value, qualified: proof::{name}::Value }}");
         let consumer = parse_module(Path::new("proof/consumer.ncidl"), &source).unwrap();
         let graph = resolve_modules(vec![module, consumer]).unwrap();
         generate_rust(&graph, "proof.consumer").unwrap();
@@ -117,14 +117,14 @@ fn logical_module_segment_diagnostics_preserve_source_parts() {
         for source in [
             format!("// café\nextern proof.{invalid}.owner;\n"),
             format!("// café\nuse proof.{invalid}::Value;\n"),
-            format!("#[version(1)]\nstruct Unused<T> {{ /* café */ value: proof::{invalid}::Value }}\n"),
+            format!("struct Unused<T> {{ /* café */ value: proof::{invalid}::Value }}\n"),
         ] {
             let path = Path::new("proof/consumer.ncidl");
             assert_syntax_diagnostic(parse_module(path, &source).unwrap_err(), "proof.consumer", path, &source, invalid, &message);
             let path = Path::new("proof/consumer/z_invalid.ncidl");
             let earlier = ModuleSource {
                 path: Path::new("proof/consumer/a_valid.ncidl"),
-                text: "#[version(1)] struct Earlier { value: u32 }",
+                text: "struct Earlier { value: u32 }",
             };
             let invalid_part = ModuleSource { path, text: &source };
             for parts in [[earlier, invalid_part], [invalid_part, earlier]] {
@@ -147,33 +147,33 @@ fn rejects_rust_2024_keyword_members() {
     let path = Path::new("proof/keywords.ncidl");
     for name in ["union", "safe", "raw", "macro_rules", "generation", "gen_value"] {
         let source = format!(
-            "#[version(1)] struct Data {{ {name}: u32 }} \
-             #[version(1)] enum Choice {{ Named {{ {name}: u32 }} }} \
-             #[version(1)] interface Probe {{ fn {name}(&self, {name}: u32) -> Result<u32>; }}"
+            "struct Data {{ {name}: u32 }} \
+             enum Choice {{ Named {{ {name}: u32 }} }} \
+             interface Probe {{ fn {name}(&self, {name}: u32) -> Result<u32>; }}"
         );
         let graph = resolve_modules(vec![parse_module(path, &source).unwrap()]).unwrap();
         generate_rust(&graph, "proof.keywords").unwrap();
     }
     // A metadata path limit is not an authored member-name limit.
     let long_name = "a".repeat(neocogi_com_core::NC_DESCRIPTOR_RUST_PATH_MAX_LEN + 1);
-    let source = format!("#[version(1)] struct Data {{ {long_name}: u32 }}");
+    let source = format!("struct Data {{ {long_name}: u32 }}");
     let parsed = parse_module(path, &source).unwrap();
     let DeclarationKind::Struct(data) = &parsed.declaration("Data").unwrap().kind else {
         panic!("expected record")
     };
     assert_eq!(data.fields[0].name, long_name);
-    let source = "#[version(1)] struct Data<T> { value: T } #[version(1)] struct Closed { item: Data<u32> } \
-                  #[version(1)] interface Probe<T> { fn read(&self, value: T) -> Result<T>; } \
-                  #[version(1)] interface ClosedReader: Probe<u32> {}";
+    let source = "struct Data<T> { value: T } struct Closed { item: Data<u32> } \
+                  interface Probe<T> { fn read(&self, value: T) -> Result<T>; } \
+                  interface ClosedReader: Probe<u32> {}";
     resolve_modules(vec![parse_module(path, source).unwrap()]).unwrap();
 
     // Raw IDL names stay excluded; older strict keywords may reject inside Syn.
     for name in ["r#gen", "r#union", "type", "async", "self", "try"] {
         for source in [
-            format!("#[version(1)] struct Data {{ {name}: u32 }}"),
-            format!("#[version(1)] enum Choice {{ Named {{ {name}: u32 }} }}"),
-            format!("#[version(1)] interface Probe {{ fn {name}(&self) -> Result<u32>; }}"),
-            format!("#[version(1)] interface Probe {{ fn read(&self, {name}: u32) -> Result<u32>; }}"),
+            format!("struct Data {{ {name}: u32 }}"),
+            format!("enum Choice {{ Named {{ {name}: u32 }} }}"),
+            format!("interface Probe {{ fn {name}(&self) -> Result<u32>; }}"),
+            format!("interface Probe {{ fn read(&self, {name}: u32) -> Result<u32>; }}"),
         ] {
             assert!(parse_module(path, &source).is_err(), "{source}");
         }
@@ -181,15 +181,15 @@ fn rejects_rust_2024_keyword_members() {
 
     let mut accepted = Vec::new();
     for (source, role) in [
-        ("#[version(1)] struct Data { gen: u32 }", "field"),
-        ("#[version(1)] enum Choice { Named { gen: u32 } }", "field"),
-        ("#[version(1)] interface Probe { fn gen(&self) -> Result<u32>; }", "method"),
-        ("#[version(1)] interface Probe { fn read(&self, gen: u32) -> Result<u32>; }", "parameter"),
-        ("#[version(1)] struct Unused<T> { gen: T }", "field"),
-        ("#[version(1)] interface Unused<T> { fn gen(&self) -> Result<T>; }", "method"),
+        ("struct Data { gen: u32 }", "field"),
+        ("enum Choice { Named { gen: u32 } }", "field"),
+        ("interface Probe { fn gen(&self) -> Result<u32>; }", "method"),
+        ("interface Probe { fn read(&self, gen: u32) -> Result<u32>; }", "parameter"),
+        ("struct Unused<T> { gen: T }", "field"),
+        ("interface Unused<T> { fn gen(&self) -> Result<T>; }", "method"),
         (
-            "#[version(1)] struct Used<T> { value: T } #[version(1)] struct Closed { item: Used<u32> } \
-             #[version(1)] interface Unused<T> { fn read(&self, gen: T) -> Result<T>; }",
+            "struct Used<T> { value: T } struct Closed { item: Used<u32> } \
+             interface Unused<T> { fn read(&self, gen: T) -> Result<T>; }",
             "parameter",
         ),
     ] {
@@ -215,7 +215,7 @@ fn keyword_member_diagnostics_preserve_source_parts() {
     let path = directory.join("z_invalid.ncidl");
     let valid = ModuleSource {
         path: Path::new("proof/keywords/a_valid.ncidl"),
-        text: "#[version(1)] struct Earlier { value: u32 }",
+        text: "struct Earlier { value: u32 }",
     };
     let mut accepted = Vec::new();
     for (declaration, role) in [
@@ -224,7 +224,7 @@ fn keyword_member_diagnostics_preserve_source_parts() {
         ("interface Probe<T> { /* café */ fn gen(&self) -> Result<T>; }", "method"),
         ("interface Probe { /* café */ fn read(&self, gen: u32) -> Result<u32>; }", "parameter"),
     ] {
-        let source = format!("#[version(1)]\n{declaration}\n");
+        let source = format!("{declaration}\n");
         let message = format!("IDL {role} name \"gen\" is a reserved Rust 2024 keyword");
         match parse_module(&path, &source) {
             Ok(_) => accepted.push(declaration),
@@ -254,11 +254,11 @@ fn rejects_unsupported_argument_attributes() {
         let (parameters, consumer) = match index {
             0 => ("", ""),
             1 => ("<T>", ""),
-            _ => ("<T>", "#[version(1)] interface Consumer: Probe<u32> {}"),
+            _ => ("<T>", "interface Consumer: Probe<u32> {}"),
         };
         cases.push((format!("fn read(&self, {attribute} value: u32) -> Result<u32>;"), parameters, consumer));
         for (method, parameters, consumer) in cases {
-            let source = format!("#[version(1)] interface Probe{parameters} {{ {method} }} {consumer}");
+            let source = format!("interface Probe{parameters} {{ {method} }} {consumer}");
             match parse_module(path, &source) {
                 Ok(_) => accepted.push(method),
                 Err(error) => assert_syntax_diagnostic(
@@ -272,7 +272,7 @@ fn rejects_unsupported_argument_attributes() {
             }
         }
     }
-    let source = "#[version(1)] interface Probe { fn read(#[cfg(any())] &self, #[unknown] value: u32) -> Result<u32>; }";
+    let source = "interface Probe { fn read(#[cfg(any())] &self, #[unknown] value: u32) -> Result<u32>; }";
     match parse_module(path, source) {
         Ok(_) => accepted.push(source.to_owned()),
         Err(error) => assert_syntax_diagnostic(
@@ -286,7 +286,7 @@ fn rejects_unsupported_argument_attributes() {
     }
     assert!(accepted.is_empty(), "unsupported argument syntax was erased: {accepted:?}");
     for attribute in ["#[cfg(any())]", "#[unknown]"] {
-        let source = format!("#[version(1)] interface Probe {{ {attribute} fn read(&self) -> Result<u32>; }}");
+        let source = format!("interface Probe {{ {attribute} fn read(&self) -> Result<u32>; }}");
         assert!(parse_module(path, &source).unwrap_err().to_string().contains("only documentation attributes"));
     }
 }
@@ -297,48 +297,36 @@ fn rejects_unrepresented_type_and_integer_syntax() {
     let path = Path::new("proof/admission.ncidl");
     let mut accepted = Vec::new();
     for (source, syntax, message) in [
+        ("struct Data { value: ::u32 }", "::", "IDL paths are module-qualified without a leading ::"),
+        ("struct Data { value: ::String }", "::", "IDL paths are module-qualified without a leading ::"),
+        ("struct Data { value: ::Vec<u8> }", "::", "IDL paths are module-qualified without a leading ::"),
         (
-            "#[version(1)] struct Data { value: ::u32 }",
+            "interface Probe { fn read(&self) -> ::Result<u32>; }",
             "::",
             "IDL paths are module-qualified without a leading ::",
         ),
         (
-            "#[version(1)] struct Data { value: ::String }",
-            "::",
-            "IDL paths are module-qualified without a leading ::",
-        ),
-        (
-            "#[version(1)] struct Data { value: ::Vec<u8> }",
-            "::",
-            "IDL paths are module-qualified without a leading ::",
-        ),
-        (
-            "#[version(1)] interface Probe { fn read(&self) -> ::Result<u32>; }",
-            "::",
-            "IDL paths are module-qualified without a leading ::",
-        ),
-        (
-            "#[version(1)] struct Data { value: [u8; #[cfg(any())] 2] }",
+            "struct Data { value: [u8; #[cfg(any())] 2] }",
             "#[cfg(any())]",
             "attributes are not supported in this IDL position",
         ),
         (
-            "#[version(1)] enum Code: i8 { Item = #[unknown] 1 }",
+            "enum Code: i8 { Item = #[unknown] 1 }",
             "#[unknown]",
             "attributes are not supported in this IDL position",
         ),
         (
-            "#[version(1)] enum Code: i8 { Item = #[unknown] -1 }",
+            "enum Code: i8 { Item = #[unknown] -1 }",
             "#[unknown]",
             "attributes are not supported in this IDL position",
         ),
         (
-            "#[version(1)] enum Code: i8 { Item = -#[unknown] 1 }",
+            "enum Code: i8 { Item = -#[unknown] 1 }",
             "#[unknown]",
             "attributes are not supported in this IDL position",
         ),
         (
-            "#[version(1)] bitenum Flags: u8 { ENABLED = #[doc = \"ignored\"] 1 }",
+            "bitenum Flags: u8 { ENABLED = #[doc = \"ignored\"] 1 }",
             "#[doc = \"ignored\"]",
             "attributes are not supported in this IDL position",
         ),
@@ -349,7 +337,7 @@ fn rejects_unrepresented_type_and_integer_syntax() {
         }
     }
     assert!(accepted.is_empty(), "unsupported type/integer syntax was erased: {accepted:?}");
-    let source = "#[version(1)] struct Data<T> { value: T } #[version(1)] struct Holder { value: ::Data<u32> }";
+    let source = "struct Data<T> { value: T } struct Holder { value: ::Data<u32> }";
     assert_syntax_diagnostic(
         parse_module(path, source).unwrap_err(),
         "proof.admission",
@@ -367,7 +355,7 @@ fn unsupported_syntax_diagnostics_preserve_source_parts() {
     let path = directory.join("z_invalid.ncidl");
     let valid = ModuleSource {
         path: Path::new("proof/admission/a_valid.ncidl"),
-        text: "#[version(1)] struct Earlier { value: u32 }",
+        text: "struct Earlier { value: u32 }",
     };
     for (declaration, syntax, message) in [
         (
@@ -391,7 +379,7 @@ fn unsupported_syntax_diagnostics_preserve_source_parts() {
             "IDL paths are module-qualified without a leading ::",
         ),
     ] {
-        let source = format!("#[version(1)]\n{declaration}\n");
+        let source = format!("{declaration}\n");
         let invalid = ModuleSource { path: &path, text: &source };
         assert_syntax_diagnostic(
             parse_module(&path, &source).unwrap_err(),
@@ -417,9 +405,9 @@ fn unsupported_syntax_diagnostics_preserve_source_parts() {
 /// Punctuation normalization and supported docs must preserve the same contract.
 #[test]
 fn syntax_normalization_preserves_valid_contracts() {
-    let prefix = "#[version(1)] struct Data<T> { value: T } #[version(1)] interface Base { fn value(&self) -> Result<u32>; }";
-    let plain = format!("{prefix} #[version(1)] interface Probe: Base {{ fn read(&self, value: Data<u32>) -> Result<u32>; }}");
-    let punctuation = format!("{prefix} #[version(1)] interface Probe: (Base) {{ #[doc = \"kept\"] fn read<>(&self, value: Data::<u32>) -> Result::<u32>; }}");
+    let prefix = "struct Data<T> { value: T } interface Base { fn value(&self) -> Result<u32>; }";
+    let plain = format!("{prefix} interface Probe: Base {{ fn read(&self, value: Data<u32>) -> Result<u32>; }}");
+    let punctuation = format!("{prefix} interface Probe: (Base) {{ #[doc = \"kept\"] fn read<>(&self, value: Data::<u32>) -> Result::<u32>; }}");
     let graph = |source: &str| resolve_modules(vec![parse_module(Path::new("proof/admission.ncidl"), source).unwrap()]).unwrap();
     let plain = graph(&plain);
     let punctuation = graph(&punctuation);
@@ -461,8 +449,8 @@ fn rejects_explicit_receiver_lifetimes() {
     let path = Path::new("proof/receivers.ncidl");
     for lifetime in ["'static", "'not_declared", "'_"] {
         for mutable in ["", "mut "] {
-            for (parameters, consumer) in [("", ""), ("<T>", ""), ("<T>", "#[version(1)] interface Consumer: Probe<u32> {}")] {
-                let source = format!("#[version(1)]\ninterface Probe{parameters} {{\n    fn read(&{lifetime} {mutable}self) -> Result<u32>;\n}}\n{consumer}");
+            for (parameters, consumer) in [("", ""), ("<T>", ""), ("<T>", "interface Consumer: Probe<u32> {}")] {
+                let source = format!("interface Probe{parameters} {{\n    fn read(&{lifetime} {mutable}self) -> Result<u32>;\n}}\n{consumer}");
                 let error = parse_module(path, &source).unwrap_err();
                 assert_receiver_lifetime_diagnostic(error, "proof.receivers", path, &source, lifetime);
             }
@@ -477,12 +465,12 @@ fn receiver_lifetime_diagnostics_preserve_source_parts() {
     let path = directory.join("z_invalid.ncidl");
     let valid = ModuleSource {
         path: Path::new("proof/receivers/a_valid.ncidl"),
-        text: "#[version(1)] interface Earlier { fn read(&self) -> Result<u32>; }",
+        text: "interface Earlier { fn read(&self) -> Result<u32>; }",
     };
     for lifetime in ["'static", "'not_declared", "'_"] {
         for mutable in ["", "mut "] {
             // A non-ASCII comment also distinguishes Unicode columns from byte offsets.
-            let source = format!("#[version(1)]\ninterface Probe {{\n    /* café */ fn read(&{lifetime} {mutable}self) -> Result<u32>;\n}}");
+            let source = format!("interface Probe {{\n    /* café */ fn read(&{lifetime} {mutable}self) -> Result<u32>;\n}}");
             let invalid = ModuleSource { path: &path, text: &source };
             assert_receiver_lifetime_diagnostic(parse_module(&path, &source).unwrap_err(), "proof.receivers.z_invalid", &path, &source, lifetime);
             for parts in [[valid, invalid], [invalid, valid]] {
@@ -499,7 +487,7 @@ fn ordinary_receivers_keep_their_semantic_modes() {
     let path = Path::new("proof/receivers.ncidl");
     let module = parse_module(
         path,
-        "#[version(1)] interface Probe { fn read(&self) -> Result<u32>; fn write(&mut self, value: u32) -> Result<()>; }",
+        "interface Probe { fn read(&self) -> Result<u32>; fn write(&mut self, value: u32) -> Result<()>; }",
     )
     .unwrap();
     let DeclarationKind::Interface(probe) = &module.declaration("Probe").unwrap().kind else {
@@ -536,11 +524,11 @@ fn ordinary_receivers_keep_their_semantic_modes() {
         "fn read() -> Result<u32>;",
         "fn read<'a>(&'a self) -> Result<u32>;",
     ] {
-        let source = format!("#[version(1)] interface Probe {{ {method} }}");
+        let source = format!("interface Probe {{ {method} }}");
         let error = parse_module(path, &source).unwrap_err();
         assert!(matches!(error, ParseError::Source(_)), "{method}: {error}");
     }
-    assert!(parse_module(path, "#[version(1)] interface Probe<'a> { fn read(&'a self) -> Result<u32>; }").is_err());
+    assert!(parse_module(path, "interface Probe<'a> { fn read(&'a self) -> Result<u32>; }").is_err());
 }
 
 /// Exercises every initial declaration kind and ownership spelling together.
@@ -554,14 +542,12 @@ fn parses_a_complete_contract_module() {
 
             /// Copied widget construction state.
             #[persistence(default)]
-            #[version(1)]
             struct WidgetOptions {
                 enabled: bool,
                 dimensions: [i32; 2],
                 teardown: Status,
             }
 
-            #[version(2)]
             #[dense]
             #[names(snake_case)]
             enum Direction: u8 {
@@ -569,34 +555,30 @@ fn parses_a_complete_contract_module() {
                 Vertical = 1,
             }
 
-            #[version(1)]
             enum Event {
                 Idle,
                 Pointer(i32, i32),
                 Resize { width: u32, height: u32 },
             }
 
-            #[version(1)]
             bitenum WindowOptions: u16 {
                 NONE = 0,
                 RESIZABLE = 1,
                 TITLED = 2,
             }
 
-            #[version(1)]
             interface IWidget {
                 fn enabled(&self) -> Result<bool>;
                 fn set_enabled(&mut self, enabled: bool) -> Result<()>;
             }
 
-            #[id(1, "9be73186-f123-47bc-8140-4a57825eeb21")]
+            #[id("9be73186-f123-47bc-8140-4a57825eeb21")]
             interface Button: IWidget {
                 fn set_image(&mut self, image: &ITexture) -> Result<()>;
                 fn texture(&self) -> Result<Option<ITexture>>;
             }
 
             #[threading(shared)]
-            #[version(1)]
             interface UiFactory {
                 fn create_button(&self, label: &str, options: WidgetOptions) -> Result<ComPtr<Button>>;
                 fn upload(&self, bytes: &[u8]) -> Result<ComPtr<ITexture>>;
@@ -653,8 +635,7 @@ fn parses_a_complete_contract_module() {
     assert_eq!(options.flags[2].value, 2);
 
     let button = module.declaration("Button").unwrap();
-    assert_eq!(button.id.version, 1);
-    assert!(button.id.explicit.is_some());
+    assert!(button.explicit_id.is_some());
     let DeclarationKind::Interface(button) = &button.kind else {
         panic!("Button should be a class");
     };
@@ -680,9 +661,9 @@ fn parses_message_stream_as_an_ordinary_class_base() {
     let module = parse_module(
         Path::new("example/events.ncidl"),
         r#"
-        #[version(1)] enum Changed { Edited(String), Submitted }
-        #[version(1)] interface IStream<T> {}
-        #[version(1)] interface Editor: IStream<Changed> { fn revision(&self) -> Result<u64>; }
+        enum Changed { Edited(String), Submitted }
+        interface IStream<T> {}
+        interface Editor: IStream<Changed> { fn revision(&self) -> Result<u64>; }
     "#,
     )
     .unwrap();
@@ -692,10 +673,7 @@ fn parses_message_stream_as_an_ordinary_class_base() {
     };
     assert_eq!(editor.bases[0].arguments.len(), 1);
     assert_eq!(editor.methods.len(), 1);
-    for legacy in [
-        "#[version(1)] interface Old { changed: Changed; }",
-        "#[version(1)] #[observer] interface Old {}",
-    ] {
+    for legacy in ["interface Old { changed: Changed; }", "#[observer] interface Old {}"] {
         assert!(parse_module(Path::new("example/old.ncidl"), legacy).is_err());
     }
 }
@@ -704,14 +682,14 @@ fn parses_message_stream_as_an_ordinary_class_base() {
 #[test]
 fn rejects_obsolete_protocols_and_ambiguous_outputs() {
     for source in [
-        "#[version(1)] port Changes { fn changed(&mut self) -> Result<()>; }",
-        "#[version(1)] interface ISource { changed: Changed; changed: Changed; }",
-        "#[version(1)] interface ISource { fn changed(&self) -> Result<()>; changed: Changed; }",
-        "#[version(1)] interface ISource { changed: Changed; fn __map_changed(&self) -> Result<()>; }",
-        "#[version(1)] interface ISource { port changed: Changed; }",
-        "#[version(1)] interface ISource { event subscribe(&self): Changed; }",
-        "#[version(1)] #[message] interface Wrong {}",
-        "#[version(1)] #[message] struct Wrong { value: u32 }",
+        "port Changes { fn changed(&mut self) -> Result<()>; }",
+        "interface ISource { changed: Changed; changed: Changed; }",
+        "interface ISource { fn changed(&self) -> Result<()>; changed: Changed; }",
+        "interface ISource { changed: Changed; fn __map_changed(&self) -> Result<()>; }",
+        "interface ISource { port changed: Changed; }",
+        "interface ISource { event subscribe(&self): Changed; }",
+        "#[message] interface Wrong {}",
+        "#[message] struct Wrong { value: u32 }",
     ] {
         assert!(parse_module(Path::new("example/events.ncidl"), source).is_err(), "{source}");
     }
@@ -720,13 +698,13 @@ fn rejects_obsolete_protocols_and_ambiguous_outputs() {
 /// Confirms bit enums require intentional unsigned storage and explicit values.
 #[test]
 fn rejects_ambiguous_bit_enum_layouts() {
-    let missing_repr = parse_module(Path::new("neocogi/ui.ncidl"), "#[version(1)] bitenum WindowOptions { NONE = 0 }").unwrap_err();
+    let missing_repr = parse_module(Path::new("neocogi/ui.ncidl"), "bitenum WindowOptions { NONE = 0 }").unwrap_err();
     assert!(missing_repr.to_string().contains("explicit unsigned representation"));
 
-    let signed_repr = parse_module(Path::new("neocogi/ui.ncidl"), "#[version(1)] bitenum WindowOptions: i16 { NONE = 0 }").unwrap_err();
+    let signed_repr = parse_module(Path::new("neocogi/ui.ncidl"), "bitenum WindowOptions: i16 { NONE = 0 }").unwrap_err();
     assert!(signed_repr.to_string().contains("must be u8, u16, or u32"));
 
-    let implicit_value = parse_module(Path::new("neocogi/ui.ncidl"), "#[version(1)] bitenum WindowOptions: u16 { NONE }").unwrap_err();
+    let implicit_value = parse_module(Path::new("neocogi/ui.ncidl"), "bitenum WindowOptions: u16 { NONE }").unwrap_err();
     assert!(implicit_value.to_string().contains("expected `=`"));
 }
 
@@ -734,22 +712,19 @@ fn rejects_ambiguous_bit_enum_layouts() {
 #[test]
 fn enforces_rust_identifier_conventions() {
     let invalid = [
-        ("#[version(1)] struct widget_options { value: u8 }", "UpperCamelCase"),
-        ("#[version(1)] enum flow_direction: u8 { Horizontal = 0 }", "UpperCamelCase"),
-        ("#[version(1)] interface widget {}", "UpperCamelCase"),
-        ("#[version(1)] interface button {}", "UpperCamelCase"),
-        ("#[version(1)] interface ui_factory {}", "UpperCamelCase"),
-        ("#[version(1)] enum Direction: u8 { LEFT_TO_RIGHT = 0 }", "UpperCamelCase"),
-        ("#[version(1)] struct Size { Width: u32 }", "snake_case"),
-        ("#[version(1)] enum Event { Resize { NewWidth: u32 } }", "snake_case"),
-        ("#[version(1)] interface IWidget { fn SetWidth(&self) -> Result<()>; }", "snake_case"),
+        ("struct widget_options { value: u8 }", "UpperCamelCase"),
+        ("enum flow_direction: u8 { Horizontal = 0 }", "UpperCamelCase"),
+        ("interface widget {}", "UpperCamelCase"),
+        ("interface button {}", "UpperCamelCase"),
+        ("interface ui_factory {}", "UpperCamelCase"),
+        ("enum Direction: u8 { LEFT_TO_RIGHT = 0 }", "UpperCamelCase"),
+        ("struct Size { Width: u32 }", "snake_case"),
+        ("enum Event { Resize { NewWidth: u32 } }", "snake_case"),
+        ("interface IWidget { fn SetWidth(&self) -> Result<()>; }", "snake_case"),
+        ("interface IWidget { fn set_width(&self, NewWidth: u32) -> Result<()>; }", "snake_case"),
+        ("bitenum WindowOptions: u16 { Resizable = 1 }", "SCREAMING_SNAKE_CASE"),
         (
-            "#[version(1)] interface IWidget { fn set_width(&self, NewWidth: u32) -> Result<()>; }",
-            "snake_case",
-        ),
-        ("#[version(1)] bitenum WindowOptions: u16 { Resizable = 1 }", "SCREAMING_SNAKE_CASE"),
-        (
-            "extern neocogi.render; use neocogi.render::texture; #[version(1)] struct Size { width: u32 }",
+            "extern neocogi.render; use neocogi.render::texture; struct Size { width: u32 }",
             "UpperCamelCase",
         ),
     ];
@@ -768,7 +743,7 @@ fn enforces_rust_identifier_conventions() {
 fn rejects_mutable_object_borrows() {
     let error = parse_module(
         Path::new("neocogi/ui.ncidl"),
-        "#[version(1)] interface IWidget {} #[version(1)] interface Factory { fn edit(&self, value: &mut IWidget) -> Result<()>; }",
+        "interface IWidget {} interface Factory { fn edit(&self, value: &mut IWidget) -> Result<()>; }",
     )
     .unwrap_err();
     assert!(error.to_string().contains("must use `&mut [T]`"));
@@ -777,25 +752,21 @@ fn rejects_mutable_object_borrows() {
 /// Confirms visibility syntax cannot enter a contract accidentally.
 #[test]
 fn rejects_public_keyword() {
-    let error = parse_module(Path::new("neocogi/ui.ncidl"), "#[version(1)] pub struct Size { width: u32 }").unwrap_err();
+    let error = parse_module(Path::new("neocogi/ui.ncidl"), "pub struct Size { width: u32 }").unwrap_err();
     assert!(error.to_string().contains("public implicitly"));
 }
 
 /// Confirms representation is IDL syntax rather than a Rust layout attribute.
 #[test]
 fn rejects_rust_enum_repr_attributes() {
-    let error = parse_module(
-        Path::new("neocogi/ui.ncidl"),
-        "#[version(1)] #[repr(u8)] enum Direction { Horizontal, Vertical }",
-    )
-    .unwrap_err();
+    let error = parse_module(Path::new("neocogi/ui.ncidl"), "#[repr(u8)] enum Direction { Horizontal, Vertical }").unwrap_err();
     assert!(error.to_string().contains("unsupported attribute"));
 }
 
 /// Confirms only fixed-width integer discriminants can follow an enum colon.
 #[test]
 fn rejects_invalid_enum_representations() {
-    let error = parse_module(Path::new("neocogi/ui.ncidl"), "#[version(1)] enum Direction: usize { Horizontal, Vertical }").unwrap_err();
+    let error = parse_module(Path::new("neocogi/ui.ncidl"), "enum Direction: usize { Horizontal, Vertical }").unwrap_err();
     assert!(error.to_string().contains("must be u8, u16, u32, i8, i16, or i32"));
 }
 
@@ -812,7 +783,7 @@ fn parses_every_enum_representation_suffix() {
     ];
 
     for (suffix, expected) in cases {
-        let source = format!("#[version(1)] enum Value: {suffix} {{ Zero = 0 }}");
+        let source = format!("enum Value: {suffix} {{ Zero = 0 }}");
         let module = parse_module(Path::new("neocogi/value.ncidl"), &source).unwrap();
         let DeclarationKind::Enum(value) = &module.declaration("Value").unwrap().kind else {
             panic!("Value should be an enum");
@@ -821,11 +792,21 @@ fn parses_every_enum_representation_suffix() {
     }
 }
 
-/// Confirms every declaration forces an intentional version or identity.
+/// Every declaration kind, including templates, derives identity without attributes.
 #[test]
-fn rejects_missing_identity_attribute() {
-    let error = parse_module(Path::new("neocogi/ui.ncidl"), "struct Size { width: u32 }").unwrap_err();
-    assert!(error.to_string().contains("requires `#[version(N)]`"));
+fn declarations_need_no_identity_attribute() {
+    for declaration in [
+        "struct Size { width: u32 }",
+        "struct Size<T> { width: T }",
+        "enum State { Empty, Ready }",
+        "enum State<T> { Empty, Ready(T) }",
+        "bitenum Flags: u8 { ACTIVE = 1 }",
+        "interface Reader { fn read(&self) -> Result<u32>; }",
+        "interface Reader<T> { fn read(&self) -> Result<T>; }",
+    ] {
+        let module = parse_module(Path::new("neocogi/ui.ncidl"), declaration).unwrap();
+        assert!(module.declarations[0].explicit_id.is_none(), "{declaration}");
+    }
 }
 
 /// Confirms constructors cannot return through the class grammar unnoticed.
@@ -834,7 +815,6 @@ fn rejects_constructor_attributes() {
     let error = parse_module(
         Path::new("neocogi/ui.ncidl"),
         r#"
-            #[version(1)]
             interface Button {
                 #[constructor]
                 fn new(&self) -> Result<ComPtr<Button>>;
@@ -845,19 +825,97 @@ fn rejects_constructor_attributes() {
     assert!(error.to_string().contains("only documentation attributes"));
 }
 
-/// Confirms the explicit UUID form carries its version without a second attribute.
+/// Explicit identity accepts exactly one UUID and cannot be declared twice.
 #[test]
-fn rejects_duplicate_version_sources() {
-    let error = parse_module(
-        Path::new("neocogi/ui.ncidl"),
-        r#"
-            #[version(1)]
-            #[id(1, "9be73186-f123-47bc-8140-4a57825eeb21")]
-            interface IWidget {}
-        "#,
-    )
-    .unwrap_err();
-    assert!(error.to_string().contains("exactly one"));
+fn validates_explicit_identity_attributes() {
+    let uuid = "9be73186-f123-47bc-8140-4a57825eeb21";
+    for declaration in [
+        "struct Value { width: u32 }",
+        "enum Value<T> { Ready(T) }",
+        "bitenum Value: u8 { ACTIVE = 1 }",
+        "interface Value<T> {}",
+    ] {
+        let source = format!("#[id(\"{uuid}\")] {declaration}");
+        let module = parse_module(Path::new("neocogi/ui.ncidl"), &source).unwrap();
+        assert_eq!(module.declarations[0].explicit_id.unwrap().to_string(), uuid);
+        let duplicate = format!("#[id(\"{uuid}\")] {source}");
+        let error = parse_module(Path::new("neocogi/ui.ncidl"), &duplicate).unwrap_err();
+        assert!(error.to_string().contains("duplicate explicit ID"), "{error}");
+    }
+    for attribute in ["#[id()]", "#[id(\"not-a-uuid\")]", "#[id(\"9be73186-f123-47bc-8140-4a57825eeb21\", 1)]"] {
+        for declaration in [
+            "struct Value { width: u32 }",
+            "enum Value<T> { Ready(T) }",
+            "bitenum Value: u8 { ACTIVE = 1 }",
+            "interface Value<T> {}",
+        ] {
+            let source = format!("{attribute} {declaration}");
+            assert!(parse_module(Path::new("neocogi/ui.ncidl"), &source).is_err(), "{source}");
+        }
+    }
+}
+
+/// Deprecated integers are discarded while warnings retain each exact source location.
+#[test]
+fn deprecated_versions_are_ignored_and_reported_for_every_declaration_kind() {
+    use neocogi_idl::DiagnosticSeverity;
+    for declaration in [
+        "struct Value { width: u32 }",
+        "struct Value<T> { width: T }",
+        "enum Value { Ready }",
+        "enum Value<T> { Ready(T) }",
+        "bitenum Value: u8 { ACTIVE = 1 }",
+        "interface Value {}",
+        "interface Value<T> {}",
+    ] {
+        let path = Path::new("proof/deprecated.ncidl");
+        let ordinary = parse_module(path, declaration).unwrap();
+        assert!(ordinary.warnings.is_empty());
+        for version in ["0", "1", "7", "999999999999999999999999999999999999999999"] {
+            let source = format!("// café\n#[version({version})]\n{declaration}");
+            let parsed = parse_module(path, &source).unwrap();
+            assert!(parsed.declarations[0].explicit_id.is_none());
+            assert_eq!(parsed.warnings.len(), 1);
+            let warning = &parsed.warnings[0];
+            assert_eq!(warning.severity, DiagnosticSeverity::Warning);
+            assert_eq!(warning.code, "WIDL001");
+            assert_eq!(warning.labels[0].span.path(), "proof/deprecated.ncidl");
+            assert_eq!(warning.labels[0].span.start().line, 2);
+            assert_eq!(warning.labels[0].span.start().column, 1);
+            assert!(
+                warning
+                    .to_string()
+                    .contains("warning[WIDL001]: declaration versions are deprecated and ignored")
+            );
+            let uuid = "9be73186-f123-47bc-8140-4a57825eeb21";
+            let source = format!("#[version({version})]\n#[id({version}, \"{uuid}\")]\n{declaration}");
+            let parsed = parse_module(path, &source).unwrap();
+            assert_eq!(parsed.declarations[0].explicit_id.unwrap().to_string(), uuid);
+            assert_eq!(parsed.warnings.len(), 2);
+            assert!(parsed.warnings.iter().all(|warning| warning.severity == DiagnosticSeverity::Warning));
+            assert_eq!(parsed.warnings[1].labels[0].span.start().line, 2);
+            assert!(parsed.warnings[1].message.contains("version argument of `id` is deprecated and ignored"));
+        }
+    }
+}
+
+/// A source-part merge preserves every warning in source order independently of discovery order.
+#[test]
+fn deprecation_warnings_keep_their_source_parts() {
+    let first = ModuleSource {
+        path: Path::new("proof/deprecated/a.ncidl"),
+        text: "#[version(1)] struct First { value: u32 }",
+    };
+    let second = ModuleSource {
+        path: Path::new("proof/deprecated/z.ncidl"),
+        text: "#[version(2)] interface Last {}",
+    };
+    let forward = parse_module_parts(Path::new("proof/deprecated"), &[first, second]).unwrap();
+    let reverse = parse_module_parts(Path::new("proof/deprecated"), &[second, first]).unwrap();
+    assert_eq!(forward.warnings, reverse.warnings);
+    assert_eq!(forward.warnings.len(), 2);
+    assert_eq!(forward.warnings[0].labels[0].span.path(), "proof/deprecated/a.ncidl");
+    assert_eq!(forward.warnings[1].labels[0].span.path(), "proof/deprecated/z.ncidl");
 }
 
 /// Confirms independent source parts compose one canonically ordered module.
@@ -865,11 +923,11 @@ fn rejects_duplicate_version_sources() {
 fn merges_module_parts_without_file_order_semantics() {
     let geometry = ModuleSource {
         path: Path::new("neocogi/ui/geometry.ncidl"),
-        text: "#[version(1)] struct Size { width: u32, height: u32 }",
+        text: "struct Size { width: u32, height: u32 }",
     };
     let widgets = ModuleSource {
         path: Path::new("neocogi/ui/widgets.ncidl"),
-        text: "#[version(1)] interface IWidget { fn resize(&mut self, size: Size) -> Result<()>; }",
+        text: "interface IWidget { fn resize(&mut self, size: Size) -> Result<()>; }",
     };
 
     let forward = parse_module_parts(Path::new("neocogi/ui"), &[geometry, widgets]).unwrap();
@@ -889,11 +947,11 @@ fn merges_module_parts_without_file_order_semantics() {
 fn canonicalizes_external_dependencies_across_parts() {
     let first = ModuleSource {
         path: Path::new("neocogi/ui/first.ncidl"),
-        text: "extern neocogi.render; #[version(1)] struct First { value: u32 }",
+        text: "extern neocogi.render; struct First { value: u32 }",
     };
     let second = ModuleSource {
         path: Path::new("neocogi/ui/second.ncidl"),
-        text: "extern neocogi.assets; #[version(1)] struct Second { value: u32 }",
+        text: "extern neocogi.assets; struct Second { value: u32 }",
     };
 
     let module = parse_module_parts(Path::new("neocogi/ui"), &[second, first]).unwrap();
@@ -908,11 +966,11 @@ fn canonicalizes_external_dependencies_across_parts() {
 fn reports_both_parts_for_duplicate_external_dependencies() {
     let first = ModuleSource {
         path: Path::new("neocogi/ui/first.ncidl"),
-        text: "extern neocogi.render; #[version(1)] struct First { value: u32 }",
+        text: "extern neocogi.render; struct First { value: u32 }",
     };
     let second = ModuleSource {
         path: Path::new("neocogi/ui/second.ncidl"),
-        text: "extern neocogi.render; #[version(1)] struct Second { value: u32 }",
+        text: "extern neocogi.render; struct Second { value: u32 }",
     };
 
     let error = parse_module_parts(Path::new("neocogi/ui"), &[second, first]).unwrap_err().to_string();
@@ -924,15 +982,12 @@ fn reports_both_parts_for_duplicate_external_dependencies() {
 /// Confirms duplicate members identify both declarations with stable snippets.
 #[test]
 fn reports_both_locations_for_duplicate_fields() {
-    let error = parse_module(
-        Path::new("neocogi/ui.ncidl"),
-        "#[version(1)]\nstruct Size {\n    width: u32,\n    width: f32,\n}",
-    )
-    .unwrap_err()
-    .to_string();
+    let error = parse_module(Path::new("neocogi/ui.ncidl"), "struct Size {\n    width: u32,\n    width: f32,\n}")
+        .unwrap_err()
+        .to_string();
 
     assert!(error.contains("error[EIDL013]: duplicate field \"width\""), "{error}");
-    assert!(error.contains("neocogi/ui.ncidl:4:5"), "{error}");
+    assert!(error.contains("neocogi/ui.ncidl:2:5"), "{error}");
     assert!(error.contains("neocogi/ui.ncidl:3:5"), "{error}");
     assert!(error.contains("first declared here"), "{error}");
 }
@@ -941,25 +996,19 @@ fn reports_both_locations_for_duplicate_fields() {
 #[test]
 fn reports_original_locations_for_all_duplicate_member_kinds() {
     let cases = [
-        ("#[version(1)] enum State { Ready, Ready }", "duplicate enum variant \"Ready\""),
+        ("enum State { Ready, Ready }", "duplicate enum variant \"Ready\""),
+        ("bitenum Flags: u8 { ENABLED = 1, ENABLED = 2 }", "duplicate bit enum flag \"ENABLED\""),
         (
-            "#[version(1)] bitenum Flags: u8 { ENABLED = 1, ENABLED = 2 }",
-            "duplicate bit enum flag \"ENABLED\"",
-        ),
-        (
-            "#[version(1)] interface IService { fn load(&self) -> Result<()>; fn load(&self) -> Result<()>; }",
+            "interface IService { fn load(&self) -> Result<()>; fn load(&self) -> Result<()>; }",
             "duplicate method or port \"load\"",
         ),
         (
-            "#[version(1)] interface IService { fn load(&self, key: u32, key: u64) -> Result<()>; }",
+            "interface IService { fn load(&self, key: u32, key: u64) -> Result<()>; }",
             "duplicate parameter \"key\"",
         ),
+        ("enum Event { Resize { width: u32, width: u64 } }", "duplicate variant field \"width\""),
         (
-            "#[version(1)] enum Event { Resize { width: u32, width: u64 } }",
-            "duplicate variant field \"width\"",
-        ),
-        (
-            "use example.types::{Value, Value}; #[version(1)] struct Local { value: u32 }",
+            "use example.types::{Value, Value}; struct Local { value: u32 }",
             "duplicate import name \"Value\"",
         ),
     ];
@@ -977,17 +1026,17 @@ fn reports_original_locations_for_all_duplicate_member_kinds() {
 fn reports_both_parts_for_duplicate_declarations() {
     let first = ModuleSource {
         path: Path::new("neocogi/ui/geometry.ncidl"),
-        text: "#[version(1)] struct Size { width: u32 }",
+        text: "struct Size { width: u32 }",
     };
     let second = ModuleSource {
         path: Path::new("neocogi/ui/layout.ncidl"),
-        text: "#[version(1)] struct Size { width: f32 }",
+        text: "struct Size { width: f32 }",
     };
     let error = parse_module_parts(Path::new("neocogi/ui"), &[second, first]).unwrap_err().to_string();
 
     assert!(error.contains("error[EIDL010]: duplicate declaration \"Size\""), "{error}");
-    assert!(error.contains("neocogi/ui/layout.ncidl:1:22"), "{error}");
-    assert!(error.contains("neocogi/ui/geometry.ncidl:1:22"), "{error}");
+    assert!(error.contains("neocogi/ui/layout.ncidl:1:8"), "{error}");
+    assert!(error.contains("neocogi/ui/geometry.ncidl:1:8"), "{error}");
 }
 
 /// Confirms diagnostic-only part paths are still portable and normalized.
@@ -995,7 +1044,7 @@ fn reports_both_parts_for_duplicate_declarations() {
 fn rejects_noncanonical_module_part_paths() {
     let part = ModuleSource {
         path: Path::new("neocogi/ui/../other.ncidl"),
-        text: "#[version(1)] struct Value { raw: u32 }",
+        text: "struct Value { raw: u32 }",
     };
     let error = parse_module_parts(Path::new("neocogi/ui"), &[part]).unwrap_err().to_string();
 
@@ -1006,7 +1055,7 @@ fn rejects_noncanonical_module_part_paths() {
 #[test]
 fn rejects_removed_class_and_factory_keywords() {
     for keyword in ["class", "factory"] {
-        let source = format!("#[version(1)] {keyword} Service {{}}");
+        let source = format!("{keyword} Service {{}}");
         assert!(parse_module(Path::new("example/contracts.ncidl"), &source).is_err());
     }
 }

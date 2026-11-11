@@ -1,4 +1,4 @@
-#[id(1, "830807e2-55ed-54a1-aa23-52d85508e085")]
+#[id("830807e2-55ed-54a1-aa23-52d85508e085")]
 /// The foreign projection deliberately exposes less than the concrete model.
 interface ICounter {
     /// Reads the authoritative value under the shared COM gate.
@@ -7,7 +7,7 @@ interface ICounter {
     fn set_value(&mut self, value: u32) -> Result<()>;
 }
 
-#[id(1, "2097ce5e-b2ba-5d0d-aa9c-1f0d1afd13fb")]
+#[id("2097ce5e-b2ba-5d0d-aa9c-1f0d1afd13fb")]
 #[threading(shared)]
 /// Shared service used to prove that typed weak observers preserve thread capability.
 interface IShared {

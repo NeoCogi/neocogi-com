@@ -132,8 +132,8 @@ fn assert_method(generated: &GeneratedRust, method: &str, authored: &str, module
 /// the supplying base, including an imported template rather than its use site.
 #[test]
 fn raw_slots_and_complete_thunk_bodies_retain_their_authored_method() {
-    let templates = "/* café 😀 */ #[version(1)] interface Source<T> {\n    /// Template member documentation.\n    fn template(&self) -> Result<T>;\n}";
-    let consumer = "extern origins.templates; use origins.templates::Source;\n#[version(1)] interface Root {\n    fn root(&self) -> Result<u32>;\n}\n#[version(1)] interface Derived: Root + Source<u32> {\n    /// Local member documentation.\n    fn local(&mut self, value: u32) -> Result<()>;\n}";
+    let templates = "/* café 😀 */ interface Source<T> {\n    /// Template member documentation.\n    fn template(&self) -> Result<T>;\n}";
+    let consumer = "extern origins.templates; use origins.templates::Source;\ninterface Root {\n    fn root(&self) -> Result<u32>;\n}\ninterface Derived: Root + Source<u32> {\n    /// Local member documentation.\n    fn local(&mut self, value: u32) -> Result<()>;\n}";
     for prefix in ["", "\n\n/* shifted */\n"] {
         let template_text = format!("{prefix}{templates}");
         let consumer_text = format!("{prefix}{consumer}");
