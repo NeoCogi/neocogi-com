@@ -20,3 +20,5 @@ mod host_entry_tests;
 mod shared_sources_tests;
 
 mod binding_admission_tests;
+
+mod contract_identity_tests;

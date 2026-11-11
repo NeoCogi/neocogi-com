@@ -22,6 +22,11 @@ source into its own Rust bindings. The host does not link the provider and the
 provider does not select a host implementation. Application version `0.0.0` in
 these manifests is independent of the SDK dependency version.
 
+On `0.2.0-wip`, the versionless schema requires the development SDK. The version
+selectors are updated during [release preparation](../../docs/guides/RELEASING.md);
+pre-publication checks supply local or extracted SDK patches. The registry-only
+commands below apply after the matching SDK release is published.
+
 From the copied directory, build the plugin:
 
 ```sh

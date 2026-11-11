@@ -4,6 +4,23 @@ The current contract uses [core generation 18](docs/abi-v1.md). Entries below re
 its development; later entries can supersede older implementation details.
 Historical draft numbers do not define additional supported COM baselines.
 
+## 0.2.0 — unreleased (`0.2.0-wip`)
+
+- Remove declaration versions from nominal identity and canonical SHA-256 input.
+  Ordinary declarations derive IDs from their qualified names; explicit overrides
+  use `#[id("UUID")]`. Use distinct named types for semantic distinctions.
+- Accept `#[version(N)]` and numbered `#[id(N, "UUID")]` as deprecated syntax.
+  Ignore their integers and report source-located `WIDL001` warnings through the
+  parser API and both Cargo build helpers. Remove the obsolete numbers to clear
+  warnings; malformed syntax and duplicate explicit UUID overrides remain errors.
+- Move canonical IDL encoding to v14 and regenerate built-in persistence bindings.
+  Rebuild generated contracts, providers and hosts together: nominal IDs and exact
+  signatures change from 0.1.0. Exact transitive signatures still reject incompatible
+  contracts, including changes that retain the same native layout.
+- Maintain [ABI v2](docs/abi-v2.md) as the 0.2.0 development specification and retain
+  [ABI v1](docs/abi-v1.md) as the released baseline. Discovery remains family 1 and
+  core generation remains 18 during development; select ABI v2 at the 0.2.0 release.
+
 ## 0.1.0 — 2026-10-29
 
 - Publish the six-crate SDK as its first non-prerelease `0.1.0` cohort, with exact
