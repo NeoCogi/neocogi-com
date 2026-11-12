@@ -9,6 +9,7 @@ dependencies = [
  "neocogi-com",
  "neocogi-com-core",
  "neocogi-com-host",
+ "neocogi-com-serialization",
  "neocogi-idl",
 ]
 

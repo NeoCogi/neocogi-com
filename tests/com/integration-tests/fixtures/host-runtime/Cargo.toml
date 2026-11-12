@@ -10,6 +10,9 @@ autotests = false
 [dev-dependencies]
 neocogi-com-host = { path = "../../../../../crates/host" }
 neocogi-com = { path = "../../../../../crates/com", features = ["runtime"] }
+# Shared persistence cases call NCB directly, so this standalone owner must
+# declare the codec instead of relying on the host's transitive dependency.
+neocogi-com-serialization = { path = "../../../../../crates/serialization", default-features = false, features = ["std"] }
 
 [[test]]
 name = "factory_plugin_runtime"
