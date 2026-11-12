@@ -11,6 +11,7 @@ fn main() {
     cc::Build::new()
         .file("native/caller.c")
         .define("NC_COM_CORE_ABI_VERSION", neocogi_com_core::NC_COM_CORE_ABI_VERSION.to_string().as_str())
+        .define("NC_COM_RUNTIME_ABI_VERSION", neocogi_com_core::NC_COM_RUNTIME_ABI_VERSION.to_string().as_str())
         .std("c11")
         .warnings(true)
         .compile("native_c_abi_fixture");

@@ -17,14 +17,14 @@ macro_rules! unavailable {
 unavailable!(register(plugin: *const NcPluginDescriptor));
 unavailable!(load(path: *const u8, len: usize, id: *mut NcGuid));
 unavailable!(acquire(id: NcGuid, interface: NcInterfaceId, threading: u32, out: *mut ComRaw<IUnknown>));
-unavailable!(info(id: NcGuid, out: *mut NcPluginInfoV1));
-unavailable!(infos(out: *mut NcPluginInfoV1, capacity: usize, len: *mut usize));
-unavailable!(inspect(path: *const u8, len: usize, callback: Option<NcInspectPluginDescriptorCallbackV1>, data: *mut c_void));
-unavailable!(messenger(info: *const NcDebugMessengerCreateInfoV1, out: *mut u64));
+unavailable!(info(id: NcGuid, out: *mut NcPluginInfoV2));
+unavailable!(infos(out: *mut NcPluginInfoV2, capacity: usize, len: *mut usize));
+unavailable!(inspect(path: *const u8, len: usize, callback: Option<NcInspectPluginDescriptorCallbackV2>, data: *mut c_void));
+unavailable!(messenger(info: *const NcDebugMessengerCreateInfoV2, out: *mut u64));
 unavailable!(context(out: *mut *mut NcPersistenceContext));
 unavailable!(factory(context: *mut NcPersistenceContext, id: NcGuid, factory: ComRaw<persistence::IPersistenceFactoryAbi>));
-unavailable!(snapshot(object: ComRaw<IUnknown>, limits: NcPersistenceLimitsV1, write: Option<NcPersistenceWriteBytesV1>, data: *mut c_void));
-unavailable!(restore(context: *const NcPersistenceContext, bytes: *const u8, len: usize, limits: NcPersistenceLimitsV1, out: *mut ComRaw<IUnknown>));
+unavailable!(snapshot(object: ComRaw<IUnknown>, limits: NcPersistenceLimitsV2, write: Option<NcPersistenceWriteBytesV2>, data: *mut c_void));
+unavailable!(restore(context: *const NcPersistenceContext, bytes: *const u8, len: usize, limits: NcPersistenceLimitsV2, out: *mut ComRaw<IUnknown>));
 /// Distinguishes the forwarded host table from a null/erased or swapped argument.
 unsafe extern "C" fn count() -> usize {
     17
@@ -33,8 +33,8 @@ unsafe extern "C" fn count() -> usize {
 unsafe extern "C" fn destroy_messenger(_handle: u64) {}
 /// No fixture context is ever created.
 unsafe extern "C" fn destroy_context(_context: *mut NcPersistenceContext) {}
-static RUNTIME: NcRuntimeApiV1 = NcRuntimeApiV1 {
-    size: size_of::<NcRuntimeApiV1>(),
+static RUNTIME: NcRuntimeApiV2 = NcRuntimeApiV2 {
+    size: size_of::<NcRuntimeApiV2>(),
     core_abi_version: NC_COM_CORE_ABI_VERSION,
     register_plugin_descriptor: register,
     load_plugin_library_utf8: load,
@@ -44,13 +44,13 @@ static RUNTIME: NcRuntimeApiV1 = NcRuntimeApiV1 {
     plugin_infos: infos,
     inspect_plugin_library_utf8: inspect,
 };
-static DEBUG: NcDebugApiV1 = NcDebugApiV1 {
-    size: size_of::<NcDebugApiV1>(),
+static DEBUG: NcDebugApiV2 = NcDebugApiV2 {
+    size: size_of::<NcDebugApiV2>(),
     create_messenger: messenger,
     destroy_messenger,
 };
-static PERSISTENCE: NcPersistenceApiV1 = NcPersistenceApiV1 {
-    size: size_of::<NcPersistenceApiV1>(),
+static PERSISTENCE: NcPersistenceApiV2 = NcPersistenceApiV2 {
+    size: size_of::<NcPersistenceApiV2>(),
     core_abi_version: NC_COM_CORE_ABI_VERSION,
     create_context: context,
     destroy_context,
@@ -58,16 +58,16 @@ static PERSISTENCE: NcPersistenceApiV1 = NcPersistenceApiV1 {
     snapshot,
     restore,
 };
-static HOST: NcHostApiV1 = NcHostApiV1 {
-    size: size_of::<NcHostApiV1>(),
-    runtime_abi_version: 1,
+static HOST: NcHostApiV2 = NcHostApiV2 {
+    size: size_of::<NcHostApiV2>(),
+    runtime_abi_version: NC_COM_RUNTIME_ABI_VERSION,
     core_abi_version: NC_COM_CORE_ABI_VERSION,
     runtime: &RUNTIME,
     debug: &DEBUG,
     persistence: &PERSISTENCE,
 };
 /// Admits the exact record forwarded by plain C and publishes no owned reference.
-unsafe extern "C" fn bootstrap(host: *const NcHostApiV1, out: *mut ComRaw<IUnknown>) -> NcStatus {
+unsafe extern "C" fn bootstrap(host: *const NcHostApiV2, out: *mut ComRaw<IUnknown>) -> NcStatus {
     if out.is_null() {
         return NC_E_POINTER;
     }
@@ -84,7 +84,7 @@ unsafe extern "C" fn bootstrap(host: *const NcHostApiV1, out: *mut ComRaw<IUnkno
 }
 unsafe extern "C" {
     /// Borrows the host record and calls the supplied function using its C typedef.
-    fn nc_c_exercise_host_bootstrap(host: *const NcHostApiV1, acquire: NcAcquirePluginFactory, expected: NcStatus) -> i32;
+    fn nc_c_exercise_host_bootstrap(host: *const NcHostApiV2, acquire: NcAcquirePluginFactory, expected: NcStatus) -> i32;
 }
 /// Size/offset checks are independent of this actual C-to-Rust function call.
 #[test]

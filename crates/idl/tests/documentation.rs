@@ -13,12 +13,12 @@ fn example<'a>(document: &'a str, label: &str) -> &'a str {
     body.split_once("\n```").expect("example has a closing fence").0
 }
 
-/// Released and development specifications coexist without advancing discovery early.
+/// The prepared alpha advances ABI discovery while retaining the archived v1 contract.
 #[test]
 fn com_abi_keeps_the_released_baseline_and_development_specification() {
-    assert_eq!(neocogi_com_core::NC_COM_CORE_ABI_VERSION, 18);
-    assert_eq!(neocogi_com_core::NC_COM_RUNTIME_ABI_VERSION, 1);
-    assert_eq!(neocogi_com_core::NC_PLUGIN_DESCRIPTOR_ABI_VERSION, 1);
+    assert_eq!(neocogi_com_core::NC_COM_CORE_ABI_VERSION, 19);
+    assert_eq!(neocogi_com_core::NC_COM_RUNTIME_ABI_VERSION, 2);
+    assert_eq!(neocogi_com_core::NC_PLUGIN_DESCRIPTOR_ABI_VERSION, 2);
     let directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs");
     let mut specifications = fs::read_dir(&directory)
         .unwrap()
@@ -30,14 +30,15 @@ fn com_abi_keeps_the_released_baseline_and_development_specification() {
     specifications.sort();
     assert_eq!(specifications, [directory.join("abi-v1.md"), directory.join("abi-v2.md")]);
     let document = include_str!("../../../docs/abi-v2.md");
-    assert!(document.starts_with("# COM ABI v2 (0.2.0 development)\n"));
-    assert!(document.contains("discovery remain family **1** during development; select ABI **2** when releasing"));
+    assert!(document.starts_with("# COM ABI v2 (0.2.0-alpha.1)\n"));
+    assert!(document.contains("plugin descriptor discovery use family **2**, with core generation **19**"));
     let released = include_str!("../../../docs/abi-v1.md");
     assert!(released.contains("currently encoding v13"));
+    assert!(released.contains("NC_COM_CORE_ABI_VERSION == 18"));
 }
 
 /// Current guidance consumes the actual compiler encoding and Cargo name policy.
-/// The numbers describe separate contracts: runtime/descriptor discovery stays v1.
+/// Runtime/descriptor family 2 remains independent from the IDL encoding revision.
 #[test]
 fn authoring_guides_match_current_encoding_and_module_mangling() {
     let domain = std::str::from_utf8(neocogi_idl::MODULE_ABI_ENCODING_DOMAIN).unwrap().trim_end_matches('\0');
@@ -49,8 +50,8 @@ fn authoring_guides_match_current_encoding_and_module_mangling() {
     let setup = include_str!("../README.md");
     let links = setup.lines().find_map(|line| line.strip_prefix("links = ")).unwrap().trim_matches('"');
     assert_eq!(links, neocogi_idl::cargo::contract_links_name("example.widgets"));
-    assert_eq!(neocogi_com_core::NC_COM_RUNTIME_ABI_VERSION, 1);
-    assert_eq!(neocogi_com_core::NC_PLUGIN_DESCRIPTOR_ABI_VERSION, 1);
+    assert_eq!(neocogi_com_core::NC_COM_RUNTIME_ABI_VERSION, 2);
+    assert_eq!(neocogi_com_core::NC_PLUGIN_DESCRIPTOR_ABI_VERSION, 2);
     for keyword in ["class", "factory"] {
         let invalid = format!("{keyword} Removed {{}}");
         assert!(neocogi_idl::parse_module(Path::new("example/removed.ncidl"), &invalid).is_err());

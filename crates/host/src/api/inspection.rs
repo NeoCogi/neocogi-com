@@ -3,7 +3,7 @@
 
 use core::{ffi::c_void, ptr};
 
-use neocogi_com_core::{NC_DEBUG_TYPE_PLUGIN, NC_E_NOT_FOUND, NC_E_POINTER, NC_OK, NcGuid, NcInspectPluginDescriptorCallbackV1, NcPluginInfoV1, NcStatus};
+use neocogi_com_core::{NC_DEBUG_TYPE_PLUGIN, NC_E_NOT_FOUND, NC_E_POINTER, NC_OK, NcGuid, NcInspectPluginDescriptorCallbackV2, NcPluginInfoV2, NcStatus};
 
 use crate::inspection as runtime_inspection;
 use crate::loader::open_plugin_descriptor;
@@ -16,7 +16,7 @@ use super::{copy_to_out, emit_error, path_from_utf8};
 pub(super) unsafe extern "C" fn inspect_plugin_library_utf8(
     path: *const u8,
     path_len: usize,
-    callback: Option<NcInspectPluginDescriptorCallbackV1>,
+    callback: Option<NcInspectPluginDescriptorCallbackV2>,
     user_data: *mut c_void,
 ) -> NcStatus {
     let Some(callback) = callback else {
@@ -43,7 +43,7 @@ pub(super) unsafe extern "C" fn inspect_plugin_library_utf8(
 }
 
 /// Writes borrowed descriptor metadata for one registered plugin.
-pub(super) unsafe extern "C" fn plugin_info(plugin_id: NcGuid, out: *mut NcPluginInfoV1) -> NcStatus {
+pub(super) unsafe extern "C" fn plugin_info(plugin_id: NcGuid, out: *mut NcPluginInfoV2) -> NcStatus {
     if out.is_null() {
         return NC_E_POINTER;
     }
@@ -63,7 +63,7 @@ pub(super) unsafe extern "C" fn plugin_count() -> usize {
 }
 
 /// Fills complete records using exactly the lookup projection, without staging IDs.
-pub(super) unsafe extern "C" fn plugin_infos(out: *mut NcPluginInfoV1, capacity: usize, out_len: *mut usize) -> NcStatus {
+pub(super) unsafe extern "C" fn plugin_infos(out: *mut NcPluginInfoV2, capacity: usize, out_len: *mut usize) -> NcStatus {
     let runtime = RuntimeState::global();
     let catalog = runtime.read_catalog();
     // SAFETY: Caller supplies valid nonoverlapping writable outputs. One guard

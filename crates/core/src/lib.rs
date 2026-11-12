@@ -18,8 +18,8 @@
 //! Format implementations live in the serialization plugin crate. Owned document
 //! objects live in the facade. Wire layouts and application storage remain separate.
 //!
-//! [`NC_COM_CORE_ABI_VERSION`] is the first public compatibility generation 18.
-//! Runtime and plugin discovery retain family 1. Within a compatible generation,
+//! [`NC_COM_CORE_ABI_VERSION`] selects compatibility generation 19 for ABI v2.
+//! Runtime and plugin discovery use family 2. Within a compatible generation,
 //! layouts and callbacks are frozen; incompatible changes select a new generation.
 //! Deploy peers from one SDK release and require exact interface signatures.
 
@@ -112,11 +112,11 @@ pub use object::{
 pub use raw_handle::ComRaw;
 pub use ptr::{ComPtr, ComRef, ThreadLocal, ThreadSafe, ThreadingModel, raw};
 pub use runtime_abi::{
-    NcPersistenceApiV1, NcPersistenceContext, NcPersistenceLimitsV1, NcPersistenceWriteBytesV1, NC_COM_RUNTIME_ABI_VERSION,
+    NcPersistenceApiV2, NcPersistenceContext, NcPersistenceLimitsV2, NcPersistenceWriteBytesV2, NC_COM_RUNTIME_ABI_VERSION,
     NC_COM_RUNTIME_MAX_ACTIVE_DEBUG_MESSENGERS, NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS, NC_DEBUG_SEVERITY_ALL, NC_DEBUG_SEVERITY_ERROR, NC_DEBUG_SEVERITY_INFO,
-    NC_DEBUG_SEVERITY_WARNING, NC_DEBUG_TYPE_ALL, NC_DEBUG_TYPE_PLUGIN, NC_DEBUG_TYPE_RUNTIME, NC_DEBUG_TYPE_VALIDATION, NcDebugApiV1, NcDebugCallbackV1,
-    NcDebugMessageV1, NcDebugMessengerCreateInfoV1, NcInspectPluginDescriptorCallbackV1, NcFactoryInfoV1, NcPluginInfoV1, NcRuntimeApiV1, NcUtf8View,
-    NcHostApiV1, validate_host_api,
+    NC_DEBUG_SEVERITY_WARNING, NC_DEBUG_TYPE_ALL, NC_DEBUG_TYPE_PLUGIN, NC_DEBUG_TYPE_RUNTIME, NC_DEBUG_TYPE_VALIDATION, NcDebugApiV2, NcDebugCallbackV2,
+    NcDebugMessageV2, NcDebugMessengerCreateInfoV2, NcInspectPluginDescriptorCallbackV2, NcFactoryInfoV2, NcPluginInfoV2, NcRuntimeApiV2, NcUtf8View,
+    NcHostApiV2, validate_host_api,
 };
 pub use status::{
     NC_E_ABI_VERSION, NC_E_BUSY, NC_E_CLOSED, NC_E_DROPPED, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG, NC_E_INVALID_TAG, NC_E_LOAD_FAILED, NC_E_NOINTERFACE,

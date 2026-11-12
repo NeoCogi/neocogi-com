@@ -73,7 +73,7 @@ unsafe impl ComInterface for INcBytesAbi {
     type VTable = INcBytesVTable;
 }
 
-/// Fixed ABI-v1 signature for the built-in byte-sequence contract.
+/// Fixed intrinsic ABI signature for the built-in byte-sequence contract.
 ///
 /// This checked-in digest prevents the core crate from hashing during rustc
 /// constant evaluation while retaining an exact identity for the built-in ABI.
@@ -203,7 +203,7 @@ unsafe impl ComInterface for INcStringAbi {
     type VTable = INcStringVTable;
 }
 
-/// Fixed ABI-v1 signature for the built-in UTF-8 string contract.
+/// Fixed intrinsic ABI signature for the built-in UTF-8 string contract.
 ///
 /// This checked-in digest prevents the core crate from hashing during rustc
 /// constant evaluation while retaining an exact identity for the built-in ABI.

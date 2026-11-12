@@ -188,7 +188,7 @@ mod tests {
     };
 
     /// Allocates and transfers one fake root factory reference.
-    unsafe extern "C" fn acquire(_host: *const neocogi_com_core::NcHostApiV1, out: *mut neocogi_com_core::ComRaw<IUnknown>) -> NcStatus {
+    unsafe extern "C" fn acquire(_host: *const neocogi_com_core::NcHostApiV2, out: *mut neocogi_com_core::ComRaw<IUnknown>) -> NcStatus {
         if out.is_null() {
             return NC_E_POINTER;
         }
@@ -284,7 +284,7 @@ mod malformed_bootstrap_tests {
     use neocogi_com_core::ComRaw;
 
     /// Simulates a producer writing an object word without a method table.
-    unsafe extern "C" fn missing_table(_host: *const neocogi_com_core::NcHostApiV1, out: *mut ComRaw<IUnknown>) -> NcStatus {
+    unsafe extern "C" fn missing_table(_host: *const neocogi_com_core::NcHostApiV2, out: *mut ComRaw<IUnknown>) -> NcStatus {
         // SAFETY: the test supplies one writable output record; no object is acquired.
         unsafe {
             *out = ComRaw {
@@ -295,7 +295,7 @@ mod malformed_bootstrap_tests {
         NC_OK
     }
     /// Simulates the opposite half-null shape; its table must never be read.
-    unsafe extern "C" fn missing_object(_host: *const neocogi_com_core::NcHostApiV1, out: *mut ComRaw<IUnknown>) -> NcStatus {
+    unsafe extern "C" fn missing_object(_host: *const neocogi_com_core::NcHostApiV2, out: *mut ComRaw<IUnknown>) -> NcStatus {
         // SAFETY: the test supplies one writable output record; shape rejection comes first.
         unsafe {
             *out = ComRaw {

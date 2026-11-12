@@ -10,6 +10,9 @@ protocol.
 This is experimental software. Build the host, plugins and generated interfaces
 with the same SDK release. Loaded plugins stay mapped until the process exits.
 
+The prepared candidate is **0.2.0-alpha.1**, using [ABI v2](docs/abi-v2.md).
+Publication and candidate-specific platform qualification are separate steps.
+
 Start with the complete [application and calculator plugin walkthrough](examples/getting-started/README.md).
 It includes every source file, build script and dependency, plus commands for
 Linux, macOS and Windows. It requires Rust 1.85 or newer and a native linker.

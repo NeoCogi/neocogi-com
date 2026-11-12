@@ -7,7 +7,7 @@
 
 use core::{mem, ptr};
 
-use super::{NC_COM_RUNTIME_ABI_VERSION, NcDebugApiV1, NcPersistenceApiV1, NcRuntimeApiV1};
+use super::{NC_COM_RUNTIME_ABI_VERSION, NcDebugApiV2, NcPersistenceApiV2, NcRuntimeApiV2};
 use crate::{NC_COM_CORE_ABI_VERSION, NC_E_ABI_VERSION, NC_E_POINTER, NC_OK, NcStatus};
 
 /// Immutable C description supplied by the host when acquiring a plugin factory.
@@ -19,11 +19,11 @@ use crate::{NC_COM_CORE_ABI_VERSION, NC_E_ABI_VERSION, NC_E_POINTER, NC_OK, NcSt
 /// support concurrent access. Caller-owned persistence contexts remain subject
 /// to their own thread-local and exclusive-borrow operation contracts.
 ///
-/// Core generation 18 freezes this layout and its callbacks. Deploy host and
-/// providers from one published SDK release; discovery family 1 is separate.
+/// Core generation 19 freezes this layout and its callbacks. Deploy host and
+/// providers from one published SDK release; discovery family 2 is separate.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct NcHostApiV1 {
+pub struct NcHostApiV2 {
     /// Available record bytes, including the size/version prefix.
     pub size: usize,
     /// Runtime table family; must equal [`NC_COM_RUNTIME_ABI_VERSION`].
@@ -31,17 +31,17 @@ pub struct NcHostApiV1 {
     /// Core object/descriptor ABI understood by the supplied implementation.
     pub core_abi_version: u32,
     /// Required immutable plugin/catalog operation table in the host.
-    pub runtime: *const NcRuntimeApiV1,
+    pub runtime: *const NcRuntimeApiV2,
     /// Required immutable diagnostics operation table in the same host.
-    pub debug: *const NcDebugApiV1,
+    pub debug: *const NcDebugApiV2,
     /// Required immutable caller-owned persistence operation table in that host.
-    pub persistence: *const NcPersistenceApiV1,
+    pub persistence: *const NcPersistenceApiV2,
 }
 
 // SAFETY: Sharing the record exposes only const raw pointers. Dereferencing them
 // still requires the documented backing/immutability/callable-code obligations;
 // no safe operation on this record mutates or dereferences foreign storage.
-unsafe impl Sync for NcHostApiV1 {}
+unsafe impl Sync for NcHostApiV2 {}
 
 /// Checks the host record and required table prefixes without invoking code.
 ///
@@ -59,7 +59,7 @@ unsafe impl Sync for NcHostApiV1 {}
 /// supported children describe valid current tables. This validator retains no
 /// pointer, so backing need only survive this call; adopting process-lived access
 /// additionally requires the complete immutable coherent graph for that lifetime.
-pub unsafe fn validate_host_api(host: *const NcHostApiV1) -> NcStatus {
+pub unsafe fn validate_host_api(host: *const NcHostApiV2) -> NcStatus {
     // SAFETY: The caller guarantees the readable size prefix of a nonnull host.
     let status = unsafe { validate_size(host) };
     if status.is_err() {

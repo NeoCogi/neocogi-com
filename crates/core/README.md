@@ -19,20 +19,20 @@ required. The IDL build helper hashes the complete transitive graph and derives
 each declaration's final 32 bytes. Core compares those bytes at factory/interface
 boundaries and does not hash or reconstruct an IDL graph.
 
-Plugin descriptor ABI v1 publishes plugin identity/version, hard dependencies,
+Plugin descriptor ABI v2 publishes plugin identity/version, hard dependencies,
 full root-factory IID/signature, threading, and one acquisition bootstrap.
 The safe Rust acquisition function takes the host-supplied `Runtime`; its raw
 C adapter takes a host API pointer and a caller-owned factory output slot.
 Successful acquisition transfers one factory owner using the host's one global
 registry; providers initialize no separate runtime.
 `NcPluginDescriptor` is the provider-authored registration input, returned by
-`nc_get_plugin_descriptor_v1`. `NcPluginInfoV1` is the runtime's complete
+`nc_get_plugin_descriptor_v2`. `NcPluginInfoV2` is the runtime's complete
 lookup/enumeration output: metadata plus first registration origin, without a
 bootstrap function or live factory reference. These records have different roles
 and do not own the storage behind their pointers.
 
 Runtime discovery stays v1, with three tables: complete plugin operations, debug,
-and persistence. See [runtime ABI v1](https://github.com/NeoCogi/neocogi-com/blob/0.2.0-wip/docs/abi-v2.md#runtime-and-global-registry) for descriptor
+and persistence. See [runtime ABI v2](https://github.com/NeoCogi/neocogi-com/blob/0.2.0-wip/docs/abi-v2.md#runtime-and-global-registry) for descriptor
 lifetimes, inspection and acquisition, and the
 [ABI specification entrypoint](https://github.com/NeoCogi/neocogi-com/blob/0.2.0-wip/docs/abi-v2.md) for object layouts.
 
@@ -47,7 +47,7 @@ handle methods precede the generated Deref client in Rust method lookup. Core's
 `NC_COM_HANDLE_METHOD_NAMES` / `is_reserved_com_method` define one allocation-free
 admission policy for IDL and macro validation, including raw identifier spellings.
 This does not restrict private field/parameter names or alter the wire ABI. See
-[identifier hygiene](https://github.com/NeoCogi/neocogi-com/blob/v0.1.0/docs/contracts/COM_GENERATED_IDENTIFIER_HYGIENE.md).
+[identifier hygiene](https://github.com/NeoCogi/neocogi-com/blob/v0.2.0-alpha.1/docs/contracts/COM_GENERATED_IDENTIFIER_HYGIENE.md).
 
 Use `query::<T>()` when selecting a typed interface, or
 `supports_interface_id(&id)` when inspecting an exact contract without a Rust
@@ -84,7 +84,7 @@ call; `to_owned()` recursively checks fields and acquires receiver-owned data.
 Booleans and enum tags are validated before typed values are constructed, even
 inside nested ordinary records. Numeric buffers can borrow in place only when
 all fields prove identical layout and unrestricted contents. See the normative
-[recursive value contract](https://github.com/NeoCogi/neocogi-com/blob/v0.1.0/docs/contracts/RECURSIVE_VALUE_CONTRACT.md).
+[recursive value contract](https://github.com/NeoCogi/neocogi-com/blob/v0.2.0-alpha.1/docs/contracts/RECURSIVE_VALUE_CONTRACT.md).
 
 ## Descriptor text validation
 
@@ -137,7 +137,7 @@ the value neither owns those bytes nor pins a shared library.
 For a readable `NcCopyFromBufferOffset<u8>`, use
 `core::str::from_utf8(buffer.as_slice())` when text is required. There is no
 universal safe `as_str(&self) -> &str` on raw ABI views. See the
-[facade's data helpers](https://github.com/NeoCogi/neocogi-com/blob/v0.1.0/crates/com/README.md#strings-and-byte-buffers) for owned copies.
+[facade's data helpers](https://github.com/NeoCogi/neocogi-com/blob/v0.2.0-alpha.1/crates/com/README.md#strings-and-byte-buffers) for owned copies.
 
 ## Experimental persistent values
 
@@ -238,9 +238,9 @@ Validation on `refactor/ncb-only-persistence` through `3a3f0249`:
 The compiler matrix qualifies those concrete configurations; it is not a claim
 about untested targets or every compiler version. No matched deployment-size
 measurement was made for this simplification. The focused regressions live in
-[binary persistence tests](https://github.com/NeoCogi/neocogi-com/blob/v0.1.0/tests/com/integration-tests/binary_persistence.rs),
+[binary persistence tests](https://github.com/NeoCogi/neocogi-com/blob/v0.2.0-alpha.1/tests/com/integration-tests/binary_persistence.rs),
 [core fixed-buffer tests](https://github.com/NeoCogi/neocogi-com/blob/0.2.0-wip/crates/serialization/tests/binary.rs) and
-[IDL capability proofs](https://github.com/NeoCogi/neocogi-com/blob/v0.1.0/crates/idl/tests/capabilities.rs).
+[IDL capability proofs](https://github.com/NeoCogi/neocogi-com/blob/v0.2.0-alpha.1/crates/idl/tests/capabilities.rs).
 
 ### Binary resource limits
 
@@ -294,7 +294,7 @@ Only that policy's ordinary constructors are generated: shared classes have
 Every constructor takes a fully initialized Rust value. Factories obtain weak
 identities afterward and finish private event wiring before exposing an object;
 there are no cyclic constructors or unpublished-value promotion states. See
-[the construction contract](https://github.com/NeoCogi/neocogi-com/blob/v0.1.0/docs/contracts/COM_OBJECT_CONSTRUCTION.md).
+[the construction contract](https://github.com/NeoCogi/neocogi-com/blob/v0.2.0-alpha.1/docs/contracts/COM_OBJECT_CONSTRUCTION.md).
 Factories always remain shared.
 
 Exclusive providers use `into_box` to construct a non-clonable `ComBox`. `WeakComBox` caches its interface table and accesses the
@@ -308,4 +308,4 @@ the ownership rationale.
 `NC_E_DROPPED` reports lost object ownership. `NC_E_CLOSED` reports a closed
 service or channel whose COM object can still exist. A method can propagate
 either from a dependency, so neither status identifies receiver lifetime. See the
-[precise lifetime error contract](https://github.com/NeoCogi/neocogi-com/blob/v0.1.0/docs/contracts/COM_LIFETIME_ERRORS.md).
+[precise lifetime error contract](https://github.com/NeoCogi/neocogi-com/blob/v0.2.0-alpha.1/docs/contracts/COM_LIFETIME_ERRORS.md).

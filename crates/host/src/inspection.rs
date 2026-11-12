@@ -2,13 +2,13 @@
 //! Referenced buffers are immutable heap allocations or static/pinned descriptor
 //! storage. Moving the enclosing catalog records never moves these allocations.
 
-use neocogi_com_core::{NcFactoryInfoV1, NcPluginInfoV1, NcStaticUtf8, NcUtf8View};
+use neocogi_com_core::{NcFactoryInfoV2, NcPluginInfoV2, NcStaticUtf8, NcUtf8View};
 use crate::factory_plugin_registry::{PluginOrigin, RegisteredFactoryPlugin};
 
 /// Borrows a complete record from process-lived registration storage.
-pub(crate) fn plugin_info(registered: &RegisteredFactoryPlugin) -> NcPluginInfoV1 {
+pub(crate) fn plugin_info(registered: &RegisteredFactoryPlugin) -> NcPluginInfoV2 {
     let plugin = registered.descriptor.get();
-    NcPluginInfoV1 {
+    NcPluginInfoV2 {
         plugin_id: plugin.plugin_id,
         qualified_name: static_utf8_view(plugin.qualified_name),
         version: static_utf8_view(plugin.plugin_version),
@@ -19,7 +19,7 @@ pub(crate) fn plugin_info(registered: &RegisteredFactoryPlugin) -> NcPluginInfoV
                 NcUtf8View { data: path.as_ptr(), len: path.len() }
             }
         },
-        factory: NcFactoryInfoV1 {
+        factory: NcFactoryInfoV2 {
             interface: plugin.root_factory,
             threading: plugin.root_factory_threading,
         },

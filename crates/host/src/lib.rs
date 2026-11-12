@@ -11,7 +11,7 @@
 //! claiming the same plugin GUID are rejected. Plugin code never runs under
 //! the catalog lock. Inspection derives views from the authoritative records.
 //!
-//! Runtime ABI v1 returns plugin GUIDs from loading, enumerates only
+//! Runtime ABI v2 returns plugin GUIDs from loading, enumerates only
 //! plugins and exposes origin paths through plugin inspection. It permits 1,024
 //! distinct dynamic providers and 64 simultaneous debug messengers. Live-load
 //! failures diagnose and abort; static registration and debug capacity failures
@@ -56,7 +56,7 @@ pub use loader::{
 /// they do not select or initialize another implementation. Host catalog/debug
 /// entrypoints synchronize concurrent calls; caller-owned persistence contexts
 /// retain their thread-local and exclusive-operation requirements.
-pub fn initialize_process() -> &'static neocogi_com::NcHostApiV1 {
+pub fn initialize_process() -> &'static neocogi_com::NcHostApiV2 {
     let _ = state::RuntimeState::global();
     &api::HOST_API
 }

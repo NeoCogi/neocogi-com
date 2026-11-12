@@ -18,7 +18,7 @@ pub const IID_IUNKNOWN: NcGuid = NcGuid::from_fields(0x0000_0000, 0x0000, 0x0000
 /// Reserved normative qualified name for [`IUnknown`].
 pub const IUNKNOWN_QUALIFIED_NAME: &str = "IUnknown";
 
-/// Fixed ABI-v1 signature for the built-in [`IUnknown`] contract.
+/// Fixed intrinsic ABI signature for the built-in [`IUnknown`] contract.
 ///
 /// Built-ins have no IDL build script, so this checked-in constant plays the
 /// same role as the byte string emitted by `neocogi` for ordinary contracts.

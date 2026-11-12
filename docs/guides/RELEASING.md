@@ -20,16 +20,13 @@ before subsequent uploads. Add any additional owners deliberately after the firs
 publication. [Trusted publishing](https://crates.io/docs/trusted-publishing) can
 replace stored CI tokens for later releases.
 
-The compatibility rule is separate from Cargo versions. Deploy hosts, providers
-and generated bindings from one SDK release. Core generation 18 freezes the
-first public layouts and callback signatures; an incompatible change needs a
-fresh applicable generation before interpreting a full record or invoking code.
-On `0.2.0-wip`, runtime and descriptor discovery retain family 1. At the 0.2.0
-release, select ABI v2 and update the applicable discovery constants, exported
-entrypoints, documentation and admission tests together. This is a release step,
-not part of removing declaration versions. Interface signatures, IDL
-encoding and NCB persistence format have their own authorities in the
-[ABI contract](../abi-v2.md).
+The compatibility rule is separate from Cargo versions. The prepared candidate
+is `0.2.0-alpha.1`, using ABI v2: runtime and descriptor family 2, core generation
+19, and `nc_get_plugin_descriptor_v2`. Deploy hosts, providers and generated
+bindings from one SDK release. ABI v1 libraries are rejected before bootstrap;
+there is no compatibility export. Interface signatures, IDL encoding and NCB
+persistence format have their own authorities in the [ABI contract](../abi-v2.md).
+
 
 Prepare a user-facing changelog entry with features, migration instructions,
 known limits and actual platform results. Keep superseded development entries
@@ -39,7 +36,7 @@ historical. The currently prepared version is a release candidate until uploaded
 
 After all other preparation, update these together:
 
-- `[workspace.package].version` and the five exact SDK dependency requirements.
+- `[workspace.package].version` and the six exact internal SDK dependency requirements.
 - Root and affected independent fixture lockfiles, preserving unrelated external
   versions and checksums. `cargo xtask workspace` resolves every maintained graph.
 - SDK versions in tutorial manifests, installation examples, public README
@@ -95,7 +92,8 @@ candidate and without `--no-verify` or `--allow-dirty`:
 ```sh
 cargo publish --dry-run --locked --registry crates-io \
   -p neocogi-com-core -p neocogi-idl -p neocogi-com-macros \
-  -p neocogi-com -p neocogi-com-host -p neocogi-inspect
+  -p neocogi-com -p neocogi-com-serialization -p neocogi-com-serialization-dylib \
+  -p neocogi-com-host -p neocogi-inspect
 ```
 
 Cargo 1.97.1/1.98.1 can fail offline multi-package verification with an internal

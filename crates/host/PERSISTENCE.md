@@ -43,9 +43,9 @@ monolith. Its adapter reconstructs through the provider's existing typed factory
 ## Ownership and linkage
 
 Persistence is implemented in `neocogi-com-host` and called through
-`NcPersistenceApiV1`, supplied in the admitted host API description. Enable the
+`NcPersistenceApiV2`, supplied in the admitted host API description. Enable the
 facade's `runtime` feature for callers. All final hosts link the implementation
-rlib and pass access to registry creation and capture. The unreleased ABI-v1
+rlib and pass access to registry creation and capture. The ABI-v2
 tables change in place; rebuild the host and providers together. Providers only implementing the contracts need neither
 feature. The built-in contracts remain available without allocation; portable
 `ObjectRecord` authoring requires `alloc` but no linked runtime.

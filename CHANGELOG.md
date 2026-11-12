@@ -1,10 +1,10 @@
 # Changelog
 
-The current contract uses [core generation 18](docs/abi-v1.md). Entries below record
+The current contract uses [ABI v2, core generation 19](docs/abi-v2.md). Entries below record
 its development; later entries can supersede older implementation details.
 Historical draft numbers do not define additional supported COM baselines.
 
-## 0.2.0 — unreleased (`0.2.0-wip`)
+## 0.2.0-alpha.1 — prepared 2026-11-12
 
 - Make serialization formats COM objects with `ISerializer`, `IDeserializer`,
   `ISerializationOutput` and an `ISerializationFormat` factory. The same typed
@@ -28,9 +28,16 @@ Historical draft numbers do not define additional supported COM baselines.
   Rebuild generated contracts, providers and hosts together: nominal IDs and exact
   signatures change from 0.1.0. Exact transitive signatures still reject incompatible
   contracts, including changes that retain the same native layout.
-- Maintain [ABI v2](docs/abi-v2.md) as the 0.2.0 development specification and retain
-  [ABI v1](docs/abi-v1.md) as the released baseline. Discovery remains family 1 and
-  core generation remains 18 during development; select ABI v2 at the 0.2.0 release.
+- Select ABI v2 for this alpha: runtime and descriptor discovery family 2,
+  core generation 19, and the native `nc_get_plugin_descriptor_v2` export.
+  Rename supplied service records and callbacks from `V1` to `V2`; rebuild hosts,
+  providers and generated bindings together. ABI v1 discovery is not a fallback.
+  Keep [ABI v1](docs/abi-v1.md) as the released historical baseline.
+- Prepare all eight SDK packages as `0.2.0-alpha.1` with exact internal
+  requirements. Tutorial manifests and current documentation target that cohort.
+  This is local release preparation, not a publication or a claim that remote
+  Linux/macOS/Windows qualification has completed for this candidate.
+
 
 ## 0.1.0 — 2026-10-29
 

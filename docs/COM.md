@@ -5,8 +5,8 @@ through an explicit C-shaped ABI. Rust-like IDL is the source of public contract
 truth; generated COM interfaces carry calls, and plugins expose one typed root
 factory.
 
-The [0.2.0 development COM contract](abi-v2.md) is in progress; discovery remains
-ABI v1 until ABI v2 is selected for release.
+The prepared [0.2.0-alpha.1 COM contract](abi-v2.md) selects ABI v2 discovery
+and core generation 19. Rebuild hosts, providers and generated bindings together.
 
 ## Component model
 
@@ -90,7 +90,7 @@ paths are `neocogi_com` and `neocogi_com_host`, respectively.
 
 1. The final host explicitly depends on `neocogi-com-host` and uses
    `#[neocogi_com::com_main]`. The generated entry calls
-   `neocogi_com_host::initialize_process()`, admits its `NcHostApiV1` bundle and
+   `neocogi_com_host::initialize_process()`, admits its `NcHostApiV2` bundle and
    passes a `neocogi_com::Runtime` handle to the authored main body. Explicit
    `neocogi_com = path, neocogi_com_host = path` arguments support Cargo aliases.
 2. The host registers a statically linked descriptor or loads an
@@ -229,7 +229,7 @@ fn acquire_root(_runtime: neocogi_com::Runtime) -> Result<neocogi_com::ComPtr<ex
 }
 ```
 
-The plugin exports `nc_get_plugin_descriptor_v1`. Descriptor ABI v1
+The plugin exports `nc_get_plugin_descriptor_v2`. Descriptor ABI v2
 includes plugin identity/version, hard dependencies, the complete factory
 IID/signature, threading, and one bootstrap pointer. Static assemblies call
 `plugin_descriptor()` directly. Both paths borrow the provider-authored
@@ -288,7 +288,7 @@ runtime never discovers or recursively loads their paths. Required live-load
 failure is diagnosed and aborts rather than exposing partial state. Successful
 libraries remain mapped until process exit.
 
-Runtime ABI v1 has one complete plugin-operation table, plus debug and
+Runtime ABI v2 has one complete plugin-operation table, plus debug and
 caller-scoped persistence tables. Lookup and enumeration return the same complete
 plugin description, including its factory contract and dependency GUIDs. Loading returns the plugin GUID; inspection
 reports its first static/dynamic origin. Separate module identities and module

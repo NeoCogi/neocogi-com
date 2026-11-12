@@ -17,7 +17,7 @@ const MARKER: &str = "NC_GENERATION_BOOTSTRAP_MARKER";
 const RETURNED: i32 = 97;
 
 /// Stage a distinct provider mapping before rebuilding the other feature mode.
-fn provider(current: bool) -> tempfile::TempDir {
+fn provider(features: Option<&str>) -> tempfile::TempDir {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let manifest = root.join("tests/com/integration-tests/fixtures/legacy-bootstrap/Cargo.toml");
     let target = std::env::var_os("CARGO_TARGET_DIR").map(PathBuf::from).unwrap_or_else(|| root.join("target"));
@@ -27,8 +27,8 @@ fn provider(current: bool) -> tempfile::TempDir {
         .arg(&manifest)
         .arg("--target-dir")
         .arg(target);
-    if current {
-        command.args(["--features", "current,dynamic-plugin"]);
+    if let Some(features) = features {
+        command.args(["--features", features]);
     }
     let output = command.output().expect("build generation fixture");
     assert!(
@@ -81,8 +81,8 @@ fn child(mode: &str, stage: &Path, marker: &Path) -> Output {
 /// The old signature cannot pass merely by advertising a matching factory IID.
 #[test]
 fn retired_bootstrap_is_rejected_before_its_callback() {
-    let legacy = provider(false);
-    let current = provider(true);
+    let legacy = provider(None);
+    let current = provider(Some("current,dynamic-plugin"));
     let marker = legacy.path().join("bootstrap.marker");
     let inspection = child("inspect", legacy.path(), &marker);
     assert!(inspection.status.success(), "{}", String::from_utf8_lossy(&inspection.stderr));
@@ -108,11 +108,27 @@ fn retired_bootstrap_is_rejected_before_its_callback() {
     assert_eq!(std::fs::read(marker).unwrap(), b"current", "current callback must actually execute");
 }
 
+/// Family 2 never falls back to an ABI v1 getter, even before reading metadata.
+#[test]
+fn abi_v1_discovery_is_rejected_without_bootstrap() {
+    let legacy = provider(Some("legacy-symbol"));
+    let marker = legacy.path().join("v1-bootstrap.marker");
+    let inspected = child("v1-symbol", legacy.path(), &marker);
+    assert!(inspected.status.success(), "{}", String::from_utf8_lossy(&inspected.stderr));
+    assert!(!marker.exists(), "ABI v1 bootstrap must never execute");
+}
+
 /// Child entry: current control makes real calls; rejected legacy code never runs.
 #[test]
 fn generation_child() {
     let Ok(mode) = std::env::var(MODE) else { return };
     let path = PathBuf::from(std::env::var_os(LIBRARY).expect("provider path"));
+    if mode == "v1-symbol" {
+        // SAFETY: Parent supplies a trusted fixture exposing only the old getter.
+        let error = unsafe { neocogi_com_host::inspect_plugin_library(path) }.expect_err("ABI v1 getter must be absent from family 2");
+        assert_eq!(error.kind(), neocogi_com_host::PluginLoadErrorKind::FindSymbol);
+        return;
+    }
     if mode == "inspect" {
         // SAFETY: Parent built immutable legacy metadata with a readable prefix.
         let error = unsafe { neocogi_com_host::inspect_plugin_library(path) }.expect_err("legacy core must be rejected");

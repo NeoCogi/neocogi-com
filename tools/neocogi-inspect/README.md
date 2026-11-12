@@ -1,6 +1,6 @@
 # neocogi-inspect
 
-Reads an actual plugin's `nc_get_plugin_descriptor_v1` export without
+Reads an actual plugin's `nc_get_plugin_descriptor_v2` export without
 registering or activating its factory. It copies plugin identity/version, hard
 dependencies, descriptor/core ABI versions, and full factory IID/signature and
 threading capability. There are no contract libraries or module graphs to load.
@@ -9,10 +9,10 @@ Opened libraries remain pinned until the short-lived process exits.
 Install the matching SDK release after publication:
 
 ```sh
-cargo install neocogi-inspect --version '=0.1.0' --locked
+cargo install neocogi-inspect --version '=0.2.0-alpha.1' --locked
 ```
 
-The [first application and plugin](https://github.com/NeoCogi/neocogi-com/blob/v0.1.0/examples/getting-started/README.md)
+The [first application and plugin](https://github.com/NeoCogi/neocogi-com/blob/v0.2.0-alpha.1/examples/getting-started/README.md)
 walkthrough creates a library you can inspect.
 
 ```sh
@@ -28,11 +28,11 @@ neocogi-inspect diff old.nccom.json new.nccom.json --compat
 Pass values to `--output` / `-o` and `--format` / `-f` as separate arguments.
 Output files use the exact supplied native path.
 
-JSON uses strict schema 9 and plugin descriptor ABI 1. The core object ABI
+JSON uses strict schema 9 and plugin descriptor ABI 2. The core object ABI
 is checked against the current COM runtime contract.
 Unknown fields and unsupported schema versions are rejected. The artifact records
 the plugin and its root factory. Source-level method and value definitions belong
-to [local IDL metadata](https://docs.rs/neocogi-com/0.1.0/neocogi_com/idl_metadata/index.html).
+to [local IDL metadata](https://docs.rs/neocogi-com/0.2.0-alpha.1/neocogi_com/idl_metadata/index.html).
 
 `plan` rejects duplicate plugin identities, missing hard dependencies, and
 cycles, then prints deterministic provider-first order. Disconnected contract
@@ -50,5 +50,5 @@ executable inspection, not a sandbox or publisher authentication. Successfully
 opened mappings stay pinned until the inspector exits; inspection errors remain
 recoverable. See the
 [native loading contract](https://github.com/NeoCogi/neocogi-com/blob/0.2.0-wip/docs/abi-v2.md#runtime-and-global-registry).
-The [sample plugin](https://github.com/NeoCogi/neocogi-com/blob/v0.1.0/examples/com-plugin/README.md) can be built and
+The [sample plugin](https://github.com/NeoCogi/neocogi-com/blob/v0.2.0-alpha.1/examples/com-plugin/README.md) can be built and
 inspected with ordinary Cargo, without the assembly driver.

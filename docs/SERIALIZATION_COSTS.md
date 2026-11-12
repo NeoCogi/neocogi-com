@@ -4,6 +4,8 @@ Measured on 2026-11-11, Linux x86_64, Intel Core Ultra 7 155H. The complete
 platform-style workflow uses `nightly-2026-09-29` (Rust 1.101.0-nightly,
 `c1070d693`, LLVM 23.1.1) and rebuilt target std. NCB is unconditional; JSON is our
 own parser/writer and adds no runtime parser/framework dependency. YAML is removed.
+These measurements describe the pre-alpha ABI v1 checkout; they are historical
+size/throughput evidence rather than qualification of the ABI v2 alpha candidate.
 
 ## Complete deployment configuration
 
@@ -19,7 +21,7 @@ The measurements below retain the exact compiler revision used for that run.
 The earlier 428,928-byte JSON file was built with precompiled std and retained
 panic/backtrace symbolization. Those measurements did not use this complete
 workflow and are superseded by the table below. The deployed library now needs
-only `libc.so.6`; it exports only `nc_get_plugin_descriptor_v1`.
+only `libc.so.6`; it exports only `nc_get_plugin_descriptor_v2`.
 
 ## Artifact sizes
 

@@ -6,14 +6,14 @@
 
 use core::{ffi::c_void, mem, ptr, slice};
 use neocogi_com_core::{
-    ComRef, IUnknown, NcGuid, NcPersistenceApiV1, NcPersistenceContext, NcPersistenceLimitsV1, NcPersistenceWriteBytesV1, NcStatus, NC_COM_CORE_ABI_VERSION,
+    ComRef, IUnknown, NcGuid, NcPersistenceApiV2, NcPersistenceContext, NcPersistenceLimitsV2, NcPersistenceWriteBytesV2, NcStatus, NC_COM_CORE_ABI_VERSION,
     NC_E_INVALID_ARG, NC_E_POINTER, NC_OK, persistence::IPersistenceFactoryAbi,
 };
 use crate::persistence::{Registry, snapshot_with_limits};
 
 /// Immutable operation table; a getter lends it for the runtime's entire lifetime.
-pub(super) static PERSISTENCE_API_V1: NcPersistenceApiV1 = NcPersistenceApiV1 {
-    size: mem::size_of::<NcPersistenceApiV1>(),
+pub(super) static PERSISTENCE_API_V2: NcPersistenceApiV2 = NcPersistenceApiV2 {
+    size: mem::size_of::<NcPersistenceApiV2>(),
     core_abi_version: NC_COM_CORE_ABI_VERSION,
     create_context,
     destroy_context,
@@ -82,8 +82,8 @@ unsafe extern "C" fn register_factory(context: *mut NcPersistenceContext, id: Nc
 /// satisfy the declared byte-sink contract and must not unwind across the ABI.
 unsafe extern "C" fn snapshot(
     object: neocogi_com_core::ComRaw<IUnknown>,
-    limits: NcPersistenceLimitsV1,
-    write: Option<NcPersistenceWriteBytesV1>,
+    limits: NcPersistenceLimitsV2,
+    write: Option<NcPersistenceWriteBytesV2>,
     user_data: *mut c_void,
 ) -> NcStatus {
     let write = match write {
@@ -114,7 +114,7 @@ unsafe extern "C" fn restore(
     context: *const NcPersistenceContext,
     bytes: *const u8,
     len: usize,
-    limits: NcPersistenceLimitsV1,
+    limits: NcPersistenceLimitsV2,
     out: *mut neocogi_com_core::ComRaw<IUnknown>,
 ) -> NcStatus {
     if out.is_null() {

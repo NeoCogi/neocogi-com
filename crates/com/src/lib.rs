@@ -130,7 +130,7 @@ mod tests;
 pub use neocogi_com_core::lifetime;
 pub use neocogi_com_core::{ComBox, WeakComBox};
 pub use neocogi_com_core::{NcCopyFromBufferOffset, WeakComPtr, NcWeakRaw};
-pub use neocogi_com_core::{NcHostApiV1, validate_host_api};
+pub use neocogi_com_core::{NcHostApiV2, validate_host_api};
 #[cfg(feature = "alloc")]
 pub use data::{INcBytesComPtrExt, INcStringComPtrExt, NC_COM_DEFAULT_OWNED_COPY_MAX_BYTES, NcBytes, NcString};
 #[cfg(feature = "macros")]
@@ -152,10 +152,10 @@ pub use neocogi_com_core::{
     NC_E_ABI_VERSION, NC_E_BUSY, NC_E_CLOSED, NC_E_DROPPED, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG, NC_E_INVALID_TAG, NC_E_LOAD_FAILED, NC_E_NOINTERFACE,
     NC_E_NOT_FOUND, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_PLUGIN_DESCRIPTOR_ABI_VERSION, NC_GET_PLUGIN_DESCRIPTOR_SYMBOL, NC_GUID_NIL, NC_OK,
     NcAbiSignature, NcAbiPassing, NcAbiPassingDescriptor, NcAbiReceiver, NcAbiThreadingMode, NcAbiType, NcAbiTypeDescriptor, NcAcquirePluginFactory,
-    NcDebugApiV1, NcDebugCallbackV1, NcDebugMessageV1, NcDebugMessengerCreateInfoV1, NcPluginDescriptor, NcGetPluginDescriptor, NcGuid,
-    NcInspectPluginDescriptorCallbackV1, NcInterfaceDescriptor, NcInterfaceId, NcMethodDescriptor, NcMethodParamDescriptor, NcPersistenceApiV1,
-    NcPersistenceContext, NcPersistenceLimitsV1, NcPersistenceWriteBytesV1, NcMethodReturnDescriptor, NcPluginDependencyDescriptor, NcFactoryInfoV1,
-    NcPluginInfoV1, NcQualifiedNameError, NcRuntimeApiV1, NcStaticUtf8, NcStatus, NcUtf8View, NcVersionTextError, ParseGuidError, QUALIFIED_NAME_INC_BYTES,
+    NcDebugApiV2, NcDebugCallbackV2, NcDebugMessageV2, NcDebugMessengerCreateInfoV2, NcPluginDescriptor, NcGetPluginDescriptor, NcGuid,
+    NcInspectPluginDescriptorCallbackV2, NcInterfaceDescriptor, NcInterfaceId, NcMethodDescriptor, NcMethodParamDescriptor, NcPersistenceApiV2,
+    NcPersistenceContext, NcPersistenceLimitsV2, NcPersistenceWriteBytesV2, NcMethodReturnDescriptor, NcPluginDependencyDescriptor, NcFactoryInfoV2,
+    NcPluginInfoV2, NcQualifiedNameError, NcRuntimeApiV2, NcStaticUtf8, NcStatus, NcUtf8View, NcVersionTextError, ParseGuidError, QUALIFIED_NAME_INC_BYTES,
     QUALIFIED_NAME_INC_STRING, ThreadLocal, ThreadSafe, ThreadingModel, write_plugin_root, guid_from_qualified_name, raw, return_plugin_descriptor,
     validate_plugin_descriptor, validate_qualified_name, validate_version_text, validate_rust_path, NcRustPathError, NC_DESCRIPTOR_RUST_PATH_MAX_LEN,
 };

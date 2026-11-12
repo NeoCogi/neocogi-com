@@ -23,10 +23,10 @@ Providers link the SDK and receive host access during bootstrap; the final host
 links this package once. Host-side inspection tools can reuse its loader and
 metadata utilities without initializing the plugin catalog.
 
-See [the role and dependency guide](https://github.com/NeoCogi/neocogi-com/blob/v0.1.0/docs/COM.md#hosts-callers-and-providers)
+See [the role and dependency guide](https://github.com/NeoCogi/neocogi-com/blob/v0.2.0-alpha.1/docs/COM.md#hosts-callers-and-providers)
 for the complete graph and startup/call sequence.
 
-A dynamic library exports `nc_get_plugin_descriptor_v1`, lending an
+A dynamic library exports `nc_get_plugin_descriptor_v2`, lending an
 immutable descriptor with plugin metadata, hard dependencies, full root factory
 IID/signature, threading, and bootstrap. Registration validates the metadata and
 publishes one plugin atomically. Dependencies must already be registered;
@@ -66,7 +66,7 @@ and ABI identities do not authenticate native code: providers and their native
 dependencies must be trusted. See the
 [native loading contract](https://github.com/NeoCogi/neocogi-com/blob/0.2.0-wip/docs/abi-v2.md#runtime-and-global-registry).
 
-[Runtime ABI v1](https://github.com/NeoCogi/neocogi-com/blob/0.2.0-wip/docs/abi-v2.md#runtime-and-global-registry) has three C tables:
+[Runtime ABI v2](https://github.com/NeoCogi/neocogi-com/blob/0.2.0-wip/docs/abi-v2.md#runtime-and-global-registry) has three C tables:
 complete plugin operations, diagnostics and persistence. Plugin lookup and
 enumeration share one projection containing identity, factory and dependencies. Loading
 returns a plugin GUID. Plugin inspection reports static origin or the first
@@ -74,7 +74,7 @@ library path; native handles remain private. The same descriptor reuses its
 registration, while conflicting descriptors are rejected. There is no module
 ID, module registry or module-to-plugin join. The limit is 1,024 distinct dynamic
 providers, excluding static registrations and repeats, and 64 active messengers.
-Plugin descriptor ABI v1 and core object generation 18 remain independently versioned.
+Plugin descriptor ABI v2 and core object generation 19 remain independently versioned.
 
 ## Build and link
 
@@ -84,10 +84,10 @@ existing singleton and obtain a copyable access handle. Reusable libraries take
 that handle from their caller. Plugin acquisition receives it through the C
 bootstrap; providers select no implementation. No runtime DSO or native bridge
 is built or deployed. The runtime requires `std`; core and the access handle
-retain reduced-feature support. See the [sample host](https://github.com/NeoCogi/neocogi-com/tree/v0.1.0/examples/com-host).
+retain reduced-feature support. See the [sample host](https://github.com/NeoCogi/neocogi-com/tree/v0.2.0-alpha.1/examples/com-host).
 
 `initialize_process()` is infallible/idempotent and invokes no plugin. Its
-immutable `NcHostApiV1`, child tables, state and code remain process/instance-lived
+immutable `NcHostApiV2`, child tables, state and code remain process/instance-lived
 even after application main returns. The three existing C tables remain separate
 services. Callbacks execute here and reach this host's one private registry;
 nested provider acquisition forwards this canonical bundle.

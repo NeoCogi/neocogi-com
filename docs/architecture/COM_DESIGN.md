@@ -90,7 +90,7 @@ are diagnosed and fatal; typed acquisition mismatches return statuses. Successfu
 loaded libraries stay mapped for process lifetime, including retained weak storage.
 
 Dynamic and static assemblies use the same typed acquisition. Dynamic builds export
-`nc_get_plugin_descriptor_v1`; monoliths register the same provider's Rust
+`nc_get_plugin_descriptor_v2`; monoliths register the same provider's Rust
 descriptor and link the runtime statically. Independent compiler versions and
 build flags are supported when the target C ABI, core generation and exact contract
 signatures agree. The [compatibility matrix](../abi-v2.md#independent-build-compatibility)

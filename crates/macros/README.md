@@ -40,7 +40,7 @@ storage companion or per-provider lifecycle bodies. Static tables implement sign
 `QueryInterface`; handles carry the allocation and selected table, so interfaces
 add no per-object fields. The compiler resolves distinct inherited contracts,
 including diamonds, without retaining full inspection metadata in dispatch.
-See the [storage decision](https://github.com/NeoCogi/neocogi-com/blob/v0.1.0/docs/contracts/COM_INTERFACE_STORAGE.md) for the
+See the [storage decision](https://github.com/NeoCogi/neocogi-com/blob/v0.2.0-alpha.1/docs/contracts/COM_INTERFACE_STORAGE.md) for the
 history of the reverted metadata-heavy version and the deliberate handle-size
 tradeoff in the current representation.
 `into_local(initialized_value)` returns a `LocalCom<Implementation>` when the
@@ -93,7 +93,7 @@ reference; acquiring an existing service and constructing a provider are both va
 
 `plugin_descriptor()` lends static metadata without acquiring an object. The
 provider declares a `dynamic-plugin = []` feature to enable the generated
-`nc_get_plugin_descriptor_v1` export in a DLL. Static compositions leave that
+`nc_get_plugin_descriptor_v2` export in a DLL. Static compositions leave that
 feature disabled and register the accessor directly. Define one root per plugin
 crate. Provider methods perform parameterized construction with ordinary typed
 arguments. No bootstrap traits, object role markers or constructor tables exist.
@@ -124,7 +124,7 @@ Rust implementation macros never choose an interface revision or encode a schema
 Generated value codecs and method adapters keep authored members/parameters
 separate from positional private bindings, qualify their support types/macros,
 and select required trait operations explicitly. Plugin support lookup and default
-decoding have independent normal/printed semantic controls. See [generated identifier hygiene](https://github.com/NeoCogi/neocogi-com/blob/v0.1.0/docs/contracts/COM_GENERATED_IDENTIFIER_HYGIENE.md)
+decoding have independent normal/printed semantic controls. See [generated identifier hygiene](https://github.com/NeoCogi/neocogi-com/blob/v0.2.0-alpha.1/docs/contracts/COM_GENERATED_IDENTIFIER_HYGIENE.md)
 for the contract, the corruption it prevents, and executable regression coverage.
 
 Value wire/payload/storage definitions live in anonymous implementation scopes.

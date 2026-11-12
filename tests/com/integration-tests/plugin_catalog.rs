@@ -7,7 +7,7 @@ use neocogi_com::*;
 /// Counts bootstrap calls so metadata operations cannot silently acquire objects.
 static ACQUIRES: AtomicUsize = AtomicUsize::new(0);
 /// Returns a distinctive ordinary acquisition error without transferring ownership.
-unsafe extern "C" fn acquire(_host: *const neocogi_com::NcHostApiV1, out: *mut ComRaw<IUnknown>) -> NcStatus {
+unsafe extern "C" fn acquire(_host: *const neocogi_com::NcHostApiV2, out: *mut ComRaw<IUnknown>) -> NcStatus {
     unsafe { out.write(ComRaw::null()) };
     ACQUIRES.fetch_add(1, Ordering::SeqCst);
     NC_E_CLOSED
@@ -32,7 +32,7 @@ fn description(name: &'static str, dependencies: &'static [NcPluginDependencyDes
 #[test]
 fn complete_records_are_coherent_owned_and_stable_across_growth() {
     let runtime = crate::host_runtime();
-    assert_eq!(runtime.runtime_abi_version(), 1);
+    assert_eq!(runtime.runtime_abi_version(), 2);
     let api = unsafe { &*neocogi_com_host::initialize_process().runtime };
     let mut len = usize::MAX;
     assert_eq!(unsafe { (api.plugin_infos)(ptr::null_mut(), 0, &mut len) }, NC_OK);
@@ -59,7 +59,7 @@ fn complete_records_are_coherent_owned_and_stable_across_growth() {
         runtime.register_plugin_descriptor(consumer).unwrap();
     }
     assert_eq!(unsafe { (api.plugin_count)() }, 3);
-    let mut raw = MaybeUninit::<NcPluginInfoV1>::uninit();
+    let mut raw = MaybeUninit::<NcPluginInfoV2>::uninit();
     assert_eq!(unsafe { (api.plugin_info)(consumer.plugin_id, raw.as_mut_ptr()) }, NC_OK);
     let saved = unsafe { raw.assume_init() };
     assert_eq!(saved.dependencies, deps.as_ptr());

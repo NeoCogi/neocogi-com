@@ -7,7 +7,7 @@ use neocogi_com_core::{NcPluginDescriptor, NcStatus, NC_E_POINTER, NC_OK};
 /// # Safety
 /// A nonnull out pointer must be aligned and writable for one descriptor pointer.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn nc_get_plugin_descriptor_v1(out: *mut *const NcPluginDescriptor) -> NcStatus {
+pub unsafe extern "C" fn nc_get_plugin_descriptor_v2(out: *mut *const NcPluginDescriptor) -> NcStatus {
     if out.is_null() {
         return NC_E_POINTER;
     }

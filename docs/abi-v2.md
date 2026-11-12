@@ -1,53 +1,49 @@
-# COM ABI v2 (0.2.0 development)
+# COM ABI v2 (0.2.0-alpha.1)
 
-This is the development contract for 0.2.0 on `0.2.0-wip`. The released
-0.1.0 baseline remains [ABI v1](abi-v1.md). Runtime and plugin descriptor
-discovery remain family **1** during development; select ABI **2** when releasing
-0.2.0. This document's filename does not change any numeric discovery constant.
-Core generation remains **18** until release preparation selects the applicable
-fresh generation. IDL canonical encoding v14 is a separate compiler contract.
+This is the ABI contract for the prepared **0.2.0-alpha.1** SDK. Runtime and
+plugin descriptor discovery use family **2**, with core generation **19**.
+The released 0.1.0 baseline remains archived in [ABI v1](abi-v1.md). ABI v1
+hosts and providers must be rebuilt together; there are no compatibility aliases
+or fallback discovery exports. IDL canonical encoding v14 and NCB format v1
+retain their independent authorities.
 
-This document owns the current development COM binary contract. The authoritative layouts are
-the public `#[repr(C)]` definitions in [core](../crates/core/src/lib.rs); this document
-describes how their calling, ownership, runtime and deployment rules compose.
+This document owns the current COM binary contract. The authoritative layouts
+are the public `#[repr(C)]` definitions in [core](../crates/core/src/lib.rs); this
+document describes their calling, ownership, runtime and deployment rules.
 
-The first public core compatibility generation is **18**. Runtime-table and
-plugin-descriptor discovery remain family **1**. These are separate from Cargo
-package versions, interface signatures and persistence formats.
+Deploy hosts, plugins and generated bindings from the same SDK release. Within
+a compatible core generation, layouts and callback signatures are frozen.
+Incompatible changes require a fresh applicable generation before interpreting
+full records or invoking callbacks. The alpha is prepared locally; publication
+and native platform qualification are separate release actions.
 
-Deploy the host, plugins and generated bindings from the same published SDK
-release. Within a declared compatible core generation, layouts and callback
-signatures are frozen. Incompatible changes must select a new applicable
-generation before any full-record interpretation or callback invocation.
-
-Retired experimental checkouts reused core generation 1 across incompatible
-factory bootstrap signatures. Generation 18 is unused by those historical
-layouts, so their metadata is rejected before an acquisition callback can run.
-There are no adapters for retired layouts. Native library initializers and the
-fixed descriptor getter can already execute during opening; this admission
-check does not authenticate or sandbox code.
+Core generation 18 belongs to the released ABI v1 baseline. Earlier experimental
+checkouts also reused generation 1 across incompatible bootstrap signatures.
+Generation 19 distinguishes the ABI v2 contract from both. Admission reads only
+supported prefixes before borrowing full records or calling acquisition code.
+Opening a native library can still execute its initializers and descriptor
+getter; version admission does not authenticate or sandbox code.
 
 | Identity or version | Current authority and purpose |
 | --- | --- |
-| Core ABI | `NC_COM_CORE_ABI_VERSION == 18`; object/lifetime/descriptor layout and behavior |
-| Runtime ABI | `NC_COM_RUNTIME_ABI_VERSION == 1`; versioned C table discovery |
-| Plugin descriptor ABI | `NC_PLUGIN_DESCRIPTOR_ABI_VERSION == 1`; native getter and descriptor prefix |
+| Core ABI | `NC_COM_CORE_ABI_VERSION == 19`; object/lifetime/descriptor layout and behavior |
+| Runtime ABI | `NC_COM_RUNTIME_ABI_VERSION == 2`; supplied C table family |
+| Plugin descriptor ABI | `NC_PLUGIN_DESCRIPTOR_ABI_VERSION == 2`; `nc_get_plugin_descriptor_v2` and descriptor prefix |
 | Interface contract | IID plus exact 32-byte ABI signature, checked at connection boundaries |
 | IDL fingerprint encoding | `neocogi_idl::MODULE_ABI_ENCODING_DOMAIN`; compiler-owned canonical bytes, currently encoding v14 |
 | NCB format | Version 1 positional persistence encoding, separate from live COM wire values |
 
-The IDL encoding revision is not a COM core generation. Discovery family 1
-and core generation 18 do not reassign existing IIDs, signature bytes, fingerprints or
-application catalog schemas. Ordinary IDL signatures continue to describe exact
-transitive contracts; core discovery checks the enclosing binary contract.
+Core generation and discovery families do not replace exact interface
+signatures. IDL signatures describe complete transitive typed contracts; core
+admission selects the enclosing binary contract. Snapshot/catalog schemas and
+application persistence formats keep their own versioning rules.
 
 Shared `.ncidl` files stay under their owning subsystem. Each consumer may
 compile them into its own `OUT_DIR` with `cargo::SharedSources`, adding explicit
 subsystem roots with `include_root`. No dedicated contract package is required.
 Independent Rust definitions retain the same logical IDs and canonical ABI;
-ordinary Rust helper calls still use the helper library's concrete Rust types.
-This source/build ownership change adds no registry or runtime and changes no
-ABI version. The host supplies access to its one runtime registry to all plugins.
+ordinary Rust helper calls still use their library's concrete Rust types.
+The host supplies access to its one runtime registry to all plugins.
 
 ## Scope
 
@@ -118,7 +114,7 @@ fields tests the selected view. Table addresses alone are not contract identitie
 GUID and signature are authoritative. Implementations may share or duplicate
 identical static tables without changing those contracts.
 
-Discovery checks core generation 18 before dispatch. Exact interface signatures do
+Discovery checks core generation 19 before dispatch. Exact interface signatures do
 not replace that global layout/behavior check. See the
 [storage rationale](contracts/COM_INTERFACE_STORAGE.md) for the
 object/table design and its measurement boundaries.
@@ -201,7 +197,7 @@ The public static constructor makes digest width a compile-time obligation:
 
 ```rust
 use neocogi_com::{NcAbiSignature, NC_COM_CORE_ABI_VERSION};
-assert_eq!(NC_COM_CORE_ABI_VERSION, 18);
+assert_eq!(NC_COM_CORE_ABI_VERSION, 19);
 static FIRST: [u8; 32] = [7; 32];
 static SECOND: [u8; 32] = [7; 32];
 let a = NcAbiSignature::from_static(&FIRST);
@@ -481,15 +477,15 @@ Built-in data interfaces exercise shared ownership and checked native calls:
 
 ```rust
 use neocogi_com::{INcBytesAbi, INcBytesComPtrExt, INcStringComPtrExt, IUnknown, NcString};
-let text = NcString::from_utf8_str("ABI v1");
+let text = NcString::from_utf8_str("ABI v2");
 let another = text.clone();
 let bytes = text.query::<INcBytesAbi>().unwrap();
-assert_eq!(bytes.to_vec().unwrap(), b"ABI v1");
-assert_eq!(another.to_string().unwrap(), "ABI v1");
+assert_eq!(bytes.to_vec().unwrap(), b"ABI v2");
+assert_eq!(another.to_string().unwrap(), "ABI v2");
 let identity = text.query::<IUnknown>().unwrap();
 assert!(identity.as_com_ref().same_object(bytes.as_com_ref()));
 drop(text); // Other strong owners still retain the immutable value.
-assert_eq!(another.to_string().unwrap(), "ABI v1");
+assert_eq!(another.to_string().unwrap(), "ABI v2");
 ```
 
 
@@ -704,11 +700,11 @@ The accessor and native export return metadata without registration or acquisiti
 | --- | --- |
 | Metadata input | `NcPluginDescriptor`; no separate plugin-kind qualifier. |
 | Generated Rust accessor | `plugin_descriptor()` borrows assembly metadata. |
-| Native getter | `NcGetPluginDescriptor`, exported as `nc_get_plugin_descriptor_v1` by `#[plugin]` under `dynamic-plugin`. |
+| Native getter | `NcGetPluginDescriptor`, exported as `nc_get_plugin_descriptor_v2` by `#[plugin]` under `dynamic-plugin`. |
 | Validation | `validate_plugin_descriptor` checks metadata without acquiring a factory or checking whether providers are registered. |
 | Static registration | `Runtime::register_plugin_descriptor` validates and publishes the descriptor after requiring registered hard providers. |
 | Unregistered library inspection | `Runtime::with_plugin_library_descriptor` lends the validated descriptor to a synchronous visitor. |
-| Registered inspection output | `NcPluginInfoV1` / owned `PluginInfo`, including first registration origin. |
+| Registered inspection output | `NcPluginInfoV2` / owned `PluginInfo`, including first registration origin. |
 | Factory acquisition | `Runtime::acquire_plugin_root` checks the exact contract and returns one COM owner. |
 
 The descriptor's `description_abi_version` field remains the v1 discovery prefix,
@@ -725,7 +721,7 @@ library. Descriptor copies own neither those allocations nor a library mapping.
 The native getter clears a usable output slot before validation, leaves it null
 on failure, and returns `NC_E_POINTER` for null output.
 
-`NcPluginInfoV1` is an output projected from a registered catalog record; it has
+`NcPluginInfoV2` is an output projected from a registered catalog record; it has
 provenance but no bootstrap pointer. The facade's `PluginInfo` owns copies of text,
 paths and dependency GUIDs. Neither output can be used to register a provider, and
 neither holds a live factory reference. The catalog below remains the single
@@ -746,7 +742,7 @@ There are no parallel ID vectors, cached metadata summaries or module-to-plugin
 joins. Enumeration returns complete records, removing the need for repeated
 lookups to assemble plugin, factory and dependency information. Registration and inspection share this one authoritative record.
 
-| `NcPluginInfoV1` field | Meaning and owner |
+| `NcPluginInfoV2` field | Meaning and owner |
 | --- | --- |
 | `plugin_id` | Stable GUID derived from the qualified plugin name; acquisition and lookup key. |
 | `qualified_name` | Borrowed immutable descriptor text; copied to `PluginInfo.qualified_name`. |
@@ -756,7 +752,7 @@ lookups to assemble plugin, factory and dependency information. Registration and
 | `factory.threading` | Valid raw `NcAbiThreadingMode`; the Rust facade returns the typed enum. |
 | `dependencies` / `dependency_count` | Original immutable aligned `NcPluginDependencyDescriptor` array in declared order, borrowed directly from the validated descriptor. |
 
-`NcFactoryInfoV1` contains only interface and threading information: the enclosing
+`NcFactoryInfoV2` contains only interface and threading information: the enclosing
 plugin already supplies identity. There is one factory per plugin, so a separate
 interface GUID or enumeration is unnecessary. Neither record contains a live COM
 reference. Reading metadata never invokes the factory bootstrap.
@@ -778,7 +774,7 @@ storage; scalar shape checks are not arbitrary-pointer validation.
 
 The implementation also exposes `neocogi_com_host::initialize_process()` as an ordinary
 Rust host entry. It initializes its existing singleton without provider calls
-and returns an immutable `NcHostApiV1`: byte size, runtime family 1 and core generation 18,
+and returns an immutable `NcHostApiV2`: byte size, runtime family 2 and core generation 19,
 and pointers to the runtime, debug and persistence tables. The complete service
 graph and callback code remain process/instance-lived, including after main
 returns. Copying this description does not create a registry.
@@ -793,8 +789,8 @@ part of the current core-generation contract; discovery family and interface
 identities remain separate.
 
 The supplied record replaces named runtime symbols. All three tables are required:
-`NcRuntimeApiV1` for plugin operations, `NcDebugApiV1` for diagnostics, and
-`NcPersistenceApiV1` for caller-owned persistence contexts. The safe handle stores
+`NcRuntimeApiV2` for plugin operations, `NcDebugApiV2` for diagnostics, and
+`NcPersistenceApiV2` for caller-owned persistence contexts. The safe handle stores
 private references only after size/version checks and under the unsafe caller's
 complete process-lived graph guarantee. Unsupported versions and short records
 return `NC_E_ABI_VERSION`; required null pointers return `NC_E_POINTER`.
@@ -894,7 +890,7 @@ Acquisition means obtaining one owned root factory COM reference. The descriptor
 stores `acquire: Option<NcAcquirePluginFactory>`; generated bootstrap code adapts
 the implementation's typed construction policy to that fixed supplied-host ABI.
 The raw bootstrap is
-`unsafe extern "C" fn(*const NcHostApiV1, *mut ComRaw<IUnknown>) -> NcStatus`.
+`unsafe extern "C" fn(*const NcHostApiV2, *mut ComRaw<IUnknown>) -> NcStatus`.
 The authored `#[plugin]` function accepts one `Runtime` and returns its existing
 exact typed `Result<ComPtr<FactoryAbi>, NcStatus>`. Its adapter clears output
 before admitting host access; invalid access enters no provider code and
@@ -988,7 +984,7 @@ requires exactly one complete document. ABI rejections do not enter the provider
 NCB remains format version 1 and preserves existing bytes. Names are available
 for other formats without adding names to NCB. This supersedes the concrete
 NCB-cursor restriction from 0.1.0 and changes the Rust value-trait API. Discovery
-family 1 remains unchanged during 0.2.0 development.
+family 2 is selected for the 0.2.0-alpha.1 candidate.
 
 The reusable serialization rlib owns unconditional/default NCB and an optional custom JSON
 codec. A separate thin dylib shim exports its static plugin descriptor.
@@ -998,14 +994,14 @@ into a caller-owned error before releasing the session.
 
 ## Persistence and diagnostics
 
-`NcPersistenceApiV1` creates/destroys caller-owned, thread-local contexts, registers
+`NcPersistenceApiV2` creates/destroys caller-owned, thread-local contexts, registers
 borrowed `IPersistenceFactory` objects with one retained owner, snapshots
 `IPersistable` trees, and restores an owned canonical `IUnknown`. Contexts do not
 populate or replace the global plugin catalog. Mutation/destruction requires
-exclusive access; restore takes a shared borrow. `NcPersistenceLimitsV1` carries
+exclusive access; restore takes a shared borrow. `NcPersistenceLimitsV2` carries
 binary and object-tree budgets explicitly.
 
-Capture calls `NcPersistenceWriteBytesV1` exactly once on success with the complete
+Capture calls `NcPersistenceWriteBytesV2` exactly once on success with the complete
 borrowed document; failure never calls it. The callback may copy bytes, must not
 unwind, and cannot retain the pointer. Temporary storage is destroyed in the
 runtime, so no Rust allocator ownership crosses the ABI. Snapshot identity retains
@@ -1015,7 +1011,7 @@ before constructing objects and release partial restored owners on failure.
 NCB v1, live-call wire validation and application reconstruction remain distinct
 contracts; see [persistence](../crates/host/PERSISTENCE.md).
 
-`NcDebugApiV1` separately owns callback messenger creation/destruction. At most
+`NcDebugApiV2` separately owns callback messenger creation/destruction. At most
 64 messengers are live; callbacks execute outside runtime catalog locks. Final
 destruction prevents new entry and waits for admitted callbacks to finish.
 Callbacks may run concurrently on any thread and must not destroy a messenger.
@@ -1167,7 +1163,7 @@ execution. A cancelled run or detached JSON is insufficient evidence.
 The independent sample exercises typed factory construction, inherited interface
 calls, exclusive mutation, domain notifications delivered into the host's concrete queue,
 canonical weak-origin identity, fresh copied output (nested enum/boolean and short
-prefix) through ABI v1, persistence through provider-owned byte buffers,
+prefix) through ABI v2, persistence through provider-owned byte buffers,
 restoration through a host-implemented factory adapter, promotion while live,
 and failed promotion after final object release. All assertions execute in
 release/abort builds. Normal completion crosses calls in both directions; panic
@@ -1281,7 +1277,7 @@ An ordinary runtime build must produce its host
 rlib; no COM runtime shared library is deployed. One temporary shared target
 cache avoids retaining one copy per package and is removed after verification. The gate also builds a fresh consumer
 with `build.rs`, generates an interface and executes its checked COM call. Runtime
-and descriptor discovery remain family 1; core admission uses generation 18. No-default and alloc-only
+and descriptor discovery use family 2; core admission uses generation 19. No-default and alloc-only
 facade checks cover the portable feature boundary. CI runs this same gate.
 
 The unpublished `neocogi-com-tests` package at `tests/com` owns integration
@@ -1331,7 +1327,7 @@ Miri, sanitizers, compiler floor and extracted archives are distinct scopes.
 Dated runs and old specifications remain retrievable in Git, not as competing
 normative files. Validation owns procedures;
 review history owns recorded dispositions.
-No historical test counts are promoted to acceptance for this ABI-v1 consolidation.
+No historical test counts are promoted to acceptance for this ABI-v2 consolidation.
 
 ## Related contracts
 

@@ -41,7 +41,7 @@ fn host_entry_runs_with_normal_printed_and_renamed_dependencies() {
                 let copied = runtime;
                 let admitted = Result::<_, &'static str>::Ok(copied.core_abi_version())?;
                 assert_eq!(admitted, {facade}::NC_COM_CORE_ABI_VERSION);
-                assert_eq!(runtime.runtime_abi_version(), 1);
+                assert_eq!(runtime.runtime_abi_version(), 2);
                 assert_eq!(CALLS.fetch_add(1, ::core::sync::atomic::Ordering::SeqCst), 0);
                 println!("host-entry-completed");
                 Ok(())

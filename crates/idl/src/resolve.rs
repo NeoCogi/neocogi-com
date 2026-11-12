@@ -1799,7 +1799,7 @@ fn fingerprint_module(
 /// Exact domain prefix for canonical module ABI fingerprint bytes.
 ///
 /// This compiler/build-time encoding revision is independent of runtime and
-/// plugin descriptor discovery ABI v1. Documentation checks use this same prefix;
+/// plugin descriptor discovery ABI v2. Documentation checks use this same prefix;
 /// changing source provenance or Cargo name mangling must not change its bytes.
 /// Revision 14 removes authored declaration versions from every contract.
 pub const MODULE_ABI_ENCODING_DOMAIN: &[u8] = b"neocogi-idl:module-abi:v14\0";
@@ -2126,7 +2126,7 @@ fn encode_type(scope: EncodingScope<'_>, ty: &AbiType, entries: &[ModuleEntry], 
             encode_type(scope, element, entries, encoder)?;
         }
         AbiType::OutputSlice(element) => {
-            // Output-only slots include an initialized-prefix count in ABI v1.
+            // Output-only slots include an initialized-prefix count in ABI v2.
             // Their revision must differ from the retired initialized in/out ABI.
             encoder.type_tag(TypeTag::OutputSlice);
             encode_type(scope, element, entries, encoder)?;

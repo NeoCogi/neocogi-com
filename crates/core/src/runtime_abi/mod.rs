@@ -2,7 +2,7 @@
 //!
 //! This module groups plugin operations, diagnostics and persistence contracts while keeping their `repr(C)` layouts in the allocation-free
 //! core crate. Every table begins with a byte size checked by consumers. This
-//! runtime-family-1 discovery uses the separately checked core generation to
+//! runtime-family-2 discovery uses the separately checked core generation to
 //! select compatible frozen layouts; deploy all roles from one SDK release.
 
 mod debug;
@@ -10,24 +10,23 @@ mod host;
 mod persistence;
 mod plugin;
 mod runtime;
-pub use persistence::{NcPersistenceApiV1, NcPersistenceContext, NcPersistenceLimitsV1, NcPersistenceWriteBytesV1};
+pub use persistence::{NcPersistenceApiV2, NcPersistenceContext, NcPersistenceLimitsV2, NcPersistenceWriteBytesV2};
 
 pub use debug::{
     NC_COM_RUNTIME_MAX_ACTIVE_DEBUG_MESSENGERS, NC_DEBUG_SEVERITY_ALL, NC_DEBUG_SEVERITY_ERROR, NC_DEBUG_SEVERITY_INFO, NC_DEBUG_SEVERITY_WARNING,
-    NC_DEBUG_TYPE_ALL, NC_DEBUG_TYPE_PLUGIN, NC_DEBUG_TYPE_RUNTIME, NC_DEBUG_TYPE_VALIDATION, NcDebugApiV1, NcDebugCallbackV1, NcDebugMessageV1,
-    NcDebugMessengerCreateInfoV1,
+    NC_DEBUG_TYPE_ALL, NC_DEBUG_TYPE_PLUGIN, NC_DEBUG_TYPE_RUNTIME, NC_DEBUG_TYPE_VALIDATION, NcDebugApiV2, NcDebugCallbackV2, NcDebugMessageV2,
+    NcDebugMessengerCreateInfoV2,
 };
-pub use plugin::{NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS, NcFactoryInfoV1, NcInspectPluginDescriptorCallbackV1, NcPluginInfoV1};
-pub use runtime::NcRuntimeApiV1;
-pub use host::{NcHostApiV1, validate_host_api};
+pub use plugin::{NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS, NcFactoryInfoV2, NcInspectPluginDescriptorCallbackV2, NcPluginInfoV2};
+pub use runtime::NcRuntimeApiV2;
+pub use host::{NcHostApiV2, validate_host_api};
 
-/// Pre-release host-service ABI generation.
+/// Supplied host-service family for ABI v2.
 ///
-/// Version one identifies this pre-release family, not cross-revision binary
-/// compatibility. Contracts may change in place; all roles must be rebuilt from
-/// the same checkout. Plugin provenance and the unified operation table replace
-/// earlier runtime layouts without a new generation or a compatibility path.
-pub const NC_COM_RUNTIME_ABI_VERSION: u32 = 1;
+/// The host and provider must agree on this family and the separately checked
+/// core generation before interpreting child tables or calling code. ABI v1
+/// tables are rejected; there are no aliases or automatic adapters.
+pub const NC_COM_RUNTIME_ABI_VERSION: u32 = 2;
 
 /// Borrowed immutable UTF-8 bytes owned by the runtime.
 ///

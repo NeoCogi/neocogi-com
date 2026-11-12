@@ -159,7 +159,7 @@ fn plugin_export_spelling_is_legal_with_dynamic_feature_off_and_on() {
     let bindings = super::name_ownership_tests::contract("interface Root { fn value(&self) -> Result<u32>; }");
     for printed in [false, true] {
         let function: syn::ItemFn = syn::parse_quote! {
-            fn nc_get_plugin_descriptor_v1(_runtime: neocogi_com::Runtime) -> Result<neocogi_com::ComPtr<RootAbi>, neocogi_com::NcStatus> {
+            fn nc_get_plugin_descriptor_v2(_runtime: neocogi_com::Runtime) -> Result<neocogi_com::ComPtr<RootAbi>, neocogi_com::NcStatus> {
                 Provider::from_value(Provider).query()
             }
         };

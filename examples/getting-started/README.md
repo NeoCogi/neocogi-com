@@ -22,10 +22,10 @@ source into its own Rust bindings. The host does not link the provider and the
 provider does not select a host implementation. Application version `0.0.0` in
 these manifests is independent of the SDK dependency version.
 
-On `0.2.0-wip`, the versionless schema requires the development SDK. The version
-selectors are updated during [release preparation](../../docs/guides/RELEASING.md);
-pre-publication checks supply local or extracted SDK patches. The registry-only
-commands below apply after the matching SDK release is published.
+The manifests select the prepared `0.2.0-alpha.1` SDK, including its versionless
+IDL and ABI v2. Pre-publication checks supply local or extracted SDK patches.
+The registry-only commands below apply after that alpha is published; see
+[release preparation](../../docs/guides/RELEASING.md).
 
 From the copied directory, build the plugin:
 
@@ -69,7 +69,7 @@ as overflow are ordinary returned statuses.
 Install the matching inspector after the SDK has been published:
 
 ```sh
-cargo install neocogi-inspect --version '=0.1.0' --locked
+cargo install neocogi-inspect --version '=0.2.0-alpha.1' --locked
 ```
 
 Inspect the library with `neocogi-inspect dump PATH_TO_LIBRARY`, or run

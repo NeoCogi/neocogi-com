@@ -6,7 +6,7 @@
 
 use core::fmt;
 
-use crate::{NC_COM_RUNTIME_ABI_VERSION, NcDebugApiV1, NcHostApiV1, NcPersistenceApiV1, NcRuntimeApiV1, NcStatus, validate_host_api};
+use crate::{NC_COM_RUNTIME_ABI_VERSION, NcDebugApiV2, NcHostApiV2, NcPersistenceApiV2, NcRuntimeApiV2, NcStatus, validate_host_api};
 
 /// Copyable access to the selected host's process-lived runtime services.
 ///
@@ -19,11 +19,11 @@ use crate::{NC_COM_RUNTIME_ABI_VERSION, NcDebugApiV1, NcHostApiV1, NcPersistence
 #[derive(Clone, Copy)]
 pub struct Runtime {
     /// Admitted plugin/catalog operations whose callbacks execute in the host.
-    pub(crate) runtime: &'static NcRuntimeApiV1,
+    pub(crate) runtime: &'static NcRuntimeApiV2,
     /// Diagnostics operations from the same immutable host service graph.
-    pub(crate) debug: &'static NcDebugApiV1,
+    pub(crate) debug: &'static NcDebugApiV2,
     /// Persistence operations retained by every context created through access.
-    pub(crate) persistence: &'static NcPersistenceApiV1,
+    pub(crate) persistence: &'static NcPersistenceApiV2,
 }
 
 impl Runtime {
@@ -43,7 +43,7 @@ impl Runtime {
     /// exclusive-borrow requirements. Checks cannot prove these obligations;
     /// a static outer record alone does not establish raw child lifetimes.
     #[doc(hidden)]
-    pub unsafe fn __from_host_api(host: *const NcHostApiV1) -> Result<Self, NcStatus> {
+    pub unsafe fn __from_host_api(host: *const NcHostApiV2) -> Result<Self, NcStatus> {
         // SAFETY: The caller supplies the validator's prefix/backing obligations.
         let status = unsafe { validate_host_api(host) };
         if status.is_err() {

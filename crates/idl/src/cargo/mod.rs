@@ -369,7 +369,7 @@ impl std::error::Error for BuildError {
 
 /// Schema version for Cargo-to-Cargo IDL source graph exchange.
 // Schema 7 requires each provider to expose typed transitive dependency routes.
-// This is build metadata, independent of runtime/descriptor discovery ABI v1.
+// This is build metadata, independent of runtime/descriptor discovery ABI v2.
 const GRAPH_SCHEMA: u32 = 7;
 
 /// Serializable transitive module graph produced by a dependency build.

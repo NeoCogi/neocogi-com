@@ -20,15 +20,14 @@
 use crate::guid::NcGuid;
 use crate::signature::NcAbiSignature;
 
-/// First public core compatibility generation, covering layouts and callbacks.
+/// Current core compatibility generation for the ABI v2 SDK.
 ///
-/// Generation 18 is distinct from every retired experimental baseline. Older
-/// checkouts reused generation 1 across incompatible bootstrap signatures;
-/// matching Cargo versions alone cannot reject those native libraries. Check
-/// this prefix before borrowing a full descriptor or supplied-host table.
-/// Runtime-table and plugin-getter discovery retain their separate family 1.
-/// Any incompatible core layout or callback change requires a fresh generation.
-pub const NC_COM_CORE_ABI_VERSION: u32 = 18;
+/// Generation 19 is distinct from the published ABI v1 generation 18 and retired
+/// experimental layouts that reused generation 1. Check this prefix before
+/// borrowing full records or invoking callbacks. Runtime and plugin descriptor
+/// discovery select their separate family 2. An incompatible core layout or
+/// callback change requires another fresh generation.
+pub const NC_COM_CORE_ABI_VERSION: u32 = 19;
 
 /// Stable identity for one COM interface ABI contract.
 ///

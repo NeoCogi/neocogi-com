@@ -99,8 +99,9 @@ mod legacy {
     /// # Safety
     /// `out` must be null or writable for one native pointer. The host may read
     /// only the prefix until it has admitted the legacy generation.
-    #[unsafe(no_mangle)]
-    unsafe extern "C" fn nc_get_plugin_descriptor_v1(out: *mut *const LegacyDescriptor) -> NcStatus {
+    #[cfg_attr(feature = "legacy-symbol", unsafe(export_name = "nc_get_plugin_descriptor_v1"))]
+    #[cfg_attr(not(feature = "legacy-symbol"), unsafe(export_name = "nc_get_plugin_descriptor_v2"))]
+    unsafe extern "C" fn legacy_descriptor(out: *mut *const LegacyDescriptor) -> NcStatus {
         if out.is_null() {
             return NC_E_POINTER;
         }
