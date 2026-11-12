@@ -2,6 +2,15 @@
 #![cfg(feature = "json")]
 use neocogi_com::serialization::{Format, Limits, ISerializationDiagnosticsAbi};
 
+#[path = "support/json_numbers.rs"]
+mod json_numbers;
+
+/// Direct-width external conversion is independent from own-writer round trips.
+#[test]
+fn external_numbers_round_directly_and_preserve_owned_terminal_state() {
+    json_numbers::assert_json_numbers(&format());
+}
+
 /// Exercises the normal owning COM factory rather than a private parser shortcut.
 fn format() -> Format {
     Format::new(neocogi_com_serialization::json::factory(), Limits::default())

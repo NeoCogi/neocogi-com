@@ -326,15 +326,6 @@ impl Reader {
             _ => Err(NC_E_INVALID_ARG),
         }
     }
-    /// Floating acquisition permits ordinary numeric syntax, rejecting overflow.
-    fn float(&mut self) -> Result<f64, NcStatus> {
-        let value = match self.number()? {
-            Number::Signed(v) => v as f64,
-            Number::Unsigned(v) => v as f64,
-            Number::Float(v) => v,
-        };
-        if value.is_finite() { Ok(value) } else { Err(NC_E_OUT_OF_RANGE) }
-    }
     /// Opens a counted collection and preflights its required logical children.
     fn ordered(&mut self, kind: Ordered) -> Result<u32, NcStatus> {
         let mut node = self.unread()?;
@@ -492,7 +483,7 @@ impl ISerializer for JsonSerializer {
             if !value.is_finite() {
                 return Err(NC_E_INVALID_ARG);
             }
-            w.scalar(Node::Number(Number::Float(value as f64)))
+            w.scalar(Node::Number(Number::from_float(value as f64)))
         })
     }
     /// Accepts one declared f64 through the common logical budget.
@@ -501,7 +492,7 @@ impl ISerializer for JsonSerializer {
             if !value.is_finite() {
                 return Err(NC_E_INVALID_ARG);
             }
-            w.scalar(Node::Number(Number::Float(value)))
+            w.scalar(Node::Number(Number::from_float(value)))
         })
     }
     fn serialize_unit(&mut self) -> Result<(), NcStatus> {
@@ -629,7 +620,7 @@ impl IDeserializer for JsonDeserializer {
         self.reader.run("deserialize_u8", |r| match r.number()? {
             Number::Signed(value) => value.try_into().map_err(|_| NC_E_OUT_OF_RANGE),
             Number::Unsigned(value) => value.try_into().map_err(|_| NC_E_OUT_OF_RANGE),
-            Number::Float(_) => Err(NC_E_INVALID_ARG),
+            Number::Float { .. } => Err(NC_E_INVALID_ARG),
         })
     }
     /// Checks exact integer syntax and the requested u16 range.
@@ -637,7 +628,7 @@ impl IDeserializer for JsonDeserializer {
         self.reader.run("deserialize_u16", |r| match r.number()? {
             Number::Signed(value) => value.try_into().map_err(|_| NC_E_OUT_OF_RANGE),
             Number::Unsigned(value) => value.try_into().map_err(|_| NC_E_OUT_OF_RANGE),
-            Number::Float(_) => Err(NC_E_INVALID_ARG),
+            Number::Float { .. } => Err(NC_E_INVALID_ARG),
         })
     }
     /// Checks exact integer syntax and the requested u32 range.
@@ -645,7 +636,7 @@ impl IDeserializer for JsonDeserializer {
         self.reader.run("deserialize_u32", |r| match r.number()? {
             Number::Signed(value) => value.try_into().map_err(|_| NC_E_OUT_OF_RANGE),
             Number::Unsigned(value) => value.try_into().map_err(|_| NC_E_OUT_OF_RANGE),
-            Number::Float(_) => Err(NC_E_INVALID_ARG),
+            Number::Float { .. } => Err(NC_E_INVALID_ARG),
         })
     }
     /// Checks exact integer syntax and the requested u64 range.
@@ -653,7 +644,7 @@ impl IDeserializer for JsonDeserializer {
         self.reader.run("deserialize_u64", |r| match r.number()? {
             Number::Signed(value) => value.try_into().map_err(|_| NC_E_OUT_OF_RANGE),
             Number::Unsigned(value) => Ok(value),
-            Number::Float(_) => Err(NC_E_INVALID_ARG),
+            Number::Float { .. } => Err(NC_E_INVALID_ARG),
         })
     }
     /// Checks exact integer syntax and the requested i8 range.
@@ -661,7 +652,7 @@ impl IDeserializer for JsonDeserializer {
         self.reader.run("deserialize_i8", |r| match r.number()? {
             Number::Signed(value) => value.try_into().map_err(|_| NC_E_OUT_OF_RANGE),
             Number::Unsigned(value) => value.try_into().map_err(|_| NC_E_OUT_OF_RANGE),
-            Number::Float(_) => Err(NC_E_INVALID_ARG),
+            Number::Float { .. } => Err(NC_E_INVALID_ARG),
         })
     }
     /// Checks exact integer syntax and the requested i16 range.
@@ -669,7 +660,7 @@ impl IDeserializer for JsonDeserializer {
         self.reader.run("deserialize_i16", |r| match r.number()? {
             Number::Signed(value) => value.try_into().map_err(|_| NC_E_OUT_OF_RANGE),
             Number::Unsigned(value) => value.try_into().map_err(|_| NC_E_OUT_OF_RANGE),
-            Number::Float(_) => Err(NC_E_INVALID_ARG),
+            Number::Float { .. } => Err(NC_E_INVALID_ARG),
         })
     }
     /// Checks exact integer syntax and the requested i32 range.
@@ -677,7 +668,7 @@ impl IDeserializer for JsonDeserializer {
         self.reader.run("deserialize_i32", |r| match r.number()? {
             Number::Signed(value) => value.try_into().map_err(|_| NC_E_OUT_OF_RANGE),
             Number::Unsigned(value) => value.try_into().map_err(|_| NC_E_OUT_OF_RANGE),
-            Number::Float(_) => Err(NC_E_INVALID_ARG),
+            Number::Float { .. } => Err(NC_E_INVALID_ARG),
         })
     }
     /// Checks exact integer syntax and the requested i64 range.
@@ -685,16 +676,29 @@ impl IDeserializer for JsonDeserializer {
         self.reader.run("deserialize_i64", |r| match r.number()? {
             Number::Signed(value) => Ok(value),
             Number::Unsigned(value) => value.try_into().map_err(|_| NC_E_OUT_OF_RANGE),
-            Number::Float(_) => Err(NC_E_INVALID_ARG),
+            Number::Float { .. } => Err(NC_E_INVALID_ARG),
         })
     }
+    /// Acquire the requested width directly. Only parsed negative integer syntax
+    /// produces Signed(0), so its otherwise-lost lexical sign remains available.
     fn deserialize_f64(&mut self) -> Result<f64, NcStatus> {
-        self.reader.run("deserialize_f64", Reader::float)
+        self.reader.run("deserialize_f64", |r| {
+            Ok(match r.number()? {
+                Number::Signed(0) => -0.0,
+                Number::Signed(value) => value as f64,
+                Number::Unsigned(value) => value as f64,
+                Number::Float { wide, .. } => wide,
+            })
+        })
     }
+    /// Integer casts and the parser's cached decimal conversion both round once.
+    /// An overflowing narrow result fails here, preserving finite-f64 admission.
     fn deserialize_f32(&mut self) -> Result<f32, NcStatus> {
-        self.reader.run("deserialize_f32", |r| {
-            let value = r.float()? as f32;
-            if value.is_finite() { Ok(value) } else { Err(NC_E_OUT_OF_RANGE) }
+        self.reader.run("deserialize_f32", |r| match r.number()? {
+            Number::Signed(0) => Ok(-0.0),
+            Number::Signed(value) => Ok(value as f32),
+            Number::Unsigned(value) => Ok(value as f32),
+            Number::Float { narrow, .. } => narrow.ok_or(NC_E_OUT_OF_RANGE),
         })
     }
     fn string_len(&mut self) -> Result<u32, NcStatus> {

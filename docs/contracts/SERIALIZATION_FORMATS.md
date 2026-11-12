@@ -137,7 +137,19 @@ Non-finite floats are rejected by the text formats. Signed/unsigned integer
 endpoints and finite float bits, including negative zero/subnormals, round-trip.
 JSON validates number grammar before converting: no leading zeros, incomplete
 fractions/exponents or non-finite values. Integral syntax must fit i64/u64;
-floating syntax must fit finite f64. String parsing validates every escape and
+floating syntax must fit finite f64. An accepted number requested as f32 or f64
+converts directly to that width with correctly rounded conversion, without an
+intermediate f64 rounding for f32. `-0`, `-0.0` and `-0e0` preserve floating sign;
+integer `-0` still acquires as zero. Correctly rounded underflow to signed zero
+is permitted. Requested-width overflow fails that typed acquisition with
+`NC_E_OUT_OF_RANGE`; finite f64 syntax beyond f32 range remains a valid source.
+Integer acquisition requires integral syntax even for spellings such as `1.0`.
+These external-input rules supplement the own-writer bit-round-trip guarantee.
+The JSON source retains concrete numeric values for both floating widths and no
+caller input borrow or per-number allocation; finite f64 and optional f32 are
+parsed directly while the validated token is available. The parser preserves
+signed versus unsigned integral spelling so typed floating acquisition can
+retain integral negative zero. String parsing validates every escape and
 surrogate pair, rejects lone surrogates/raw ASCII controls, and preserves Unicode.
 Duplicate object keys, trailing commas and trailing data are rejected. Decoded
 maps also reject duplicate typed keys.

@@ -10,8 +10,27 @@ pub(super) enum Number {
     Signed(i64),
     /// Unsigned integral syntax, including values above i64::MAX.
     Unsigned(u64),
-    /// Finite IEEE value; encoders retain negative zero with floating syntax.
-    Float(f64),
+    /// Requested-width results for fractional/exponent syntax. Parsing both
+    /// widths directly avoids double rounding without retaining source bytes.
+    Float {
+        /// Finite binary64 value admitted by the document syntax policy.
+        wide: f64,
+        /// Direct binary32 conversion, absent on overflow. A wide-only value
+        /// remains valid syntax until the caller actually requests f32.
+        narrow: Option<f32>,
+    },
+}
+
+impl Number {
+    /// Store an already checked finite writer value without parsing its output.
+    /// Writer nodes are emitted, never supplied to the parser-owned Reader.
+    pub fn from_float(wide: f64) -> Self {
+        let narrow = wide as f32;
+        Self::Float {
+            wide,
+            narrow: narrow.is_finite().then_some(narrow),
+        }
+    }
 }
 
 /// Owned JSON syntax. No Rust application type, COM object or trait object

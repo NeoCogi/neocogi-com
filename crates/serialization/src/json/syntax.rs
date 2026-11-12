@@ -293,7 +293,13 @@ impl Parser<'_> {
             if !value.is_finite() {
                 return Err(self.error(NC_E_OUT_OF_RANGE, "JSON float is out of range"));
             }
-            Number::Float(value)
+            // Retain direct-width results while this validated token is borrowed.
+            // f32 overflow is a typed-acquisition error, not a document error.
+            let narrow = token.parse::<f32>().map_err(|_| self.error(NC_E_INVALID_ARG, "invalid JSON number"))?;
+            Number::Float {
+                wide: value,
+                narrow: narrow.is_finite().then_some(narrow),
+            }
         } else {
             let digits = token.strip_prefix('-').unwrap_or(token);
             let magnitude = digits
@@ -363,7 +369,7 @@ fn emit(node: &Node, output: &mut Output) -> core::fmt::Result {
         // LowerExp is functional numeric formatting, independent of Debug
         // stripping in min-size builds. Its exponent also preserves float syntax
         // and negative zero. Provider entry already rejected NaN/infinity.
-        Node::Number(Number::Float(value)) => write!(output, "{value:e}"),
+        Node::Number(Number::Float { wide, .. }) => write!(output, "{wide:e}"),
         Node::String(value) => quoted(value, output),
         Node::Array(values) => {
             output.write_char('[')?;

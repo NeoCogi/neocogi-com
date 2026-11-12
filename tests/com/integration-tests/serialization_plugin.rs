@@ -3,6 +3,9 @@ use std::{path::Path, process::Command};
 use neocogi_com::{ComSerialize, ComDeserialize, NcCopyFromBufferOffset};
 use neocogi_com::serialization::{ISerializationPluginAbi, Format, Limits};
 
+#[path = "../../../crates/serialization/tests/support/json_numbers.rs"]
+mod json_numbers;
+
 /// Application-owned state never crosses the native boundary as Rust storage.
 #[derive(Debug, PartialEq, ComSerialize, ComDeserialize)]
 struct State {
@@ -68,6 +71,7 @@ fn native_shim_supplies_formats_and_failure_details() {
             let error = format.deserialize::<State>("{\n \"name\": \"é\",\n \"bad\": ]\n}".as_bytes()).unwrap_err();
             assert_eq!(error.byte_offset, Some(25));
             assert_eq!((error.line, error.column), (Some(3), Some(9)));
+            json_numbers::assert_json_numbers(&format);
             compare_json_grammar(&format);
         }
     }
