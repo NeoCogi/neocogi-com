@@ -506,7 +506,9 @@ mod tests {
                 if name == "ordinary" {
                     require_named_execution(&output, "integration_runs")?;
                 }
-                assert_eq!(output.contains("src/lib.rs - (line 1) ... ok"), supported, "wrong doc selection for {name}");
+                // Rustdoc uses native path separators in its test names.
+                let doctest = format!("{} - (line 1) ... ok", Path::new("src").join("lib.rs").display());
+                assert_eq!(output.contains(&doctest), supported, "wrong doc selection for {name}");
             }
             let source = runner.root.join("ordinary/src/lib.rs");
             fs::write(&source, fs::read_to_string(&source)?.replacen("assert_eq!(2+2,4);", "assert_eq!(2+2,5);", 1))?;
