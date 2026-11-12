@@ -7,6 +7,67 @@ use std::{
 };
 use neocogi_com::{NcStatus, NC_E_ABI_VERSION, NC_E_OUT_OF_RANGE};
 
+/// A real generated adapter makes entry into authored acquisition observable.
+mod host_admission {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use neocogi_com::{ComPtr, IUnknown, NcStatus, Runtime, NC_E_CLOSED};
+
+    /// Counts only calls that pass generated host admission.
+    pub static CALLS: AtomicUsize = AtomicUsize::new(0);
+
+    /// Fails normally after admission; no synthetic object or retained runtime is needed.
+    #[neocogi_com::plugin(name = "nc.tests.v2_host_admission")]
+    fn acquire(_runtime: Runtime) -> Result<ComPtr<IUnknown>, NcStatus> {
+        CALLS.fetch_add(1, Ordering::SeqCst);
+        Err(NC_E_CLOSED)
+    }
+}
+
+/// Only these fields are readable when the host advertises an unsupported ABI.
+/// No child pointers or callback storage accompany this prefix.
+#[repr(C)]
+struct RejectedHostPrefix {
+    /// Advertised full record size; unsupported versions must still stop at the prefix.
+    size: usize,
+    /// Supplied service family, independent from the core generation.
+    runtime: u32,
+    /// Object/descriptor generation selected by the caller.
+    core: u32,
+}
+
+/// ABI v1 host access is rejected before reading children or running authored code.
+#[test]
+fn abi_v1_host_prefix_is_rejected_before_authored_acquisition() {
+    use std::sync::atomic::Ordering;
+    use neocogi_com::{ComRaw, IUnknown, IUnknownVTable, NcHostApiV2, NC_E_CLOSED};
+    let acquire = host_admission::plugin_descriptor().acquire.unwrap();
+    host_admission::CALLS.store(0, Ordering::SeqCst);
+    for (runtime, core) in [(1, 18), (1, 19), (2, 18)] {
+        let prefix = RejectedHostPrefix {
+            size: core::mem::size_of::<NcHostApiV2>(),
+            runtime,
+            core,
+        };
+        // Non-owning sentinels make clearing both raw output words observable.
+        let mut output = ComRaw::<IUnknown> {
+            object: core::ptr::NonNull::<u8>::dangling().as_ptr().cast(),
+            vtable: core::ptr::NonNull::<IUnknownVTable>::dangling().as_ptr(),
+        };
+        // SAFETY: An unsupported host needs only its aligned readable version
+        // prefix. Output is writable storage; its old pointer bits are never read.
+        let status = unsafe { acquire(core::ptr::from_ref(&prefix).cast(), &mut output) };
+        assert_eq!(status, NC_E_ABI_VERSION);
+        assert!(output.object.is_null() && output.vtable.is_null());
+        assert_eq!(host_admission::CALLS.load(Ordering::SeqCst), 0);
+    }
+    let mut output = ComRaw::null();
+    // SAFETY: This test executable retains the selected complete process host.
+    let status = unsafe { acquire(neocogi_com_host::initialize_process(), &mut output) };
+    assert_eq!(status, NC_E_CLOSED);
+    assert!(output.object.is_null() && output.vtable.is_null());
+    assert_eq!(host_admission::CALLS.load(Ordering::SeqCst), 1);
+}
+
 /// Explicit subprocess operation; absent during the ordinary child-harness case.
 const MODE: &str = "NC_GENERATION_CHILD_MODE";
 /// Trusted fixture path chosen by the parent from Cargo's reported artifact.
