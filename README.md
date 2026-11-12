@@ -54,6 +54,8 @@ rebuilds std and applies the complete deployment settings directly. Independent
 SDK consumers retain Rust 1.85 support; qualification tests those portable sources
 without inheriting the checkout's nightly Cargo configuration.
 Checkout-only integration fixtures remain unpublished.
+Ownership rejection cases check Cargo's structured errors at the invalid source
+expressions, so updated Rust diagnostic layouts do not change their contract.
 
 Tracked text uses LF line endings on every platform. Git applies the repository's
 `.gitattributes` policy even when `core.autocrlf` is enabled, keeping checked-in
