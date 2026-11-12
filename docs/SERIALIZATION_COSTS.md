@@ -12,8 +12,9 @@ own parser/writer and adds no runtime parser/framework dependency. YAML is remov
 uses immediate abort, fat LTO, one codegen unit, symbol/path stripping,
 `force-unwind-tables=no`, `location-detail=none` and `fmt-debug=none`. Host build
 scripts and procedural macros keep their ordinary formatting and diagnostics.
-The checkout pins the required nightly and `rust-src`; no build alias, task
+The checkout follows `nightly` and requests `rust-src`; no build alias, task
 runner or extra configuration file selects the deployment settings.
+The measurements below retain the exact compiler revision used for that run.
 
 The earlier 428,928-byte JSON file was built with precompiled std and retained
 panic/backtrace symbolization. Those measurements did not use this complete
@@ -63,7 +64,7 @@ parser is not a dependency of either deployed crate.
 
 ## Reproduce
 
-Install `nightly-2026-09-29` with the `rust-src` component before these builds.
+Install `nightly` with the `rust-src` component before these builds.
 
 ```sh
 cargo build --profile min-size -p neocogi-com-serialization-dylib
@@ -79,7 +80,7 @@ Add `--config 'profile.min-size.opt-level="s"'` to compare the alternative size
 policy. Cargo's ordinary `--message-format=json` reports exact artifact paths.
 `size -A PATH` reports the ELF sections.
 
-The development checkout uses pinned nightly. SDK qualification uses independent
+The development checkout follows `nightly`. SDK qualification uses independent
 source copies without checkout Cargo/toolchain settings and keeps large build
 outputs on the checkout filesystem. Downstream consumers retain Rust 1.85 support.
 No custom allocator or panic implementation is needed.

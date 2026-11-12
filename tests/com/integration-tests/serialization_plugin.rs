@@ -21,7 +21,7 @@ fn native_shim_supplies_formats_and_failure_details() {
     let build = Command::new("rustup")
         .args([
             "run",
-            "nightly-2026-09-29",
+            "nightly",
             "cargo",
             "build",
             "--profile",

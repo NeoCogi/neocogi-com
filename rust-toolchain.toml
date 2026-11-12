@@ -1,5 +1,5 @@
 [toolchain]
-channel = "nightly-2026-09-29"
+channel = "nightly"
 profile = "minimal"
 # Target std rebuilding and the complete min-size profile require nightly.
 components = ["rustfmt", "clippy", "rust-src"]

@@ -46,7 +46,7 @@ Default SDK features provide `std` and macros. Reduced-feature users can select
 
 Repository checks use the unpublished Rust [`xtask`](tools/xtask/README.md).
 Native integration tests also require a C compiler and platform linker.
-The checkout pins nightly with `rust-src` so `cargo build --profile min-size`
+The checkout follows `nightly` with `rust-src` so `cargo build --profile min-size`
 rebuilds std and applies the complete deployment settings directly. Independent
 SDK consumers retain Rust 1.85 support; qualification tests those portable sources
 without inheriting the checkout's nightly Cargo configuration.

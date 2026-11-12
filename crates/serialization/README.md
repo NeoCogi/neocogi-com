@@ -36,7 +36,7 @@ for value grammar, limits, ownership and diagnostic semantics.
 
 Build the deployed shared library with
 `cargo build --profile min-size -p neocogi-com-serialization-dylib --features json`.
-The ordinary Cargo profile uses pinned nightly, rebuilt target std, immediate
+The ordinary Cargo profile uses nightly, rebuilt target std, immediate
 abort and the platform's size flags. Omit `--features json` for NCB alone.
 Artifacts live under `target/min-size` unless a target is explicitly selected.
 Independent SDK consumers and qualification retain stable compiler support.

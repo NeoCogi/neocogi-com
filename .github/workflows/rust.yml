@@ -29,7 +29,7 @@ jobs:
           rustup toolchain install stable --profile minimal --component rustfmt --component clippy --component rust-src
           rustup toolchain install 1.85.0 --profile minimal
       - name: Install the checkout deployment toolchain
-        run: rustup toolchain install nightly-2026-09-29 --profile minimal --component rust-src --component rustfmt --component clippy
+        run: rustup toolchain install nightly --profile minimal --component rust-src --component rustfmt --component clippy
       - run: cargo fetch --locked
       - name: Qualification driver regressions
         if: ${{ !cancelled() }}
@@ -67,9 +67,7 @@ jobs:
       - name: Install independent compilers, interpreter and sanitizer sources
         run: |
           rustup toolchain install stable --profile minimal
-          rustup toolchain install nightly --profile minimal --component miri --component rust-src
-      - name: Install the checkout deployment toolchain
-        run: rustup toolchain install nightly-2026-09-29 --profile minimal --component rust-src --component rustfmt --component clippy
+          rustup toolchain install nightly --profile minimal --component miri --component rust-src --component rustfmt --component clippy
       - run: cargo fetch --locked
       - name: Independent compiler, panic, LTO and layout policies
         if: ${{ !cancelled() }}
@@ -94,7 +92,7 @@ jobs:
           rustup toolchain install stable --profile minimal
           rustup toolchain install 1.85.0 --profile minimal
       - name: Install the checkout deployment toolchain
-        run: rustup toolchain install nightly-2026-09-29 --profile minimal --component rust-src --component rustfmt --component clippy
+        run: rustup toolchain install nightly --profile minimal --component rust-src --component rustfmt --component clippy
       - run: cargo fetch --locked
       - name: Qualification driver regressions
         if: ${{ !cancelled() }}
@@ -126,7 +124,7 @@ jobs:
           rustup toolchain install stable --profile minimal
           rustup toolchain install 1.85.0 --profile minimal
       - name: Install the checkout deployment toolchain
-        run: rustup toolchain install nightly-2026-09-29 --profile minimal --component rust-src --component rustfmt --component clippy
+        run: rustup toolchain install nightly --profile minimal --component rust-src --component rustfmt --component clippy
       - run: cargo fetch --locked
       - name: Qualification driver regressions
         if: ${{ !cancelled() }}

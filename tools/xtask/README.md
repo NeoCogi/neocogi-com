@@ -74,7 +74,7 @@ PATH, the installed toolchains and Cargo configuration; it is not a sandbox for
 hostile config files or a promise to replace every configured compiler executable.
 
 The checkout's ordinary `cargo build --profile min-size` owns all deployment
-settings and uses its pinned nightly. Qualification runs stable/Rust 1.85 against
+settings and follows the `nightly` channel. Qualification runs stable/Rust 1.85 against
 source copies in system temporary storage, outside checkout Cargo configuration
 discovery. Those small source trees omit `.cargo` and the checkout toolchain pin.
 Large artifacts and task work stay below `target/xtask-work` on the checkout's
