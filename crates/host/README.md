@@ -86,7 +86,11 @@ bootstrap; providers select no implementation. No runtime DSO or native bridge
 is built or deployed. The runtime requires `std`; core and the access handle
 retain reduced-feature support. See the [sample host](https://github.com/NeoCogi/neocogi-com/tree/v0.2.0-alpha.1/examples/com-host).
 
-`initialize_process()` is infallible/idempotent and invokes no plugin. Its
+`initialize_runtime()` returns an admitted `neocogi_com::Runtime` and invokes no
+plugin. Repeated calls use the same host. The host alone performs unsafe adoption
+of its service graph; `com_main` calls this safe typed constructor, including with
+an explicit dependency/module path. A raw table cannot satisfy that return type.
+`initialize_process()` lends the raw C description for ABI bootstrap. Its
 immutable `NcHostApiV2`, child tables, state and code remain process/instance-lived
 even after application main returns. The three existing C tables remain separate
 services. Callbacks execute here and reach this host's one private registry;

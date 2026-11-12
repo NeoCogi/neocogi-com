@@ -341,6 +341,8 @@ The final native/browser executable directly depends on `neocogi-com-host`
 and initializes it through `#[neocogi_com::com_main]`. The facade has no
 implementation dependency. Reusable helpers accept `Runtime`; plugin acquisition
 receives it from the host. Tests may explicitly initialize their selected owner.
+`neocogi_com_host::initialize_runtime()` returns the admitted handle safely;
+the selected host owns proof of its service tables' backing and lifetime.
 There is no COM runtime DSO, import bridge, named getter or fallback discovery.
 Dynamic and static providers reach the same host registry through immutable C
 service tables. Applications can define domain observer interfaces directly; the

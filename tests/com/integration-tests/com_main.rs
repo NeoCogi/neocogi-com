@@ -87,6 +87,9 @@ mod copied_access {
             unsafe { neocogi_com::Runtime::__from_host_api(&record) }.unwrap()
         };
         let copy = runtime;
+        // Ordinary safe startup and explicit raw-record adoption must reach the
+        // same host, including when the outer raw copy has already expired.
+        let initialized = neocogi_com_host::initialize_runtime();
         std::thread::spawn(move || {
             // SAFETY: the descriptor and its complete provider graph are linked statics.
             unsafe { copy.register_plugin_descriptor(plugin_descriptor()) }.unwrap();
@@ -95,6 +98,7 @@ mod copied_access {
         .unwrap();
         let id = plugin_descriptor().plugin_id;
         assert!(runtime.plugin_info(id).unwrap().is_some());
+        assert!(initialized.plugin_info(id).unwrap().is_some());
         drop(runtime.acquire_plugin_root::<neocogi_com::IUnknown>(id).unwrap());
     }
 }

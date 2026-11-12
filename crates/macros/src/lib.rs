@@ -94,10 +94,13 @@ pub fn plugin(attr: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// Apply to a safe synchronous `fn main(runtime: Runtime)` with the ordinary
 /// Rust return type (`()`, `ExitCode` or a supported `Result`). The generated
-/// entry calls the explicit `neocogi_com_host` dependency; facade features never select
+/// entry calls `initialize_runtime() -> Runtime` on the explicit
+/// `neocogi_com_host` dependency; facade features never select
 /// that implementation. Services survive main's return for scheduled callbacks.
 /// Reusable libraries and plugins receive access rather than using this macro.
 /// `neocogi_com = path` and `neocogi_com_host = path` support renamed dependencies.
+/// A selected module must return an already admitted handle; the macro never
+/// adopts raw service pointers on behalf of that module.
 #[proc_macro_attribute]
 pub fn com_main(attr: TokenStream, item: TokenStream) -> TokenStream {
     let args = parse_macro_input!(attr as neocogi_idl::codegen::MainArgs);

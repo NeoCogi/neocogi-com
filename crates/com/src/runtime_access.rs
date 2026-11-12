@@ -27,7 +27,7 @@ pub struct Runtime {
 }
 
 impl Runtime {
-    /// Admits the raw host description used by generated entry/bootstrap code.
+    /// Admits the raw host description for host implementation/bootstrap code.
     ///
     /// Prefix checks reject null/short/incompatible tables before complete typed
     /// borrows. Admission invokes no callbacks and retains no outer-record

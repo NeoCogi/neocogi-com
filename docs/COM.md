@@ -90,7 +90,7 @@ paths are `neocogi_com` and `neocogi_com_host`, respectively.
 
 1. The final host explicitly depends on `neocogi-com-host` and uses
    `#[neocogi_com::com_main]`. The generated entry calls
-   `neocogi_com_host::initialize_process()`, admits its `NcHostApiV2` bundle and
+   `neocogi_com_host::initialize_runtime()`, obtains an admitted `Runtime` and
    passes a `neocogi_com::Runtime` handle to the authored main body. Explicit
    `neocogi_com = path, neocogi_com_host = path` arguments support Cargo aliases.
 2. The host registers a statically linked descriptor or loads an

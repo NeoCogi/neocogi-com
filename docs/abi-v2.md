@@ -772,9 +772,12 @@ storage; scalar shape checks are not arbitrary-pointer validation.
 
 ## Unified C table
 
-The implementation also exposes `neocogi_com_host::initialize_process()` as an ordinary
-Rust host entry. It initializes its existing singleton without provider calls
-and returns an immutable `NcHostApiV2`: byte size, runtime family 2 and core generation 19,
+The implementation exposes `neocogi_com_host::initialize_runtime()` as its safe
+Rust entry, returning an admitted `Runtime` from its existing singleton without
+provider calls. It owns unsafe adoption of the complete static graph; safe
+startup never promotes a raw record returned by an arbitrary module. The separate
+`initialize_process()` lends the immutable C description for ABI bootstrap:
+`NcHostApiV2` has byte size, runtime family 2 and core generation 19,
 and pointers to the runtime, debug and persistence tables. The complete service
 graph and callback code remain process/instance-lived, including after main
 returns. Copying this description does not create a registry.
@@ -861,11 +864,13 @@ only richer clients require that feature. `com_main` supports safe synchronous
 nongeneric `fn main(runtime: Runtime)`, preserving normal `()`/`ExitCode`/`Result`
 returns, `?`, cfg and lint scopes. Explicit `neocogi_com = path, neocogi_com_host = path`
 arguments support renamed dependencies. It adds no executor.
-A mismatched selected implementation is a fatal startup configuration error.
+The selected path must expose `initialize_runtime() -> Runtime`; safe forwarding
+modules can return existing admitted access. A raw record is a compile-time type
+error. An inconsistent canonical graph is an internal host error at initialization.
 
 The [factory walkthrough](COM.md) executes generated typed registration,
 acquisition and ordinary construction. Tests may initialize their explicitly
-selected host with `neocogi_com_host::initialize_process()` and unsafe checked adoption;
+selected host with the safe `neocogi_com_host::initialize_runtime()`;
 ordinary reusable libraries accept the resulting handle rather than initialize.
 
 `plugin_info` returns `None` only for an unknown GUID. `plugins` returns owned

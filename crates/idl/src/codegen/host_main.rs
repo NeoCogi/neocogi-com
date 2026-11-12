@@ -72,7 +72,6 @@ pub fn expand_com_main(args: MainArgs, input: ItemFn) -> Result<proc_macro2::Tok
     let nc = runtime_crate_path(args.facade.as_ref());
     let implementation = args.implementation.unwrap_or_else(|| syn::parse_quote!(::neocogi_com_host));
     let mut names = PrivateNames::new(quote! { #input #nc #implementation });
-    let host = names.binding("__nc_host_api");
     let runtime = names.binding("__nc_runtime");
     let imports = names.binding_imports();
     let attrs = &input.attrs;
@@ -88,11 +87,7 @@ pub fn expand_com_main(args: MainArgs, input: ItemFn) -> Result<proc_macro2::Tok
         #vis #entry {
             #imports
             #body
-            let #host = #implementation::initialize_process();
-            // SAFETY: the explicit host implementation guarantees the complete
-            // immutable process-lived service graph and callable code.
-            let #runtime = unsafe { #nc::Runtime::__from_host_api(#host) }
-                .expect("incompatible neocogi-com host API");
+            let #runtime: #nc::Runtime = #implementation::initialize_runtime();
             #authored(#runtime)
         }
     })

@@ -103,7 +103,7 @@ fn readme_factory_contract_and_bootstrap_execute_as_documented() {
     // Compile the guide's actual wire checks against the generated enum module.
     implementation.push_str(example(language, "enum-wire-check"));
     implementation.push('\n');
-    implementation.push_str("#[test] fn documented_bootstrap() { static_example(unsafe { neocogi_com::Runtime::__from_host_api(neocogi_com_host::initialize_process()) }.unwrap()).unwrap(); }\n");
+    implementation.push_str("#[test] fn documented_bootstrap() { static_example(neocogi_com_host::initialize_runtime()).unwrap(); }\n");
     fs::write(project.path().join("src/lib.rs"), implementation).unwrap();
     let output = Command::new("cargo")
         .args(["test", "--offline", "--features", "dynamic-plugin", "--manifest-path"])
