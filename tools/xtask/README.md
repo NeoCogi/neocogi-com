@@ -98,7 +98,9 @@ inputs; no checkout SDK code supplies an archive dependency. The getting-started
 host and plugin are copied with their common schema and built as separate projects
 against those same extracted SDKs. Cargo reports their actual native artifacts;
 qualification checks the real call, overflow status, and inspector dump/check.
-All three native CI platforms run this archive/tutorial gate.
+Cargo selects each extracted package's supported tests and doctests through ordinary `cargo test`;
+the gate does not issue unsupported cdylib-only doctest operations. Both named
+IDL consumer tests must actually execute successfully. All three native CI platforms run this archive/tutorial gate.
 
 Compatibility accepts `--report PATH`. Relative paths belong to the caller's
 working directory. Receipts record the selected compiler/panic/LTO policies,

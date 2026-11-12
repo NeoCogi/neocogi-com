@@ -222,6 +222,22 @@ fn walkthrough(runner: &Runner, version: &str) -> Result<()> {
     runner.run(&executable, ["check".as_ref(), library.as_os_str()])?;
     Ok(())
 }
+/// Check every shipped target, then let Cargo select runnable tests and doctests.
+/// Explicit `--doc` rejects cdylib-only packages; ordinary test owns that target
+/// policy, including `doctest=false`, without duplicating it in this driver.
+/// Return the complete test output so required semantic names remain enforceable.
+fn qualify_package(verification: &Runner, manifest: &Path) -> Result<String> {
+    let mut output = String::new();
+    for options in [vec!["check", "--all-targets", "--all-features"], vec!["test", "--all-features"]] {
+        let mut args = words(&["run", "1.85.0", "cargo"]);
+        args.extend(words(&options));
+        args.push("--manifest-path".into());
+        args.push(manifest.as_os_str().to_owned());
+        output = verification.run("rustup", args)?;
+    }
+    Ok(output)
+}
+
 /// Check shipped tests/docs and execute actual generated COM against only archives.
 pub(crate) fn run(runner: &Runner) -> Result<()> {
     let mut runner = runner.clone();
@@ -257,23 +273,10 @@ pub(crate) fn run(runner: &Runner) -> Result<()> {
         verification.env.insert("RUSTUP_TOOLCHAIN".into(), "1.85.0".into());
         for (package, _) in PUBLISHED {
             let manifest = root.join(format!("{package}-{version}/Cargo.toml"));
-            for options in [
-                vec!["check", "--all-targets", "--all-features"],
-                vec!["test", "--tests", "--all-features"],
-                vec!["test", "--doc", "--all-features"],
-            ] {
-                if package == &"neocogi-inspect" && options.contains(&"--doc") {
-                    continue;
-                }
-                let mut args = words(&["run", "1.85.0", "cargo"]);
-                args.extend(words(&options));
-                args.push("--manifest-path".into());
-                args.push(manifest.as_os_str().to_owned());
-                let output = verification.run("rustup", args)?;
-                if package == &"neocogi-idl" && options.contains(&"--tests") {
-                    require_named_execution(&output, IMPORTED_INTERFACE_PROVIDER_TEST)?;
-                    require_named_execution(&output, SHARED_SOURCE_CONSUMER_TEST)?;
-                }
+            let output = qualify_package(&verification, &manifest)?;
+            if *package == "neocogi-idl" {
+                require_named_execution(&output, IMPORTED_INTERFACE_PROVIDER_TEST)?;
+                require_named_execution(&output, SHARED_SOURCE_CONSUMER_TEST)?;
             }
         }
         let output = verification.cargo("1.85.0", &["run", "--manifest-path", "strings-consumer/Cargo.toml"])?;
@@ -445,6 +448,73 @@ mod tests {
             );
         }
         Ok(())
+    }
+
+    /// The actual archive operation admits mixed target kinds, retains their
+    /// tests, and propagates a supported doctest failure on the compiler floor.
+    #[test]
+    fn archive_tests_follow_cargo_target_policy_and_keep_failures_fatal() -> Result<()> {
+        let checkout = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize()?;
+        let (owner, runner) = Runner::new(checkout).isolated("archive-targets-")?;
+        let result = (|| {
+            let names = ["ordinary", "macros", "binary", "shim", "disabled"];
+            fs::write(
+                runner.root.join("Cargo.toml"),
+                "[workspace]\nresolver='3'\nexclude=['tmp']\nmembers=['ordinary','macros','binary','shim','disabled']\n",
+            )?;
+            for name in names {
+                let root = runner.root.join(name);
+                fs::create_dir_all(root.join("src"))?;
+                let library = match name {
+                    "macros" => "[lib]\nproc-macro=true\n",
+                    "shim" => "[lib]\ncrate-type=['cdylib']\n",
+                    "disabled" => "[lib]\ndoctest=false\n",
+                    _ => "",
+                };
+                fs::write(
+                    root.join("Cargo.toml"),
+                    format!("[package]\nname='archive-{name}'\nversion='0.0.0'\nedition='2024'\n{library}"),
+                )?;
+                let supported = matches!(name, "ordinary" | "macros");
+                let assertion = if supported {
+                    "assert_eq!(2+2,4);"
+                } else {
+                    "compile_error!(\"unsupported doctest selected\");"
+                };
+                let body = match name {
+                    "macros" => {
+                        "extern crate proc_macro;\n#[proc_macro] pub fn passthrough(value: proc_macro::TokenStream) -> proc_macro::TokenStream { value }"
+                    }
+                    "binary" => "fn main() {}",
+                    _ => "pub fn value() -> u8 { 4 }",
+                };
+                fs::write(
+                    root.join("src").join(if name == "binary" { "main.rs" } else { "lib.rs" }),
+                    format!("//! ```\n//! {assertion}\n//! ```\n{body}\n#[cfg(test)] mod tests {{ #[test] fn unit_runs() {{ assert_eq!(2+2,4); }} }}\n"),
+                )?;
+                if name == "ordinary" {
+                    fs::create_dir(root.join("tests"))?;
+                    fs::write(root.join("tests/integration.rs"), "#[test] fn integration_runs() {}")?;
+                }
+            }
+            // Cargo loads every workspace member before selecting one package.
+            for name in names {
+                let root = runner.root.join(name);
+                let supported = matches!(name, "ordinary" | "macros");
+                let output = qualify_package(&runner, &root.join("Cargo.toml"))?;
+                require_named_execution(&output, "tests::unit_runs")?;
+                if name == "ordinary" {
+                    require_named_execution(&output, "integration_runs")?;
+                }
+                assert_eq!(output.contains("src/lib.rs - (line 1) ... ok"), supported, "wrong doc selection for {name}");
+            }
+            let source = runner.root.join("ordinary/src/lib.rs");
+            fs::write(&source, fs::read_to_string(&source)?.replacen("assert_eq!(2+2,4);", "assert_eq!(2+2,5);", 1))?;
+            let error = qualify_package(&runner, &runner.root.join("ordinary/Cargo.toml")).unwrap_err();
+            assert!(error.to_string().contains("101"), "wrong supported-test failure: {error}");
+            Ok(())
+        })();
+        crate::process::retire(owner, result)
     }
 
     /// Path serialization preserves Windows separators, spaces and quotes verbatim.
