@@ -4,6 +4,23 @@ The current contract uses [ABI v2, core generation 19](docs/abi-v2.md). Entries 
 its development; later entries can supersede older implementation details.
 Historical draft numbers do not define additional supported COM baselines.
 
+## 0.2.0-alpha.3 — 2026-11-12
+
+- Resolve temporary source paths before creating qualification workspaces, so
+  macOS `/var` and `/private/var` aliases cannot create duplicate Cargo package
+  identities. Cover registry-patched and relative-path consumers with a real
+  Cargo regression and retain source/output cleanup ownership.
+- Check three ownership rejection fixtures through structured compiler errors
+  and primary source locations. Keep their intended constructor/lifetime failures
+  covered across Rust diagnostic layout changes while continuing to follow the
+  rolling `nightly` channel.
+- Coordinate all eight SDK packages, exact internal requirements, maintained
+  lockfiles, tutorials and active release links as `0.2.0-alpha.3`. ABI family 2,
+  core generation 19, IDL v14 and NCB v1 retain their existing contracts; the native
+  serialization plugin still includes NCB and JSON with NCB selected by default.
+  This Git prerelease does not claim crates.io publication or completed remote
+  platform qualification.
+
 ## 0.2.0-alpha.2 — 2026-11-12
 
 - Always include NCB and the custom JSON codec in the serialization dylib,

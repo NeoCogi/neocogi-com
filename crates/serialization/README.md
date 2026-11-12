@@ -32,7 +32,7 @@ its exact failure cursor. The JSON parser/writer has no runtime dependencies
 beyond the SDK and Rust core/alloc libraries.
 Text floats must be finite and preserve their bits, including negative zero.
 
-See the [normative format contract](https://github.com/NeoCogi/neocogi-com/blob/v0.2.0-alpha.2/docs/contracts/SERIALIZATION_FORMATS.md)
+See the [normative format contract](https://github.com/NeoCogi/neocogi-com/blob/v0.2.0-alpha.3/docs/contracts/SERIALIZATION_FORMATS.md)
 for value grammar, limits, ownership and diagnostic semantics.
 
 Build the deployed shared library with
@@ -46,7 +46,7 @@ Independent SDK consumers and qualification retain stable compiler support.
 `cargo build --profile min-size -p neocogi-com-serialization --features json --example format_costs`
 builds `format_costs`, whose
 round trips include allocations, copying, parsing and typed construction. The
-[deployment configuration](https://github.com/NeoCogi/neocogi-com/blob/v0.2.0-alpha.2/.cargo/config.toml)
+[deployment configuration](https://github.com/NeoCogi/neocogi-com/blob/v0.2.0-alpha.3/.cargo/config.toml)
 keeps full host procedural-macro diagnostics while stripping target Debug and
 panic location data. JSON numbers use functional numeric formatting, so Debug
 stripping cannot alter saved values.

@@ -8,8 +8,8 @@ publish = false
 build = "../build.rs"
 
 [dependencies]
-neocogi-com = { version = "=0.2.0-alpha.2", features = ["runtime"] }
-neocogi-com-host = "=0.2.0-alpha.2"
+neocogi-com = { version = "=0.2.0-alpha.3", features = ["runtime"] }
+neocogi-com-host = "=0.2.0-alpha.3"
 
 [build-dependencies]
-neocogi-idl = "=0.2.0-alpha.2"
+neocogi-idl = "=0.2.0-alpha.3"

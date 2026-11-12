@@ -589,7 +589,7 @@ UUID overrides remain errors.
 
 Generated nominal IDs and signatures change: rebuild contracts, providers and
 hosts together. Compiler encoding v14 records the versionless contract; COM
-discovery uses ABI v2 for the 0.2.0-alpha.2 candidate.
+discovery uses ABI v2 for the 0.2.0-alpha.3 candidate.
 
 ### Module names and dependencies
 
