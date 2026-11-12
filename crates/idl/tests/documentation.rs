@@ -13,9 +13,9 @@ fn example<'a>(document: &'a str, label: &str) -> &'a str {
     body.split_once("\n```").expect("example has a closing fence").0
 }
 
-/// The prepared alpha advances ABI discovery while retaining the archived v1 contract.
+/// The current checkout carries only the ABI specification selected by its runtime.
 #[test]
-fn com_abi_keeps_the_released_baseline_and_development_specification() {
+fn current_abi_specification_matches_the_runtime_generation() {
     assert_eq!(neocogi_com_core::NC_COM_CORE_ABI_VERSION, 19);
     assert_eq!(neocogi_com_core::NC_COM_RUNTIME_ABI_VERSION, 2);
     assert_eq!(neocogi_com_core::NC_PLUGIN_DESCRIPTOR_ABI_VERSION, 2);
@@ -28,13 +28,10 @@ fn com_abi_keeps_the_released_baseline_and_development_specification() {
         })
         .collect::<Vec<_>>();
     specifications.sort();
-    assert_eq!(specifications, [directory.join("abi-v1.md"), directory.join("abi-v2.md")]);
+    assert_eq!(specifications, [directory.join("abi-v2.md")]);
     let document = include_str!("../../../docs/abi-v2.md");
     assert!(document.starts_with("# COM ABI v2 (0.2.0-alpha.1)\n"));
     assert!(document.contains("plugin descriptor discovery use family **2**, with core generation **19**"));
-    let released = include_str!("../../../docs/abi-v1.md");
-    assert!(released.contains("currently encoding v13"));
-    assert!(released.contains("NC_COM_CORE_ABI_VERSION == 18"));
 }
 
 /// Current guidance consumes the actual compiler encoding and Cargo name policy.

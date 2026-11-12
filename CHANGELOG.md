@@ -52,7 +52,7 @@ Historical draft numbers do not define additional supported COM baselines.
   core generation 19, and the native `nc_get_plugin_descriptor_v2` export.
   Rename supplied service records and callbacks from `V1` to `V2`; rebuild hosts,
   providers and generated bindings together. ABI v1 discovery is not a fallback.
-  Keep [ABI v1](docs/abi-v1.md) as the released historical baseline.
+  Keep [ABI v1](https://github.com/NeoCogi/neocogi-com/blob/v0.1.0/docs/abi-v1.md) as the released historical baseline.
 - Version all eight SDK packages as `0.2.0-alpha.1` with exact internal
   requirements. Tutorial manifests and current documentation target that cohort.
   This Git prerelease does not claim crates.io publication or completed remote
@@ -97,7 +97,7 @@ results, other CPU architectures and 32-bit execution are not inferred from it.
 Plugins are trusted native code and remain loaded until process exit. Required
 loading failures diagnose and terminate the host; ordinary method failures are
 returned statuses. This custom component protocol provides no Windows system
-COM activation or marshalling. See the [ABI contract](docs/abi-v1.md) and
+COM activation or marshalling. See the [ABI contract](https://github.com/NeoCogi/neocogi-com/blob/v0.1.0/docs/abi-v1.md) and
 [maintainer release procedure](docs/guides/RELEASING.md) for the complete rules.
 
 Older entries below describe development history and may be superseded by this
@@ -244,7 +244,7 @@ destruction, allocator release and interface projections remain class-specific.
 Publish cyclic construction after initialization, preserve rollback for escaped
 weak origins, and transfer promoted ownership without an extra query retain.
 IDL fingerprints and core generation reject the former weak-token contract.
-See [ABI v1](docs/abi-v1.md).
+See [ABI v1](https://github.com/NeoCogi/neocogi-com/blob/v0.1.0/docs/abi-v1.md).
 
 All notable changes to the experimental component ABI are documented here.
 Semantic-version compatibility begins only after an explicitly ratified ABI.
@@ -256,7 +256,7 @@ Add the optional C-shaped weak downgrade operation to the common object prefix,
 weak self origins. Generated objects keep one Arc-backed allocation; final strong
 release destroys the value, while weak references can retain its empty shell.
 The two-word strong handle and exact interface negotiation remain unchanged.
-Old core generations are rejected before dispatch. See [ABI v1](docs/abi-v1.md).
+Old core generations are rejected before dispatch. See [ABI v1](https://github.com/NeoCogi/neocogi-com/blob/v0.1.0/docs/abi-v1.md).
 
 ## Shared binding-path validation
 
@@ -375,7 +375,7 @@ prefixes and full explicit inspection remain supported.
 These entries record superseded designs, not the current API. Native contract
 artifacts, `trait`/`class` IDL declarations, global contract registration, and
 runtime ABI v2 were subsequently removed or replaced. Current binary contracts
-are core v1, plugin descriptor v1, and runtime v1; see the [ABI guide](docs/abi-v1.md).
+are core v1, plugin descriptor v1, and runtime v1; see the [ABI guide](https://github.com/NeoCogi/neocogi-com/blob/v0.1.0/docs/abi-v1.md).
 
 - Added Rust-like `.ncidl` modules with `struct`, `enum`, `trait`, `class`, and
   `factory` declarations. Every module is an ordinary Cargo crate whose

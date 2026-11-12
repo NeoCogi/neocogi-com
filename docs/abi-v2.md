@@ -2,7 +2,8 @@
 
 This is the ABI contract for the prepared **0.2.0-alpha.1** SDK. Runtime and
 plugin descriptor discovery use family **2**, with core generation **19**.
-The released 0.1.0 baseline remains archived in [ABI v1](abi-v1.md). ABI v1
+The released 0.1.0 baseline remains available in the
+[ABI v1 specification at v0.1.0](https://github.com/NeoCogi/neocogi-com/blob/v0.1.0/docs/abi-v1.md). ABI v1
 hosts and providers must be rebuilt together; there are no compatibility aliases
 or fallback discovery exports. IDL canonical encoding v14 and NCB format v1
 retain their independent authorities.
