@@ -51,6 +51,9 @@ validates and borrows metadata without registration or acquisition and can retur
 errors. It exposes plugin/factory data, not a runtime inventory of contract
 declarations. Static registration and later factory calls retain their existing
 status-returning contracts; they are separate operations from live loading.
+Loader errors retain their phase, caller path, platform/validation detail and
+optional symbolic/raw status in all profiles, including min-size. Their Display
+contract is independent of optional Debug formatting.
 
 On Windows, all three loading/inspection paths resolve the caller's filesystem
 path once and use `LoadLibraryExW` with

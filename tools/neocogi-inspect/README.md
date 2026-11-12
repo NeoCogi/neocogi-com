@@ -41,6 +41,8 @@ identities, target/ABI versions, weakened threading, and added hard dependencies
 as breaking; plugin version text is diagnostic. Text differences use canonical JSON
 spellings and escaped strings, preserving concrete values in ordinary and
 min-size builds alike.
+Native inspection failures also preserve the loader phase, path, platform or
+validation detail and any ABI status in both profiles.
 
 Inspection maps trusted native code and can execute platform loader initializers.
 It never calls the factory bootstrap or recursively locates provider plugins.

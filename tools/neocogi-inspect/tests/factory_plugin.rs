@@ -257,6 +257,76 @@ fn snapshot_diagnostics(inspector: &Path, base: &serde_json::Value, directory: &
     results
 }
 
+/// Stages two trusted native rejections from valid static storage: a retired
+/// getter and a current getter advertising an old descriptor generation. Copy
+/// each exact Cargo artifact before rebuilding the fixture's other feature set.
+fn rejected_plugins(directory: &Path) -> Vec<(PathBuf, &'static str)> {
+    let workspace = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let target = std::env::var_os("CARGO_TARGET_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| workspace.join("target"));
+    let mut cases = vec![(directory.join("missing-plugin.so"), "OpenLibrary")];
+    assert!(!cases[0].0.exists());
+    for (features, phase) in [(Some("legacy-symbol"), "FindSymbol"), (None, "Metadata")] {
+        let mut command = Command::new(env!("CARGO"));
+        command
+            .args([
+                "build",
+                "--offline",
+                "--locked",
+                "--lib",
+                "--no-default-features",
+                "--message-format=json",
+                "--manifest-path",
+            ])
+            .arg(workspace.join("tests/com/integration-tests/fixtures/legacy-bootstrap/Cargo.toml"))
+            .arg("--target-dir")
+            .arg(&target);
+        if let Some(features) = features {
+            command.args(["--features", features]);
+        }
+        let output = command.output().expect("build trusted rejected provider");
+        assert_success("rejected provider build", &output);
+        let artifact = shared_artifact(&output, "nc_legacy_bootstrap_fixture");
+        let staging = directory.join(phase);
+        std::fs::create_dir(&staging).unwrap();
+        let plugin = staging.join(artifact.file_name().unwrap());
+        std::fs::copy(artifact, &plugin).unwrap();
+        cases.push((plugin, phase));
+    }
+    cases
+}
+
+/// Real loader failures must retain their stage, path and detail through every
+/// CLI inspection command. Metadata also carries its symbolic and raw ABI status.
+fn native_load_diagnostics(inspector: &Path, cases: &[(PathBuf, &str)], directory: &Path) -> Vec<(i32, String, String)> {
+    let marker = directory.join("unexpected-bootstrap");
+    let mut results = Vec::new();
+    for (plugin, phase) in cases {
+        for command in ["dump", "check", "plan"] {
+            let result = Command::new(inspector)
+                .arg(command)
+                .arg(plugin)
+                .env("NC_GENERATION_BOOTSTRAP_MARKER", &marker)
+                .output()
+                .unwrap();
+            let output = String::from_utf8(result.stdout).unwrap();
+            let errors = String::from_utf8(result.stderr).unwrap();
+            assert_eq!(result.status.code(), Some(1), "{command}: {errors}");
+            assert!(output.is_empty(), "{output}");
+            let prefix = format!("error: {phase} while loading {}: ", plugin.display());
+            let detail = errors.strip_prefix(&prefix).unwrap_or_else(|| panic!("missing {prefix} in {errors}"));
+            assert!(!detail.trim().is_empty(), "platform/validation detail must survive");
+            if *phase == "Metadata" {
+                assert_eq!(detail, "invalid plugin descriptor (NC_E_ABI_VERSION(-5))\n");
+            }
+            assert!(!marker.exists(), "inspection must not call the retired bootstrap");
+            results.push((1, output, errors));
+        }
+    }
+    results
+}
+
 /// Relocation and native output identity share one provider build and staging owner.
 #[test]
 fn inspects_a_standalone_plugin_and_its_exact_factory_signature() {
@@ -284,8 +354,14 @@ fn inspects_a_standalone_plugin_and_its_exact_factory_signature() {
     assert!(factory.get("direct_contracts").is_none());
 
     let default_diagnostics = snapshot_diagnostics(&inspector, &artifact, staging.path());
+    let rejected = rejected_plugins(staging.path());
+    let default_load_diagnostics = native_load_diagnostics(&inspector, &rejected, staging.path());
     let min_size_inspector = build_inspector("min-size");
     assert_eq!(snapshot_diagnostics(&min_size_inspector, &artifact, staging.path()), default_diagnostics);
+    assert_eq!(
+        native_load_diagnostics(&min_size_inspector, &rejected, staging.path()),
+        default_load_diagnostics
+    );
 
     assert_native_output_paths(
         &inspector,

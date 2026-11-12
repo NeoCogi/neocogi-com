@@ -32,6 +32,20 @@ pub enum PluginLoadErrorKind {
     UnsupportedPlatform,
 }
 
+impl core::fmt::Display for PluginLoadErrorKind {
+    /// Functional phase names survive profiles that strip derived Debug text.
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(match self {
+            Self::OpenLibrary => "OpenLibrary",
+            Self::FindSymbol => "FindSymbol",
+            Self::Entrypoint => "Entrypoint",
+            Self::Metadata => "Metadata",
+            Self::Registration => "Registration",
+            Self::UnsupportedPlatform => "UnsupportedPlatform",
+        })
+    }
+}
+
 /// Error returned by plugin loading and inspection APIs.
 #[derive(Debug)]
 pub struct PluginLoadError {
@@ -82,10 +96,41 @@ impl core::fmt::Display for PluginLoadError {
     /// Formats phase, path, detail, and the optional ABI status.
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self.status {
-            Some(status) => write!(f, "{:?} while loading {}: {} ({})", self.kind, self.path.display(), self.message, status),
-            None => write!(f, "{:?} while loading {}: {}", self.kind, self.path.display(), self.message),
+            Some(status) => write!(f, "{} while loading {}: {} ({})", self.kind, self.path.display(), self.message, status),
+            None => write!(f, "{} while loading {}: {}", self.kind, self.path.display(), self.message),
         }
     }
 }
 
 impl std::error::Error for PluginLoadError {}
+
+#[cfg(test)]
+mod tests {
+    use super::{PluginLoadError, PluginLoadErrorKind};
+    use neocogi_com_core::NC_E_ABI_VERSION;
+
+    /// All phases retain their spelling, path, detail and optional symbolic/raw
+    /// status. Run under min-size as well: Debug is intentionally unavailable.
+    #[test]
+    fn display_preserves_every_phase_with_and_without_status() {
+        for (kind, phase) in [
+            (PluginLoadErrorKind::OpenLibrary, "OpenLibrary"),
+            (PluginLoadErrorKind::FindSymbol, "FindSymbol"),
+            (PluginLoadErrorKind::Entrypoint, "Entrypoint"),
+            (PluginLoadErrorKind::Metadata, "Metadata"),
+            (PluginLoadErrorKind::Registration, "Registration"),
+            (PluginLoadErrorKind::UnsupportedPlatform, "UnsupportedPlatform"),
+        ] {
+            assert_eq!(kind.to_string(), phase);
+            for status in [None, Some(NC_E_ABI_VERSION)] {
+                let error = PluginLoadError::new(kind, "provider.so", status, "validation detail");
+                let suffix = if status.is_some() { " (NC_E_ABI_VERSION(-5))" } else { "" };
+                assert_eq!(error.to_string(), format!("{phase} while loading provider.so: validation detail{suffix}"));
+                assert_eq!(error.kind(), kind);
+                assert_eq!(error.path(), std::path::Path::new("provider.so"));
+                assert_eq!(error.status(), status);
+                assert_eq!(error.message(), "validation detail");
+            }
+        }
+    }
+}

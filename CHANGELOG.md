@@ -9,6 +9,8 @@ Historical draft numbers do not define additional supported COM baselines.
 - Return admitted `Runtime` access from the host's safe `initialize_runtime()`
   constructor. `com_main` requires that typed result from its selected path;
   it no longer adopts raw service pointers on behalf of arbitrary safe modules.
+- Preserve loader phase names in functional Display output, including min-size
+  diagnostics for failed opens, missing getters and rejected native metadata.
 - Qualify every shipped target through ordinary Cargo test selection, including
   the cdylib-only serialization shim; preserve both required named IDL consumers
   and complete extracted-archive/tutorial execution on Rust 1.85.
