@@ -129,7 +129,10 @@ impl Runner {
         // Canonicalize before creating the owner so TempDir::path(), Runner,
         // Cargo patches and child temporary roots all use one source spelling.
         // macOS /var and /private/var otherwise become distinct Cargo packages.
-        let temporary_root = temporary_root.canonicalize()?;
+        // Prefer an equivalent Win32 spelling where possible: propagating the
+        // extended-path namespace through TEMP also gives it to native linkers.
+        // Keep paths requiring that namespace intact rather than changing identity.
+        let temporary_root = dunce::canonicalize(temporary_root)?;
         let files = tempfile::Builder::new().prefix("neocogi-com-sdk-").tempdir_in(temporary_root)?;
         let work = self.scratch(prefix)?;
         let mut runner = self.clone();
@@ -150,6 +153,52 @@ impl Runner {
         for key in ["TMPDIR", "TMP", "TEMP"] {
             self.env.insert(key.into(), directory.as_os_str().to_owned());
         }
+        Ok(())
+    }
+}
+
+#[cfg(all(test, windows))]
+mod windows_tests {
+    use super::{Result, Runner, retire};
+    use std::{
+        fs,
+        path::{Component, Path, Prefix},
+    };
+
+    /// Source ownership resolves aliases without forcing ordinary temporary
+    /// paths into the extended namespace inherited by nested native builds.
+    #[test]
+    fn isolated_windows_sources_keep_native_linker_paths_compatible() -> Result<()> {
+        let parent = tempfile::Builder::new().prefix("native path é ").tempdir()?;
+        let canonical = parent.path().canonicalize()?;
+        let checkout = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize()?;
+        let (owner, mut runner) = Runner::new(checkout).isolated_in("native-path-", &canonical)?;
+        let source = owner.path().to_owned();
+        let result = (|| {
+            assert!(matches!(source.components().next(), Some(Component::Prefix(prefix)) if matches!(prefix.kind(), Prefix::Disk(_))));
+            assert_eq!(source.canonicalize()?.parent(), Some(canonical.as_path()));
+            assert_eq!(runner.root, source);
+            for name in ["TMPDIR", "TMP", "TEMP"] {
+                assert_eq!(runner.env.get(std::ffi::OsStr::new(name)), Some(&source.join("tmp").into_os_string()));
+            }
+            fs::write(
+                source.join("Cargo.toml"),
+                "[package]\nname='native-link-path'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[lib]\ncrate-type=['cdylib']\npath='lib.rs'\n",
+            )?;
+            fs::write(
+                source.join("lib.rs"),
+                "#[unsafe(no_mangle)] pub extern \"C\" fn native_path_control() -> u32 { 17 }\n",
+            )?;
+            // Match the failing fixture: a nested target inherited from the
+            // temporary source tree, not the outer checkout's output directory.
+            let target = source.join("tmp/provider-target");
+            runner.env.insert("CARGO_TARGET_DIR".into(), target.clone().into_os_string());
+            runner.cargo("stable", &["build", "--offline"])?;
+            assert!(target.join("debug/native_link_path.dll").is_file());
+            Ok(())
+        })();
+        retire(owner, result)?;
+        assert!(!source.exists());
         Ok(())
     }
 }

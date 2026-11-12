@@ -81,6 +81,12 @@ Their temporary parent is canonicalized before the source owner is created, so
 the owner, Cargo patch paths and child working directories share one spelling.
 This prevents aliases such as macOS `/var` and `/private/var` from producing
 duplicate SDK package identities in a consumer lockfile.
+On Windows, canonical source parents use an equivalent ordinary Win32 spelling
+when available. Extended paths remain intact when simplification would change
+their meaning. This keeps canonical aliases resolved without forcing `\\?\`
+names into child temporary directories and MSVC linker inputs. A native Windows
+driver regression builds a DLL below the inherited temporary root, including
+spaces and Unicode; the full loader policy fixture remains required in CI.
 Large artifacts and task work stay below `target/xtask-work` on the checkout's
 filesystem. Both source and output owners are retired before success; sources
 remain alive while tests use embedded manifest paths. Copied fixtures exclude
