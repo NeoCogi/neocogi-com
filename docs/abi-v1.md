@@ -1312,7 +1312,7 @@ No historical test counts are promoted to acceptance for this ABI-v1 consolidati
   preparation and the ownership boundary of consuming ABI calls.
 - [Recursive values](contracts/RECURSIVE_VALUE_CONTRACT.md): checked wire
   acquisition, recursion, budgets and metadata.
-- [Local NCB persistence](../crates/core/README.md#why-persistence-is-ncb-only): concrete
+- [Local NCB persistence](https://github.com/NeoCogi/neocogi-com/blob/v0.1.0/crates/core/README.md#why-persistence-is-ncb-only): concrete
   bounded cursors, ordered construction, codec history and independent-plugin checks.
 - [Independent-build compatibility](#independent-build-compatibility): compiler/flag
   matrix, instrumentation and platform limits.

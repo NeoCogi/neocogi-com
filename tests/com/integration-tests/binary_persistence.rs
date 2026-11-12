@@ -427,7 +427,7 @@ static TOTAL_ACQUIRED_FIELDS: std::sync::atomic::AtomicUsize = std::sync::atomic
 struct Acquired;
 impl ComDeserialize for Acquired {
     /// Reads one byte inside the current value scope before publishing this test resource.
-    fn com_deserialize(reader: &mut binary::Reader<'_>) -> Result<Self, binary::Error> {
+    fn com_deserialize(reader: &mut neocogi_com::serialization::Deserializer<'_>) -> Result<Self, neocogi_com::NcStatus> {
         u8::com_deserialize(reader)?;
         ACQUIRED_FIELDS.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         TOTAL_ACQUIRED_FIELDS.fetch_add(1, std::sync::atomic::Ordering::SeqCst);

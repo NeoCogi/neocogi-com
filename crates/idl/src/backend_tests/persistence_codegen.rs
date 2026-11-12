@@ -33,9 +33,20 @@ fn persistence_bindings_match_idl() {
 /// Formats one generated half and either verifies it or explicitly refreshes it.
 fn check_generated(path: &Path, tokens: &str) {
     let file = syn::parse_file(tokens).unwrap();
+    let serialization = path.parent().and_then(Path::file_name).is_some_and(|name| name == "serialization");
+    let (origin, test) = if serialization {
+        ("serialization/formats.ncidl", "serialization_bindings_match_idl")
+    } else {
+        ("persistence/objects.ncidl", "persistence_bindings_match_idl")
+    };
+    let origin = if serialization && path.file_name().is_some_and(|name| name == "objects.rs") {
+        "com/src/serialization/objects.rs.in".to_owned()
+    } else {
+        format!("core/schemas/neocogi/com/{origin}")
+    };
     let expected = format!(
-        "// Generated from core/schemas/neocogi/com/persistence/objects.ncidl.\n\
-         // Regenerate: NC_UPDATE_PERSISTENCE_BINDINGS=1 cargo test -p neocogi-idl persistence_bindings_match_idl\n\n{}",
+        "// Generated from {origin}.\n\
+         // Regenerate: NC_UPDATE_PERSISTENCE_BINDINGS=1 cargo test -p neocogi-idl {test}\n\n{}",
         prettyplease::unparse(&file),
     );
     if std::env::var_os("NC_UPDATE_PERSISTENCE_BINDINGS").as_deref() == Some(std::ffi::OsStr::new("1")) {
@@ -43,4 +54,91 @@ fn check_generated(path: &Path, tokens: &str) {
         std::fs::write(path, &expected).unwrap();
     }
     assert_eq!(std::fs::read_to_string(path).unwrap(), expected, "stale bindings: {}", path.display());
+}
+
+/// Serialization protocols have one NCIDL owner and share owned/scoped wire lowering.
+#[test]
+fn serialization_bindings_match_idl() {
+    let consumer = super::test_consumer::Consumer::new("serialization-binding-proof");
+    let source = std::fs::read_to_string(consumer.core.join("schemas/neocogi/com/serialization/formats.ncidl")).unwrap();
+    let module = crate::parse_module_parts(
+        Path::new("neocogi/com/serialization"),
+        &[crate::ModuleSource {
+            path: Path::new("neocogi/com/serialization/formats.ncidl"),
+            text: &source,
+        }],
+    )
+    .unwrap();
+    let graph = crate::resolve_modules(vec![module]).unwrap();
+    let bindings = crate::generate::generate_bootstrap(&graph, "neocogi.com.serialization").unwrap();
+    check_generated(&consumer.core.join("src/serialization/interfaces.rs"), &bindings.abi);
+    check_generated(
+        &consumer.facade.join("src/serialization/providers.rs"),
+        &format!("use super::*; {}", bindings.provider),
+    );
+    let scoped = crate::generate::generate_scoped_serialization_adapters(&graph, "neocogi.com.serialization").unwrap();
+    check_generated(&consumer.core.join("src/serialization/scoped.rs"), &format!("use super::*; {scoped}"));
+    let source = std::fs::read_to_string(consumer.facade.join("src/serialization/objects.rs.in")).unwrap();
+    let input = syn::parse_file(&source).unwrap();
+    let mut objects = proc_macro2::TokenStream::new();
+    for item in input.items {
+        let syn::Item::Struct(mut object) = item else {
+            panic!("object bootstrap accepts only struct definitions")
+        };
+        let position = object.attrs.iter().position(|attribute| attribute.path().is_ident("com_object")).unwrap();
+        let attribute = object.attrs.remove(position);
+        let args = attribute.parse_args::<crate::codegen::ObjectArgs>().unwrap();
+        objects.extend(crate::codegen::expand_com_object(args, object));
+    }
+    check_generated(&consumer.facade.join("src/serialization/objects.rs"), &objects.to_string());
+}
+
+/// Ordinary IDL users can borrow the built-in format interface through generated ABI calls.
+#[test]
+fn idl_methods_accept_builtin_serializers_from_the_shared_source_contract() {
+    let consumer = super::test_consumer::Consumer::new("serialization-interface-consumer");
+    let source = std::fs::read_to_string(consumer.core.join("schemas/neocogi/com/serialization/formats.ncidl")).unwrap();
+    let format = crate::parse_module_parts(
+        Path::new("neocogi/com/serialization"),
+        &[crate::ModuleSource {
+            path: Path::new("neocogi/com/serialization/formats.ncidl"),
+            text: &source,
+        }],
+    )
+    .unwrap();
+    let user = crate::parse_module(
+        Path::new("proof/serialization.ncidl"),
+        r#"
+        extern neocogi.com.serialization;
+        use neocogi.com.serialization::ISerializer;
+        interface Emitter { fn emit(&self, output: &ISerializer) -> Result<()>; }
+    "#,
+    )
+    .unwrap();
+    let graph = crate::resolve_modules(vec![format, user]).unwrap();
+    let mut paths = crate::generate::RustModulePaths::default();
+    paths.insert("neocogi.com.serialization", "neocogi_com::serialization").unwrap();
+    let bindings = crate::generate::generate_rust_with_paths(&graph, "proof.serialization", &paths).unwrap();
+    let source = format!(
+        r#"
+        {bindings}
+        #[neocogi_com::com_object(Emitter)] struct Object;
+        impl Emitter for Object {{
+            fn emit(&self,output:neocogi_com::ComRef<'_,ISerializerAbi>)->Result<(),neocogi_com::NcStatus>{{
+                neocogi_com::serialization::Serializer::new(output).serialize(&42u32)
+            }}
+        }}
+        #[test] fn real_format_call(){{
+            use neocogi_com::serialization::{{NcbSerializer,ISerializationOutputAbi,Limits}};
+            let object=Object::from_value(Object).query::<EmitterAbi>().unwrap();
+            let writer=NcbSerializer::create(Limits::default()).unwrap();
+            object.emit(writer.as_com_ref()).unwrap();
+            let output=writer.query_ref::<ISerializationOutputAbi>().unwrap();
+            let mut bytes=neocogi_com::NcOutputBuffer::new();
+            output.copy_to(bytes.output(0,output.byte_len().unwrap() as usize)).unwrap();
+            assert_eq!(neocogi_com::binary::from_slice::<u32>(bytes.as_slice()).unwrap(),42);
+        }}
+    "#
+    );
+    super::name_ownership_tests::run_consumers_with_files(consumer, [("builtin COM parameter".into(), source)], &[], &["real_format_call"]);
 }

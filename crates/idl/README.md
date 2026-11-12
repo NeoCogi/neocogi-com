@@ -351,3 +351,10 @@ contents are never input. A transformation needs an explicit readable argument
 and a separate output. Recursive checked wire types remain authoritative; Rust
 containers, enum layout, and persistence serialization do not cross these slots.
 See [the output contract](https://github.com/NeoCogi/neocogi-com/blob/v0.1.0/docs/contracts/COM_OUTPUT_BUFFERS.md).
+
+Typed persistence implementations use `serialization::Serializer` and
+`Deserializer`, backed by the `ISerializer`/`IDeserializer` COM interfaces.
+Generated named fields and enum cases retain their authored names for external
+formats; NCB ignores names and preserves its positional version-1 bytes.
+The facade's `Format` selects a runtime factory, including a plugin root.
+See the [format contract](https://github.com/NeoCogi/neocogi-com/blob/0.2.0-wip/docs/contracts/SERIALIZATION_FORMATS.md).

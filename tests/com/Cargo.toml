@@ -173,3 +173,8 @@ required-features = ["runtime"]
 name = "plugin_abi_generation"
 path = "integration-tests/plugin_abi_generation.rs"
 required-features = ["runtime"]
+
+[[test]]
+name = "serialization_formats"
+path = "integration-tests/serialization_formats.rs"
+required-features = ["macros", "std"]

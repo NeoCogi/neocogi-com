@@ -141,14 +141,14 @@ universal safe `as_str(&self) -> &str` on raw ABI views. See the
 
 ## Experimental persistent values
 
-`ComSerialize` streams explicit initialization records through the concrete
-bounded `binary::Writer`. NCB is the supported persistence encoding; there is no
-serializer-adapter trait or runtime format selection.
-`ComDeserialize` takes the concrete `binary::Reader`. Generated constructors read
-each field once in order. `Reader::record` and `Reader::sequence` lend one bounded
-ordered cursor and check complete consumption; no record names, field indices or
-duplicate-field state machine participate. Enum payloads are constructed directly
-under their proper nested value scope, without generated temporary payload types.
+`ComSerialize` and `ComDeserialize` traverse explicit values through borrowed
+COM format objects, using `serialization::Serializer` and `Deserializer`.
+`ISerializer` and `IDeserializer` expose typed scalar, field and container
+operations. Generated constructors acquire fields directly, using names for
+records and ordinals plus names for enum cases. NCB is the supplied default;
+applications can select other COM format factories at runtime.
+See the [format contract](https://github.com/NeoCogi/neocogi-com/blob/0.2.0-wip/docs/contracts/SERIALIZATION_FORMATS.md).
+
 The facade derives `ComSerialize` and `ComDeserialize` for owned records and
 enums, including recursive vectors and named/tuple payloads. NCB writes fields in
 declaration order and enum ordinals without names. This is value
@@ -193,91 +193,36 @@ the current NCIDL and exercises all three interfaces against checked-in provider
 in both directions through real COM calls. The normal macro and IDL CI suites
 include both checks.
 
-### Why persistence is NCB-only
+### Format objects and NCB
 
-The local persistence contract deliberately supports one format. `ComSerialize`
-and `ComDeserialize` remain typed traits for concrete values; their argument is
-the NCB writer or reader, not another trait selecting an input/output format.
-Application JSON files keep their concrete Serde codecs. Live plugin arguments
-keep `ComValue`'s checked foreign representation. Neither of those contracts is
-implemented by the persistence cursor.
+`ISerializationFormat` is a shared factory suitable for a plugin root. Its
+serializer and deserializer results have exclusive `ComBox` ownership. Input
+is copied before an owning source returns; completed output is copied through
+`ISerializationOutput` into fresh caller-owned storage. No Rust allocation header
+or formatter implementation layout crosses COM.
 
-```mermaid
-flowchart LR
-    V["Typed saved value"] --> W["Bounded NCB Writer"]
-    W --> B["NCB v1 bytes"]
-    B --> R["Bounded NCB Reader"]
-    R --> C["Typed declaration-order construction"]
-```
+A session accepts one document, finishes once and becomes terminal on format or
+schema failure. Unknown fields, duplicate map keys, incomplete containers and
+trailing input fail. Named formats may locate fields independently of encoded
+order; the typed constructor remains direct and statically typed. Explicit
+Default-backed records retain genuinely absent fields, while positional NCB
+still permits only an omitted trailing suffix.
 
-The former abstraction had a real use. `ff372ecd` introduced typed generic
-deserialization; `584b7b92` supplied a Serde-to-COM theme adapter that could read
-named fields in arbitrary order. `229f175e` added positional NCB. Later,
-`0ebca601` replaced the generic theme bridge with concrete Serde codecs, but left
-the generic persistence protocol and arbitrary-field state machines behind.
-`4f48700c` repaired NCB's encoder/decoder budget symmetry, which remains required.
+NCB keeps its version-1 marker, endian rules, counts and ordinals. Field names
+are supplied to the common interface and ignored by NCB. Binary convenience
+functions use call-scoped, nonretainable COM adapters for fixed buffers and
+borrowed input. Their busy gate protects the necessary `UnsafeCell`; no
+allocation is introduced for scalar/fixed-size encoding or measurement.
+NCB bounds its structural stack to 128 open values in addition to caller limits.
 
-The NCB-only implementation (`5e8e7304`, `3a3f0249`) removes `ComSerializer`,
-`ComDeserializer` and the record/sequence/map/enum access traits. Generated
-decoders now construct fields in order and match enum ordinals directly. There
-is no field-index loop, duplicate-record-field flag, pending key/value protocol
-or generated enum payload struct. A `Sequence` is just the concrete NCB cursor's
-remaining count and a mutable borrow of its reader. Fixed arrays still use
-initialization slots so partially constructed non-Copy elements drop safely;
-those slots do not represent arbitrary field ordering.
+This supersedes the 0.1.0 NCB-only value-trait contract. The former generic Rust
+format/access traits stay retired; the new extensibility boundary is COM.
+Application code may select a format through `neocogi_com::serialization::Format`
+or use core's COM interfaces and typed traversal facades directly. Unsupported
+format/value combinations return errors. Live object reconstruction still uses
+explicit `IPersistable` recipes; its runtime snapshot envelope remains NCB v1.
 
-For a required record `State { label: String, enabled: bool }`, the generated
-construction has this shape (support paths shortened):
-
-```rust
-impl ComDeserialize for State {
-    fn com_deserialize(reader: &mut Reader<'_>) -> Result<Self, Error> {
-        reader.record(2, |fields| {
-            Ok(Self {
-                label: fields.read_next()?.ok_or_else(|| fields.error("missing field"))?,
-                enabled: fields.read_next()?.ok_or_else(|| fields.error("missing field"))?,
-            })
-        })
-    }
-}
-```
-
-The count may not exceed two. Required fields must exist. With explicit
-default-backed decoding, only a genuinely omitted trailing suffix keeps its
-default: a count of one can omit `enabled`, but a count of two with no remaining
-boolean byte is truncated input and fails. A present invalid boolean also fails.
-Previously acquired owned fields drop normally if a later field fails. Maps
-still reject duplicate keys because repeated keys are possible in NCB.
-
-Custom codecs follow the same accounting rule as generated ones. The caller
-enters a decoded value through `Reader::read`; its `ComDeserialize` method reads
-children with `read` or `Sequence::read_next`. A transparent scalar wrapper delegates
-directly to its scalar's `ComDeserialize` implementation to reuse the current
-value scope. An enum's anonymous tuple/record payload enters one extra
-`Reader::value` scope before reading its aggregate. Writer scalar operations
-charge themselves; aggregate writers pair their begin/end operations and encode
-each child once. Propagate any error and discard that document operation; these
-cursors do not promise recovery after a partial read or write. Measurement runs
-that same writer without storing bytes.
-
-NCB version 1 is independent of the COM ABI-v1 signature view and the compiler's
-canonical IDL encoding; the [IDL reference](https://github.com/NeoCogi/neocogi-com/blob/v0.1.0/docs/contracts/IDL_MODULES.md)
-owns the current fingerprint domain. The
-codec's Rust traits/cursors never cross a plugin boundary; providers exchange
-the existing C-shaped persistence handles and byte buffers. The removed
-`sequence` and `rename_all` policies are rejected rather than silently ignored.
-NCB uses declaration order and variant ordinals for derived enum payloads. IDL
-scalar integer enums and flags retain their existing raw-integer persistence;
-this change does not replace those integers with ordinals. Authored contract
-changes automatically alter exact signatures under the
-[IDL contract-change rule](https://github.com/NeoCogi/neocogi-com/blob/0.2.0-wip/docs/contracts/IDL_MODULES.md#contract-changes).
-
-This change does not make runtime persistence services optional. They have real
-snapshot/restore consumers. Omitting those services from a deployment is a
-separate, unmeasured capability decision that must preserve discovery and ABI
-contracts across build flags. Source deletion alone is not a binary-size result.
-
-### NCB specialization validation
+### Historical NCB specialization validation
 
 Validation on `refactor/ncb-only-persistence` through `3a3f0249`:
 

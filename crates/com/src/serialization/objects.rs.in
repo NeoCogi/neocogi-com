@@ -1,0 +1,17 @@
+/// Owns one NCB document session; finishing freezes its bytes for output queries.
+#[com_object(interfaces(ISerializer, ISerializationOutput), ownership = exclusive)]
+pub struct NcbSerializer {
+    /// Concrete codec state, accessed through the ordinary object-wide call gate.
+    encoder: binary::Encoder<'static>,
+}
+
+/// Owns immutable input and a mutable typed decoding cursor.
+#[com_object(IDeserializer, ownership = exclusive)]
+pub struct NcbDeserializer {
+    /// Owned input remains valid through every call and is released with the object.
+    decoder: binary::Decoder<'static>,
+}
+
+/// Stateless shared factory whose document sessions each have exclusive ownership.
+#[com_object(ISerializationFormat)]
+pub struct NcbFormat;

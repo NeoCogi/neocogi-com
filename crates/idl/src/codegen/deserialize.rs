@@ -1,12 +1,12 @@
-//! Generates direct, declaration-ordered NCB construction for concrete values.
+//! Generates direct typed construction through COM deserializer sessions.
 //!
-//! Named records and tuple payloads have the same counted binary representation.
-//! Only named records support omitted trailing fields through an explicit Default
-//! policy. Enums select a declaration ordinal and acquire only its typed payload;
-//! no format-adapter traits, arbitrary field dispatch or helper payload types remain.
+//! Record fields are selected by their authored names. A positional provider
+//! supplies them in order; a named provider can look them up independently.
+//! Enums probe names and ordinals before acquiring their concrete payload.
 
 use proc_macro2::TokenStream;
 use quote::quote;
+use syn::ext::IdentExt;
 use syn::{Attribute, Data, DeriveInput, Fields, Ident, Path, Result};
 
 use crate::codegen::util::{PrivateNames, push_error, validate_no_generics};
@@ -18,7 +18,7 @@ pub(crate) struct DeriveOptions {
     pub(crate) default: bool,
 }
 
-/// Expands a local value's NCB constructor; live ABI layout is handled separately.
+/// Expands a local value's format-neutral constructor; live ABI layout is handled separately.
 pub fn expand_derive(input: DeriveInput) -> Result<TokenStream> {
     validate_no_generics(&input.generics, "ComDeserialize derives")?;
     let options = parse_options(&input.attrs)?;
@@ -42,8 +42,8 @@ fn implementation(ident: &Ident, nc: &Path, reader: &Ident, names: &PrivateNames
         const _: () = {
         #binding_imports
         impl #nc::ComDeserialize for #ident {
-            /// Acquires this value's declared NCB fields under the shared document budget.
-            fn com_deserialize(#reader: &mut #nc::binary::Reader<'_>) -> ::core::result::Result<Self, #nc::binary::Error> {
+            /// Acquires this value's declared fields through the selected COM format.
+            fn com_deserialize(#reader: &mut #nc::serialization::Deserializer<'_>) -> ::core::result::Result<Self, #nc::NcStatus> {
                 #body
             }
         }
@@ -63,8 +63,9 @@ pub fn expand_struct(ident: &Ident, fields: &Fields, nc: &Path, default: bool) -
         Fields::Named(_) if default => {
             let assignments = fields.iter().map(|field| {
                 let member = field.ident.as_ref().expect("named field");
+                let field_name = member.unraw().to_string();
                 quote! {
-                    if let ::core::option::Option::Some(#field_value) = #field_reader.read_next()? {
+                    if let ::core::option::Option::Some(#field_value) = #field_reader.read_field(#field_name)? {
                         #value.#member = #field_value;
                     }
                 }
@@ -101,7 +102,13 @@ fn construction(fields: &Fields, destination: TokenStream, field_reader: &Ident)
         _ => "invalid sequence length",
     };
     let values = fields.iter().map(|field| {
-        let read = quote! { #field_reader.read_next()?.ok_or_else(|| #field_reader.error(#missing))? };
+        let read = match &field.ident {
+            Some(member) => {
+                let field_name = member.unraw().to_string();
+                quote! { #field_reader.read_field(#field_name)?.ok_or_else(|| #field_reader.error(#missing))? }
+            }
+            None => quote! { #field_reader.read_next()?.ok_or_else(|| #field_reader.error(#missing))? },
+        };
         match &field.ident {
             Some(member) => quote! { #member: #read },
             None => read,
@@ -122,7 +129,7 @@ pub fn expand_enum(ident: &Ident, data: &syn::DataEnum, nc: &Path) -> Result<Tok
     let mut names = PrivateNames::new(quote! { #ident #variants #nc });
     let reader = names.binding("__nc_reader");
     let field_reader = names.binding("__nc_fields");
-    let count = data.variants.len();
+    let variant_names = data.variants.iter().map(|variant| variant.ident.unraw().to_string()).collect::<Vec<_>>();
     let arms = data
         .variants
         .iter()
@@ -154,7 +161,7 @@ pub fn expand_enum(ident: &Ident, data: &syn::DataEnum, nc: &Path) -> Result<Tok
         &reader,
         &names,
         quote! {
-            match #reader.variant(#count)? {
+            match #reader.variant(&[#(#variant_names),*])? {
                 #(#arms,)*
                 _ => ::core::result::Result::Err(#reader.error("unknown enum variant")),
             }
@@ -163,8 +170,8 @@ pub fn expand_enum(ident: &Ident, data: &syn::DataEnum, nc: &Path) -> Result<Tok
 }
 
 /// Parses explicit trailing-default policy and rejects retired format-adapter options.
-/// Names and record/sequence selection do not affect NCB, so accepting them would
-/// falsely promise a second schema mode to callers and the IDL compiler.
+/// Field and variant names follow declarations; unsupported renaming policies
+/// cannot silently claim a different persistent schema.
 pub(crate) fn parse_options(attrs: &[Attribute]) -> Result<DeriveOptions> {
     let mut options = DeriveOptions::default();
     let mut errors = None;
@@ -177,7 +184,7 @@ pub(crate) fn parse_options(attrs: &[Attribute]) -> Result<DeriveOptions> {
                 options.default = true;
                 Ok(())
             } else {
-                Err(meta.error("expected default; NCB fields are always positional and variants use ordinals"))
+                Err(meta.error("expected default; field names and variant cases follow their declarations"))
             }
         }) {
             push_error(&mut errors, error);

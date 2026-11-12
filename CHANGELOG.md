@@ -6,6 +6,13 @@ Historical draft numbers do not define additional supported COM baselines.
 
 ## 0.2.0 — unreleased (`0.2.0-wip`)
 
+- Make serialization formats COM objects with `ISerializer`, `IDeserializer`,
+  `ISerializationOutput` and an `ISerializationFormat` factory. The same typed
+  value implementations can use application- or plugin-supplied formats at runtime.
+  Named fields and enum cases are available to providers; NCB v1 bytes stay the same.
+  Sessions own their buffers, finish once and reject reuse after a format or schema
+  failure. Fixed-buffer NCB helpers use scoped COM calls without allocation.
+  See the [format contract](docs/contracts/SERIALIZATION_FORMATS.md).
 - Remove declaration versions from nominal identity and canonical SHA-256 input.
   Ordinary declarations derive IDs from their qualified names; explicit overrides
   use `#[id("UUID")]`. Use distinct named types for semantic distinctions.

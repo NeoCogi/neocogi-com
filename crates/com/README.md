@@ -370,3 +370,14 @@ the ownership rationale.
 service or channel whose COM object can still exist. A method can propagate
 either from a dependency, so neither status identifies receiver lifetime. See the
 [precise lifetime error contract](https://github.com/NeoCogi/neocogi-com/blob/v0.1.0/docs/contracts/COM_LIFETIME_ERRORS.md).
+
+## Serialization formats
+
+`serialization::Format::ncb(Limits::default())` selects the supplied NCB COM
+factory. `Format::new(factory, limits)` selects another `ISerializationFormatAbi`
+provider, including a plugin root. `serialize` and `deserialize` use the same local
+`ComSerialize`/`ComDeserialize` implementations through mutable COM document
+sessions. Those sessions own their buffers; values remain caller-owned Rust types.
+The [format contract](https://github.com/NeoCogi/neocogi-com/blob/0.2.0-wip/docs/contracts/SERIALIZATION_FORMATS.md)
+specifies names, ownership, limits and failure behavior. Binary conveniences
+retain NCB v1 bytes and allocation-free fixed-buffer support.

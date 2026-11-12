@@ -2,6 +2,7 @@
 
 use proc_macro2::TokenStream;
 use quote::quote;
+use syn::ext::IdentExt;
 use syn::{Data, DeriveInput, Fields, Result};
 use crate::codegen::util::{PrivateNames, validate_no_generics};
 
@@ -49,6 +50,7 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream> {
             let mut arms = Vec::new();
             for (index, variant) in data.variants.iter().enumerate() {
                 let index = index as u32;
+                let variant_name = variant.ident.unraw().to_string();
                 let ident = &variant.ident;
                 let bindings = variant
                     .fields
@@ -77,7 +79,7 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream> {
                     _ => fields(&variant.fields, &values, &nc, &serializer),
                 };
                 arms.push(quote! { #pattern => {
-                    #serializer.begin_variant(#index)?;
+                    #serializer.begin_variant(#index, #variant_name)?;
                     #payload
                     #serializer.end_variant()?;
                 } });
@@ -92,7 +94,7 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream> {
         #binding_imports
         impl #nc::ComSerialize for #name {
             /// Emits the declared persistent members without native memory layout.
-            fn com_serialize(&self, #serializer: &mut #nc::binary::Writer<'_>) -> ::core::result::Result<(), #nc::binary::Error> {
+            fn com_serialize(&self, #serializer: &mut #nc::serialization::Serializer<'_>) -> ::core::result::Result<(), #nc::NcStatus> {
                 #body
                 ::core::result::Result::Ok(())
             }
@@ -101,12 +103,19 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream> {
     })
 }
 
-/// Emits ordered record or tuple members through the same counted NCB representation.
+/// Named formats receive authored field names; positional formats may ignore them.
 fn fields(fields: &Fields, values: &[TokenStream], nc: &syn::Path, serializer: &syn::Ident) -> TokenStream {
     let len = values.len();
     match fields {
         Fields::Unit => quote! { #serializer.serialize_unit()?; },
-        _ => quote! {
+        Fields::Named(named) => {
+            let writes = named.named.iter().zip(values).map(|(field, value)| {
+                let name = field.ident.as_ref().expect("named field").unraw().to_string();
+                quote! { #serializer.field(#name)?; #nc::ComSerialize::com_serialize(#value, #serializer)?; }
+            });
+            quote! { #serializer.begin_record(#len)?; #(#writes)* #serializer.end_record()?; }
+        }
+        Fields::Unnamed(_) => quote! {
             #serializer.begin_sequence(#len)?;
             #(#nc::ComSerialize::com_serialize(#values, #serializer)?;)*
             #serializer.end_sequence()?;

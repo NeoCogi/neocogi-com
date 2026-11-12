@@ -974,6 +974,22 @@ Native-library tests cover provenance, identity conflicts, post-unlink metadata
 and retained factory code. Both independently loaded and statically linked providers exercise
 the same contracts; generated factories still undergo exact identity checks.
 
+## Serialization format objects
+
+Value serialization uses the COM-owned [format interfaces](contracts/SERIALIZATION_FORMATS.md).
+A shared `ISerializationFormat` factory returns exclusive serializer and source
+objects. Typed local values use borrowed `Serializer`/`Deserializer` facades;
+primitive values, names and counted container operations cross their C vtables.
+Input is copied before an owning source returns, and committed output is copied
+into fresh caller storage. Fixed-buffer NCB conveniences lend scoped,
+nonretainable objects. Format/schema failures make a session terminal, and finish
+requires exactly one complete document. ABI rejections do not enter the provider.
+
+NCB remains format version 1 and preserves existing bytes. Names are available
+for other formats without adding names to NCB. This supersedes the concrete
+NCB-cursor restriction from 0.1.0 and changes the Rust value-trait API. Discovery
+family 1 remains unchanged during 0.2.0 development.
+
 ## Persistence and diagnostics
 
 `NcPersistenceApiV1` creates/destroys caller-owned, thread-local contexts, registers
@@ -1328,7 +1344,7 @@ No historical test counts are promoted to acceptance for this ABI-v1 consolidati
   preparation and the ownership boundary of consuming ABI calls.
 - [Recursive values](contracts/RECURSIVE_VALUE_CONTRACT.md): checked wire
   acquisition, recursion, budgets and metadata.
-- [Local NCB persistence](../crates/core/README.md#why-persistence-is-ncb-only): concrete
-  bounded cursors, ordered construction, codec history and independent-plugin checks.
+- [Value serialization formats](contracts/SERIALIZATION_FORMATS.md): COM format
+  objects, typed construction, bounded sessions and independent-plugin checks.
 - [Independent-build compatibility](#independent-build-compatibility): compiler/flag
   matrix, instrumentation and platform limits.

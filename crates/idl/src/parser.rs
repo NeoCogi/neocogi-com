@@ -1250,7 +1250,7 @@ fn parse_persistence(attribute: &Attribute) -> syn::Result<PersistencePolicy> {
         "default" => Ok(PersistencePolicy::Default),
         _ => Err(syn::Error::new_spanned(
             policy,
-            "expected default; NCB fields are always positional and ordinary value persistence is automatic",
+            "expected default; field names follow declarations and ordinary value persistence is automatic",
         )),
     }
 }

@@ -1,10 +1,10 @@
-error: expected default; NCB fields are always positional and variants use ordinals
+error: expected default; field names and variant cases follow their declarations
  --> integration-tests/ui/persistence_retired_policies.rs:6:19
   |
 6 | #[com_deserialize(sequence)]
   |                   ^^^^^^^^
 
-error: expected default; NCB fields are always positional and variants use ordinals
+error: expected default; field names and variant cases follow their declarations
   --> integration-tests/ui/persistence_retired_policies.rs:14:19
    |
 14 | #[com_deserialize(rename_all = "snake_case")]

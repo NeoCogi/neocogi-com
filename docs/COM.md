@@ -332,15 +332,21 @@ descriptors; it does not serialize or hash contracts. Dynamic and monolithic
 assemblies therefore perform the same exact identity and signature checks
 without a validation-mode build setting.
 
-## Typed NCB persistence
+## Typed value serialization
 
-`ComSerialize` and `ComDeserialize` operate on concrete bounded NCB cursors
-inside one Rust artifact. Struct fields are constructed in declaration order;
-enums select an ordinal and construct only their typed payload. The
-[persistence contract](../crates/core/README.md#experimental-persistent-values) specifies
-the format, shared limits, trailing defaults and allocation-free entrypoints.
-Other file formats own their own codecs; they do not implement a COM format-adapter
-protocol. Live COM calls retain their separate checked wire representation.
+`ComSerialize` and `ComDeserialize` traverse local typed values through COM
+`ISerializer` and `IDeserializer` objects. A shared `ISerializationFormat` factory
+creates exclusive document sessions; `Format::new` selects an application or
+plugin provider and `Format::ncb` selects the supplied NCB implementation.
+Generated records supply field names, and enum cases supply names and ordinals.
+The same typed implementations support positional and named formats.
+
+NCB conveniences preserve bounded, allocation-free fixed-buffer operations and
+existing version-1 bytes. Owned cursors keep buffers behind COM ownership;
+output and decoded strings use fresh caller-owned copies. The
+[format contract](contracts/SERIALIZATION_FORMATS.md) owns lifecycle, limits,
+errors and extensibility. [Object persistence](../crates/host/PERSISTENCE.md)
+retains explicit reconstruction recipes and an NCB envelope by default.
 
 ## Crates
 

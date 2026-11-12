@@ -145,6 +145,28 @@ fn generate_bootstrap_inner(graph: &ResolvedModules, module_name: &str) -> Resul
     Ok(BootstrapBindings { abi, provider })
 }
 
+/// Emits nonretainable adapters for the mutable built-in serialization sessions.
+/// They share the owned provider's exact ABI and wire validation, while borrowing
+/// stack-owned NCB buffers without allocating or allowing retained capabilities.
+pub fn generate_scoped_serialization_adapters(graph: &ResolvedModules, module_name: &str) -> Result<String, GenerateError> {
+    crate::syntax::with_syntax_stack(|| {
+        let paths = RustModulePaths::default();
+        let mut generation = Generation::new(graph, &paths);
+        let module = graph.module(module_name).ok_or_else(|| GenerateError::new("serialization module is absent"))?;
+        let mut output = String::new();
+        for declaration in &module.source.declarations {
+            if !matches!(declaration.name.as_str(), "ISerializer" | "IDeserializer") {
+                continue;
+            }
+            let parts = crate::codegen::expand_scoped_interface_parts(interface_plan(&mut generation, module, declaration)?)
+                .map_err(|error| GenerateError::new(error.to_string()))?;
+            output.push_str(&format_rust(parts.provider)?);
+        }
+        Ok(output)
+    })
+    .map_err(|error| GenerateError::new(format!("cannot start scoped serialization worker: {error}")))?
+}
+
 /// Emits one module after validating backend mappings against its semantic graph.
 /// Generated support paths are absolute: local IDL declarations such as Option,
 /// Some and None must remain application names, never capture Rust scaffolding.
@@ -546,6 +568,15 @@ fn interface_parts(
     module: &ResolvedModule,
     declaration: &Declaration,
 ) -> Result<crate::codegen::InterfaceExpansion, GenerateError> {
+    crate::codegen::expand_interface_parts(interface_plan(graph, module, declaration)?).map_err(|error| GenerateError::new(error.to_string()))
+}
+
+/// Builds the authoritative callable plan before selecting provider storage.
+fn interface_plan(
+    graph: &mut Generation<'_>,
+    module: &ResolvedModule,
+    declaration: &Declaration,
+) -> Result<crate::codegen::model::InterfacePlan, GenerateError> {
     use crate::codegen::{model::InterfacePlan, InterfaceThreading};
     let DeclarationKind::Interface(interface) = &declaration.kind else {
         return Err(GenerateError::new("interface emission requires a callable declaration"));
@@ -582,7 +613,7 @@ fn interface_parts(
         bases,
         methods,
     };
-    crate::codegen::expand_interface_parts(plan).map_err(|error| GenerateError::new(error.to_string()))
+    Ok(plan)
 }
 
 /// Converts one Rust-like variant identifier into a stable snake-case name.

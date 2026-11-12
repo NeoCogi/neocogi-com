@@ -1,0 +1,129 @@
+/// A mutable format session. Failures poison it; finish commits one complete document.
+interface ISerializer {
+    /// Writes a unit value.
+    fn serialize_unit(&mut self) -> Result<()>;
+    /// Writes a bool value with its declared width.
+    fn serialize_bool(&mut self, value: bool) -> Result<()>;
+    /// Writes a u8 value with its declared width.
+    fn serialize_u8(&mut self, value: u8) -> Result<()>;
+    /// Writes a u16 value with its declared width.
+    fn serialize_u16(&mut self, value: u16) -> Result<()>;
+    /// Writes a u32 value with its declared width.
+    fn serialize_u32(&mut self, value: u32) -> Result<()>;
+    /// Writes a u64 value with its declared width.
+    fn serialize_u64(&mut self, value: u64) -> Result<()>;
+    /// Writes a i8 value with its declared width.
+    fn serialize_i8(&mut self, value: i8) -> Result<()>;
+    /// Writes a i16 value with its declared width.
+    fn serialize_i16(&mut self, value: i16) -> Result<()>;
+    /// Writes a i32 value with its declared width.
+    fn serialize_i32(&mut self, value: i32) -> Result<()>;
+    /// Writes a i64 value with its declared width.
+    fn serialize_i64(&mut self, value: i64) -> Result<()>;
+    /// Writes a f32 value with its declared width.
+    fn serialize_f32(&mut self, value: f32) -> Result<()>;
+    /// Writes a f64 value with its declared width.
+    fn serialize_f64(&mut self, value: f64) -> Result<()>;
+    /// Copies one UTF-8 string during this call.
+    fn serialize_string(&mut self, value: &str) -> Result<()>;
+    /// Opens optional presence; the present child follows before end_option.
+    fn begin_option(&mut self, present: bool) -> Result<()>;
+    /// Completes the optional value.
+    fn end_option(&mut self) -> Result<()>;
+    /// Opens a named record containing exactly fields members.
+    fn begin_record(&mut self, fields: u32) -> Result<()>;
+    /// Selects the next named field before writing its typed value.
+    fn field(&mut self, name: &str) -> Result<()>;
+    /// Completes the record.
+    fn end_record(&mut self) -> Result<()>;
+    /// Opens an ordered collection with its complete element count.
+    fn begin_sequence(&mut self, length: u32) -> Result<()>;
+    /// Completes the collection.
+    fn end_sequence(&mut self) -> Result<()>;
+    /// Opens a map; keys and values alternate for exactly pairs entries.
+    fn begin_map(&mut self, pairs: u32) -> Result<()>;
+    /// Completes the map.
+    fn end_map(&mut self) -> Result<()>;
+    /// Opens a case identified by both declaration ordinal and authored name.
+    fn begin_variant(&mut self, index: u32, name: &str) -> Result<()>;
+    /// Completes the selected case and its optional payload.
+    fn end_variant(&mut self) -> Result<()>;
+    /// Marks a schema failure; no later operation may succeed.
+    fn fail(&mut self, message: &str) -> Result<()>;
+    /// Commits a complete document; repeated finish and further writes fail.
+    fn finish(&mut self) -> Result<()>;
+}
+
+/// A mutable typed source; each value scope constructs one caller-owned value.
+interface IDeserializer {
+    /// Opens one typed value, charging nesting and construction limits.
+    fn enter_value(&mut self) -> Result<()>;
+    /// Completes the current typed value after its children have been consumed.
+    fn leave_value(&mut self) -> Result<()>;
+    /// Reads a unit value.
+    fn deserialize_unit(&mut self) -> Result<()>;
+    /// Acquires one validated bool value.
+    fn deserialize_bool(&mut self) -> Result<bool>;
+    /// Acquires one validated u8 value.
+    fn deserialize_u8(&mut self) -> Result<u8>;
+    /// Acquires one validated u16 value.
+    fn deserialize_u16(&mut self) -> Result<u16>;
+    /// Acquires one validated u32 value.
+    fn deserialize_u32(&mut self) -> Result<u32>;
+    /// Acquires one validated u64 value.
+    fn deserialize_u64(&mut self) -> Result<u64>;
+    /// Acquires one validated i8 value.
+    fn deserialize_i8(&mut self) -> Result<i8>;
+    /// Acquires one validated i16 value.
+    fn deserialize_i16(&mut self) -> Result<i16>;
+    /// Acquires one validated i32 value.
+    fn deserialize_i32(&mut self) -> Result<i32>;
+    /// Acquires one validated i64 value.
+    fn deserialize_i64(&mut self) -> Result<i64>;
+    /// Acquires one validated f32 value.
+    fn deserialize_f32(&mut self) -> Result<f32>;
+    /// Acquires one validated f64 value.
+    fn deserialize_f64(&mut self) -> Result<f64>;
+    /// Admits a complete UTF-8 string and reports its byte length before allocation.
+    fn string_len(&mut self) -> Result<u32>;
+    /// Copies exactly the admitted string into fresh caller-owned output.
+    fn copy_string(&mut self, output: &mut [u8]) -> Result<u32>;
+    /// Reads optional presence; a present child follows within this value scope.
+    fn option_present(&mut self) -> Result<bool>;
+    /// Opens a record and rejects more than maximum fields.
+    fn begin_record(&mut self, maximum: u32) -> Result<u32>;
+    /// Selects a named field in schema order; false means genuinely absent.
+    fn field(&mut self, name: &str) -> Result<bool>;
+    /// Completes the record, rejecting unconsumed or unknown fields.
+    fn end_record(&mut self) -> Result<()>;
+    /// Opens an ordered collection and reports its bounded element count.
+    fn begin_sequence(&mut self) -> Result<u32>;
+    /// Completes the collection, rejecting unconsumed elements.
+    fn end_sequence(&mut self) -> Result<()>;
+    /// Opens a map and reports its bounded pair count.
+    fn begin_map(&mut self) -> Result<u32>;
+    /// Completes the map.
+    fn end_map(&mut self) -> Result<()>;
+    /// Probes cases in declaration order; a match selects the following payload.
+    fn variant_is(&mut self, index: u32, name: &str) -> Result<bool>;
+    /// Marks a schema failure; no later operation may succeed.
+    fn fail(&mut self, message: &str) -> Result<()>;
+    /// Requires a complete root with no trailing input and closes the session.
+    fn finish(&mut self) -> Result<()>;
+}
+
+/// Byte output of a completed serializer, independent of its document format.
+interface ISerializationOutput {
+    /// Reports the complete document length after successful finish.
+    fn byte_len(&self) -> Result<u64>;
+    /// Copies the complete document; insufficient capacity publishes no prefix.
+    fn copy_to(&self, output: &mut [u8]) -> Result<u64>;
+}
+
+/// A format plugin's shared root; each document receives its own exclusive session.
+interface ISerializationFormat {
+    /// Creates a bounded serializer with format-owned output storage.
+    fn create_serializer(&self, max_bytes: u64, max_elements: u32, max_depth: u32, max_values: u64) -> Result<ComBox<ISerializer>>;
+    /// Copies the complete borrowed document into a new bounded source session.
+    fn create_deserializer(&self, input: &[u8], max_bytes: u64, max_elements: u32, max_depth: u32, max_values: u64) -> Result<ComBox<IDeserializer>>;
+}

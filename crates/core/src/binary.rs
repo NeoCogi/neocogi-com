@@ -13,39 +13,13 @@
 //! opaque-blob conversion that would bypass their element or value limits.
 
 #[cfg(feature = "alloc")]
-use alloc::{string::String, vec::Vec};
+use alloc::vec::Vec;
 use crate::{ComDeserialize, ComSerialize};
 
 /// Wire-format marker, including the independently versioned codec revision.
 const MAGIC: &[u8; 4] = b"NCB\x01";
 
-/// Finite resource policy applied to encoding and decoding.
-#[derive(Clone, Copy, Debug)]
-pub struct Limits {
-    /// Maximum complete document size, including the marker.
-    pub bytes: usize,
-    /// Maximum immediate sequence elements, record fields, or map pairs per container.
-    /// Nested containers each receive this same per-container cap.
-    pub elements: usize,
-    /// Maximum values on a root-to-leaf path; even a scalar root has depth one.
-    /// Format tags and lengths do not add nesting levels.
-    pub depth: usize,
-    /// Maximum cumulative scalar and container values in either direction.
-    /// A vector of N scalar values costs N + 1; unit values also consume budget.
-    /// Text counts as one value, while its UTF-8 payload consumes the byte limit.
-    pub values: usize,
-}
-impl Default for Limits {
-    /// Defaults suit initialization documents rather than unbounded streams.
-    fn default() -> Self {
-        Self {
-            bytes: 16 * 1024 * 1024,
-            elements: 65_536,
-            depth: 64,
-            values: 1_000_000,
-        }
-    }
-}
+pub use crate::serialization::Limits;
 
 /// A deterministic parse/encoding failure with a byte offset.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -71,9 +45,7 @@ pub fn to_vec<T: ComSerialize + ?Sized>(value: &T) -> Result<Vec<u8>, Error> {
 /// Serializes one complete typed value under an explicit resource policy.
 #[cfg(feature = "alloc")]
 pub fn to_vec_with_limits<T: ComSerialize + ?Sized>(value: &T, limits: Limits) -> Result<Vec<u8>, Error> {
-    let mut bytes = Vec::new();
-    encode(value, limits, Output::Growable(&mut bytes))?;
-    Ok(bytes)
+    encode(value, limits, Output::Owned(Vec::new()))?.into_vec()
 }
 /// Encodes one complete document into caller-owned storage without allocation.
 /// The return value is the initialized prefix length; bytes after it are untouched.
@@ -83,7 +55,7 @@ pub fn to_slice<T: ComSerialize + ?Sized>(value: &T, output: &mut [u8]) -> Resul
 }
 /// Uses exactly the same encoding and limits as allocated output and measurement.
 pub fn to_slice_with_limits<T: ComSerialize + ?Sized>(value: &T, output: &mut [u8], limits: Limits) -> Result<usize, Error> {
-    encode(value, limits, Output::Slice(output))
+    encode(value, limits, Output::Slice(output)).map(|writer| writer.offset)
 }
 /// Measures a complete encoding under exactly the writer/reader resource policy.
 /// No output buffer is allocated: the ordinary serializer visits the same values,
@@ -91,22 +63,28 @@ pub fn to_slice_with_limits<T: ComSerialize + ?Sized>(value: &T, output: &mut [u
 /// A user-written ComSerialize implementation can still allocate internally; this
 /// API only guarantees that the codec itself does not store the encoded payload.
 pub fn encoded_len_with_limits<T: ComSerialize + ?Sized>(value: &T, limits: Limits) -> Result<usize, Error> {
-    encode(value, limits, Output::Count)
+    encode(value, limits, Output::Count).map(|writer| writer.offset)
 }
 /// Runs one authoritative encoder with either owned output storage or counting only.
 /// Measurement is an admission check, not a cached proof for a later mutable value.
-fn encode<T: ComSerialize + ?Sized>(value: &T, limits: Limits, output: Output<'_>) -> Result<usize, Error> {
-    let mut writer = Writer {
+fn encode<'a, T: ComSerialize + ?Sized>(value: &T, limits: Limits, output: Output<'a>) -> Result<Encoder<'a>, Error> {
+    let mut encoder = Encoder {
         output,
         offset: 0,
         budget: Budget::new(limits),
+        protocol: Protocol::new(),
+        phase: Phase::Active,
     };
-    writer.write(MAGIC)?;
-    value.com_serialize(&mut writer)?;
-    if writer.budget.depth != 0 {
-        return Err(writer.error("unclosed serialized container"));
-    }
-    Ok(writer.offset)
+    encoder.write(MAGIC)?;
+    let scoped = crate::serialization::scope::Scoped::new(encoder);
+    let result = {
+        // SAFETY: this generated table guards exactly Scoped<Encoder> and rejects ownership.
+        let interface = unsafe { scoped.interface(&crate::serialization::ScopedSerializer::<Encoder<'_>>::VTABLE) };
+        crate::serialization::Serializer::new(interface).serialize(value)
+    };
+    let encoder = scoped.into_inner();
+    result.map_err(|_| encoder.failure("invalid persistent value"))?;
+    Ok(encoder)
 }
 /// Decodes one complete value; trailing data and unknown format versions fail.
 pub fn from_slice<T: ComDeserialize>(bytes: &[u8]) -> Result<T, Error> {
@@ -114,24 +92,19 @@ pub fn from_slice<T: ComDeserialize>(bytes: &[u8]) -> Result<T, Error> {
 }
 /// Decodes under explicit byte, collection, depth, and total-value limits.
 pub fn from_slice_with_limits<T: ComDeserialize>(bytes: &[u8], limits: Limits) -> Result<T, Error> {
-    let mut reader = Reader {
-        bytes,
-        offset: 0,
-        budget: Budget::new(limits),
+    let decoder = Decoder::borrowed(bytes, limits)?;
+    let scoped = crate::serialization::scope::Scoped::new(decoder);
+    let result = {
+        // SAFETY: the table and the borrowed state have this scope's exact provider type.
+        let interface = unsafe { scoped.interface(&crate::serialization::ScopedDeserializer::<Decoder<'_>>::VTABLE) };
+        crate::serialization::Deserializer::with_limits(interface, limits).deserialize()
     };
-    if bytes.len() > limits.bytes {
-        return Err(reader.error("document byte limit"));
-    }
-    if reader.take(4)? != MAGIC {
-        return Err(reader.error("unsupported binary format"));
-    }
-    let value = reader.read()?;
-    if reader.offset != bytes.len() {
-        return Err(reader.error("trailing bytes"));
-    }
-    Ok(value)
+    let decoder = scoped.into_inner();
+    result.map_err(|_| decoder.failure("invalid persistent value"))
 }
 
+mod format;
+use format::{Phase, Protocol};
 /// Structural resource accounting shared by both directions of the binary codec.
 ///
 /// Each schema value enters once and leaves after its children. Internal wire
@@ -197,24 +170,29 @@ enum Output<'a> {
     Slice(&'a mut [u8]),
     /// Grows provider-local storage fallibly under the same byte budget.
     #[cfg(feature = "alloc")]
-    Growable(&'a mut Vec<u8>),
+    Owned(Vec<u8>),
 }
 
-/// One bounded NCB encoding traversal, borrowed by a typed ComSerialize implementation.
+/// Concrete provider state implementing the COM serializer's NCB operations.
 ///
-/// All members are private. The public typed operations preserve fixed endian/width
-/// rules and charge the shared structural budget. Errors abort the encoding; a
-/// custom implementation must propagate errors and balance each begin/end pair.
-/// Use to_vec, to_slice or encoded_len_with_limits to start a complete document.
-pub struct Writer<'a> {
+/// Private operations preserve fixed endian/width rules and charge the shared
+/// structural budget. Typed values use serialization::Serializer through COM;
+/// they never depend on this state's layout. Format failures are terminal.
+/// Binary helpers lend this state through a scoped object; the facade also
+/// supplies an owning NcbSerializer object for independently retained sessions.
+pub struct Encoder<'a> {
     /// Storage policy; counting and materialization visit the same encoding path.
     output: Output<'a>,
     /// Encoded bytes accepted so far, including framing, in every output mode.
     offset: usize,
     /// Shared definition of logical values, nesting, and collection bounds.
     budget: Budget,
+    /// Exact logical container state, independent of NCB byte offsets.
+    protocol: Protocol,
+    /// Terminal failure or successful finish; neither permits further operations.
+    phase: Phase,
 }
-impl Writer<'_> {
+impl Encoder<'_> {
     /// Associates a static diagnostic with the current output position.
     fn error(&self, message: &'static str) -> Error {
         Error { offset: self.offset, message }
@@ -234,7 +212,7 @@ impl Writer<'_> {
                 destination.copy_from_slice(bytes);
             }
             #[cfg(feature = "alloc")]
-            Output::Growable(output) => {
+            Output::Owned(output) => {
                 // Grow geometrically but never request capacity above this call's
                 // byte ceiling. Reservation failure is a normal encoding error.
                 let required = self.offset + bytes.len();
@@ -254,10 +232,12 @@ impl Writer<'_> {
     }
     /// Opens a schema value; callers must close it after all its children.
     fn enter(&mut self) -> Result<(), Error> {
-        self.budget.enter(self.offset)
+        self.budget.enter(self.offset)?;
+        self.protocol.enter().map_err(|message| self.error(message))
     }
     /// Ends a previously opened schema value, including an empty container.
     fn leave(&mut self) -> Result<(), Error> {
+        self.protocol.leave().map_err(|message| self.error(message))?;
         self.budget.leave(self.offset)
     }
     /// Runs a leaf or option value within one budget scope.
@@ -271,7 +251,10 @@ impl Writer<'_> {
     }
     /// Encodes one scalar without counting its individual representation bytes.
     fn scalar(&mut self, bytes: &[u8]) -> Result<(), Error> {
-        self.value(|writer| writer.write(bytes))
+        self.value(|writer| {
+            writer.scalar_shape()?;
+            writer.write(bytes)
+        })
     }
     /// Writes a count as framing after the shared collection preflight succeeds.
     fn count(&mut self, len: usize, values_per_entry: usize) -> Result<(), Error> {
@@ -280,150 +263,127 @@ impl Writer<'_> {
         self.write(&count.to_le_bytes())
     }
 }
-impl Writer<'_> {
+impl Encoder<'_> {
     /// Unit has no payload bytes.
-    pub fn serialize_unit(&mut self) -> Result<(), Error> {
+    fn serialize_unit(&mut self) -> Result<(), Error> {
         self.scalar(&[])
     }
     /// Boolean has precisely two accepted encodings.
-    pub fn serialize_bool(&mut self, value: bool) -> Result<(), Error> {
+    fn serialize_bool(&mut self, value: bool) -> Result<(), Error> {
         self.scalar(&[u8::from(value)])
     }
     /// Writes the declared width in little-endian order.
-    pub fn serialize_u8(&mut self, value: u8) -> Result<(), Error> {
+    fn serialize_u8(&mut self, value: u8) -> Result<(), Error> {
         self.scalar(&value.to_le_bytes())
     }
     /// Writes the declared width in little-endian order.
-    pub fn serialize_u16(&mut self, value: u16) -> Result<(), Error> {
+    fn serialize_u16(&mut self, value: u16) -> Result<(), Error> {
         self.scalar(&value.to_le_bytes())
     }
     /// Writes the declared width in little-endian order.
-    pub fn serialize_u32(&mut self, value: u32) -> Result<(), Error> {
+    fn serialize_u32(&mut self, value: u32) -> Result<(), Error> {
         self.scalar(&value.to_le_bytes())
     }
     /// Writes the declared width in little-endian order.
-    pub fn serialize_u64(&mut self, value: u64) -> Result<(), Error> {
+    fn serialize_u64(&mut self, value: u64) -> Result<(), Error> {
         self.scalar(&value.to_le_bytes())
     }
     /// Writes the declared width in little-endian order.
-    pub fn serialize_i8(&mut self, value: i8) -> Result<(), Error> {
+    fn serialize_i8(&mut self, value: i8) -> Result<(), Error> {
         self.scalar(&value.to_le_bytes())
     }
     /// Writes the declared width in little-endian order.
-    pub fn serialize_i16(&mut self, value: i16) -> Result<(), Error> {
+    fn serialize_i16(&mut self, value: i16) -> Result<(), Error> {
         self.scalar(&value.to_le_bytes())
     }
     /// Writes the declared width in little-endian order.
-    pub fn serialize_i32(&mut self, value: i32) -> Result<(), Error> {
+    fn serialize_i32(&mut self, value: i32) -> Result<(), Error> {
         self.scalar(&value.to_le_bytes())
     }
     /// Writes the declared width in little-endian order.
-    pub fn serialize_i64(&mut self, value: i64) -> Result<(), Error> {
+    fn serialize_i64(&mut self, value: i64) -> Result<(), Error> {
         self.scalar(&value.to_le_bytes())
     }
     /// Writes the declared width in little-endian order.
-    pub fn serialize_f32(&mut self, value: f32) -> Result<(), Error> {
+    fn serialize_f32(&mut self, value: f32) -> Result<(), Error> {
         self.scalar(&value.to_le_bytes())
     }
     /// Writes the declared width in little-endian order.
-    pub fn serialize_f64(&mut self, value: f64) -> Result<(), Error> {
+    fn serialize_f64(&mut self, value: f64) -> Result<(), Error> {
         self.scalar(&value.to_le_bytes())
-    }
-    /// usize always occupies eight bytes on disk.
-    pub fn serialize_usize(&mut self, value: usize) -> Result<(), Error> {
-        self.serialize_u64(value as u64)
-    }
-    /// isize always occupies eight bytes on disk.
-    pub fn serialize_isize(&mut self, value: isize) -> Result<(), Error> {
-        self.serialize_i64(value as i64)
     }
     /// Strings use a byte count, independent of the collection-element limit.
-    pub fn serialize_string(&mut self, value: &str) -> Result<(), Error> {
+    fn serialize_string(&mut self, value: &str) -> Result<(), Error> {
         self.value(|writer| {
+            writer.scalar_shape()?;
             let len = u32::try_from(value.len()).map_err(|_| writer.error("string exceeds u32"))?;
             // The byte length is format framing, not another schema value.
             writer.write(&len.to_le_bytes())?;
             writer.write(value.as_bytes())
         })
     }
-    /// Presence is followed by a recursively encoded value.
-    pub fn serialize_option<T: ComSerialize>(&mut self, value: Option<&T>) -> Result<(), Error> {
-        self.value(|writer| {
-            // Presence is framing; only a present payload opens a child value.
-            writer.write(&[u8::from(value.is_some())])?;
-            match value {
-                Some(value) => value.com_serialize(writer),
-                None => Ok(()),
-            }
-        })
-    }
     /// Collections carry their element count.
-    pub fn begin_sequence(&mut self, len: usize) -> Result<(), Error> {
+    fn begin_sequence(&mut self, len: usize) -> Result<(), Error> {
         self.enter()?;
         self.count(len, 1)
     }
     /// Finishes a collection.
-    pub fn end_sequence(&mut self) -> Result<(), Error> {
+    fn end_sequence(&mut self) -> Result<(), Error> {
         self.leave()
     }
     /// Maps carry their pair count.
-    pub fn begin_map(&mut self, len: usize) -> Result<(), Error> {
+    fn begin_map(&mut self, len: usize) -> Result<(), Error> {
         self.enter()?;
         self.count(len, 2)
     }
     /// Finishes a map.
-    pub fn end_map(&mut self) -> Result<(), Error> {
+    fn end_map(&mut self) -> Result<(), Error> {
         self.leave()
     }
     /// Ordinals belong to the persistent schema, not to Rust enum memory layout.
-    pub fn begin_variant(&mut self, index: u32) -> Result<(), Error> {
+    fn begin_variant(&mut self, index: u32) -> Result<(), Error> {
         self.enter()?;
         self.write(&index.to_le_bytes())
     }
     /// Finishes a variant's payload.
-    pub fn end_variant(&mut self) -> Result<(), Error> {
+    fn end_variant(&mut self) -> Result<(), Error> {
         self.leave()
     }
 }
 
-/// Bounded NCB cursor supplied to a typed ComDeserialize implementation.
+/// Concrete provider state implementing the COM deserializer's NCB operations.
 ///
-/// Read child values with read(), which charges their shared depth/value budget.
-/// Record and sequence scopes consume fields in order; they never supply names or
-/// arbitrary indices. Errors abort decoding and retain the exact failure offset.
-/// Complete documents enter through from_slice or from_slice_with_limits.
-pub struct Reader<'de> {
+/// Typed construction uses serialization::Deserializer through COM. NCB resolves
+/// fields positionally and cases by ordinal while charging the same depth/value
+/// budget as encoding. Failures are terminal and retain their exact byte offset.
+/// Binary helpers borrow input; the facade's NcbDeserializer owns its document.
+pub struct Decoder<'de> {
     /// Entire immutable document.
-    bytes: &'de [u8],
+    bytes: Input<'de>,
     /// Next unread byte.
     offset: usize,
     /// Same structural accounting used by the writer before emitting values.
     budget: Budget,
+    /// Exact logical container state, independent of NCB byte offsets.
+    protocol: Protocol,
+    /// Terminal failure or successful finish; neither permits further operations.
+    phase: Phase,
+    /// Validated string bytes awaiting one output-copy operation.
+    pending_string: Option<core::ops::Range<usize>>,
+    /// An ordinal being probed by authored case names, before selecting its payload.
+    pending_variant: Option<u32>,
 }
-impl<'de> Reader<'de> {
+impl<'de> Decoder<'de> {
     /// Creates a non-allocating diagnostic at the current cursor.
-    pub fn error(&self, message: &'static str) -> Error {
+    fn error(&self, message: &'static str) -> Error {
         Error { offset: self.offset, message }
     }
     /// Checks the range before advancing or allocating owned data.
-    fn take(&mut self, len: usize) -> Result<&'de [u8], Error> {
+    fn take(&mut self, len: usize) -> Result<&[u8], Error> {
         let end = self.offset.checked_add(len).ok_or_else(|| self.error("length overflow"))?;
-        let value = self.bytes.get(self.offset..end).ok_or_else(|| self.error("truncated value"))?;
+        let value = self.bytes.as_slice().get(self.offset..end).ok_or_else(|| self.error("truncated value"))?;
         self.offset = end;
         Ok(value)
-    }
-    /// Reads one typed child and charges its depth and cumulative value exactly once.
-    pub fn read<T: ComDeserialize>(&mut self) -> Result<T, Error> {
-        self.value(T::com_deserialize)
-    }
-    /// Opens one unnamed schema value, used for a tuple/record enum payload.
-    /// This gives aggregate payloads the same budget as ordinary named values
-    /// without generating private helper structs solely to invoke their decoder.
-    pub fn value<T>(&mut self, read: impl FnOnce(&mut Self) -> Result<T, Error>) -> Result<T, Error> {
-        self.budget.enter(self.offset)?;
-        let result = read(self);
-        self.budget.leave(self.offset)?;
-        result
     }
     /// Rejects large collection counts before Vec preallocation.
     fn count(&mut self, values_per_entry: usize) -> Result<usize, Error> {
@@ -432,7 +392,7 @@ impl<'de> Reader<'de> {
         Ok(len)
     }
 }
-impl Reader<'_> {
+impl Decoder<'_> {
     /// Unit consumes no payload bytes.
     pub(crate) fn deserialize_unit(&mut self) -> Result<(), Error> {
         Ok(())
@@ -485,112 +445,23 @@ impl Reader<'_> {
     pub(crate) fn deserialize_f64(&mut self) -> Result<f64, Error> {
         Ok(f64::from_le_bytes(self.take(8)?.try_into().expect("checked scalar width")))
     }
-    /// A value saved on a wider target must fit the receiving pointer width.
-    pub(crate) fn deserialize_usize(&mut self) -> Result<usize, Error> {
-        usize::try_from(self.deserialize_u64()?).map_err(|_| self.error("usize overflow"))
-    }
-    /// Signed pointer-width values are checked before conversion.
-    pub(crate) fn deserialize_isize(&mut self) -> Result<isize, Error> {
-        isize::try_from(self.deserialize_i64()?).map_err(|_| self.error("isize overflow"))
-    }
-    /// Validates UTF-8 before making the one owned string copy.
-    #[cfg(feature = "alloc")]
-    pub(crate) fn deserialize_string(&mut self) -> Result<String, Error> {
-        let len = self.deserialize_u32()? as usize;
-        let text = core::str::from_utf8(self.take(len)?).map_err(|_| self.error("invalid UTF-8"))?;
-        Ok(text.into())
-    }
-    /// Uses the same strict tag as booleans.
-    pub(crate) fn deserialize_option<T: ComDeserialize>(&mut self) -> Result<Option<T>, Error> {
-        match self.deserialize_bool()? {
-            true => self.read().map(Some),
-            false => Ok(None),
-        }
-    }
-    /// Reads a declaration-ordered record; only an omitted suffix may be absent.
-    /// Reject excess fields before entering user construction, and require the
-    /// constructor to consume every field that the document actually contains.
-    pub fn record<T>(&mut self, maximum: usize, read: impl FnOnce(&mut Sequence<'_, '_>) -> Result<T, Error>) -> Result<T, Error> {
-        let remaining = self.count(1)?;
-        if remaining > maximum {
-            return Err(self.error("unknown record fields"));
-        }
-        let mut fields = Sequence { reader: self, remaining };
-        let value = read(&mut fields)?;
-        fields.finish("unconsumed record fields")?;
-        Ok(value)
-    }
-    /// Reads a counted sequence and requires complete consumption of its elements.
-    pub fn sequence<T>(&mut self, read: impl FnOnce(&mut Sequence<'_, '_>) -> Result<T, Error>) -> Result<T, Error> {
-        let remaining = self.count(1)?;
-        let mut elements = Sequence { reader: self, remaining };
-        let value = read(&mut elements)?;
-        elements.finish("unconsumed sequence elements")?;
-        Ok(value)
-    }
-    /// Reads and validates an enum ordinal before acquiring its selected payload.
-    /// The ordinal is framing within the already charged enum value.
-    pub fn variant(&mut self, count: usize) -> Result<u32, Error> {
-        let index = self.deserialize_u32()?;
-        match (index as usize) < count {
-            true => Ok(index),
-            false => Err(self.error("unknown enum variant")),
-        }
-    }
-    /// Builds the sole supported owned map directly from bounded key/value pairs.
-    /// Keys and values each consume a value; a pair adds no synthetic tuple level.
-    #[cfg(feature = "alloc")]
-    pub(crate) fn map<K: ComDeserialize + Ord, V: ComDeserialize>(&mut self) -> Result<alloc::collections::BTreeMap<K, V>, Error> {
-        let count = self.count(2)?;
-        let mut values = alloc::collections::BTreeMap::new();
-        for _ in 0..count {
-            let key = self.read()?;
-            let value = self.read()?;
-            if values.insert(key, value).is_some() {
-                return Err(self.error("duplicate map key"));
-            }
-        }
-        Ok(values)
-    }
 }
 
-/// One counted sequence of positional fields or elements, borrowing its parent cursor.
-///
-/// The next value's type comes from the static schema. No field can be revisited,
-/// reordered, or read beyond the encoded count. Parent scope completion checks
-/// that the constructor consumed all values. This is concrete NCB state, not an
-/// extensible input-format protocol.
-pub struct Sequence<'a, 'de> {
-    /// Cursor carrying the document-wide byte/depth/value limits.
-    reader: &'a mut Reader<'de>,
-    /// Encoded values still available in this container.
-    remaining: usize,
+/// Input ownership is explicit: allocation-free borrows and owned COM sources share parsing.
+enum Input<'a> {
+    /// Caller-owned bytes retained by a scoped operation.
+    Borrowed(&'a [u8]),
+    /// Format-owned bytes that may outlive the creating call.
+    #[cfg(feature = "alloc")]
+    Owned(Vec<u8>),
 }
-impl Sequence<'_, '_> {
-    /// Acquires the next concrete value, or reports a genuinely absent suffix.
-    /// Truncated bytes remain an error and never masquerade as an omitted field.
-    pub fn read_next<T: ComDeserialize>(&mut self) -> Result<Option<T>, Error> {
-        match self.remaining {
-            0 => Ok(None),
-            _ => {
-                self.remaining -= 1;
-                self.reader.read().map(Some)
-            }
-        }
-    }
-    /// Returns the exact remaining count, already checked against collection limits.
-    pub fn remaining(&self) -> usize {
-        self.remaining
-    }
-    /// Associates a schema-specific diagnostic with the current failure position.
-    pub fn error(&self, message: &'static str) -> Error {
-        self.reader.error(message)
-    }
-    /// Rejects unconsumed values before returning a completed container.
-    fn finish(&self, message: &'static str) -> Result<(), Error> {
-        match self.remaining {
-            0 => Ok(()),
-            _ => Err(self.error(message)),
+impl Input<'_> {
+    /// Borrows immutable bytes without exposing allocation ownership.
+    fn as_slice(&self) -> &[u8] {
+        match self {
+            Self::Borrowed(bytes) => bytes,
+            #[cfg(feature = "alloc")]
+            Self::Owned(bytes) => bytes,
         }
     }
 }

@@ -453,3 +453,10 @@ actual array element shape and count separately.
 The [generic value guide](IDL_GENERIC_VALUES.md) specifies bundled library lookup,
 `Option` ownership, conditional decoding, exact supported spellings, and the
 migration from nullable optional inputs and implicit owned slice fields.
+
+Value persistence traverses the [COM format interfaces](SERIALIZATION_FORMATS.md).
+Named records supply field names and payload enums supply case names and ordinals.
+NCB remains positional; named formats may select fields independently of encoded
+order. The explicit default policy retains genuinely absent fields. The value
+traits use format-neutral borrowed facades, while live COM wire validation and
+object reconstruction retain their separate contracts.

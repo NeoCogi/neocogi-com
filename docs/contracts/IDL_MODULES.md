@@ -713,8 +713,8 @@ NCB records always encode fields in declaration order. All fields are required
 unless `#[persistence(default)]` retains an omitted trailing suffix from a
 host-provided Rust `Default`. Truncated or invalid present fields remain errors.
 The default policy requires supported field codecs and enters the shared
-fingerprint. `#[persistence(sequence)]` is rejected because there is no alternate
-named-field representation. The old `#[deserialize]`/`if_supported`
+fingerprint. `#[persistence(sequence)]` is rejected: declaration shape selects a named
+record or an ordered tuple independently of the chosen format. The old `#[deserialize]`/`if_supported`
 opt-ins are removed. See [automatic value persistence](IDL_GENERIC_VALUES.md)
 for the detailed format and capability rules. No COM object machinery is added
 by these static trait implementations.
@@ -1157,3 +1157,10 @@ or closed type beside these names. Their spelling and build-sidecar schemas do
 not advance runtime or plugin descriptor discovery: both remain v1. See
 [generic name documentation](IDL_GENERIC_VALUES.md#reading-generated-specialization-names)
 and [source-map lookup](../guides/IDL_SOURCE_MAPS.md).
+
+Value persistence traverses the [COM format interfaces](SERIALIZATION_FORMATS.md).
+Named records supply field names and payload enums supply case names and ordinals.
+NCB remains positional; named formats may select fields independently of encoded
+order. The explicit default policy retains genuinely absent fields. The value
+traits use format-neutral borrowed facades, while live COM wire validation and
+object reconstruction retain their separate contracts.

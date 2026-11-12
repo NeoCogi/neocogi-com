@@ -35,24 +35,28 @@ impl ObjectRecord {
     /// measurement. Abstracting only state serialization avoids a second envelope
     /// schema or hardcoded framing/value overhead in document admission checks.
     fn serialize_fields<T: ComSerialize + ?Sized>(
-        serializer: &mut binary::Writer<'_>,
+        serializer: &mut crate::serialization::Serializer<'_>,
         type_id: &[u8; 16],
         schema_version: u32,
         state: &T,
         children: &[Self],
-    ) -> Result<(), binary::Error> {
-        serializer.begin_sequence(Self::FIELD_COUNT)?;
+    ) -> Result<(), crate::NcStatus> {
+        serializer.begin_record(Self::FIELD_COUNT)?;
+        serializer.field("type_id")?;
         type_id.com_serialize(serializer)?;
+        serializer.field("schema_version")?;
         schema_version.com_serialize(serializer)?;
+        serializer.field("state")?;
         state.com_serialize(serializer)?;
+        serializer.field("children")?;
         children.com_serialize(serializer)?;
-        serializer.end_sequence()
+        serializer.end_record()
     }
 }
 
 impl ComSerialize for ObjectRecord {
     /// Preserves the positional schema and exact field order used before relocation.
-    fn com_serialize(&self, serializer: &mut binary::Writer<'_>) -> Result<(), binary::Error> {
+    fn com_serialize(&self, serializer: &mut crate::serialization::Serializer<'_>) -> Result<(), crate::NcStatus> {
         Self::serialize_fields(serializer, &self.type_id, self.schema_version, &self.state, &self.children)
     }
 }
@@ -64,7 +68,7 @@ struct LeafSize {
 }
 impl ComSerialize for LeafSize {
     /// Uses the same envelope fields as a real owned record with empty children.
-    fn com_serialize(&self, serializer: &mut binary::Writer<'_>) -> Result<(), binary::Error> {
+    fn com_serialize(&self, serializer: &mut crate::serialization::Serializer<'_>) -> Result<(), crate::NcStatus> {
         ObjectRecord::serialize_fields(serializer, &[0; 16], 0, &ByteCount(self.state_bytes), &[])
     }
 }
@@ -74,7 +78,7 @@ struct ByteCount(usize);
 impl ComSerialize for ByteCount {
     /// Collection admission happens before visiting any elements, exactly as for
     /// Vec<u8>. Each zero still consumes one scalar value: this is not a blob.
-    fn com_serialize(&self, serializer: &mut binary::Writer<'_>) -> Result<(), binary::Error> {
+    fn com_serialize(&self, serializer: &mut crate::serialization::Serializer<'_>) -> Result<(), crate::NcStatus> {
         serializer.begin_sequence(self.0)?;
         for _ in 0..self.0 {
             serializer.serialize_u8(0)?;
@@ -85,13 +89,13 @@ impl ComSerialize for ByteCount {
 
 impl ComDeserialize for ObjectRecord {
     /// Acquires each required field once, in the same order used by serialize_fields.
-    fn com_deserialize(reader: &mut binary::Reader<'_>) -> Result<Self, binary::Error> {
+    fn com_deserialize(reader: &mut crate::serialization::Deserializer<'_>) -> Result<Self, crate::NcStatus> {
         reader.record(Self::FIELD_COUNT, |fields| {
             Ok(Self {
-                type_id: fields.read_next()?.ok_or_else(|| fields.error("missing field"))?,
-                schema_version: fields.read_next()?.ok_or_else(|| fields.error("missing field"))?,
-                state: fields.read_next()?.ok_or_else(|| fields.error("missing field"))?,
-                children: fields.read_next()?.ok_or_else(|| fields.error("missing field"))?,
+                type_id: fields.read_field("type_id")?.ok_or_else(|| fields.error("missing field"))?,
+                schema_version: fields.read_field("schema_version")?.ok_or_else(|| fields.error("missing field"))?,
+                state: fields.read_field("state")?.ok_or_else(|| fields.error("missing field"))?,
+                children: fields.read_field("children")?.ok_or_else(|| fields.error("missing field"))?,
             })
         })
     }

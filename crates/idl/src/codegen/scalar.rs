@@ -240,13 +240,13 @@ pub fn emit_scalar(plan: &ScalarPlan, nc: &syn::Path) -> TokenStream {
         quote! {
             impl #nc::ComSerialize for #name {
                 /// Persists the declared integer width, including unknown raw values.
-                fn com_serialize(&self, #serializer: &mut #nc::binary::Writer<'_>) -> ::core::result::Result<(), #nc::binary::Error> {
+                fn com_serialize(&self, #serializer: &mut #nc::serialization::Serializer<'_>) -> ::core::result::Result<(), #nc::NcStatus> {
                     <#repr as #nc::ComSerialize>::com_serialize(&self.raw(), #serializer)
                 }
             }
             impl #nc::ComDeserialize for #name {
                 /// Restores raw integers; live COM domain validation is a separate operation.
-                fn com_deserialize(#decoder: &mut #nc::binary::Reader<'_>) -> ::core::result::Result<Self, #nc::binary::Error> {
+                fn com_deserialize(#decoder: &mut #nc::serialization::Deserializer<'_>) -> ::core::result::Result<Self, #nc::NcStatus> {
                     <#repr as #nc::ComDeserialize>::com_deserialize(#decoder).map(Self::from_raw)
                 }
             }

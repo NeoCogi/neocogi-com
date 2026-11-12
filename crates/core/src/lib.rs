@@ -13,10 +13,10 @@
 //! headers from a plugin binary. ABI signatures are fixed views over hashes
 //! already computed by the IDL build tool; this crate does not hash contracts.
 //!
-//! [`ComDeserialize`] constructs persistent values through the concrete bounded
-//! NCB [`binary::Reader`]. Generated fields follow declaration order, independently
-//! of checked live-call wire layouts. Scalar and fixed-size codecs work without
-//! allocation; owned values and growable output require the `alloc` feature.
+//! [`ComDeserialize`] constructs local typed values through COM format objects.
+//! [`serialization`] owns their checked interfaces and traversal facades;
+//! [`binary`] supplies NCB and allocation-free scoped adapters. Owned document
+//! objects live in the facade. Wire layouts and application storage remain separate.
 //!
 //! [`NC_COM_CORE_ABI_VERSION`] is the first public compatibility generation 18.
 //! Runtime and plugin discovery retain family 1. Within a compatible generation,
@@ -38,6 +38,7 @@ pub mod binary;
 mod buffer;
 mod client;
 mod method_names;
+pub mod serialization;
 pub use method_names::{NC_COM_HANDLE_METHOD_NAMES, is_reserved_com_method};
 mod generated_names;
 pub use generated_names::{NcComDenseEnumMember, NcComInterfaceCompanion};

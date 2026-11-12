@@ -76,12 +76,11 @@
 //! charge actual selected fields; isolated consuming-output admission reserves
 //! the declared maximum before any exclusive owner is accepted.
 //!
-//! [`ComSerialize`] and [`ComDeserialize`] are positional NCB persistence traits.
-//! The optional derives apply to ordinary native data independently of a live
-//! COM contract. Named fields are stored in declaration order and variants use
-//! ordinals; NCB has no named-field or rename mode. Packed native records need
-//! an explicit aligned-field serialization codec. IDL owns no native packing,
-//! alignment, or external-field admission switches.
+//! [`ComSerialize`] and [`ComDeserialize`] traverse statically typed values through
+//! [`serialization::ISerializerAbi`] and [`serialization::IDeserializerAbi`] COM
+//! objects. `serialization::Format` selects a runtime format factory; NCB is
+//! supplied by default. Derives send record field names and enum names/ordinals.
+//! Packed records require an explicit aligned-field codec; live ABI layout is separate.
 //!
 //! An interface caller calls a COM interface; a provider implements one. Both
 //! use this shared SDK. A host is the final assembly that additionally selects
@@ -182,6 +181,7 @@ pub use neocogi_com_core::{
 };
 
 pub use neocogi_com_core::binary;
+pub mod serialization;
 
 /// Compile the runnable README examples against this crate's real public API.
 #[cfg(doctest)]

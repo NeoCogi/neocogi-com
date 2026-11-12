@@ -294,3 +294,10 @@ names without `use`, and does not duplicate the leaf declaration. The
 [Cargo dependency contract](IDL_MODULES.md#separately-distributed-source-dependencies) describes provider
 selection and the generated dependency namespace. Public owner metadata and
 canonical signatures are independent of these consumer access routes.
+
+Value persistence traverses the [COM format interfaces](SERIALIZATION_FORMATS.md).
+Named records supply field names and payload enums supply case names and ordinals.
+NCB remains positional; named formats may select fields independently of encoded
+order. The explicit default policy retains genuinely absent fields. The value
+traits use format-neutral borrowed facades, while live COM wire validation and
+object reconstruction retain their separate contracts.

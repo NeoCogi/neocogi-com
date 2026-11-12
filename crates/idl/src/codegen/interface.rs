@@ -53,6 +53,34 @@ pub struct InterfaceExpansion {
 
 /// Lowers both halves once so checked-in built-ins and ordinary IDL stay identical.
 pub fn expand_interface_parts(plan: InterfacePlan) -> Result<InterfaceExpansion> {
+    expand_parts(plan, ProviderDispatch::Owned)
+}
+
+/// Built-in format adapters borrow their caller's state without granting ownership.
+pub(crate) fn expand_scoped_interface_parts(plan: InterfacePlan) -> Result<InterfaceExpansion> {
+    if matches!(plan.threading, InterfaceThreading::Shared)
+        || !plan.bases.is_empty()
+        || plan.methods.iter().any(|method| !matches!(method.receiver, AbiReceiver::Mutable))
+    {
+        return Err(syn::Error::new_spanned(
+            &plan.name,
+            "scoped adapters require thread-local root interfaces with mutable methods",
+        ));
+    }
+    expand_parts(plan, ProviderDispatch::Scoped)
+}
+
+/// Storage admission selected independently of the canonical callable contract.
+#[derive(Clone, Copy)]
+enum ProviderDispatch {
+    /// Ordinary owning COM implementations use their object-wide gate.
+    Owned,
+    /// A nonretainable format session lends stack-owned state for one operation.
+    Scoped,
+}
+
+/// Uses one lowering path for wire checks, metadata and either storage lifetime.
+fn expand_parts(plan: InterfacePlan, dispatch: ProviderDispatch) -> Result<InterfaceExpansion> {
     let InterfacePlan {
         name,
         visibility: vis,
@@ -142,6 +170,17 @@ pub fn expand_interface_parts(plan: InterfacePlan) -> Result<InterfaceExpansion>
             downgrade: ::core::option::Option::Some(#nc::lifetime::nc_downgrade),
         },
     };
+    if matches!(dispatch, ProviderDispatch::Scoped) {
+        prefix_value = quote! {
+            #prefix: #nc::IUnknownVTable {
+                interface_id: #identity_local,
+                query_interface: #nc::serialization::scope::query,
+                add_ref: #nc::serialization::scope::retain,
+                release: #nc::serialization::scope::release,
+                downgrade: ::core::option::Option::None,
+            },
+        };
+    }
     let mut client_base = quote! {};
     if let Some(base) = base {
         let base_abi = generated_path(base, Companion::Abi);
@@ -454,13 +493,16 @@ pub fn expand_interface_parts(plan: InterfacePlan) -> Result<InterfaceExpansion>
                 }
             },
         };
-        let borrow = match method.receiver {
+        let borrow = match dispatch {
+            ProviderDispatch::Scoped => quote! { #nc::serialization::scope::Scoped::<#provider>::borrow_mut(#object_ident) },
+            ProviderDispatch::Owned => match method.receiver {
             AbiReceiver::Shared => quote! {
                 <#provider as #nc::ComObject>::borrow_abi_ref(#object_ident)
             },
             AbiReceiver::Mutable => quote! {
                 <#provider as #nc::ComObject>::borrow_abi_mut(#object_ident)
             },
+        },
         };
         let invoke = match method.receiver {
             AbiReceiver::Shared => quote! {
@@ -679,6 +721,27 @@ pub fn expand_interface_parts(plan: InterfacePlan) -> Result<InterfaceExpansion>
         }
 
     };
+    let object_bound = match dispatch {
+        ProviderDispatch::Owned => quote! { + #nc::ComObject },
+        ProviderDispatch::Scoped => quote! {},
+    };
+    let projections = match dispatch {
+        ProviderDispatch::Owned => quote! {
+            /// Distinct provider bindings in the interface's canonical metadata order.
+            /// T fixes the thunk implementation; no object headers are stored here.
+            pub const PROJECTIONS: [#nc::__ComProjection<#provider>; #abi_ident::INTERFACE_CHAIN.len()] =
+                #nc::__nc_projection_table(
+                    &#abi_ident::INTERFACE_CHAIN,
+                    // SAFETY: this macro emits the exact contract identity and
+                    // complete prefix-compatible vtable for T's allocation.
+                    unsafe { #nc::__ComProjection::new(<#abi_ident as #nc::ComInterface>::INTERFACE_ID,
+                        &Self::VTABLE as *const #vtable_ident as *const #nc::IUnknownVTable) },
+                    &[#(&#required_providers::<#provider>::PROJECTIONS,)*],
+                );
+
+        },
+        ProviderDispatch::Scoped => quote! {},
+    };
     let provider = quote! {
         #[doc(hidden)]
         /// Statically typed vtable and lifecycle adapters for one provider type.
@@ -691,19 +754,9 @@ pub fn expand_interface_parts(plan: InterfacePlan) -> Result<InterfaceExpansion>
         #binding_imports
         impl<#provider> #vtable_for_ident<#provider>
         where
-            #provider: #trait_ident + #nc::ComObject,
+            #provider: #trait_ident #object_bound,
         {
-            /// Distinct provider bindings in the interface's canonical metadata order.
-            /// T fixes the thunk implementation; no object headers are stored here.
-            pub const PROJECTIONS: [#nc::__ComProjection<#provider>; #abi_ident::INTERFACE_CHAIN.len()] =
-                #nc::__nc_projection_table(
-                    &#abi_ident::INTERFACE_CHAIN,
-                    // SAFETY: this macro emits the exact contract identity and
-                    // complete prefix-compatible vtable for T's allocation.
-                    unsafe { #nc::__ComProjection::new(<#abi_ident as #nc::ComInterface>::INTERFACE_ID,
-                        &Self::VTABLE as *const #vtable_ident as *const #nc::IUnknownVTable) },
-                    &[#(&#required_providers::<#provider>::PROJECTIONS,)*],
-                );
+            #projections
 
             /// Table for a standalone projection of this interface.
             pub const VTABLE: #vtable_ident = Self::with_identity(&<#abi_ident as #nc::ComInterface>::INTERFACE_ID);

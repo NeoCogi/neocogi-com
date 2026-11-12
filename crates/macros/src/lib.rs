@@ -12,7 +12,7 @@ use syn::{DeriveInput, ItemStruct, parse_macro_input};
 /// Struct fields decode in declaration order; enums use declaration ordinals
 /// and recursively typed payloads. Use `#[com_deserialize(default)]` on a named
 /// struct to retain `Default` values for an omitted suffix. Truncated field bytes
-/// remain errors. NCB has no alternate named-field or renamed-variant mode.
+/// remain errors. Names follow declarations; selected formats decide their encoded representation.
 /// IDL records receive their codecs directly from the resolved declaration.
 /// These derives apply to ordinary Rust persistence values.
 #[proc_macro_derive(ComDeserialize, attributes(com_deserialize))]
