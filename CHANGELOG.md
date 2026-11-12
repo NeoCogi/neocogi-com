@@ -4,8 +4,11 @@ The current contract uses [ABI v2, core generation 19](docs/abi-v2.md). Entries 
 its development; later entries can supersede older implementation details.
 Historical draft numbers do not define additional supported COM baselines.
 
-## 0.2.0-alpha.1 — prepared 2026-11-12
+## 0.2.0-alpha.1 — 2026-11-12
 
+- Make compiler factory and raw weak-promotion tests check the exact returned
+  interface before typed adoption or release. Erased transport preserves the
+  selected interface identity; it does not convert the result to IUnknown.
 - Return admitted `Runtime` access from the host's safe `initialize_runtime()`
   constructor. `com_main` requires that typed result from its selected path;
   it no longer adopts raw service pointers on behalf of arbitrary safe modules.
@@ -50,10 +53,10 @@ Historical draft numbers do not define additional supported COM baselines.
   Rename supplied service records and callbacks from `V1` to `V2`; rebuild hosts,
   providers and generated bindings together. ABI v1 discovery is not a fallback.
   Keep [ABI v1](docs/abi-v1.md) as the released historical baseline.
-- Prepare all eight SDK packages as `0.2.0-alpha.1` with exact internal
+- Version all eight SDK packages as `0.2.0-alpha.1` with exact internal
   requirements. Tutorial manifests and current documentation target that cohort.
-  This is local release preparation, not a publication or a claim that remote
-  Linux/macOS/Windows qualification has completed for this candidate.
+  This Git prerelease does not claim crates.io publication or completed remote
+  Linux/macOS/Windows qualification for this commit.
 
 
 ## 0.1.0 — 2026-10-29

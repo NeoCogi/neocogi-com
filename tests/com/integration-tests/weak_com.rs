@@ -276,7 +276,12 @@ fn raw_promotion_balances_success_and_all_rejection_paths() {
         assert_eq!(neocogi_com::lifetime::nc_weak_upgrade(token.control, &IValueAbi::INTERFACE_ID, &mut out), NC_OK);
         assert_eq!(((*table).add_ref)(owner.as_raw().object), 3);
         assert_eq!(((*table).release)(owner.as_raw().object), 2);
-        drop(ComPtr::<IUnknown>::from_raw_owned(out).unwrap());
+        // Erasure retains the requested IValue table. Check its identity without
+        // constructing an unrelated typed IUnknown owner, then balance the raw
+        // transferred reference through its valid common lifecycle prefix.
+        assert_eq!(neocogi_com::raw::validate_interface(out), Err(NC_E_NOINTERFACE));
+        assert_eq!(neocogi_com::raw::validate_interface(out.cast::<IValueAbi>()), Ok(()));
+        assert_eq!(neocogi_com::raw::release(out), 1);
         assert_eq!(((*table).add_ref)(owner.as_raw().object), 2);
         assert_eq!(((*table).release)(owner.as_raw().object), 1);
     }
