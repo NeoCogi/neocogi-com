@@ -69,20 +69,9 @@ pub(crate) fn quality(runner: &Runner) -> Result<()> {
         }
         stable(runner, "allocation boundary", args)?;
     }
-    stable(
-        runner,
-        "Development ABI normative snippets",
-        words(&[
-            "test",
-            "--manifest-path",
-            "tests/abi-spec/Cargo.toml",
-            "--doc",
-            "--locked",
-            "--target-dir",
-            "target/abi-spec",
-        ]),
-    )?;
-    crate::markdown::check(&runner.root)?;
+    let mut abi = words(&["test", "--manifest-path", "tests/abi-spec/Cargo.toml", "--doc", "--locked", "--target-dir"]);
+    abi.push(runner.target_dir().join("abi-spec").into_os_string());
+    stable(runner, "Development ABI normative snippets", abi)?;
     let docs = strict_rustdoc(runner);
     for mode in ["all", "default", "no-default", "alloc"] {
         let mut args = words(&["doc", "--no-deps", "--locked"]);

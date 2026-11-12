@@ -7,12 +7,13 @@ own parser/writer and adds no runtime parser/framework dependency. YAML is remov
 
 ## Complete deployment configuration
 
-`cargo build-min-size` invokes the maintained `xtask min-size` policy with
-[the deployment overlay](../.cargo/min-size.toml). It rebuilds target std,
+`cargo build --profile min-size` uses the ordinary
+[workspace configuration](../.cargo/config.toml). It rebuilds target std,
 uses immediate abort, fat LTO, one codegen unit, symbol/path stripping,
 `force-unwind-tables=no`, `location-detail=none` and `fmt-debug=none`. Host build
 scripts and procedural macros keep their ordinary formatting and diagnostics.
-The base stable Cargo profile alone does **not** rebuild precompiled std.
+The checkout pins the required nightly and `rust-src`; no build alias, task
+runner or extra configuration file selects the deployment settings.
 
 The earlier 428,928-byte JSON file was built with precompiled std and retained
 panic/backtrace symbolization. Those measurements did not use this complete
@@ -65,22 +66,23 @@ parser is not a dependency of either deployed crate.
 Install `nightly-2026-09-29` with the `rust-src` component before these builds.
 
 ```sh
-cargo build-min-size
-cargo build-min-size --features json
-cargo build-min-size --example
-cargo build-min-size --features json --example
+cargo build --profile min-size -p neocogi-com-serialization-dylib
+cargo build --profile min-size -p neocogi-com-serialization-dylib --features json
+cargo build --profile min-size -p neocogi-com-serialization --example format_costs
+cargo build --profile min-size -p neocogi-com-serialization --features json --example format_costs
 ```
 
-Each command prints Cargo's exact artifact path under
-`target/x86_64-unknown-linux-gnu/min-size` on this host. The static example resides
-in its `examples` subdirectory. Run it three times with argument `2000` and take
-the per-format median. Add `--opt-level s` to compare the alternative size policy;
-`--json-output` produces a machine-readable artifact path and byte size.
+Artifacts reside under `target/min-size`; an explicit `--target` adds that target's
+subdirectory. The static example resides in its `examples` subdirectory. Run it
+three times with argument `2000` and take the per-format median.
+Add `--config 'profile.min-size.opt-level="s"'` to compare the alternative size
+policy. Cargo's ordinary `--message-format=json` reports exact artifact paths.
 `size -A PATH` reports the ELF sections.
 
-Stable SDK checks and Rust 1.85 consumers use the base workspace configuration;
-the nightly deployment overlay is selected only by this build command. No global
-nightly toolchain change or custom allocator/panic implementation is needed.
+The development checkout uses pinned nightly. SDK qualification uses independent
+source copies without checkout Cargo/toolchain settings and keeps large build
+outputs on the checkout filesystem. Downstream consumers retain Rust 1.85 support.
+No custom allocator or panic implementation is needed.
 
 Artifact copies, export lists, structured measurements and raw timing CSVs for
 this local run are retained at `/tmp/neocogi-serialization-final-costs`. They sit

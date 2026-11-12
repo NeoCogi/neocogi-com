@@ -18,6 +18,8 @@ pub(crate) struct Runner {
     /// Working directory for Cargo and relative fixture inputs; copied source
     /// roots are canonicalized during preparation, after receipt invalidation.
     pub root: PathBuf,
+    /// Disk-backed scratch ownership, retained when source discovery is isolated.
+    work: PathBuf,
     /// Credentials/tool discovery survive; ambient compiler/loader policy does not.
     pub env: BTreeMap<OsString, OsString>,
 }
@@ -26,6 +28,7 @@ impl Runner {
     /// Capture an isolated environment and enforce serial nested compilation/tests.
     pub fn new(root: PathBuf) -> Self {
         Self {
+            work: root.join("target/xtask-work"),
             root,
             env: clean_environment(std::env::vars_os()),
         }
@@ -97,17 +100,38 @@ impl Runner {
         Ok(String::from_utf8(output.stdout)?)
     }
 
-    /// Allocate disk-backed task scratch below this checkout, ignoring ambient TMPDIR.
+    /// Allocate disk-backed scratch in the task's selected checkout output area.
     /// The checkout excludes target from workspace membership so temporary Cargo
     /// projects cannot join it when searching past a copied source workspace.
     pub fn scratch(&self, prefix: &str) -> Result<TempDir> {
-        let directory = self.root.join("target/xtask-work");
-        fs::create_dir_all(&directory)?;
-        Ok(tempfile::Builder::new().prefix(prefix).tempdir_in(directory)?)
+        fs::create_dir_all(&self.work)?;
+        Ok(tempfile::Builder::new().prefix(prefix).tempdir_in(&self.work)?)
     }
 
-    /// Keep nested test-owned temporary sources and targets on the same disk as
-    /// their task owner. All three spellings cover Unix and Windows discovery.
+    /// Selected output root; isolated qualification keeps large artifacts on disk.
+    pub fn target_dir(&self) -> PathBuf {
+        self.env
+            .get(&OsString::from("CARGO_TARGET_DIR"))
+            .map(PathBuf::from)
+            .unwrap_or_else(|| self.root.join("target"))
+    }
+
+    /// Separates Cargo configuration discovery from disk-backed build storage.
+    /// Only small source files and temporary manifests use the system temp area.
+    pub fn isolated(&self, prefix: &str) -> Result<(Workspace, Self)> {
+        let files = tempfile::Builder::new().prefix("neocogi-com-sdk-").tempdir()?;
+        let work = self.scratch(prefix)?;
+        let mut runner = self.clone();
+        runner.root = files.path().to_owned();
+        runner.work = work.path().join("xtask-work");
+        runner.env.insert("CARGO_TARGET_DIR".into(), work.path().join("target").into_os_string());
+        runner.temporary_files(runner.root.join("tmp"))?;
+        Ok((Workspace { files, work }, runner))
+    }
+
+    /// Keep nested test-owned sources in the task's isolated source area.
+    /// The separately selected Cargo target retains large outputs on disk.
+    /// All three spellings cover Unix and Windows discovery.
     /// Enclosing workspaces must exclude this subtree (tmp directly, target for
     /// outer checkouts) so generated Cargo projects can own their own workspaces.
     pub fn temporary_files(&mut self, directory: PathBuf) -> Result<()> {
@@ -192,16 +216,15 @@ pub(crate) fn copy_tree(source: &Path, destination: &Path) -> Result<()> {
 
 /// Own a complete source fixture, keeping compile-time embedded paths alive.
 /// Normal completion uses explicit close so cleanup failure prevents a green task.
-pub(crate) fn sources(runner: &Runner) -> Result<(TempDir, Runner)> {
+pub(crate) fn sources(runner: &Runner) -> Result<(Workspace, Runner)> {
     let mut fixture = runner.clone();
     fixture.root = runner
         .root
         .canonicalize()
         .map_err(|error| format!("cannot prepare checkout {}: {error}", runner.root.display()))?;
-    let owner = fixture.scratch("sources-")?;
+    let (owner, isolated) = fixture.isolated("sources-")?;
     for relative in [
         "crates",
-        ".cargo",
         "schemas",
         "tests",
         "tools/neocogi-inspect",
@@ -214,13 +237,47 @@ pub(crate) fn sources(runner: &Runner) -> Result<(TempDir, Runner)> {
     ] {
         copy_tree(&fixture.root.join(relative), &owner.path().join(relative))?;
     }
-    for relative in ["README.md", "rustfmt.toml", "Cargo.lock", "Cargo.toml"] {
+    for relative in ["README.md", "LICENSE-MIT", "rustfmt.toml", "Cargo.lock", "Cargo.toml"] {
         fs::copy(fixture.root.join(relative), owner.path().join(relative))?;
     }
-    fixture.root = owner.path().to_path_buf();
-    fixture.env.insert("CARGO_TARGET_DIR".into(), fixture.root.join("target").into_os_string());
-    fixture.temporary_files(fixture.root.join("tmp"))?;
-    Ok((owner, fixture))
+    Ok((owner, isolated))
+}
+
+/// Owns portable SDK sources outside nightly configuration discovery and their
+/// separate disk-backed outputs. Neither location may outlive task teardown.
+pub(crate) struct Workspace {
+    /// Small inputs, without checkout Cargo or toolchain configuration.
+    files: TempDir,
+    /// Large artifacts and nested task scratch on the checkout filesystem.
+    work: TempDir,
+}
+impl Workspace {
+    /// Source root supplied to Cargo and retained while embedded paths are used.
+    pub fn path(&self) -> &Path {
+        self.files.path()
+    }
+}
+
+/// Explicit cleanup shared by ordinary scratch and isolated source/output owners.
+pub(crate) trait TaskOwner {
+    /// Attempts teardown of every owned location before reporting success.
+    fn close(self) -> std::io::Result<()>;
+}
+impl TaskOwner for TempDir {
+    fn close(self) -> std::io::Result<()> {
+        TempDir::close(self)
+    }
+}
+impl TaskOwner for Workspace {
+    fn close(self) -> std::io::Result<()> {
+        let files = self.files.close();
+        let work = self.work.close();
+        match (files, work) {
+            (Ok(()), Ok(())) => Ok(()),
+            (Err(error), Ok(())) | (Ok(()), Err(error)) => Err(error),
+            (Err(files), Err(work)) => Err(std::io::Error::other(format!("source cleanup: {files}; output cleanup: {work}"))),
+        }
+    }
 }
 
 /// Require the requested artifact itself to exist and contain bytes.
@@ -232,7 +289,7 @@ pub(crate) fn require_file(path: &Path) -> Result<()> {
 }
 
 /// Explicit teardown precedes success, and secondary teardown errors retain context.
-pub(crate) fn retire<T>(owner: TempDir, result: Result<T>) -> Result<T> {
+pub(crate) fn retire<T>(owner: impl TaskOwner, result: Result<T>) -> Result<T> {
     match (result, owner.close()) {
         (Ok(value), Ok(())) => Ok(value),
         (Err(error), Ok(())) => Err(error),

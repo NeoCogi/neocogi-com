@@ -86,8 +86,7 @@ fn require_outcome(output: &Output, broken: bool) {
 #[test]
 fn strict_documentation_owns_flags_executable_and_output() -> Result<()> {
     let checkout = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize()?;
-    let runner = Runner::new(checkout);
-    let owner = runner.scratch("rustdoc-policy-")?;
+    let (owner, runner) = Runner::new(checkout).isolated("rustdoc-policy-")?;
     let result = (|| {
         let sentinel_source = owner.path().join("sentinel.rs");
         fs::write(

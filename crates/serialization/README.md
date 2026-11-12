@@ -34,15 +34,17 @@ Text floats must be finite and preserve their bits, including negative zero.
 See the [normative format contract](https://github.com/NeoCogi/neocogi-com/blob/0.2.0-wip/docs/contracts/SERIALIZATION_FORMATS.md)
 for value grammar, limits, ownership and diagnostic semantics.
 
-Build the deployed shared library with `cargo build-min-size --features json`.
-This uses pinned nightly, rebuilt target std, immediate abort and the platform's
-size flags. `cargo build-min-size` builds unconditional NCB alone. The command
-reports Cargo's exact artifact path under the explicit host target directory.
-Ordinary stable SDK builds and compiler-floor checks use the base configuration.
+Build the deployed shared library with
+`cargo build --profile min-size -p neocogi-com-serialization-dylib --features json`.
+The ordinary Cargo profile uses pinned nightly, rebuilt target std, immediate
+abort and the platform's size flags. Omit `--features json` for NCB alone.
+Artifacts live under `target/min-size` unless a target is explicitly selected.
+Independent SDK consumers and qualification retain stable compiler support.
 
-`cargo build-min-size --features json --example` builds `format_costs`, whose
+`cargo build --profile min-size -p neocogi-com-serialization --features json --example format_costs`
+builds `format_costs`, whose
 round trips include allocations, copying, parsing and typed construction. The
-[deployment configuration](https://github.com/NeoCogi/neocogi-com/blob/0.2.0-wip/.cargo/min-size.toml)
+[deployment configuration](https://github.com/NeoCogi/neocogi-com/blob/0.2.0-wip/.cargo/config.toml)
 keeps full host procedural-macro diagnostics while stripping target Debug and
 panic location data. JSON numbers use functional numeric formatting, so Debug
 stripping cannot alter saved values.

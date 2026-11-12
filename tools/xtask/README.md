@@ -13,7 +13,7 @@ Maintainers publish using the dedicated [release procedure](../../docs/guides/RE
 | `cargo xtask quality` | Formatting, strict Clippy, allocation modes, ABI snippets, Markdown links and strict rustdoc |
 | `cargo xtask markdown` | Local Markdown files and heading anchors; external links are not fetched |
 | `cargo xtask msrv` | Rust 1.85 checks, library tests, exact semantic integration cases and feature boundaries |
-| `cargo xtask packages` | Six archives, shipped tests/docs, downstream COM, and the independent host/plugin tutorial on Rust 1.85 |
+| `cargo xtask packages` | Eight archives, shipped tests/docs, downstream COM, and the independent host/plugin tutorial on Rust 1.85 |
 | `cargo xtask abi-32` | Core and native-C tests for `NC_COM_32_BIT_TARGET`, defaulting to `i686-unknown-linux-gnu` |
 | `cargo xtask compatibility --suite linked` | Native C/ABI checks, relocated host-owned test executables and independent providers |
 | `cargo xtask compatibility --suite cross-version` | Stable host/nightly providers and the reverse direction |
@@ -73,18 +73,22 @@ This policy retains ordinary OS discovery and registry/auth inputs. It trusts
 PATH, the installed toolchains and Cargo configuration; it is not a sandbox for
 hostile config files or a promise to replace every configured compiler executable.
 
-Each isolated task owns sources and targets below `target/xtask-work`, on the
-checkout's filesystem rather than a potentially memory-backed system temporary
-directory. Sources remain alive while tests use embedded manifest paths. Copied
-fixtures exclude build outputs, Git data and private plans/reviews. Both copied
-source and archive workspaces exclude their `target` and `tmp` subtrees from
-workspace membership. The runner points `TMPDIR`, `TMP` and `TEMP` to `tmp` so
-generated Cargo projects, including a fresh Miri sysroot build, remain independent
+The checkout's ordinary `cargo build --profile min-size` owns all deployment
+settings and uses its pinned nightly. Qualification runs stable/Rust 1.85 against
+source copies in system temporary storage, outside checkout Cargo configuration
+discovery. Those small source trees omit `.cargo` and the checkout toolchain pin.
+Large artifacts and task work stay below `target/xtask-work` on the checkout's
+filesystem. Both source and output owners are retired before success; sources
+remain alive while tests use embedded manifest paths. Copied fixtures exclude
+build outputs, Git data and private plans/reviews. Copied source and archive
+workspaces exclude their `target` and `tmp` subtrees from
+workspace membership. The runner points `TMPDIR`, `TMP` and `TEMP` to the source
+tree's `tmp` so generated Cargo projects, including a fresh Miri sysroot build, remain independent
 of every enclosing workspace during Cargo's ancestor search.
 Independently built native roles are copied and cleaned before relocated
 execution. Task-owned sources/targets are explicitly retired before success;
-failure unwinding also attempts cleanup. Interrupted processes can leave scratch,
-removed by `cargo clean`. A running task must finish before cleaning the workspace.
+failure unwinding also attempts cleanup. Interrupted processes can leave scratch;
+`cargo clean` removes its disk outputs. Let running tasks finish before cleaning.
 
 Archive verification extracts with Rust gzip/tar libraries into a workspace
 containing only archive members and generated consumers, without shared package

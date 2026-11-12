@@ -18,8 +18,21 @@ struct State {
 #[test]
 fn native_shim_supplies_formats_and_failure_details() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize().unwrap();
-    let build = Command::new("cargo")
-        .args(["xtask", "min-size", "--features", "json", "--json-output"])
+    let build = Command::new("rustup")
+        .args([
+            "run",
+            "nightly-2026-09-29",
+            "cargo",
+            "build",
+            "--profile",
+            "min-size",
+            "-p",
+            "neocogi-com-serialization-dylib",
+            "--features",
+            "json",
+            "--locked",
+            "--message-format=json",
+        ])
         .current_dir(&root)
         .output()
         .unwrap();
@@ -28,7 +41,10 @@ fn native_shim_supplies_formats_and_failure_details() {
         .unwrap()
         .lines()
         .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
-        .find_map(|record| record["artifact"].as_str().map(std::path::PathBuf::from))
+        .filter(|record| record["reason"] == "compiler-artifact" && record["target"]["name"] == "neocogi_com_serialization_dylib")
+        .flat_map(|record| record["filenames"].as_array().cloned().unwrap_or_default())
+        .filter_map(|path| path.as_str().map(std::path::PathBuf::from))
+        .find(|path| path.extension().is_some_and(|extension| extension == std::env::consts::DLL_EXTENSION))
         .unwrap();
     // SAFETY: this final test executable retains its selected host implementation.
     let runtime = unsafe { neocogi_com::Runtime::__from_host_api(neocogi_com_host::initialize_process()) }.unwrap();

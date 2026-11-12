@@ -240,25 +240,21 @@ pub(crate) fn run(runner: &Runner) -> Result<()> {
     }
     // Archives reflect the current working tree; source cleanup never depends on Git.
     args.extend(words(&["--no-verify", "--allow-dirty", "--locked", "--target-dir"]));
-    args.push(runner.root.join("target").into_os_string());
+    args.push(runner.target_dir().into_os_string());
     runner.run("rustup", words(&["run", "stable", "cargo"]).into_iter().chain(args))?;
-    let owner = runner.scratch("archives-")?;
+    let (owner, mut verification) = runner.isolated("archives-")?;
     let result = (|| {
         let root = owner.path();
         for (package, _) in PUBLISHED {
             let prefix = format!("{package}-{version}");
-            extract(&runner.root.join("target/package").join(format!("{prefix}.crate")), root, &prefix)?;
+            extract(&runner.target_dir().join("package").join(format!("{prefix}.crate")), root, &prefix)?;
             if fs::read(root.join(&prefix).join("LICENSE-MIT"))? != license {
                 return Err(format!("archive license mismatch: {package}").into());
             }
         }
         consumers(&runner.root, root, version)?;
         crate::process::copy_tree(&runner.root.join("examples/getting-started"), &root.join("getting-started"))?;
-        let mut verification = runner.clone();
-        verification.root = root.to_path_buf();
         verification.env.insert("RUSTUP_TOOLCHAIN".into(), "1.85.0".into());
-        verification.env.insert("CARGO_TARGET_DIR".into(), root.join("target").into_os_string());
-        verification.temporary_files(root.join("tmp"))?;
         for (package, _) in PUBLISHED {
             let manifest = root.join(format!("{package}-{version}/Cargo.toml"));
             for options in [
@@ -287,7 +283,7 @@ pub(crate) fn run(runner: &Runner) -> Result<()> {
         }
         let runtime = format!("{}/Cargo.toml", root.join(format!("neocogi-com-host-{version}")).display());
         verification.cargo("1.85.0", &["build", "--manifest-path", &runtime])?;
-        crate::process::require_file(&root.join("target/debug/libneocogi_com_host.rlib"))?;
+        crate::process::require_file(&verification.target_dir().join("debug/libneocogi_com_host.rlib"))?;
         verification.cargo("1.85.0", &["run", "--manifest-path", "consumer/Cargo.toml"])?;
         let facade = format!("neocogi-com-{version}/Cargo.toml");
         for options in [

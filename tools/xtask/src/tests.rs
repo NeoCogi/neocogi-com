@@ -344,14 +344,22 @@ pub(crate) fn require_independent_temporary_package(runner: &Runner) -> Result<(
 fn temporary_cargo_projects_do_not_join_the_copied_workspace() -> Result<()> {
     let checkout = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize()?;
     let manifest = fs::read(checkout.join("Cargo.toml"))?;
-    let (owner, fixture) = crate::process::sources(&Runner::new(checkout))?;
+    let (owner, fixture) = crate::process::sources(&Runner::new(checkout.clone()))?;
     let path = owner.path().to_owned();
+    let target = fixture.target_dir();
     let result = (|| {
         assert_eq!(fs::read(fixture.root.join("Cargo.toml"))?, manifest);
+        assert!(!fixture.root.starts_with(&checkout));
+        assert!(!fixture.root.join(".cargo").exists());
+        assert!(target.starts_with(checkout.join("target")));
+        // Real stable Cargo must compile this SDK without discovering nightly
+        // profile-rustflags or rebuilding std from the development checkout.
+        fixture.cargo("stable", &["check", "-p", "neocogi-com-core", "--no-default-features", "--locked", "--offline"])?;
         require_independent_temporary_package(&fixture)
     })();
     crate::process::retire(owner, result)?;
     assert!(!path.exists());
+    assert!(!target.exists());
     Ok(())
 }
 
@@ -485,7 +493,7 @@ fn standalone_cli_invalidates_receipts_before_validating_its_checkout() -> Resul
     let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize()?;
     let runner = Runner::new(repository.clone());
     let outer = runner.scratch("missing-checkout-test-")?;
-    let source = tempfile::tempdir_in(outer.path())?;
+    let source = tempfile::tempdir()?;
     crate::process::copy_tree(&repository.join("tools/xtask"), &source.path().join("tools/xtask"))?;
     let mut manifest: toml::Value = toml::from_str(&fs::read_to_string(repository.join("Cargo.toml"))?)?;
     manifest["workspace"]["members"] = toml::Value::Array(vec![toml::Value::String("tools/xtask".into())]);
@@ -494,13 +502,15 @@ fn standalone_cli_invalidates_receipts_before_validating_its_checkout() -> Resul
     let mut arguments = words(&["run", "stable", "cargo", "build", "--offline", "-p", "xtask", "--manifest-path"]);
     arguments.push(source.path().join("Cargo.toml").into_os_string());
     arguments.push("--target-dir".into());
-    arguments.push(source.path().join("target").into_os_string());
-    runner.run("rustup", arguments)?;
+    let target = outer.path().join("target");
+    arguments.push(target.clone().into_os_string());
+    Runner::new(source.path().to_owned()).run("rustup", arguments)?;
     let executable_name = format!("xtask{}", std::env::consts::EXE_SUFFIX);
     let executable = outer.path().join(&executable_name);
-    fs::copy(source.path().join("target/debug").join(&executable_name), &executable)?;
+    fs::copy(target.join("debug").join(&executable_name), &executable)?;
     let missing = source.path().to_owned();
     source.close()?;
+    fs::remove_dir_all(target)?;
     let receipt_path = outer.path().join("receipt.json");
     fs::write(&receipt_path, "{\"status\":\"passed\"}")?;
     let mut arguments = words(&["compatibility", "--suite", "linked", "--report"]);

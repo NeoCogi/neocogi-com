@@ -9,4 +9,26 @@ RUST_TEST_THREADS = { value = "1", force = true }
 
 [alias]
 xtask = "run --locked --package xtask --"
-build-min-size = "run --locked --package xtask -- min-size"
+
+# This development workspace rebuilds target std so the ordinary Cargo profile
+# supplies the complete deployment policy. Independent SDK consumers use stable.
+[unstable]
+build-std = ["std", "panic_abort", "test", "proc_macro"]
+build-std-features = ["backtrace", "panic-unwind", "optimize_for_size"]
+panic-immediate-abort = true
+panic-abort-tests = true
+profile-rustflags = true
+trim-paths = true
+
+[profile.min-size]
+panic = "immediate-abort"
+trim-paths = "all"
+rustflags = [
+    "-Cforce-unwind-tables=no",
+    "-Zlocation-detail=none",
+    "-Zfmt-debug=none",
+]
+
+# Procedural macros and build scripts retain host formatting and diagnostics.
+[profile.min-size.build-override]
+rustflags = []

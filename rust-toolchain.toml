@@ -1,5 +1,5 @@
 [toolchain]
-channel = "stable"
+channel = "nightly-2026-09-29"
 profile = "minimal"
-# Compile-fail snapshots include standard-library source in compiler diagnostics.
+# Target std rebuilding and the complete min-size profile require nightly.
 components = ["rustfmt", "clippy", "rust-src"]
