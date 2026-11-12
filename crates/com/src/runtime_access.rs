@@ -62,7 +62,7 @@ impl Runtime {
         })
     }
 
-    /// Returns the admitted pre-release runtime ABI family, currently one.
+    /// Returns the admitted runtime family selected by [`NC_COM_RUNTIME_ABI_VERSION`].
     pub const fn runtime_abi_version(&self) -> u32 {
         NC_COM_RUNTIME_ABI_VERSION
     }

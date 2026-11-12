@@ -6,6 +6,18 @@ Historical draft numbers do not define additional supported COM baselines.
 
 ## 0.2.0-alpha.1 — prepared 2026-11-12
 
+- Qualify every shipped target through ordinary Cargo test selection, including
+  the cdylib-only serialization shim; preserve both required named IDL consumers
+  and complete extracted-archive/tutorial execution on Rust 1.85.
+- Preserve concrete inspector diff/compatibility/schema diagnostics in min-size
+  builds using canonical serialized values and escaping. Target Debug stripping
+  remains enabled.
+- Convert external JSON numbers directly to the requested floating width,
+  preserving negative zero and correctly rounded midpoint/subnormal/overflow
+  behavior. Keep integer/f64 syntax admission, typed overflow errors and owned
+  terminal diagnostics. Record the measured [size/performance cost](docs/SERIALIZATION_COSTS.md).
+- Align current runtime/descriptor and package guidance with their authoritative
+  constants, getter and published inventory; retain archived ABI v1 and NCB v1.
 - Make serialization formats COM objects with `ISerializer`, `IDeserializer`,
   `ISerializationOutput` and an `ISerializationFormat` factory. The same typed
   value implementations can use application- or plugin-supplied formats at runtime.

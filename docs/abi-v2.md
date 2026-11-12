@@ -707,10 +707,10 @@ The accessor and native export return metadata without registration or acquisiti
 | Registered inspection output | `NcPluginInfoV2` / owned `PluginInfo`, including first registration origin. |
 | Factory acquisition | `Runtime::acquire_plugin_root` checks the exact contract and returns one COM owner. |
 
-The descriptor's `description_abi_version` field remains the v1 discovery prefix,
-matching `NC_PLUGIN_DESCRIPTOR_ABI_VERSION`. Its next field is
-`core_abi_version`, currently 18. Both are checked before the remaining layout is
-read. The two-word prefix must be checked before borrowing the complete descriptor.
+The descriptor's `description_abi_version` field matches
+`NC_PLUGIN_DESCRIPTOR_ABI_VERSION`. Its next field, `core_abi_version`, matches
+`NC_COM_CORE_ABI_VERSION`; the current authorities are listed in the table above.
+Both are checked before the remaining layout is read. The two-word prefix must be checked before borrowing the complete descriptor.
 Interface IID/signature and threading checks additionally select the exact callable contract.
 
 The provider owns the descriptor's storage and code. Static registration requires
@@ -1032,7 +1032,7 @@ children are static. Copy callback metadata needed after a callback. See the
 
 The facade provides typed clients and owns no implementation dependency, including
 with all features. The final executable links the ordinary `neocogi_com_host` rlib. Native
-providers link contracts/facade only and export their version-one descriptor.
+providers link contracts/facade only and export `nc_get_plugin_descriptor_v2`.
 Static composition registers a linked provider descriptor; dynamic composition
 loads a provider library. Both use the same host-owned registry and C service graph.
 
@@ -1268,7 +1268,7 @@ including child-list deallocation through its original owning pointer.
 ## Published archive validation
 
 Run `cargo xtask packages` with Rust 1.85 installed. It creates
-real Cargo archives for the five SDK packages and inspector, extracts them into a
+real Cargo archives for the [published SDK inventory](../tools/xtask/src/packages.rs), extracts them into a
 fresh directory, and patches dependencies **only to those extracted archives**.
 The temporary workspace contains only extracted packages and downstream consumers;
 it inherits no package metadata from the checkout. Rust 1.85 checks all shipped

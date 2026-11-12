@@ -49,8 +49,10 @@ frequency/thermals were not fixed, so small differences are not speedup claims.
 | 64 long strings | 24,263 | 24,348 | 24,200 |
 | 32 long fractional tokens | 12,648 | 15,276 | 13,337 |
 
-The cache changes the mixed JSON workload by about 0.7%, within the observed
-range/noise. Numeric-heavy decode pays about 9–21% for retaining correct results
+The cache increased median mixed JSON time by about 0.7% in this local run.
+Baseline samples ranged from 63,181 to 63,513 ns and cache samples from 63,724 to
+65,476 ns; these ranges do not establish unchanged performance. Numeric-heavy
+decode pays about 9–21% for retaining correct results
 at both widths. Deferred tokens improve long-token f64 acquisition but are slower
 for f32 and larger, with more allocations. The cache is the smaller, simpler
 choice with better f32 throughput; it does not claim zero cost for correctness.
