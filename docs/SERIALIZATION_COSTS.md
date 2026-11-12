@@ -4,6 +4,27 @@ The native dylib now always contains NCB and JSON, with NCB selected by default.
 The earlier NCB-only dylib measurements below are historical comparisons, not a
 current dylib build option. Static rlib consumers retain optional JSON.
 
+## Alpha.2 native plugin — 2026-11-12
+
+The ordinary `cargo build --profile min-size -p neocogi-com-serialization-dylib`
+artifact from the alpha.2 sources contains both formats without an opt-in flag.
+Measured on Linux x86_64 with rustc 1.101.0-nightly (`c1070d693`) and the checkout's
+unchanged min-size/std-rebuild policy:
+
+| Native artifact | File bytes | `.text` bytes |
+| --- | ---: | ---: |
+| Alpha.2, built-in NCB and JSON | 126,360 | 95,017 |
+| Historical alpha.1, NCB and JSON enabled | 126,360 | 95,017 |
+| Historical alpha.1, NCB only | 39,504 | 28,537 |
+
+Both formats are now mandatory in the dylib; its default artifact grows by
+86,856 bytes relative to the retired NCB-only configuration. It matches the
+previous JSON-enabled artifact's measured size. The actual loaded-plugin test
+exercises both formats, numeric oracles, grammar and owned diagnostics from this
+ordinary build and confirms NCB remains default. No new throughput benchmark
+was run for this packaging change; the codec algorithms and prior workload
+measurements below are unchanged.
+
 ## Historical ABI-v2 alpha.1 direct-width numeric repair — 2026-11-12
 
 Measured on Linux x86_64, Intel Core Ultra 7 155H, with rolling `nightly`

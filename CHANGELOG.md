@@ -4,6 +4,23 @@ The current contract uses [ABI v2, core generation 19](docs/abi-v2.md). Entries 
 its development; later entries can supersede older implementation details.
 Historical draft numbers do not define additional supported COM baselines.
 
+## 0.2.0-alpha.2 — 2026-11-12
+
+- Always include NCB and the custom JSON codec in the serialization dylib,
+  including builds with default features disabled. NCB remains the default;
+  the reusable static rlib retains its optional JSON feature.
+- Repair qualification setup: recognize native doctest path separators,
+  declare NCB on the standalone host-runtime regression project, and give
+  independent compile-fail consumers explicit generated-file paths. Keep the
+  intended interface-conflict diagnostics and native/sanitizer test coverage.
+- Remove the historical ABI v1 specification from the current tree in a separate
+  commit. The released baseline remains available at `v0.1.0`; ABI v2 continues
+  rejecting old native plugins before bootstrap.
+- Coordinate all eight SDK packages and exact internal requirements as
+  `0.2.0-alpha.2`. ABI family 2, core generation 19, IDL v14 and NCB v1 stay
+  unchanged. This Git prerelease does not claim crates.io publication or
+  completed remote platform qualification.
+
 ## 0.2.0-alpha.1 — 2026-11-12
 
 - Make compiler factory and raw weak-promotion tests check the exact returned
