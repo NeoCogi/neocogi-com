@@ -18,6 +18,14 @@ pub(crate) const SCHEMA_VERSION: u32 = 9;
 /// Tool identity recorded in every serialized inspection.
 const PRODUCER: &str = "neocogi-inspect";
 
+/// Render functional diagnostic values through the existing JSON schema.
+/// These callers supply only serializable strings, scalars, enums and records;
+/// unlike Debug, this representation survives target `fmt-debug=none` builds.
+/// Serialization errors are invariant violations, never blank fallback messages.
+pub(crate) fn value_text<T: Serialize + ?Sized>(value: &T) -> String {
+    serde_json::to_string(value).expect("inspection diagnostic value must serialize as JSON")
+}
+
 /// Owned, versioned snapshot of one plugin and its root factory.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -205,7 +213,10 @@ impl InspectionArtifact {
     /// Validates schema provenance and target-wide ABI facts.
     fn validate_envelope(&self) -> Result<(), ArtifactValidationError> {
         if self.schema != SCHEMA {
-            return Err(ArtifactValidationError::new("schema", format!("expected {SCHEMA:?}, found {:?}", self.schema)));
+            return Err(ArtifactValidationError::new(
+                "schema",
+                format!("expected {}, found {}", value_text(SCHEMA), value_text(&self.schema)),
+            ));
         }
         if self.schema_version != SCHEMA_VERSION {
             return Err(ArtifactValidationError::new(
@@ -214,7 +225,10 @@ impl InspectionArtifact {
             ));
         }
         if self.producer.name != PRODUCER {
-            return Err(ArtifactValidationError::new("producer.name", format!("expected {PRODUCER:?}")));
+            return Err(ArtifactValidationError::new(
+                "producer.name",
+                format!("expected {}, found {}", value_text(PRODUCER), value_text(&self.producer.name)),
+            ));
         }
         validate_version(&self.producer.version, "producer.version")?;
         if self.target.triple.is_empty() || self.target.triple.len() > 255 || !self.target.triple.bytes().all(|byte| byte.is_ascii_graphic()) {

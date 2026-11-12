@@ -2,22 +2,22 @@
 
 use std::collections::BTreeSet;
 
-use crate::schema::{ArtifactFactory, ArtifactPlugin, InspectionArtifact};
+use crate::schema::{ArtifactFactory, ArtifactPlugin, InspectionArtifact, value_text};
 
 /// Returns stable field-level changes after both documents pass validation.
 pub(crate) fn diff_inspections(old: &InspectionArtifact, new: &InspectionArtifact) -> Vec<String> {
     // Artifact validation runs before this function, so identity-keyed maps
     // cannot silently normalize duplicate entries.
     let mut differences = Vec::new();
-    push_changed_str(&mut differences, "schema", &old.schema, &new.schema);
-    push_changed_display(&mut differences, "schema_version", old.schema_version, new.schema_version);
-    push_changed_str(&mut differences, "producer.name", &old.producer.name, &new.producer.name);
-    push_changed_str(&mut differences, "producer.version", &old.producer.version, &new.producer.version);
-    push_changed_str(&mut differences, "target.triple", &old.target.triple, &new.target.triple);
-    push_changed_display(&mut differences, "target.pointer_width", old.target.pointer_width, new.target.pointer_width);
-    push_changed_debug(&mut differences, "target.endianness", &old.target.endianness, &new.target.endianness);
-    push_changed_display(&mut differences, "core_abi_version", old.core_abi_version, new.core_abi_version);
-    push_changed_display(
+    push_changed(&mut differences, "schema", &old.schema, &new.schema);
+    push_changed(&mut differences, "schema_version", old.schema_version, new.schema_version);
+    push_changed(&mut differences, "producer.name", &old.producer.name, &new.producer.name);
+    push_changed(&mut differences, "producer.version", &old.producer.version, &new.producer.version);
+    push_changed(&mut differences, "target.triple", &old.target.triple, &new.target.triple);
+    push_changed(&mut differences, "target.pointer_width", old.target.pointer_width, new.target.pointer_width);
+    push_changed(&mut differences, "target.endianness", &old.target.endianness, &new.target.endianness);
+    push_changed(&mut differences, "core_abi_version", old.core_abi_version, new.core_abi_version);
+    push_changed(
         &mut differences,
         "description_abi_version",
         old.description_abi_version,
@@ -30,14 +30,14 @@ pub(crate) fn diff_inspections(old: &InspectionArtifact, new: &InspectionArtifac
 
 /// Compares a typed factory root and its exact canonical contract revisions.
 fn diff_factory(differences: &mut Vec<String>, old: &ArtifactFactory, new: &ArtifactFactory) {
-    push_changed_str(differences, "factory.root_factory_id", &old.root_factory_id, &new.root_factory_id);
-    push_changed_debug(
+    push_changed(differences, "factory.root_factory_id", &old.root_factory_id, &new.root_factory_id);
+    push_changed(
         differences,
         "factory.root_factory_threading",
         &old.root_factory_threading,
         &new.root_factory_threading,
     );
-    push_changed_str(
+    push_changed(
         differences,
         "factory.root_factory_signature",
         &old.root_factory_signature,
@@ -47,9 +47,9 @@ fn diff_factory(differences: &mut Vec<String>, old: &ArtifactFactory, new: &Arti
 
 /// Compares plugin identity and order-independent provider requirements.
 fn diff_plugin(differences: &mut Vec<String>, old: &ArtifactPlugin, new: &ArtifactPlugin) {
-    push_changed_str(differences, "plugin.id", &old.id, &new.id);
-    push_changed_str(differences, "plugin.name", &old.name, &new.name);
-    push_changed_str(differences, "plugin.version", &old.version, &new.version);
+    push_changed(differences, "plugin.id", &old.id, &new.id);
+    push_changed(differences, "plugin.name", &old.name, &new.name);
+    push_changed(differences, "plugin.version", &old.version, &new.version);
     let old_dependencies: BTreeSet<_> = old.dependencies.iter().collect();
     let new_dependencies: BTreeSet<_> = new.dependencies.iter().collect();
     for dependency in old_dependencies.difference(&new_dependencies) {
@@ -60,30 +60,11 @@ fn diff_plugin(differences: &mut Vec<String>, old: &ArtifactPlugin, new: &Artifa
     }
 }
 
-/// Quotes changed text fields so whitespace and escaping remain visible.
-fn push_changed_str(differences: &mut Vec<String>, path: &str, old: &str, new: &str) {
+/// Compare one schema value and retain both canonical, escaped representations.
+/// Equality and report ordering stay independent from how text is rendered.
+fn push_changed<T: Eq + serde::Serialize>(differences: &mut Vec<String>, path: &str, old: T, new: T) {
     if old != new {
-        differences.push(format!("changed: {path}: {old:?} -> {new:?}"));
-    }
-}
-
-/// Records changed scalar fields using their normative display representation.
-fn push_changed_display<T>(differences: &mut Vec<String>, path: &str, old: T, new: T)
-where
-    T: Copy + Eq + std::fmt::Display,
-{
-    if old != new {
-        differences.push(format!("changed: {path}: {old} -> {new}"));
-    }
-}
-
-/// Records changed typed variants without assigning unstable numeric tags.
-fn push_changed_debug<T>(differences: &mut Vec<String>, path: &str, old: &T, new: &T)
-where
-    T: Eq + std::fmt::Debug,
-{
-    if old != new {
-        differences.push(format!("changed: {path}: {old:?} -> {new:?}"));
+        differences.push(format!("changed: {path}: {} -> {}", value_text(&old), value_text(&new)));
     }
 }
 
@@ -107,7 +88,13 @@ mod tests {
 
         let differences = diff_inspections(&old, &new);
 
-        assert!(differences.iter().any(|difference| difference.contains("root_factory_signature")));
+        assert_eq!(
+            differences,
+            vec![format!(
+                "changed: factory.root_factory_signature: \"{}\" -> \"{}\"",
+                old.factory.root_factory_signature, new.factory.root_factory_signature
+            )]
+        );
     }
 
     #[test]

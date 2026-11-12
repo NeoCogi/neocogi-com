@@ -45,13 +45,28 @@ fn build_factory_plugin() -> PathBuf {
 /// The unpublished integration owner does not receive another package's
 /// `CARGO_BIN_EXE` variables. Cargo, rather than a guessed target directory, owns
 /// the executable's location and platform suffix.
-fn build_inspector() -> PathBuf {
+fn build_inspector(profile: &str) -> PathBuf {
     let workspace = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_owned());
-    let output = Command::new(cargo)
+    let mut command = if profile == "min-size" {
+        // Portable qualification copies intentionally omit this configuration.
+        // This regression must exercise the actual checkout's Debug stripping.
+        assert!(
+            std::fs::read_to_string(workspace.join(".cargo/config.toml"))
+                .unwrap()
+                .contains("-Zfmt-debug=none")
+        );
+        let mut command = Command::new("rustup");
+        command.args(["run", "nightly", "cargo"]);
+        command
+    } else {
+        Command::new(cargo)
+    };
+    let output = command
         .current_dir(workspace)
+        .arg("build")
+        .args(["--profile", profile])
         .args([
-            "build",
             "--offline",
             "--locked",
             "-p",
@@ -142,10 +157,110 @@ fn assert_native_output_paths(inspector: &Path, plugin: &Path, intended: &Path, 
     }
 }
 
+/// Compare real command output across profiles, including valid and rejected
+/// snapshots. Classification and concrete evidence must survive Debug stripping.
+fn snapshot_diagnostics(inspector: &Path, base: &serde_json::Value, directory: &Path) -> Vec<(i32, String, String)> {
+    let old = directory.join("old.json");
+    let new = directory.join("new.json");
+    std::fs::write(&old, serde_json::to_vec(base).unwrap()).unwrap();
+    let mut results = Vec::new();
+    let mut compare = |value: &serde_json::Value, mode: &str, status: i32, stdout: &[&str], stderr: &[&str]| {
+        std::fs::write(&new, serde_json::to_vec(value).unwrap()).unwrap();
+        let result = Command::new(inspector).arg("diff").arg(&old).arg(&new).arg(mode).output().unwrap();
+        let output = String::from_utf8(result.stdout).unwrap();
+        let errors = String::from_utf8(result.stderr).unwrap();
+        assert_eq!(result.status.code(), Some(status), "{output}\n{errors}");
+        for expected in stdout {
+            assert!(output.contains(expected), "missing {expected} in {output}");
+        }
+        for expected in stderr {
+            assert!(errors.contains(expected), "missing {expected} in {errors}");
+        }
+        results.push((status, output, errors));
+    };
+    compare(base, "--exact", 0, &["no differences"], &[]);
+    let mut value = base.clone();
+    let old_threading = base["factory"]["root_factory_threading"].as_str().unwrap();
+    let new_threading = if old_threading == "thread_local" { "thread_safe" } else { "thread_local" };
+    value["factory"]["root_factory_threading"] = new_threading.into();
+    value["factory"]["root_factory_signature"] = "11".repeat(32).into();
+    compare(
+        &value,
+        "--exact",
+        1,
+        &[
+            &format!("factory.root_factory_threading: \"{old_threading}\" -> \"{new_threading}\""),
+            &format!(
+                "factory.root_factory_signature: \"{}\" -> \"{}\"",
+                base["factory"]["root_factory_signature"].as_str().unwrap(),
+                "11".repeat(32)
+            ),
+        ],
+        &[],
+    );
+    value = base.clone();
+    value["target"]["triple"] = "different-unknown-target".into();
+    value["target"]["pointer_width"] = if base["target"]["pointer_width"] == 64 { 32 } else { 64 }.into();
+    value["target"]["endianness"] = if base["target"]["endianness"] == "little" { "big" } else { "little" }.into();
+    compare(
+        &value,
+        "--exact",
+        1,
+        &[
+            "target.triple:",
+            "different-unknown-target",
+            &format!(
+                "target.pointer_width: {} -> {}",
+                base["target"]["pointer_width"], value["target"]["pointer_width"]
+            ),
+            "\"little\"",
+            "\"big\"",
+        ],
+        &[],
+    );
+    compare(
+        &value,
+        "--compat",
+        1,
+        &[
+            "compatibility: breaking",
+            "target ABI changed:",
+            base["target"]["triple"].as_str().unwrap(),
+            "different-unknown-target",
+            "\"pointer_width\":",
+            "\"endianness\":",
+        ],
+        &[],
+    );
+    value = base.clone();
+    value["plugin"]["version"] = r#"v"quoted\release"#.into();
+    compare(&value, "--exact", 1, &[r#"v\"quoted\\release"#], &[]);
+    compare(&value, "--compat", 0, &["compatibility: compatible", r#"v\"quoted\\release"#], &[]);
+    value = base.clone();
+    value["schema"] = "wrong\nschema".into();
+    compare(
+        &value,
+        "--exact",
+        1,
+        &[],
+        &[r#"schema: expected "neocogi-com.inspection", found "wrong\nschema""#],
+    );
+    value = base.clone();
+    value["producer"]["name"] = "other-tool".into();
+    compare(
+        &value,
+        "--compat",
+        1,
+        &[],
+        &[r#"producer.name: expected "neocogi-inspect", found "other-tool""#],
+    );
+    results
+}
+
 /// Relocation and native output identity share one provider build and staging owner.
 #[test]
 fn inspects_a_standalone_plugin_and_its_exact_factory_signature() {
-    let inspector = build_inspector();
+    let inspector = build_inspector("dev");
     let original = build_factory_plugin();
     let staging = tempfile::tempdir().expect("isolated plugin directory");
     let plugin = staging.path().join(original.file_name().unwrap());
@@ -167,6 +282,10 @@ fn inspects_a_standalone_plugin_and_its_exact_factory_signature() {
     assert_eq!(factory["root_factory_signature"].as_str().unwrap().len(), 64);
     assert!(factory.get("modules").is_none());
     assert!(factory.get("direct_contracts").is_none());
+
+    let default_diagnostics = snapshot_diagnostics(&inspector, &artifact, staging.path());
+    let min_size_inspector = build_inspector("min-size");
+    assert_eq!(snapshot_diagnostics(&min_size_inspector, &artifact, staging.path()), default_diagnostics);
 
     assert_native_output_paths(
         &inspector,

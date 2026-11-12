@@ -38,7 +38,9 @@ to [local IDL metadata](https://docs.rs/neocogi-com/0.2.0-alpha.1/neocogi_com/id
 cycles, then prints deterministic provider-first order. Disconnected contract
 revisions may coexist. `diff --compat` reports changed factory signatures,
 identities, target/ABI versions, weakened threading, and added hard dependencies
-as breaking; plugin version text is diagnostic.
+as breaking; plugin version text is diagnostic. Text differences use canonical JSON
+spellings and escaped strings, preserving concrete values in ordinary and
+min-size builds alike.
 
 Inspection maps trusted native code and can execute platform loader initializers.
 It never calls the factory bootstrap or recursively locates provider plugins.

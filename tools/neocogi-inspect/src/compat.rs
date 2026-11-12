@@ -5,7 +5,7 @@
 
 use std::collections::BTreeSet;
 
-use crate::schema::{ArtifactFactory, ArtifactThreading, InspectionArtifact};
+use crate::schema::{ArtifactFactory, ArtifactThreading, InspectionArtifact, value_text};
 
 /// Directional changes relevant to replacing one deployed plugin.
 #[derive(Debug, Default, Eq, PartialEq)]
@@ -47,7 +47,9 @@ pub(crate) fn check_compatibility(old: &InspectionArtifact, new: &InspectionArti
         return report;
     }
     if old.target != new.target {
-        report.breaking.push(format!("target ABI changed: {:?} -> {:?}", old.target, new.target));
+        report
+            .breaking
+            .push(format!("target ABI changed: {} -> {}", value_text(&old.target), value_text(&new.target)));
         return report;
     }
 
@@ -106,7 +108,7 @@ fn compare_threading(report: &mut CompatibilityReport, subject: &str, old: Artif
 /// Records changed release text without treating it as an ABI signature.
 fn push_diagnostic_change(report: &mut CompatibilityReport, label: &str, old: &str, new: &str) {
     if old != new {
-        report.diagnostic.push(format!("{label} changed: {old:?} -> {new:?}"));
+        report.diagnostic.push(format!("{label} changed: {} -> {}", value_text(old), value_text(new)));
     }
 }
 
