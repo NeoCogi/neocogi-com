@@ -24,7 +24,7 @@ Linux, macOS and Windows. It requires Rust 1.85 or newer and a native linker.
 | `neocogi-com-macros` | Object, plugin, persistence, and host entry macros |
 | `neocogi-com` | Shared SDK for interface callers and providers, ownership, values, and host-service clients |
 | `neocogi-com-serialization` | Reusable serialization rlib; unconditional NCB and optional lightweight JSON |
-| `neocogi-com-serialization-dylib` | Thin native entry point for the same serialization implementation |
+| `neocogi-com-serialization-dylib` | Thin native plugin with built-in NCB and JSON; NCB is default |
 | `neocogi-com-host` | Host-owned runtime and native plugin loader (`neocogi_com_host` rlib) |
 | `neocogi-inspect` | Plugin metadata inspection, checks, plans, and comparisons |
 

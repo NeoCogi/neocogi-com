@@ -1,4 +1,5 @@
-//! Native entry point only; codecs and static registration belong to the rlib.
+//! Native entry point with NCB and JSON always linked from the reusable rlib.
+//! NCB remains the default format; this shim owns no codec implementation.
 use neocogi_com::{NcPluginDescriptor, NcStatus};
 
 /// Lends the reusable library's immutable plugin descriptor to the native loader.

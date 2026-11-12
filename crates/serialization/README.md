@@ -2,7 +2,8 @@
 
 Reusable `rlib` implementation of the COM serialization formats. NCB is always
 included and is the default; there is no feature that disables it. `json` adds our custom lightweight JSON codec to the same plugin. The separate
-`neocogi-com-serialization-dylib` package is the thin native entry point.
+`neocogi-com-serialization-dylib` package is the thin native entry point and
+always enables both NCB and JSON in its shared library.
 
 ```rust
 use neocogi_com::serialization::Limits;
@@ -35,9 +36,10 @@ See the [normative format contract](https://github.com/NeoCogi/neocogi-com/blob/
 for value grammar, limits, ownership and diagnostic semantics.
 
 Build the deployed shared library with
-`cargo build --profile min-size -p neocogi-com-serialization-dylib --features json`.
+`cargo build --profile min-size -p neocogi-com-serialization-dylib`.
 The ordinary Cargo profile uses nightly, rebuilt target std, immediate
-abort and the platform's size flags. Omit `--features json` for NCB alone.
+abort and the platform's size flags. Both formats are built in; NCB stays default.
+Static rlib consumers can omit its `json` feature for NCB alone.
 Artifacts live under `target/min-size` unless a target is explicitly selected.
 Independent SDK consumers and qualification retain stable compiler support.
 

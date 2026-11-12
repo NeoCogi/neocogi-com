@@ -7,15 +7,11 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 readme = "README.md"
-description = "Thin native plugin entry point for neocogi-com-serialization"
+description = "Native COM serialization plugin with built-in NCB and JSON formats"
 
 [lib]
 crate-type = ["cdylib"]
 
-[features]
-default = []
-json = ["neocogi-com-serialization/json"]
-
 [dependencies]
 neocogi-com = { workspace = true, features = ["alloc"] }
-neocogi-com-serialization = { workspace = true, features = ["plugin"] }
+neocogi-com-serialization = { workspace = true, features = ["plugin", "json"] }

@@ -16,7 +16,7 @@ struct State {
     weight: f64,
 }
 
-/// Loads an actual independently linked cdylib, acquires all enabled formats,
+/// Loads an ordinary independently built cdylib, acquires both built-in formats,
 /// performs real vtable calls and copies a detailed failure back to the caller.
 #[test]
 fn native_shim_supplies_formats_and_failure_details() {
@@ -31,8 +31,6 @@ fn native_shim_supplies_formats_and_failure_details() {
             "min-size",
             "-p",
             "neocogi-com-serialization-dylib",
-            "--features",
-            "json",
             "--locked",
             "--message-format=json",
         ])
@@ -49,8 +47,7 @@ fn native_shim_supplies_formats_and_failure_details() {
         .filter_map(|path| path.as_str().map(std::path::PathBuf::from))
         .find(|path| path.extension().is_some_and(|extension| extension == std::env::consts::DLL_EXTENSION))
         .unwrap();
-    // SAFETY: this final test executable retains its selected host implementation.
-    let runtime = unsafe { neocogi_com::Runtime::__from_host_api(neocogi_com_host::initialize_process()) }.unwrap();
+    let runtime = neocogi_com_host::initialize_runtime();
     // SAFETY: the fixture is the trusted production shim just compiled above.
     let id = unsafe { runtime.load_plugin_library(&artifact) };
     let root = runtime.acquire_plugin_root::<ISerializationPluginAbi>(id).unwrap();

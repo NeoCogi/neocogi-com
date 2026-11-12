@@ -110,9 +110,11 @@ COM factory supplied by an application or acquired from a plugin.
 
 NCB is unconditional, including with `--no-default-features`; there is no `ncb`
 feature to disable. The rlib defaults enable allocation and its static `plugin_descriptor`; neither
-NCB nor optional JSON requires standard-library support. `json` adds the custom JSON codec. The dylib
-shim forwards that switch and always includes NCB. Disabled or unknown names
-return `NC_E_NOINTERFACE`; optional JSON never changes `default_format` from NCB.
+NCB nor optional JSON requires standard-library support. The rlib's `json` feature
+adds the custom JSON codec for static users. The dylib always links both NCB and
+JSON, including with `--no-default-features`; it has no format feature switches.
+Unknown names (and disabled JSON in static builds) return `NC_E_NOINTERFACE`.
+`default_format` always selects NCB.
 Fixed-buffer NCB also works in a `no_std` consumer without default features.
 
 JSON uses our own bounded UTF-8 parser and compact writer. It has no external
@@ -218,9 +220,10 @@ Discovery uses ABI v2 for `0.2.0-alpha.1`. These interfaces are documented in th
 
 ## Verification
 
-The [size and throughput report](../SERIALIZATION_COSTS.md) compares each optional
-feature combination for the deployed shared library and a statically linked
-executable, including the profile choice and reproduction commands.
+The [size and throughput report](../SERIALIZATION_COSTS.md) records the deployed
+shared library, static feature choices and historical configurable-shim results,
+including profile choices and reproduction commands. The current dylib always
+contains both formats.
 
 The binary persistence suite retains golden bytes, exact resource boundaries,
 allocation-free measurement, malformed input and partial-construction cleanup.

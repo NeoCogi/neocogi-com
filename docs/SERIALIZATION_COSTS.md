@@ -1,13 +1,17 @@
 # Serialization size and throughput
 
-## ABI-v2 alpha direct-width numeric repair — 2026-11-12
+The native dylib now always contains NCB and JSON, with NCB selected by default.
+The earlier NCB-only dylib measurements below are historical comparisons, not a
+current dylib build option. Static rlib consumers retain optional JSON.
+
+## Historical ABI-v2 alpha.1 direct-width numeric repair — 2026-11-12
 
 Measured on Linux x86_64, Intel Core Ultra 7 155H, with rolling `nightly`
 resolving to rustc 1.101.0-nightly (`c1070d693`, LLVM 23.1.1). Baseline and repair
 use the same alpha cohort, compiler, lock graph and ordinary `min-size` policy.
 The baseline codec is from `91d7e46`; the repair preserves direct requested-width
 JSON floating conversion, including external decimal/integer midpoints and `-0`.
-Both keep NCB unconditional, optional JSON and the same native COM interfaces.
+Both measured revisions kept NCB unconditional, optional JSON and the same native COM interfaces.
 
 | Artifact (`z`) | Alpha baseline bytes / `.text` | Direct-width cache bytes / `.text` | Change in file bytes |
 | --- | ---: | ---: | ---: |
@@ -164,7 +168,6 @@ Install `nightly` with the `rust-src` component before these builds.
 
 ```sh
 cargo build --profile min-size -p neocogi-com-serialization-dylib
-cargo build --profile min-size -p neocogi-com-serialization-dylib --features json
 cargo build --profile min-size -p neocogi-com-serialization --example format_costs
 cargo build --profile min-size -p neocogi-com-serialization --features json --example format_costs
 ```
