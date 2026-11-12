@@ -1,7 +1,7 @@
 //! Fully exported enum wire types work in a crate that requires complete public documentation.
 #![deny(missing_docs)]
 #[allow(unused_imports, unused_macros)]
-mod test_contracts { include!(concat!(env!("OUT_DIR"), "/test_contracts.rs")); }
+mod test_contracts { include!(env!("NC_COM_TEST_CONTRACTS")); }
 use neocogi_com::{ComValue};
 
 extern crate self as fixture_ui_enum_public_documentation;

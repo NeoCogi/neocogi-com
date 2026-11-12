@@ -82,14 +82,21 @@ pub fn generate(root: &Path) {
         ));
     }
     let output_dir = PathBuf::from(std::env::var_os("OUT_DIR").unwrap());
-    fs::write(output_dir.join("test_contracts.rs"), output).unwrap();
+    let contracts = output_dir.join("test_contracts.rs");
+    fs::write(&contracts, output).unwrap();
     let notifications = root.join("../examples/schemas/neocogi/idl_example/notifications.rs").canonicalize().unwrap();
+    let helpers = output_dir.join("example_helpers.rs");
     fs::write(
-        output_dir.join("example_helpers.rs"),
+        &helpers,
         format!(
             "/// Domain-specific notification delivery.\n#[path = {:?}] pub mod notifications;\n",
             notifications
         ),
     )
     .unwrap();
+    // Trybuild compiles separate packages without this owner's build script.
+    // Explicit artifact variables survive Cargo's child process environment;
+    // Cargo's implicit OUT_DIR does not belong to those separate targets.
+    println!("cargo:rustc-env=NC_COM_TEST_CONTRACTS={}", contracts.display());
+    println!("cargo:rustc-env=NC_COM_TEST_EXAMPLE_HELPERS={}", helpers.display());
 }
