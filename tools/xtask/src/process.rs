@@ -119,7 +119,18 @@ impl Runner {
     /// Separates Cargo configuration discovery from disk-backed build storage.
     /// Only small source files and temporary manifests use the system temp area.
     pub fn isolated(&self, prefix: &str) -> Result<(Workspace, Self)> {
-        let files = tempfile::Builder::new().prefix("neocogi-com-sdk-").tempdir()?;
+        self.isolated_in(prefix, &std::env::temp_dir())
+    }
+
+    /// Creates an isolated owner under the selected temporary source parent.
+    /// Keeping that filesystem input explicit also permits alias-path regression
+    /// checks without mutating the process-wide temporary-directory environment.
+    fn isolated_in(&self, prefix: &str, temporary_root: &Path) -> Result<(Workspace, Self)> {
+        // Canonicalize before creating the owner so TempDir::path(), Runner,
+        // Cargo patches and child temporary roots all use one source spelling.
+        // macOS /var and /private/var otherwise become distinct Cargo packages.
+        let temporary_root = temporary_root.canonicalize()?;
+        let files = tempfile::Builder::new().prefix("neocogi-com-sdk-").tempdir_in(temporary_root)?;
         let work = self.scratch(prefix)?;
         let mut runner = self.clone();
         runner.root = files.path().to_owned();
@@ -295,5 +306,80 @@ pub(crate) fn retire<T>(owner: impl TaskOwner, result: Result<T>) -> Result<T> {
         (Err(error), Ok(())) => Err(error),
         (Ok(_), Err(error)) => Err(format!("task cleanup failed: {error}").into()),
         (Err(error), Err(cleanup)) => Err(format!("{error}; task cleanup also failed: {cleanup}").into()),
+    }
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::{Result, Runner, retire};
+    use std::{fs, os::unix::fs::symlink, path::Path};
+
+    /// Cargo must see one SDK identity when a registry patch and a relative path
+    /// reach the same crate below a temporary-parent alias, as on macOS /var.
+    #[test]
+    fn isolated_alias_paths_keep_one_cargo_package_identity() -> Result<()> {
+        let parent = tempfile::tempdir()?;
+        let physical = parent.path().join("physical");
+        let alias = parent.path().join("alias");
+        fs::create_dir(&physical)?;
+        symlink(&physical, &alias)?;
+        let checkout = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize()?;
+        for temporary_root in [&physical, &alias] {
+            let (owner, runner) = Runner::new(checkout.clone()).isolated_in("alias-identity-", temporary_root)?;
+            let source = owner.path().to_owned();
+            let target = runner.target_dir();
+            let result = (|| {
+                fs::write(
+                    source.join("Cargo.toml"),
+                    "[workspace]\nresolver='3'\nmembers=['sdk','bridge','consumer']\nexclude=['tmp']\n",
+                )?;
+                for name in ["sdk", "bridge", "consumer"] {
+                    fs::create_dir_all(source.join(name).join("src"))?;
+                }
+                fs::write(
+                    source.join("sdk/Cargo.toml"),
+                    "[package]\nname='path-alias-sdk'\nversion='0.0.0'\nedition='2024'\n",
+                )?;
+                fs::write(source.join("sdk/src/lib.rs"), "pub struct Marker;\n")?;
+                fs::write(
+                    source.join("bridge/Cargo.toml"),
+                    "[package]\nname='path-alias-bridge'\nversion='0.0.0'\nedition='2024'\n[dependencies]\npath-alias-sdk={path='../sdk'}\n",
+                )?;
+                fs::write(
+                    source.join("bridge/src/lib.rs"),
+                    "pub fn make() -> path_alias_sdk::Marker { path_alias_sdk::Marker }\n",
+                )?;
+                fs::write(
+                    source.join("consumer/Cargo.toml"),
+                    "[package]\nname='path-alias-consumer'\nversion='0.0.0'\nedition='2024'\n[dependencies]\npath-alias-sdk='=0.0.0'\npath-alias-bridge={path='../bridge'}\n",
+                )?;
+                fs::write(
+                    source.join("consumer/src/main.rs"),
+                    "fn main() { let _: path_alias_sdk::Marker = path_alias_bridge::make(); println!(\"one-sdk\"); }\n",
+                )?;
+                fs::create_dir(source.join(".cargo"))?;
+                let path = toml::Value::String(source.join("sdk").to_str().unwrap().into());
+                fs::write(
+                    source.join(".cargo/config.toml"),
+                    format!("[patch.crates-io]\npath-alias-sdk={{path={path}}}\n"),
+                )?;
+                let output = runner.cargo("1.85.0", &["run", "--offline", "--manifest-path", "consumer/Cargo.toml"])?;
+                assert_eq!(output.trim(), "one-sdk");
+                let graph: serde_json::Value =
+                    serde_json::from_str(&runner.read("rustup", ["run", "1.85.0", "cargo", "metadata", "--offline", "--format-version=1"])?)?;
+                let packages = graph["packages"].as_array().unwrap();
+                assert_eq!(packages.iter().filter(|p| p["name"] == "path-alias-sdk").count(), 1);
+                assert_eq!(source, source.canonicalize()?);
+                assert_eq!(runner.root, source);
+                for name in ["TMPDIR", "TMP", "TEMP"] {
+                    assert_eq!(runner.env.get(std::ffi::OsStr::new(name)), Some(&source.join("tmp").into_os_string()));
+                }
+                Ok(())
+            })();
+            retire(owner, result)?;
+            assert!(!source.exists());
+            assert!(!target.exists());
+        }
+        Ok(())
     }
 }

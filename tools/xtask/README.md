@@ -77,6 +77,10 @@ The checkout's ordinary `cargo build --profile min-size` owns all deployment
 settings and follows the `nightly` channel. Qualification runs stable/Rust 1.85 against
 source copies in system temporary storage, outside checkout Cargo configuration
 discovery. Those small source trees omit `.cargo` and the checkout toolchain pin.
+Their temporary parent is canonicalized before the source owner is created, so
+the owner, Cargo patch paths and child working directories share one spelling.
+This prevents aliases such as macOS `/var` and `/private/var` from producing
+duplicate SDK package identities in a consumer lockfile.
 Large artifacts and task work stay below `target/xtask-work` on the checkout's
 filesystem. Both source and output owners are retired before success; sources
 remain alive while tests use embedded manifest paths. Copied fixtures exclude
