@@ -1,3 +1,4 @@
+use neocogi_com_serialization::ncb as binary;
 // Real COM factories exercise recursive snapshots, preflight, and teardown.
 
 use std::sync::{
@@ -5,7 +6,7 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
 };
 use neocogi_com::{
-    binary, com_object, guid_from_qualified_name, ComDeserialize, ComSerialize, ComPtr, ComRef, INcBytesAbi, IUnknown, NcBytes, NcCopyFromBufferOffset, NcGuid,
+    com_object, guid_from_qualified_name, ComDeserialize, ComSerialize, ComPtr, ComRef, INcBytesAbi, IUnknown, NcBytes, NcCopyFromBufferOffset, NcGuid,
     NcStatus, NC_E_ABI_VERSION, NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE,
 };
 use neocogi_com::persistence::*;

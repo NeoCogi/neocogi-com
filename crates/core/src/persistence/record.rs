@@ -1,7 +1,7 @@
 //! Portable initialization values, independent of runtime allocation ownership.
 
 use alloc::vec::Vec;
-use crate::{binary, ComDeserialize, ComSerialize};
+use crate::{serialization, ComDeserialize, ComSerialize};
 
 /// One owned initialization tree with the original NCB-v1 field ordering.
 ///
@@ -22,13 +22,13 @@ pub struct ObjectRecord {
 impl ObjectRecord {
     /// Count shared by the ordered encoder, decoder and virtual leaf measurement.
     const FIELD_COUNT: usize = 4;
-    /// Measures a leaf persistence envelope before allocating its state bytes.
+    /// Creates a virtual leaf value for format-specific measurement before allocating state.
     /// UUID/revision contents have fixed widths, so zero placeholders give the
     /// exact shape for any recipe. State remains a sequence of byte values; it
     /// consumes the same element/value budgets as an actual `Vec<u8>`. This helper
     /// covers only records with no persistent children, not arbitrary trees.
-    pub fn encoded_leaf_len(state_bytes: usize, limits: binary::Limits) -> Result<usize, binary::Error> {
-        binary::encoded_len_with_limits(&LeafSize { state_bytes }, limits)
+    pub fn leaf_size(state_bytes: usize) -> LeafSize {
+        LeafSize { state_bytes }
     }
 
     /// Encodes the single authoritative field order for owned records and leaf
@@ -62,7 +62,7 @@ impl ComSerialize for ObjectRecord {
 }
 
 /// Counting-only leaf record; no placeholder byte allocation accompanies its length.
-struct LeafSize {
+pub struct LeafSize {
     /// Number of state bytes which will become individual sequence values.
     state_bytes: usize,
 }
@@ -105,7 +105,7 @@ impl ComDeserialize for ObjectRecord {
 #[derive(Clone, Copy, Debug)]
 pub struct Limits {
     /// Binary encoding/decoding budget, including state bytes and value counts.
-    pub binary: binary::Limits,
+    pub binary: serialization::Limits,
     /// Maximum object count across the complete tree.
     pub objects: usize,
     /// Maximum objects along one root-to-leaf path.
@@ -116,7 +116,7 @@ impl Default for Limits {
     /// Retains the previous persistence limits for ordinary initialization trees.
     fn default() -> Self {
         Self {
-            binary: binary::Limits::default(),
+            binary: serialization::Limits::default(),
             objects: 4096,
             depth: 48,
         }

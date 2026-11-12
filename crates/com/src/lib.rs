@@ -180,7 +180,6 @@ pub use neocogi_com_core::{
     __ComProjection, __nc_interface_chain, __nc_object_interface_count, __nc_projection_table, __nc_projection_vtables, __nc_find_interface,
 };
 
-pub use neocogi_com_core::binary;
 pub mod serialization;
 
 /// Compile the runnable README examples against this crate's real public API.

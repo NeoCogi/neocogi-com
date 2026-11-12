@@ -990,6 +990,12 @@ for other formats without adding names to NCB. This supersedes the concrete
 NCB-cursor restriction from 0.1.0 and changes the Rust value-trait API. Discovery
 family 1 remains unchanged during 0.2.0 development.
 
+The reusable serialization rlib owns unconditional/default NCB and an optional custom JSON
+codec. A separate thin dylib shim exports its static plugin descriptor.
+Failed owning sessions expose `ISerializationDiagnostics`; convenience operations
+copy the first failure message, logical path and available source coordinates
+into a caller-owned error before releasing the session.
+
 ## Persistence and diagnostics
 
 `NcPersistenceApiV1` creates/destroys caller-owned, thread-local contexts, registers

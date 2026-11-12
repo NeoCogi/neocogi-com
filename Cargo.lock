@@ -226,6 +226,7 @@ version = "0.1.0"
 dependencies = [
  "neocogi-com",
  "neocogi-com-core",
+ "neocogi-com-serialization",
 ]
 
 [[package]]
@@ -237,6 +238,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "neocogi-com-serialization"
+version = "0.1.0"
+dependencies = [
+ "neocogi-com",
+]
+
+[[package]]
+name = "neocogi-com-serialization-dylib"
+version = "0.1.0"
+dependencies = [
+ "neocogi-com",
+ "neocogi-com-serialization",
+]
+
+[[package]]
 name = "neocogi-com-tests"
 version = "0.1.0"
 dependencies = [
@@ -244,6 +260,7 @@ dependencies = [
  "neocogi-com",
  "neocogi-com-core",
  "neocogi-com-host",
+ "neocogi-com-serialization",
  "neocogi-idl",
  "serde_json",
  "tempfile",
@@ -256,6 +273,7 @@ version = "0.0.0"
 dependencies = [
  "neocogi-com",
  "neocogi-com-host",
+ "neocogi-com-serialization",
  "neocogi-example-com-plugin",
  "neocogi-idl",
  "tempfile",
@@ -266,6 +284,7 @@ name = "neocogi-example-com-plugin"
 version = "0.0.0"
 dependencies = [
  "neocogi-com",
+ "neocogi-com-serialization",
  "neocogi-idl",
 ]
 

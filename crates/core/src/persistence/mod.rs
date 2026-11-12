@@ -10,4 +10,4 @@ pub use interfaces::*;
 #[cfg(feature = "alloc")]
 mod record;
 #[cfg(feature = "alloc")]
-pub use record::{Limits, ObjectRecord};
+pub use record::{Limits, ObjectRecord, LeafSize};

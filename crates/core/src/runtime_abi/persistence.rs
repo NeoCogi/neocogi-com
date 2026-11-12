@@ -97,7 +97,7 @@ impl From<NcPersistenceLimitsV1> for crate::persistence::Limits {
     /// Reconstructs the local policy without changing any caller-selected budget.
     fn from(limits: NcPersistenceLimitsV1) -> Self {
         Self {
-            binary: crate::binary::Limits {
+            binary: crate::serialization::Limits {
                 bytes: limits.bytes,
                 elements: limits.elements,
                 depth: limits.value_depth,

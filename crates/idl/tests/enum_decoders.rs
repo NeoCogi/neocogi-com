@@ -31,8 +31,8 @@ fn ordinary_enum_decoders_compile_and_reconstruct_every_payload_shape() {
     fs::write(
         project.path().join("Cargo.toml"),
         format!(
-            "[package]\nname='enum-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\n",
-            root.join("crates/com")
+            "[package]\nname='enum-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\nneocogi-com-serialization={{path={:?},default-features=false,features=['std']}}\n",
+            root.join("crates/com"), root.join("crates/serialization")
         ),
     )
     .unwrap();

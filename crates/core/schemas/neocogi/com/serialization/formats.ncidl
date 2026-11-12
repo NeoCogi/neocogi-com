@@ -127,3 +127,32 @@ interface ISerializationFormat {
     /// Copies the complete borrowed document into a new bounded source session.
     fn create_deserializer(&self, input: &[u8], max_bytes: u64, max_elements: u32, max_depth: u32, max_values: u64) -> Result<ComBox<IDeserializer>>;
 }
+
+/// One serialization plugin bundles its enabled codecs, with NCB always available.
+interface ISerializationPlugin {
+    /// Returns the unconditional default NCB format factory.
+    fn default_format(&self) -> Result<ComPtr<ISerializationFormat>>;
+    /// Selects ncb or json; disabled and unknown names return NC_E_NOINTERFACE.
+    fn format(&self, name: &str) -> Result<ComPtr<ISerializationFormat>>;
+}
+
+/// Immutable first-failure details on an owning serializer/deserializer session.
+/// Coordinates are optional: u64::MAX means no byte offset, zero means no line/column.
+interface ISerializationDiagnostics {
+    /// Returns the original failed operation's status, as data.
+    fn failure_status(&self) -> Result<Status>;
+    /// Reports a zero-based byte cursor/offset, or u64::MAX when unavailable.
+    fn byte_offset(&self) -> Result<u64>;
+    /// Reports a one-based source line, or zero when unavailable.
+    fn line(&self) -> Result<u32>;
+    /// Reports a one-based source column, or zero when unavailable.
+    fn column(&self) -> Result<u32>;
+    /// Reports the diagnostic message's UTF-8 byte length.
+    fn message_len(&self) -> Result<u32>;
+    /// Copies the complete message to fresh output; short capacity writes no prefix.
+    fn copy_message(&self, output: &mut [u8]) -> Result<u32>;
+    /// Reports the logical field/index path's UTF-8 byte length.
+    fn path_len(&self) -> Result<u32>;
+    /// Copies the complete logical path, rooted at $, into fresh output.
+    fn copy_path(&self, output: &mut [u8]) -> Result<u32>;
+}

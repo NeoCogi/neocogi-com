@@ -20,6 +20,8 @@ Linux, macOS and Windows. It requires Rust 1.85 or newer and a native linker.
 | `neocogi-idl` | Contract compiler, shared code generation, Cargo integration |
 | `neocogi-com-macros` | Object, plugin, persistence, and host entry macros |
 | `neocogi-com` | Shared SDK for interface callers and providers, ownership, values, and host-service clients |
+| `neocogi-com-serialization` | Reusable serialization rlib; unconditional NCB and optional lightweight JSON |
+| `neocogi-com-serialization-dylib` | Thin native entry point for the same serialization implementation |
 | `neocogi-com-host` | Host-owned runtime and native plugin loader (`neocogi_com_host` rlib) |
 | `neocogi-inspect` | Plugin metadata inspection, checks, plans, and comparisons |
 
@@ -60,7 +62,7 @@ cargo xtask msrv
 cargo xtask packages
 ```
 
-The package check builds the six actual crate archives, extracts them into an
+The package check builds the eight actual crate archives, extracts them into an
 isolated temporary workspace, runs their shipped tests on Rust 1.85, and executes
 a downstream consumer using only those extracted packages. Install that compiler with
 `rustup toolchain install 1.85.0 --profile minimal`. The package check uses cached

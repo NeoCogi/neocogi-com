@@ -234,8 +234,8 @@ mod tests {
             __nc_wire_field_0: 72,
             __nc_storage_field_0: 73,
         };
-        let bytes = neocogi_com::binary::to_vec(&source).unwrap();
-        let value: PrivateSpelling = neocogi_com::binary::from_slice(&bytes).unwrap();
+        let bytes = neocogi_com_serialization::ncb::to_vec(&source).unwrap();
+        let value: PrivateSpelling = neocogi_com_serialization::ncb::from_slice(&bytes).unwrap();
         assert!(value.first);
         assert_eq!((value.__nc_field_0, value.__nc_wire_field_0, value.__nc_storage_field_0), (71, 72, 73));
     }

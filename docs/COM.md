@@ -337,7 +337,9 @@ without a validation-mode build setting.
 `ComSerialize` and `ComDeserialize` traverse local typed values through COM
 `ISerializer` and `IDeserializer` objects. A shared `ISerializationFormat` factory
 creates exclusive document sessions; `Format::new` selects an application or
-plugin provider and `Format::ncb` selects the supplied NCB implementation.
+plugin provider. `neocogi_com_serialization::ncb::format` selects the supplied
+NCB implementation; the implementation rlib and thin dylib shim bundle optional
+the optional `json` feature with unconditional NCB.
 Generated records supply field names, and enum cases supply names and ordinals.
 The same typed implementations support positional and named formats.
 
@@ -353,6 +355,8 @@ retains explicit reconstruction recipes and an NCB envelope by default.
 - `neocogi-com-core`: raw ABI layouts and traits (`no_std` by default).
 - `neocogi-com-macros`: thin procedural entrypoints over IDL's shared backend.
 - `neocogi-com`: typed object/data helpers and optional supplied-host service clients.
+- `neocogi-com-serialization`: reusable NCB/JSON codecs and static plugin descriptor.
+- `neocogi-com-serialization-dylib`: thin native entry point for that rlib.
 - `neocogi-com-host`: plugin catalog, loader, and persistence implementation;
   its Rust library target is `neocogi_com_host`.
 - `neocogi-idl` under `crates/idl`: IDL parser/resolver, the shared `codegen`

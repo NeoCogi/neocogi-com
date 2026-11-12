@@ -1,9 +1,10 @@
 //! One plugin implementation built as either a shared library or a linked Rust library.
 
+use neocogi_com_serialization::ncb as binary;
 extern crate self as neocogi_example_com_plugin;
 /// Independently generated bindings from the common example IDL.
 pub mod contracts;
-use neocogi_com::{binary, ComPtr, NcValueRef, IUnknown, NcBytes, INcBytesAbi, NcGuid, NcStatus, NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE, com_object};
+use neocogi_com::{ComPtr, NcValueRef, IUnknown, NcBytes, INcBytesAbi, NcGuid, NcStatus, NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE, com_object};
 #[path = "../../com-host/support/extent_state.rs"]
 mod extent_state;
 use extent_state::{ExtentState, PERSISTENT_KIND};

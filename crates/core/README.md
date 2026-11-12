@@ -154,9 +154,11 @@ enums, including recursive vectors and named/tuple payloads. NCB writes fields i
 declaration order and enum ordinals without names. This is value
 serialization; opting a live object into persistence remains its provider's job.
 
-`binary::to_slice`, `binary::from_slice` and `binary::encoded_len_with_limits`
+The separate `neocogi-com-serialization` implementation crate supplies NCB
+through its `ncb` module; core contains only format interfaces and typed values.
+`ncb::to_slice`, `ncb::from_slice` and `ncb::encoded_len_with_limits`
 work without allocation support for allocation-free values. `alloc` adds owned
-strings/collections and `binary::to_vec`. All output modes use the same writer,
+strings/collections and `ncb::to_vec`. All output modes use the same writer,
 framing and budgets; a short fixed buffer returns an error and its partially
 written prefix must be discarded. They use NCB version 1: a
 four-byte marker, little-endian scalars, u32 lengths/variant ordinals, and
@@ -237,12 +239,12 @@ The compiler matrix qualifies those concrete configurations; it is not a claim
 about untested targets or every compiler version. No matched deployment-size
 measurement was made for this simplification. The focused regressions live in
 [binary persistence tests](https://github.com/NeoCogi/neocogi-com/blob/v0.1.0/tests/com/integration-tests/binary_persistence.rs),
-[core fixed-buffer tests](tests/binary.rs) and
+[core fixed-buffer tests](https://github.com/NeoCogi/neocogi-com/blob/0.2.0-wip/crates/serialization/tests/binary.rs) and
 [IDL capability proofs](https://github.com/NeoCogi/neocogi-com/blob/v0.1.0/crates/idl/tests/capabilities.rs).
 
 ### Binary resource limits
 
-The encoder and decoder apply the same `binary::Limits` policy. For the built-in
+The encoder and decoder apply the same `ncb::Limits` policy. For the built-in
 and derived codec pairs, encoding a valid value successfully produces a document
 that the matching decoder accepts under the same limits. Custom serializer and
 deserializer implementations must describe the same schema and consume all its
@@ -263,14 +265,14 @@ tuple/record cases contain a sequence/record value and its fields. Text costs on
 value and its bytes consume `bytes`; string lengths, enum tags, and presence tags
 are framing, not extra values or depth levels.
 
-`binary::encoded_len_with_limits` runs the same encoder without an output buffer.
+`ncb::encoded_len_with_limits` runs the same encoder without an output buffer.
 It returns the complete encoded length or the same budget error and offset as
 ordinary encoding. This supports admission before cloning large typed inputs;
 there is no separate approximate size formula. User-written serialization code
 can still allocate internally. Materialized output reserves fallibly and checks
 its byte ceiling before requesting additional capacity.
 
-`ObjectRecord::encoded_leaf_len` checks the exact envelope for a known state-byte
+`ncb::encoded_leaf_len` checks the exact envelope for a known state-byte
 length and no persistent children. It shares the ordinary record field serializer
 and counts a virtual byte sequence, without allocating placeholder state. UUID and
 revision contents do not change their widths. Use it together with measurement of

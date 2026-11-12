@@ -16,6 +16,8 @@ pub(crate) const PUBLISHED: &[(&str, &str)] = &[
     ("neocogi-idl", "crates/idl"),
     ("neocogi-com-macros", "crates/macros"),
     ("neocogi-com", "crates/com"),
+    ("neocogi-com-serialization", "crates/serialization"),
+    ("neocogi-com-serialization-dylib", "crates/serialization-dylib"),
     ("neocogi-com-host", "crates/host"),
     ("neocogi-inspect", "tools/neocogi-inspect"),
 ];
@@ -436,7 +438,9 @@ mod tests {
             ],
         )?)?;
         assert_eq!(Path::new(graph["workspace_root"].as_str().unwrap()).canonicalize()?, root.canonicalize()?);
-        assert_eq!(graph["workspace_members"].as_array().unwrap().len(), 8);
+        // The extracted SDK inventory and its two executable consumers are owned
+        // here; adding a published implementation must not imply source membership.
+        assert_eq!(graph["workspace_members"].as_array().unwrap().len(), PUBLISHED.len() + 2);
         for package in graph["packages"].as_array().unwrap() {
             assert!(
                 Path::new(package["manifest_path"].as_str().unwrap())

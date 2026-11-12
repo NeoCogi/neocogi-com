@@ -1,4 +1,5 @@
 //! Direct IDL scalar emission preserves checked live domains and raw integer persistence.
+use neocogi_com_serialization::ncb as binary;
 #[allow(unused_imports, unused_macros)]
 mod test_contracts {
     include!(concat!(env!("OUT_DIR"), "/test_contracts.rs"));

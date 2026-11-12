@@ -373,9 +373,12 @@ either from a dependency, so neither status identifies receiver lifetime. See th
 
 ## Serialization formats
 
-`serialization::Format::ncb(Limits::default())` selects the supplied NCB COM
+`neocogi_com_serialization::ncb::format(Limits::default())` selects the supplied NCB COM
 factory. `Format::new(factory, limits)` selects another `ISerializationFormatAbi`
-provider, including a plugin root. `serialize` and `deserialize` use the same local
+provider, including a plugin-supplied factory.
+`neocogi-com-serialization` is the reusable implementation rlib; the separate
+`neocogi-com-serialization-dylib` crate is its thin native shim. NCB is always
+included and selected by default; `json` is optional. `serialize` and `deserialize` use the same local
 `ComSerialize`/`ComDeserialize` implementations through mutable COM document
 sessions. Those sessions own their buffers; values remain caller-owned Rust types.
 The [format contract](https://github.com/NeoCogi/neocogi-com/blob/0.2.0-wip/docs/contracts/SERIALIZATION_FORMATS.md)

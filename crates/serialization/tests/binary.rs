@@ -1,7 +1,7 @@
 //! The NCB cursor must remain usable by allocation-free contracts.
 //! Run this target with --no-default-features as well as with alloc enabled.
 
-use neocogi_com_core::binary::{self, Limits};
+use neocogi_com_serialization::ncb::{self as binary, Limits};
 
 /// The fixed-buffer path uses the existing NCB framing, endian rules and budgets.
 #[test]

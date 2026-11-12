@@ -3,6 +3,7 @@
 //! owns its temporary sources and targets until every child has exited.
 mod compatibility;
 mod markdown;
+mod min_size;
 mod packages;
 mod process;
 mod qualification;
@@ -32,6 +33,7 @@ fn dispatch() -> Result<()> {
     let command = args.next().unwrap_or_else(|| "help".into());
     let remaining: Vec<_> = args.collect();
     match command.to_str() {
+        Some("min-size") => min_size::run(&runner, &remaining),
         Some("compatibility") => compatibility::run(&runner, compatibility::Options::parse(&remaining)?),
         Some("quality" | "msrv" | "packages" | "markdown" | "workspace" | "abi-32") if remaining.is_empty() => match command.to_str().unwrap() {
             "quality" => qualification::quality(&runner),
@@ -44,7 +46,7 @@ fn dispatch() -> Result<()> {
         },
         Some("help" | "--help" | "-h") if remaining.is_empty() => {
             println!(
-                "cargo xtask <quality|msrv|packages|markdown|workspace|abi-32>\ncargo xtask compatibility [--suite linked|cross-version|build-flags|safety|address|thread|sanitizers] [--report PATH]"
+                "cargo xtask <quality|msrv|packages|markdown|workspace|abi-32>\ncargo xtask compatibility [--suite linked|cross-version|build-flags|safety|address|thread|sanitizers] [--report PATH]\ncargo xtask min-size [--features json] [--example] [--json-output] [--opt-level s|z]"
             );
             Ok(())
         }

@@ -1445,6 +1445,530 @@ const _: () = {
 };
 #[doc(hidden)]
 /// Statically typed vtable and lifecycle adapters for one provider type.
+pub struct ISerializationDiagnosticsVtblFor<__NcProvider>(
+    /// Associates dispatch with T without allocating or owning a value.
+    ::core::marker::PhantomData<__NcProvider>,
+);
+const _: () = {
+    #[allow(unused_imports)]
+    use ::core::convert::{
+        identity as __nc_dispatch_object, identity as __nc_dispatch_value,
+        identity as __nc_arg_0, identity as __nc_arg_0_owner_slot,
+        identity as __nc_arg_0_offset, identity as __nc_arg_0_len,
+        identity as __nc_arg_0_ptr, identity as __nc_arg_0_values,
+        identity as __nc_arg_0_written, identity as __nc_arg_0_0,
+        identity as __nc_arg_0_0_owner_slot, identity as __nc_arg_0_0_offset,
+        identity as __nc_arg_0_0_len, identity as __nc_arg_0_0_ptr,
+        identity as __nc_arg_0_0_values, identity as __nc_arg_0_0_written,
+        identity as __nc_this, identity as __nc_status, identity as __nc_value,
+        identity as __nc_raw, identity as __nc_result, identity as __nc_values,
+        identity as __nc_writer, identity as __nc_out, identity as __nc_identity,
+        identity as __nc_this_0, identity as __nc_status_0, identity as __nc_result_0,
+        identity as __nc_prepared, identity as __nc_out_0, identity as __nc_this_1,
+        identity as __nc_status_1, identity as __nc_result_1,
+        identity as __nc_prepared_0, identity as __nc_out_1, identity as __nc_this_2,
+        identity as __nc_status_2, identity as __nc_result_2,
+        identity as __nc_prepared_1, identity as __nc_out_2, identity as __nc_this_3,
+        identity as __nc_status_3, identity as __nc_result_3,
+        identity as __nc_prepared_2, identity as __nc_out_3, identity as __nc_this_4,
+        identity as __nc_status_4, identity as __nc_result_4,
+        identity as __nc_prepared_3, identity as __nc_out_4, identity as __nc_this_5,
+        identity as __nc_status_5, identity as __nc_result_5,
+        identity as __nc_prepared_4, identity as __nc_out_5, identity as __nc_this_6,
+        identity as __nc_status_6, identity as __nc_result_6,
+        identity as __nc_prepared_5, identity as __nc_out_6, identity as __nc_this_7,
+        identity as __nc_status_7, identity as __nc_result_7,
+        identity as __nc_prepared_6, identity as __nc_out_7,
+    };
+    impl<__NcProvider> ISerializationDiagnosticsVtblFor<__NcProvider>
+    where
+        __NcProvider: ISerializationDiagnostics + ::neocogi_com::ComObject,
+    {
+        /// Distinct provider bindings in the interface's canonical metadata order.
+        /// T fixes the thunk implementation; no object headers are stored here.
+        pub const PROJECTIONS: [::neocogi_com::__ComProjection<
+            __NcProvider,
+        >; ISerializationDiagnosticsAbi::INTERFACE_CHAIN.len()] = ::neocogi_com::__nc_projection_table(
+            &ISerializationDiagnosticsAbi::INTERFACE_CHAIN,
+            unsafe {
+                ::neocogi_com::__ComProjection::new(
+                    <ISerializationDiagnosticsAbi as ::neocogi_com::ComInterface>::INTERFACE_ID,
+                    &Self::VTABLE as *const ISerializationDiagnosticsVTable
+                        as *const ::neocogi_com::IUnknownVTable,
+                )
+            },
+            &[],
+        );
+        /// Table for a standalone projection of this interface.
+        pub const VTABLE: ISerializationDiagnosticsVTable = Self::with_identity(
+            &<ISerializationDiagnosticsAbi as ::neocogi_com::ComInterface>::INTERFACE_ID,
+        );
+        /// Builds an inherited prefix advertising the actual outer projection.
+        pub const fn with_identity(
+            __nc_identity: &'static ::neocogi_com::NcInterfaceId,
+        ) -> ISerializationDiagnosticsVTable {
+            ISerializationDiagnosticsVTable {
+                unknown: ::neocogi_com::IUnknownVTable {
+                    interface_id: __nc_identity,
+                    query_interface: ::neocogi_com::lifetime::nc_query_interface,
+                    add_ref: ::neocogi_com::lifetime::nc_strong_retain,
+                    release: ::neocogi_com::lifetime::nc_strong_release,
+                    downgrade: ::core::option::Option::Some(
+                        ::neocogi_com::lifetime::nc_downgrade,
+                    ),
+                },
+                failure_status: Self::failure_status_thunk,
+                byte_offset: Self::byte_offset_thunk,
+                line: Self::line_thunk,
+                column: Self::column_thunk,
+                message_len: Self::message_len_thunk,
+                copy_message: Self::copy_message_thunk,
+                path_len: Self::path_len_thunk,
+                copy_path: Self::copy_path_thunk,
+            }
+        }
+        /// Returns the original failed operation's status, as data.
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:143:8` (module `neocogi.com.serialization`).
+        /// Validates raw pointers, borrows the concrete provider through its
+        /// object-wide gate, invokes its typed method, and lowers the result.
+        /// The gate is released before transferring an owned result; errors
+        /// are normalized so an unwritten output can never look successful.
+        ///
+        /// # Safety
+        /// The interface belongs to T's live generated storage. Non-null ABI
+        /// arguments must satisfy their method's readable/writable contracts.
+        unsafe extern "C" fn failure_status_thunk(
+            __nc_this: *mut ::core::ffi::c_void,
+            __nc_out: *mut <::neocogi_com::NcStatus as ::neocogi_com::ComValue>::Wire,
+        ) -> ::neocogi_com::NcStatus {
+            if __nc_this.is_null() || __nc_out.is_null() {
+                return ::neocogi_com::NC_E_POINTER;
+            }
+            let __nc_dispatch_object = __nc_this;
+            if __nc_dispatch_object.is_null() {
+                return ::neocogi_com::NC_E_POINTER;
+            }
+            let mut __nc_dispatch_value = match unsafe {
+                <__NcProvider as ::neocogi_com::ComObject>::borrow_abi_ref(
+                    __nc_dispatch_object,
+                )
+            } {
+                ::core::result::Result::Ok(__nc_value) => __nc_value,
+                ::core::result::Result::Err(__nc_status) => return __nc_status,
+            };
+            let __nc_result = <__NcProvider as ISerializationDiagnostics>::failure_status(
+                &*__nc_dispatch_value,
+            );
+            ::core::mem::drop(__nc_dispatch_value);
+            match __nc_result {
+                ::core::result::Result::Ok(__nc_value) => {
+                    let __nc_raw = match ::neocogi_com::encode_inline(&__nc_value) {
+                        ::core::result::Result::Ok(__nc_raw) => __nc_raw,
+                        ::core::result::Result::Err(__nc_status) => return __nc_status,
+                    };
+                    unsafe {
+                        *__nc_out = __nc_raw;
+                    }
+                    ::neocogi_com::NC_OK
+                }
+                ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
+            }
+        }
+        /// Reports a zero-based byte cursor/offset, or u64::MAX when unavailable.
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:145:8` (module `neocogi.com.serialization`).
+        /// Validates raw pointers, borrows the concrete provider through its
+        /// object-wide gate, invokes its typed method, and lowers the result.
+        /// The gate is released before transferring an owned result; errors
+        /// are normalized so an unwritten output can never look successful.
+        ///
+        /// # Safety
+        /// The interface belongs to T's live generated storage. Non-null ABI
+        /// arguments must satisfy their method's readable/writable contracts.
+        unsafe extern "C" fn byte_offset_thunk(
+            __nc_this: *mut ::core::ffi::c_void,
+            __nc_out: *mut <::core::primitive::u64 as ::neocogi_com::ComValue>::Wire,
+        ) -> ::neocogi_com::NcStatus {
+            if __nc_this.is_null() || __nc_out.is_null() {
+                return ::neocogi_com::NC_E_POINTER;
+            }
+            let __nc_dispatch_object = __nc_this;
+            if __nc_dispatch_object.is_null() {
+                return ::neocogi_com::NC_E_POINTER;
+            }
+            let mut __nc_dispatch_value = match unsafe {
+                <__NcProvider as ::neocogi_com::ComObject>::borrow_abi_ref(
+                    __nc_dispatch_object,
+                )
+            } {
+                ::core::result::Result::Ok(__nc_value) => __nc_value,
+                ::core::result::Result::Err(__nc_status) => return __nc_status,
+            };
+            let __nc_result = <__NcProvider as ISerializationDiagnostics>::byte_offset(
+                &*__nc_dispatch_value,
+            );
+            ::core::mem::drop(__nc_dispatch_value);
+            match __nc_result {
+                ::core::result::Result::Ok(__nc_value) => {
+                    let __nc_raw = match ::neocogi_com::encode_inline(&__nc_value) {
+                        ::core::result::Result::Ok(__nc_raw) => __nc_raw,
+                        ::core::result::Result::Err(__nc_status) => return __nc_status,
+                    };
+                    unsafe {
+                        *__nc_out = __nc_raw;
+                    }
+                    ::neocogi_com::NC_OK
+                }
+                ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
+            }
+        }
+        /// Reports a one-based source line, or zero when unavailable.
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:147:8` (module `neocogi.com.serialization`).
+        /// Validates raw pointers, borrows the concrete provider through its
+        /// object-wide gate, invokes its typed method, and lowers the result.
+        /// The gate is released before transferring an owned result; errors
+        /// are normalized so an unwritten output can never look successful.
+        ///
+        /// # Safety
+        /// The interface belongs to T's live generated storage. Non-null ABI
+        /// arguments must satisfy their method's readable/writable contracts.
+        unsafe extern "C" fn line_thunk(
+            __nc_this: *mut ::core::ffi::c_void,
+            __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
+        ) -> ::neocogi_com::NcStatus {
+            if __nc_this.is_null() || __nc_out.is_null() {
+                return ::neocogi_com::NC_E_POINTER;
+            }
+            let __nc_dispatch_object = __nc_this;
+            if __nc_dispatch_object.is_null() {
+                return ::neocogi_com::NC_E_POINTER;
+            }
+            let mut __nc_dispatch_value = match unsafe {
+                <__NcProvider as ::neocogi_com::ComObject>::borrow_abi_ref(
+                    __nc_dispatch_object,
+                )
+            } {
+                ::core::result::Result::Ok(__nc_value) => __nc_value,
+                ::core::result::Result::Err(__nc_status) => return __nc_status,
+            };
+            let __nc_result = <__NcProvider as ISerializationDiagnostics>::line(
+                &*__nc_dispatch_value,
+            );
+            ::core::mem::drop(__nc_dispatch_value);
+            match __nc_result {
+                ::core::result::Result::Ok(__nc_value) => {
+                    let __nc_raw = match ::neocogi_com::encode_inline(&__nc_value) {
+                        ::core::result::Result::Ok(__nc_raw) => __nc_raw,
+                        ::core::result::Result::Err(__nc_status) => return __nc_status,
+                    };
+                    unsafe {
+                        *__nc_out = __nc_raw;
+                    }
+                    ::neocogi_com::NC_OK
+                }
+                ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
+            }
+        }
+        /// Reports a one-based source column, or zero when unavailable.
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:149:8` (module `neocogi.com.serialization`).
+        /// Validates raw pointers, borrows the concrete provider through its
+        /// object-wide gate, invokes its typed method, and lowers the result.
+        /// The gate is released before transferring an owned result; errors
+        /// are normalized so an unwritten output can never look successful.
+        ///
+        /// # Safety
+        /// The interface belongs to T's live generated storage. Non-null ABI
+        /// arguments must satisfy their method's readable/writable contracts.
+        unsafe extern "C" fn column_thunk(
+            __nc_this: *mut ::core::ffi::c_void,
+            __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
+        ) -> ::neocogi_com::NcStatus {
+            if __nc_this.is_null() || __nc_out.is_null() {
+                return ::neocogi_com::NC_E_POINTER;
+            }
+            let __nc_dispatch_object = __nc_this;
+            if __nc_dispatch_object.is_null() {
+                return ::neocogi_com::NC_E_POINTER;
+            }
+            let mut __nc_dispatch_value = match unsafe {
+                <__NcProvider as ::neocogi_com::ComObject>::borrow_abi_ref(
+                    __nc_dispatch_object,
+                )
+            } {
+                ::core::result::Result::Ok(__nc_value) => __nc_value,
+                ::core::result::Result::Err(__nc_status) => return __nc_status,
+            };
+            let __nc_result = <__NcProvider as ISerializationDiagnostics>::column(
+                &*__nc_dispatch_value,
+            );
+            ::core::mem::drop(__nc_dispatch_value);
+            match __nc_result {
+                ::core::result::Result::Ok(__nc_value) => {
+                    let __nc_raw = match ::neocogi_com::encode_inline(&__nc_value) {
+                        ::core::result::Result::Ok(__nc_raw) => __nc_raw,
+                        ::core::result::Result::Err(__nc_status) => return __nc_status,
+                    };
+                    unsafe {
+                        *__nc_out = __nc_raw;
+                    }
+                    ::neocogi_com::NC_OK
+                }
+                ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
+            }
+        }
+        /// Reports the diagnostic message's UTF-8 byte length.
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:151:8` (module `neocogi.com.serialization`).
+        /// Validates raw pointers, borrows the concrete provider through its
+        /// object-wide gate, invokes its typed method, and lowers the result.
+        /// The gate is released before transferring an owned result; errors
+        /// are normalized so an unwritten output can never look successful.
+        ///
+        /// # Safety
+        /// The interface belongs to T's live generated storage. Non-null ABI
+        /// arguments must satisfy their method's readable/writable contracts.
+        unsafe extern "C" fn message_len_thunk(
+            __nc_this: *mut ::core::ffi::c_void,
+            __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
+        ) -> ::neocogi_com::NcStatus {
+            if __nc_this.is_null() || __nc_out.is_null() {
+                return ::neocogi_com::NC_E_POINTER;
+            }
+            let __nc_dispatch_object = __nc_this;
+            if __nc_dispatch_object.is_null() {
+                return ::neocogi_com::NC_E_POINTER;
+            }
+            let mut __nc_dispatch_value = match unsafe {
+                <__NcProvider as ::neocogi_com::ComObject>::borrow_abi_ref(
+                    __nc_dispatch_object,
+                )
+            } {
+                ::core::result::Result::Ok(__nc_value) => __nc_value,
+                ::core::result::Result::Err(__nc_status) => return __nc_status,
+            };
+            let __nc_result = <__NcProvider as ISerializationDiagnostics>::message_len(
+                &*__nc_dispatch_value,
+            );
+            ::core::mem::drop(__nc_dispatch_value);
+            match __nc_result {
+                ::core::result::Result::Ok(__nc_value) => {
+                    let __nc_raw = match ::neocogi_com::encode_inline(&__nc_value) {
+                        ::core::result::Result::Ok(__nc_raw) => __nc_raw,
+                        ::core::result::Result::Err(__nc_status) => return __nc_status,
+                    };
+                    unsafe {
+                        *__nc_out = __nc_raw;
+                    }
+                    ::neocogi_com::NC_OK
+                }
+                ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
+            }
+        }
+        /// Copies the complete message to fresh output; short capacity writes no prefix.
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:153:8` (module `neocogi.com.serialization`).
+        /// Validates raw pointers, borrows the concrete provider through its
+        /// object-wide gate, invokes its typed method, and lowers the result.
+        /// The gate is released before transferring an owned result; errors
+        /// are normalized so an unwritten output can never look successful.
+        ///
+        /// # Safety
+        /// The interface belongs to T's live generated storage. Non-null ABI
+        /// arguments must satisfy their method's readable/writable contracts.
+        unsafe extern "C" fn copy_message_thunk(
+            __nc_this: *mut ::core::ffi::c_void,
+            __nc_arg_0_offset: ::core::primitive::u64,
+            __nc_arg_0_len: ::core::primitive::u64,
+            __nc_arg_0_ptr: *mut <::core::primitive::u8 as ::neocogi_com::ComValue>::Wire,
+            __nc_arg_0_written: *mut ::core::primitive::u64,
+            __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
+        ) -> ::neocogi_com::NcStatus {
+            if __nc_this.is_null() || __nc_out.is_null() {
+                return ::neocogi_com::NC_E_POINTER;
+            }
+            let __nc_dispatch_object = __nc_this;
+            if __nc_dispatch_object.is_null() {
+                return ::neocogi_com::NC_E_POINTER;
+            }
+            if __nc_arg_0_written.is_null()
+                || __nc_arg_0_written
+                    .align_offset(::core::mem::align_of::<::core::primitive::u64>()) != 0
+            {
+                return ::neocogi_com::NC_E_POINTER;
+            }
+            unsafe {
+                *__nc_arg_0_written = 0;
+            }
+            let mut __nc_arg_0_values = 0_u64;
+            let __nc_arg_0 = match unsafe {
+                ::neocogi_com::NcOutputWriter::<
+                    ::core::primitive::u8,
+                >::from_raw(
+                    __nc_arg_0_offset,
+                    __nc_arg_0_ptr,
+                    __nc_arg_0_len,
+                    &mut __nc_arg_0_values,
+                )
+            } {
+                ::core::result::Result::Ok(__nc_writer) => __nc_writer,
+                ::core::result::Result::Err(__nc_status) => return __nc_status,
+            };
+            let mut __nc_dispatch_value = match unsafe {
+                <__NcProvider as ::neocogi_com::ComObject>::borrow_abi_ref(
+                    __nc_dispatch_object,
+                )
+            } {
+                ::core::result::Result::Ok(__nc_value) => __nc_value,
+                ::core::result::Result::Err(__nc_status) => return __nc_status,
+            };
+            let __nc_result = <__NcProvider as ISerializationDiagnostics>::copy_message(
+                &*__nc_dispatch_value,
+                __nc_arg_0,
+            );
+            ::core::mem::drop(__nc_dispatch_value);
+            match __nc_result {
+                ::core::result::Result::Ok(__nc_value) => {
+                    let __nc_raw = match ::neocogi_com::encode_inline(&__nc_value) {
+                        ::core::result::Result::Ok(__nc_raw) => __nc_raw,
+                        ::core::result::Result::Err(__nc_status) => return __nc_status,
+                    };
+                    unsafe {
+                        *__nc_arg_0_written = __nc_arg_0_values;
+                    }
+                    unsafe {
+                        *__nc_out = __nc_raw;
+                    }
+                    ::neocogi_com::NC_OK
+                }
+                ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
+            }
+        }
+        /// Reports the logical field/index path's UTF-8 byte length.
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:155:8` (module `neocogi.com.serialization`).
+        /// Validates raw pointers, borrows the concrete provider through its
+        /// object-wide gate, invokes its typed method, and lowers the result.
+        /// The gate is released before transferring an owned result; errors
+        /// are normalized so an unwritten output can never look successful.
+        ///
+        /// # Safety
+        /// The interface belongs to T's live generated storage. Non-null ABI
+        /// arguments must satisfy their method's readable/writable contracts.
+        unsafe extern "C" fn path_len_thunk(
+            __nc_this: *mut ::core::ffi::c_void,
+            __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
+        ) -> ::neocogi_com::NcStatus {
+            if __nc_this.is_null() || __nc_out.is_null() {
+                return ::neocogi_com::NC_E_POINTER;
+            }
+            let __nc_dispatch_object = __nc_this;
+            if __nc_dispatch_object.is_null() {
+                return ::neocogi_com::NC_E_POINTER;
+            }
+            let mut __nc_dispatch_value = match unsafe {
+                <__NcProvider as ::neocogi_com::ComObject>::borrow_abi_ref(
+                    __nc_dispatch_object,
+                )
+            } {
+                ::core::result::Result::Ok(__nc_value) => __nc_value,
+                ::core::result::Result::Err(__nc_status) => return __nc_status,
+            };
+            let __nc_result = <__NcProvider as ISerializationDiagnostics>::path_len(
+                &*__nc_dispatch_value,
+            );
+            ::core::mem::drop(__nc_dispatch_value);
+            match __nc_result {
+                ::core::result::Result::Ok(__nc_value) => {
+                    let __nc_raw = match ::neocogi_com::encode_inline(&__nc_value) {
+                        ::core::result::Result::Ok(__nc_raw) => __nc_raw,
+                        ::core::result::Result::Err(__nc_status) => return __nc_status,
+                    };
+                    unsafe {
+                        *__nc_out = __nc_raw;
+                    }
+                    ::neocogi_com::NC_OK
+                }
+                ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
+            }
+        }
+        /// Copies the complete logical path, rooted at $, into fresh output.
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:157:8` (module `neocogi.com.serialization`).
+        /// Validates raw pointers, borrows the concrete provider through its
+        /// object-wide gate, invokes its typed method, and lowers the result.
+        /// The gate is released before transferring an owned result; errors
+        /// are normalized so an unwritten output can never look successful.
+        ///
+        /// # Safety
+        /// The interface belongs to T's live generated storage. Non-null ABI
+        /// arguments must satisfy their method's readable/writable contracts.
+        unsafe extern "C" fn copy_path_thunk(
+            __nc_this: *mut ::core::ffi::c_void,
+            __nc_arg_0_0_offset: ::core::primitive::u64,
+            __nc_arg_0_0_len: ::core::primitive::u64,
+            __nc_arg_0_0_ptr: *mut <::core::primitive::u8 as ::neocogi_com::ComValue>::Wire,
+            __nc_arg_0_0_written: *mut ::core::primitive::u64,
+            __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
+        ) -> ::neocogi_com::NcStatus {
+            if __nc_this.is_null() || __nc_out.is_null() {
+                return ::neocogi_com::NC_E_POINTER;
+            }
+            let __nc_dispatch_object = __nc_this;
+            if __nc_dispatch_object.is_null() {
+                return ::neocogi_com::NC_E_POINTER;
+            }
+            if __nc_arg_0_0_written.is_null()
+                || __nc_arg_0_0_written
+                    .align_offset(::core::mem::align_of::<::core::primitive::u64>()) != 0
+            {
+                return ::neocogi_com::NC_E_POINTER;
+            }
+            unsafe {
+                *__nc_arg_0_0_written = 0;
+            }
+            let mut __nc_arg_0_0_values = 0_u64;
+            let __nc_arg_0_0 = match unsafe {
+                ::neocogi_com::NcOutputWriter::<
+                    ::core::primitive::u8,
+                >::from_raw(
+                    __nc_arg_0_0_offset,
+                    __nc_arg_0_0_ptr,
+                    __nc_arg_0_0_len,
+                    &mut __nc_arg_0_0_values,
+                )
+            } {
+                ::core::result::Result::Ok(__nc_writer) => __nc_writer,
+                ::core::result::Result::Err(__nc_status) => return __nc_status,
+            };
+            let mut __nc_dispatch_value = match unsafe {
+                <__NcProvider as ::neocogi_com::ComObject>::borrow_abi_ref(
+                    __nc_dispatch_object,
+                )
+            } {
+                ::core::result::Result::Ok(__nc_value) => __nc_value,
+                ::core::result::Result::Err(__nc_status) => return __nc_status,
+            };
+            let __nc_result = <__NcProvider as ISerializationDiagnostics>::copy_path(
+                &*__nc_dispatch_value,
+                __nc_arg_0_0,
+            );
+            ::core::mem::drop(__nc_dispatch_value);
+            match __nc_result {
+                ::core::result::Result::Ok(__nc_value) => {
+                    let __nc_raw = match ::neocogi_com::encode_inline(&__nc_value) {
+                        ::core::result::Result::Ok(__nc_raw) => __nc_raw,
+                        ::core::result::Result::Err(__nc_status) => return __nc_status,
+                    };
+                    unsafe {
+                        *__nc_arg_0_0_written = __nc_arg_0_0_values;
+                    }
+                    unsafe {
+                        *__nc_out = __nc_raw;
+                    }
+                    ::neocogi_com::NC_OK
+                }
+                ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
+            }
+        }
+    }
+};
+#[doc(hidden)]
+/// Statically typed vtable and lifecycle adapters for one provider type.
 pub struct ISerializationFormatVtblFor<__NcProvider>(
     /// Associates dispatch with T without allocating or owning a value.
     ::core::marker::PhantomData<__NcProvider>,
@@ -1882,6 +2406,172 @@ const _: () = {
                     }
                     unsafe {
                         *__nc_out = __nc_raw;
+                    }
+                    ::neocogi_com::NC_OK
+                }
+                ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
+            }
+        }
+    }
+};
+#[doc(hidden)]
+/// Statically typed vtable and lifecycle adapters for one provider type.
+pub struct ISerializationPluginVtblFor<__NcProvider>(
+    /// Associates dispatch with T without allocating or owning a value.
+    ::core::marker::PhantomData<__NcProvider>,
+);
+const _: () = {
+    #[allow(unused_imports)]
+    use ::core::convert::{
+        identity as __nc_dispatch_object, identity as __nc_dispatch_value,
+        identity as __nc_arg_0, identity as __nc_arg_0_owner_slot,
+        identity as __nc_arg_0_offset, identity as __nc_arg_0_len,
+        identity as __nc_arg_0_ptr, identity as __nc_arg_0_values,
+        identity as __nc_arg_0_written, identity as __nc_this, identity as __nc_status,
+        identity as __nc_value, identity as __nc_raw, identity as __nc_result,
+        identity as __nc_values, identity as __nc_writer, identity as __nc_out,
+        identity as __nc_identity, identity as __nc_this_0, identity as __nc_status_0,
+        identity as __nc_result_0, identity as __nc_prepared, identity as __nc_out_0,
+        identity as __nc_this_1, identity as __nc_status_1, identity as __nc_result_1,
+        identity as __nc_prepared_0, identity as __nc_out_1,
+    };
+    impl<__NcProvider> ISerializationPluginVtblFor<__NcProvider>
+    where
+        __NcProvider: ISerializationPlugin + ::neocogi_com::ComObject,
+    {
+        /// Distinct provider bindings in the interface's canonical metadata order.
+        /// T fixes the thunk implementation; no object headers are stored here.
+        pub const PROJECTIONS: [::neocogi_com::__ComProjection<
+            __NcProvider,
+        >; ISerializationPluginAbi::INTERFACE_CHAIN.len()] = ::neocogi_com::__nc_projection_table(
+            &ISerializationPluginAbi::INTERFACE_CHAIN,
+            unsafe {
+                ::neocogi_com::__ComProjection::new(
+                    <ISerializationPluginAbi as ::neocogi_com::ComInterface>::INTERFACE_ID,
+                    &Self::VTABLE as *const ISerializationPluginVTable
+                        as *const ::neocogi_com::IUnknownVTable,
+                )
+            },
+            &[],
+        );
+        /// Table for a standalone projection of this interface.
+        pub const VTABLE: ISerializationPluginVTable = Self::with_identity(
+            &<ISerializationPluginAbi as ::neocogi_com::ComInterface>::INTERFACE_ID,
+        );
+        /// Builds an inherited prefix advertising the actual outer projection.
+        pub const fn with_identity(
+            __nc_identity: &'static ::neocogi_com::NcInterfaceId,
+        ) -> ISerializationPluginVTable {
+            ISerializationPluginVTable {
+                unknown: ::neocogi_com::IUnknownVTable {
+                    interface_id: __nc_identity,
+                    query_interface: ::neocogi_com::lifetime::nc_query_interface,
+                    add_ref: ::neocogi_com::lifetime::nc_strong_retain,
+                    release: ::neocogi_com::lifetime::nc_strong_release,
+                    downgrade: ::core::option::Option::Some(
+                        ::neocogi_com::lifetime::nc_downgrade,
+                    ),
+                },
+                default_format: Self::default_format_thunk,
+                format: Self::format_thunk,
+            }
+        }
+        /// Returns the unconditional default NCB format factory.
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:134:8` (module `neocogi.com.serialization`).
+        /// Validates raw pointers, borrows the concrete provider through its
+        /// object-wide gate, invokes its typed method, and lowers the result.
+        /// The gate is released before transferring an owned result; errors
+        /// are normalized so an unwritten output can never look successful.
+        ///
+        /// # Safety
+        /// The interface belongs to T's live generated storage. Non-null ABI
+        /// arguments must satisfy their method's readable/writable contracts.
+        unsafe extern "C" fn default_format_thunk(
+            __nc_this: *mut ::core::ffi::c_void,
+            __nc_out: *mut ::neocogi_com::ComRaw<self::ISerializationFormatAbi>,
+        ) -> ::neocogi_com::NcStatus {
+            if __nc_this.is_null() || __nc_out.is_null() {
+                return ::neocogi_com::NC_E_POINTER;
+            }
+            let __nc_dispatch_object = __nc_this;
+            if __nc_dispatch_object.is_null() {
+                return ::neocogi_com::NC_E_POINTER;
+            }
+            let mut __nc_dispatch_value = match unsafe {
+                <__NcProvider as ::neocogi_com::ComObject>::borrow_abi_ref(
+                    __nc_dispatch_object,
+                )
+            } {
+                ::core::result::Result::Ok(__nc_value) => __nc_value,
+                ::core::result::Result::Err(__nc_status) => return __nc_status,
+            };
+            let __nc_result = <__NcProvider as ISerializationPlugin>::default_format(
+                &*__nc_dispatch_value,
+            );
+            ::core::mem::drop(__nc_dispatch_value);
+            match __nc_result {
+                ::core::result::Result::Ok(__nc_value) => {
+                    unsafe {
+                        *__nc_out = __nc_value.into_raw();
+                    }
+                    ::neocogi_com::NC_OK
+                }
+                ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
+            }
+        }
+        /// Selects ncb or json; disabled and unknown names return NC_E_NOINTERFACE.
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:136:8` (module `neocogi.com.serialization`).
+        /// Validates raw pointers, borrows the concrete provider through its
+        /// object-wide gate, invokes its typed method, and lowers the result.
+        /// The gate is released before transferring an owned result; errors
+        /// are normalized so an unwritten output can never look successful.
+        ///
+        /// # Safety
+        /// The interface belongs to T's live generated storage. Non-null ABI
+        /// arguments must satisfy their method's readable/writable contracts.
+        unsafe extern "C" fn format_thunk(
+            __nc_this: *mut ::core::ffi::c_void,
+            __nc_arg_0_offset: ::core::primitive::u64,
+            __nc_arg_0_len: ::core::primitive::u64,
+            __nc_arg_0_ptr: *const <::core::primitive::u8 as ::neocogi_com::ComValue>::Wire,
+            __nc_out: *mut ::neocogi_com::ComRaw<self::ISerializationFormatAbi>,
+        ) -> ::neocogi_com::NcStatus {
+            if __nc_this.is_null() || __nc_out.is_null() {
+                return ::neocogi_com::NC_E_POINTER;
+            }
+            let __nc_dispatch_object = __nc_this;
+            if __nc_dispatch_object.is_null() {
+                return ::neocogi_com::NC_E_POINTER;
+            }
+            let __nc_arg_0_values = match unsafe {
+                ::neocogi_com::DecodedInput::<
+                    ::core::primitive::u8,
+                >::from_raw(__nc_arg_0_ptr, __nc_arg_0_len)
+            } {
+                ::core::result::Result::Ok(__nc_values) => __nc_values,
+                ::core::result::Result::Err(__nc_status) => return __nc_status,
+            };
+            let __nc_arg_0 = ::neocogi_com::NcCopyFromBufferOffset::new(
+                __nc_arg_0_offset,
+                __nc_arg_0_values.as_slice(),
+            );
+            let mut __nc_dispatch_value = match unsafe {
+                <__NcProvider as ::neocogi_com::ComObject>::borrow_abi_ref(
+                    __nc_dispatch_object,
+                )
+            } {
+                ::core::result::Result::Ok(__nc_value) => __nc_value,
+                ::core::result::Result::Err(__nc_status) => return __nc_status,
+            };
+            let __nc_result = <__NcProvider as ISerializationPlugin>::format(
+                &*__nc_dispatch_value,
+                __nc_arg_0,
+            );
+            ::core::mem::drop(__nc_dispatch_value);
+            match __nc_result {
+                ::core::result::Result::Ok(__nc_value) => {
+                    unsafe {
+                        *__nc_out = __nc_value.into_raw();
                     }
                     ::neocogi_com::NC_OK
                 }

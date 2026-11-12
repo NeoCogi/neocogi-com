@@ -7,11 +7,11 @@ separate release actions; preparation and local dry-runs upload nothing.
 ## Prepare the source before choosing a version
 
 Finish implementation, documentation, examples and compatibility changes first.
-Keep the six SDK packages on one version and their five internal requirements
+Keep the eight SDK packages on one version and their internal dependency requirements
 exact. The authoritative package inventory is `PUBLISHED` in
 [packages.rs](../../tools/xtask/src/packages.rs).
 
-Check all six names and the intended version on crates.io. A name available
+Check all eight names and the intended version on crates.io. A name available
 during preparation can be claimed before publication; check again at release.
 For the first upload, use a crates.io account with a verified email and a token
 authorized to publish these names. Configure it interactively with `cargo login`;
@@ -105,10 +105,10 @@ not waive ordinary verification or interpret that offline error as proof of
 malformed source. The offline archive gate independently builds and tests its
 extracted contents.
 
-Save full logs and all six `.crate` files from `target/package` outside Cargo
+Save full logs and all eight `.crate` files from `target/package` outside Cargo
 targets, together with their SHA-256 hashes and the candidate commit ID. On Linux
 use `sha256sum`, on macOS `shasum -a 256`, or PowerShell `Get-FileHash`. Check the
-six expected versions and `.cargo_vcs_info.json` provenance. Preserve this record
+eight expected versions and `.cargo_vcs_info.json` provenance. Preserve this record
 through `cargo clean`. If code, docs, versions or dependencies change, commit a
 new candidate and rerun affected checks; refresh packaging/provenance evidence.
 
@@ -120,13 +120,15 @@ the tag local until every package below is published and its registry contents
 are verified. Check release-tag link targets locally before uploading; their
 remote links become available after the tag is pushed.
 
-Publish only the six public packages, in dependency order:
+Publish only the eight public packages, in dependency order:
 
 ```sh
 cargo publish --locked --registry crates-io -p neocogi-com-core
 cargo publish --locked --registry crates-io -p neocogi-idl
 cargo publish --locked --registry crates-io -p neocogi-com-macros
 cargo publish --locked --registry crates-io -p neocogi-com
+cargo publish --locked --registry crates-io -p neocogi-com-serialization
+cargo publish --locked --registry crates-io -p neocogi-com-serialization-dylib
 cargo publish --locked --registry crates-io -p neocogi-com-host
 cargo publish --locked --registry crates-io -p neocogi-inspect
 ```
@@ -140,7 +142,7 @@ uploaded content matches. Never silently skip a mismatch or attempt to overwrite
 an existing version. Changed public content requires a new coordinated version,
 with an explicit follow-up/yank decision for unusable earlier versions.
 
-After all six packages are published and verified, push the annotated tag. Check
+After all eight packages are published and verified, push the annotated tag. Check
 that all rendered release documentation links resolve to that tag and its intended
 files. Do not push the tag after only a partial publication.
 

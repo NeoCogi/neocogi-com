@@ -37,6 +37,29 @@ pub(super) struct Consumer {
 }
 
 impl Consumer {
+    /// Adds the separate NCB implementation for executable codec fixtures. The
+    /// selected SDK stays implementation-free; archives resolve this sibling
+    /// through the same ordinary Cargo package/patch mechanism as the facade.
+    pub fn with_serialization(self) -> Self {
+        let graph = metadata(&Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml"));
+        let package = graph
+            .packages
+            .iter()
+            .find(|p| p.name == "neocogi-com-serialization" && p.version == env!("CARGO_PKG_VERSION"));
+        let source = match package {
+            Some(package) => format!("path={:?}", package.manifest_path.parent().unwrap()),
+            None => format!("version=\"={}\"", env!("CARGO_PKG_VERSION")),
+        };
+        let path = self.directory.path().join("Cargo.toml");
+        let mut manifest = fs::read_to_string(&path).unwrap();
+        manifest = manifest.replacen(
+            "[dependencies]\n",
+            &format!("[dependencies]\nneocogi-com-serialization={{{source},default-features=false,features=['std']}}\n"),
+            1,
+        );
+        fs::write(path, manifest).unwrap();
+        self
+    }
     /// Adds the selected implementation only to a final test owner that actually
     /// acquires plugins or exercises generated host startup. Pure codec/interface
     /// consumers keep their existing implementation-free dependency boundary.

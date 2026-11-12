@@ -1,6 +1,7 @@
 //! Bounded capture of semantic initialization trees, with owned-path cycle checks.
 
-use neocogi_com::{binary, ComPtr, ComRef, IUnknown, NcStatus, NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE};
+use neocogi_com_serialization::ncb as binary;
+use neocogi_com::{ComPtr, ComRef, IUnknown, NcStatus, NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE};
 use neocogi_com::persistence::{IPersistableAbi, Limits, ObjectRecord};
 
 /// Exports a shared opt-in tree, detects ownership cycles, and bounds traversal.

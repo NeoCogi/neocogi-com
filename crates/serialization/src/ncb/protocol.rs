@@ -1,8 +1,8 @@
 //! NCB implementations of the shared COM format sessions and their bounded state machine.
 
 use super::*;
-use crate::{NcCopyFromBufferOffset, NcStatus, NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE};
-use crate::serialization::{ISerializer, IDeserializer};
+use neocogi_com::{NcCopyFromBufferOffset, NcStatus, NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE};
+use neocogi_com::serialization::{ISerializer, IDeserializer};
 
 /// A session starts active and ends permanently on either success or first failure.
 #[derive(Clone, Copy)]
@@ -180,7 +180,7 @@ fn schema_message(message: &str) -> &'static str {
     }
 }
 /// Maps an NCB diagnostic to the public COM status without exposing Rust errors.
-fn status(error: Error) -> NcStatus {
+pub(super) fn status(error: Error) -> NcStatus {
     if error.message.contains("limit") || error.message == "output buffer too small" {
         NC_E_OUT_OF_RANGE
     } else {
@@ -581,7 +581,7 @@ impl IDeserializer for Decoder<'_> {
             Ok(len)
         })
     }
-    fn copy_string(&mut self, mut output: crate::NcOutputWriter<'_, u8>) -> Result<u32, NcStatus> {
+    fn copy_string(&mut self, mut output: neocogi_com::NcOutputWriter<'_, u8>) -> Result<u32, NcStatus> {
         self.run(|reader| {
             if output.offset() != 0 {
                 return Err(reader.error("invalid output offset"));
@@ -702,7 +702,7 @@ fn read_text(value: NcCopyFromBufferOffset<'_, u8>) -> Result<&str, &'static str
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::serialization::{scope::Scoped, ISerializerAbi, ScopedSerializer};
+    use neocogi_com::serialization::{scope::Scoped, ISerializerAbi, ScopedSerializer};
 
     /// Counting storage exercises real format dispatch without any heap allocation.
     fn writer() -> Encoder<'static> {
@@ -720,18 +720,18 @@ mod tests {
     fn scoped_capabilities_reject_retention_and_reentrant_mutation() {
         let scope = Scoped::new(writer());
         // SAFETY: generated adapters use exactly this Scoped<Encoder> type.
-        let mut interface: crate::ComRef<'_, ISerializerAbi> = unsafe { scope.interface(&ScopedSerializer::<Encoder<'_>>::VTABLE) };
-        assert_eq!(interface.try_add_ref().unwrap_err(), crate::NC_E_INVALID_ARG);
-        assert_eq!(interface.downgrade().unwrap_err(), crate::NC_E_NOINTERFACE);
+        let mut interface: neocogi_com::ComRef<'_, ISerializerAbi> = unsafe { scope.interface(&ScopedSerializer::<Encoder<'_>>::VTABLE) };
+        assert_eq!(interface.try_add_ref().unwrap_err(), neocogi_com::NC_E_INVALID_ARG);
+        assert_eq!(interface.downgrade().unwrap_err(), neocogi_com::NC_E_NOINTERFACE);
         let raw = interface.as_raw();
-        let mut output = raw.cast::<crate::IUnknown>();
+        let mut output = raw.cast::<neocogi_com::IUnknown>();
         // SAFETY: the live capability and a real writable output slot meet the raw contract.
-        let status = unsafe { ((*raw.vtable).unknown.query_interface)(raw.object, &crate::IUnknown::INTERFACE_ID, &mut output) };
-        assert_eq!(status, crate::NC_E_INVALID_ARG);
+        let status = unsafe { ((*raw.vtable).unknown.query_interface)(raw.object, &neocogi_com::IUnknown::INTERFACE_ID, &mut output) };
+        assert_eq!(status, neocogi_com::NC_E_INVALID_ARG);
         assert!(output.is_null());
         // SAFETY: this scope and the generated table share the exact provider type.
         let lease = unsafe { Scoped::<Encoder<'_>>::borrow_mut(raw.object) }.unwrap();
-        assert_eq!(interface.serialize_u32(7), Err(crate::NC_E_BUSY));
+        assert_eq!(interface.serialize_u32(7), Err(neocogi_com::NC_E_BUSY));
         drop(lease);
         interface.serialize_u32(7).unwrap();
         interface.finish().unwrap();
@@ -742,10 +742,10 @@ mod tests {
     fn malformed_bool_wire_is_rejected_before_provider_state_changes() {
         let scope = Scoped::new(writer());
         // SAFETY: the exact generated table lends this retained scope's state.
-        let mut interface: crate::ComRef<'_, ISerializerAbi> = unsafe { scope.interface(&ScopedSerializer::<Encoder<'_>>::VTABLE) };
+        let mut interface: neocogi_com::ComRef<'_, ISerializerAbi> = unsafe { scope.interface(&ScopedSerializer::<Encoder<'_>>::VTABLE) };
         let raw = interface.as_raw();
         // SAFETY: only the scalar wire is malformed; the object/table pair is real and live.
-        assert_eq!(unsafe { ((*raw.vtable).serialize_bool)(raw.object, 2) }, crate::NC_E_INVALID_ARG);
+        assert_eq!(unsafe { ((*raw.vtable).serialize_bool)(raw.object, 2) }, neocogi_com::NC_E_INVALID_ARG);
         interface.serialize_bool(true).unwrap();
         interface.finish().unwrap();
     }

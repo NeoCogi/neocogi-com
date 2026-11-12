@@ -56,17 +56,17 @@ fn decoder_source(style: Decoder, unrelated_return: bool, expand: bool) -> Strin
         struct Complete {{ value: u32, enabled: bool }}
         #[test]
         fn trait_defaults_apply_only_to_absent_fields() {{
-            let empty = neocogi_com::binary::from_slice::<Settings>(b"NCB\x01\0\0\0\0").unwrap();
+            let empty = neocogi_com_serialization::ncb::from_slice::<Settings>(b"NCB\x01\0\0\0\0").unwrap();
             assert_eq!((empty.value, empty.enabled), (7, true));
-            let prefix = neocogi_com::binary::to_vec(&Prefix {{ value: 73 }}).unwrap();
-            let partial = neocogi_com::binary::from_slice::<Settings>(&prefix).unwrap();
+            let prefix = neocogi_com_serialization::ncb::to_vec(&Prefix {{ value: 73 }}).unwrap();
+            let partial = neocogi_com_serialization::ncb::from_slice::<Settings>(&prefix).unwrap();
             assert_eq!((partial.value, partial.enabled), (73, true));
-            let mut complete = neocogi_com::binary::to_vec(&Complete {{ value: 91, enabled: false }}).unwrap();
-            let full = neocogi_com::binary::from_slice::<Settings>(&complete).unwrap();
+            let mut complete = neocogi_com_serialization::ncb::to_vec(&Complete {{ value: 91, enabled: false }}).unwrap();
+            let full = neocogi_com_serialization::ncb::from_slice::<Settings>(&complete).unwrap();
             assert_eq!((full.value, full.enabled), (91, false));
             *complete.last_mut().unwrap() = 2; // A present malformed bool cannot become its default.
-            assert!(neocogi_com::binary::from_slice::<Settings>(&complete).is_err());
-            assert!(neocogi_com::binary::from_slice::<Settings>(&prefix[..prefix.len()-1]).is_err());
+            assert!(neocogi_com_serialization::ncb::from_slice::<Settings>(&complete).is_err());
+            assert!(neocogi_com_serialization::ncb::from_slice::<Settings>(&prefix[..prefix.len()-1]).is_err());
         }}
     "#
     )
@@ -143,7 +143,7 @@ fn run_cases(consumer: super::test_consumer::Consumer, cases: impl IntoIterator<
 #[test]
 fn every_decoder_entrypoint_selects_trait_defaults_in_normal_and_printed_rust() {
     run_cases(
-        super::test_consumer::Consumer::new("support-resolution-proof"),
+        super::test_consumer::Consumer::new("support-resolution-proof").with_serialization(),
         [Decoder::Derive, Decoder::Copied, Decoder::Owned].into_iter().flat_map(|style| {
             [false, true].into_iter().flat_map(move |unrelated| {
                 // IDL already emits complete printed Rust; only standalone derives

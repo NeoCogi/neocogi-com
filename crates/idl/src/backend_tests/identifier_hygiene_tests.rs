@@ -8,7 +8,7 @@ use quote::quote;
 /// contexts, so its runtime checks prove structural name separation as well.
 #[test]
 fn printed_bindings_preserve_authored_values_and_arguments() {
-    let consumer = super::test_consumer::Consumer::new("printed-hygiene-proof");
+    let consumer = super::test_consumer::Consumer::new("printed-hygiene-proof").with_serialization();
     let project = &consumer.directory;
     for (module, source) in [
         ("values", include_str!("fixtures/identifier_hygiene.ncidl")),

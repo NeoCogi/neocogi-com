@@ -39,11 +39,7 @@ fn check_generated(path: &Path, tokens: &str) {
     } else {
         ("persistence/objects.ncidl", "persistence_bindings_match_idl")
     };
-    let origin = if serialization && path.file_name().is_some_and(|name| name == "objects.rs") {
-        "com/src/serialization/objects.rs.in".to_owned()
-    } else {
-        format!("core/schemas/neocogi/com/{origin}")
-    };
+    let origin = format!("core/schemas/neocogi/com/{origin}");
     let expected = format!(
         "// Generated from {origin}.\n\
          // Regenerate: NC_UPDATE_PERSISTENCE_BINDINGS=1 cargo test -p neocogi-idl {test}\n\n{}",
@@ -78,25 +74,12 @@ fn serialization_bindings_match_idl() {
     );
     let scoped = crate::generate::generate_scoped_serialization_adapters(&graph, "neocogi.com.serialization").unwrap();
     check_generated(&consumer.core.join("src/serialization/scoped.rs"), &format!("use super::*; {scoped}"));
-    let source = std::fs::read_to_string(consumer.facade.join("src/serialization/objects.rs.in")).unwrap();
-    let input = syn::parse_file(&source).unwrap();
-    let mut objects = proc_macro2::TokenStream::new();
-    for item in input.items {
-        let syn::Item::Struct(mut object) = item else {
-            panic!("object bootstrap accepts only struct definitions")
-        };
-        let position = object.attrs.iter().position(|attribute| attribute.path().is_ident("com_object")).unwrap();
-        let attribute = object.attrs.remove(position);
-        let args = attribute.parse_args::<crate::codegen::ObjectArgs>().unwrap();
-        objects.extend(crate::codegen::expand_com_object(args, object));
-    }
-    check_generated(&consumer.facade.join("src/serialization/objects.rs"), &objects.to_string());
 }
 
 /// Ordinary IDL users can borrow the built-in format interface through generated ABI calls.
 #[test]
 fn idl_methods_accept_builtin_serializers_from_the_shared_source_contract() {
-    let consumer = super::test_consumer::Consumer::new("serialization-interface-consumer");
+    let consumer = super::test_consumer::Consumer::new("serialization-interface-consumer").with_serialization();
     let source = std::fs::read_to_string(consumer.core.join("schemas/neocogi/com/serialization/formats.ncidl")).unwrap();
     let format = crate::parse_module_parts(
         Path::new("neocogi/com/serialization"),
@@ -129,14 +112,15 @@ fn idl_methods_accept_builtin_serializers_from_the_shared_source_contract() {
             }}
         }}
         #[test] fn real_format_call(){{
-            use neocogi_com::serialization::{{NcbSerializer,ISerializationOutputAbi,Limits}};
+            use neocogi_com_serialization::ncb::NcbSerializer;
+            use neocogi_com::serialization::{{ISerializationOutputAbi,Limits}};
             let object=Object::from_value(Object).query::<EmitterAbi>().unwrap();
             let writer=NcbSerializer::create(Limits::default()).unwrap();
             object.emit(writer.as_com_ref()).unwrap();
             let output=writer.query_ref::<ISerializationOutputAbi>().unwrap();
             let mut bytes=neocogi_com::NcOutputBuffer::new();
             output.copy_to(bytes.output(0,output.byte_len().unwrap() as usize)).unwrap();
-            assert_eq!(neocogi_com::binary::from_slice::<u32>(bytes.as_slice()).unwrap(),42);
+            assert_eq!(neocogi_com_serialization::ncb::from_slice::<u32>(bytes.as_slice()).unwrap(),42);
         }}
     "#
     );

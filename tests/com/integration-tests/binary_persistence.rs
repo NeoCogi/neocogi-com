@@ -1,12 +1,10 @@
 //! Persistent values are portable, deterministic, and reject malformed inputs.
 
+use neocogi_com_serialization::ncb::{self as binary, Limits};
 #[path = "support/allocation_probe.rs"]
 mod allocation_probe;
 
-use neocogi_com::{
-    binary::{self, Limits},
-    ComDeserialize, ComSerialize,
-};
+use neocogi_com::{ComDeserialize, ComSerialize};
 use std::collections::BTreeMap;
 
 /// The former persistence crate's derive-based schema, retained as a wire baseline.
@@ -304,7 +302,7 @@ fn measured_leaf_envelopes_match_real_encoding_and_decoding() {
             depth: 3,
             values: state_bytes + 21,
         };
-        assert_eq!(ObjectRecord::encoded_leaf_len(state_bytes, exact).unwrap(), encoded.len());
+        assert_eq!(binary::encoded_leaf_len(state_bytes, exact).unwrap(), encoded.len());
         assert_accounting(&record, exact.values, exact.depth, exact.elements);
         for limits in [
             Limits { bytes: exact.bytes - 1, ..exact },
@@ -314,7 +312,7 @@ fn measured_leaf_envelopes_match_real_encoding_and_decoding() {
             Limits { bytes: 0, ..exact },
         ] {
             assert_eq!(
-                ObjectRecord::encoded_leaf_len(state_bytes, limits).unwrap_err(),
+                binary::encoded_leaf_len(state_bytes, limits).unwrap_err(),
                 binary::to_vec_with_limits(&record, limits).unwrap_err()
             );
             assert!(binary::from_slice_with_limits::<ObjectRecord>(&encoded, limits).is_err());
@@ -330,7 +328,7 @@ fn measurement_needs_no_output_allocation_and_encoding_failure_is_recoverable() 
     let text = "x".repeat(2 * 1024 * 1024);
     let probe = Probe::start(Some(0));
     let measured = binary::encoded_len_with_limits(&text, Limits::default());
-    let envelope = neocogi_com::persistence::ObjectRecord::encoded_leaf_len(text.len(), Limits::default());
+    let envelope = binary::encoded_leaf_len(text.len(), Limits::default());
     let report = probe.finish();
     assert_eq!(measured.unwrap(), text.len() + 8);
     assert!(envelope.is_err());

@@ -11,7 +11,8 @@ pub use interfaces::*;
 pub mod scope;
 #[rustfmt::skip]
 mod scoped;
-pub(crate) use scoped::{ISerializerVtblFor as ScopedSerializer, IDeserializerVtblFor as ScopedDeserializer};
+#[doc(hidden)]
+pub use scoped::{ISerializerVtblFor as ScopedSerializer, IDeserializerVtblFor as ScopedDeserializer};
 
 use crate::{ComDeserialize, ComSerialize, ComRef, NcStatus, NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE};
 

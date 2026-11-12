@@ -1,0 +1,22 @@
+# Deployment-only overlay matching neocogi-platform. Keeping this separate lets
+# stable Cargo and the Rust 1.85 SDK checks parse the ordinary workspace unchanged.
+[unstable]
+build-std = ["std", "panic_abort", "test", "proc_macro"]
+build-std-features = ["backtrace", "panic-unwind", "optimize_for_size"]
+panic-immediate-abort = true
+panic-abort-tests = true
+profile-rustflags = true
+trim-paths = true
+
+[profile.min-size]
+panic = "immediate-abort"
+trim-paths = "all"
+rustflags = [
+    "-Cforce-unwind-tables=no",
+    "-Zlocation-detail=none",
+    "-Zfmt-debug=none",
+]
+
+# Build scripts and procedural macros keep full host diagnostics and formatting.
+[profile.min-size.build-override]
+rustflags = []

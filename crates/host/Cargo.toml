@@ -18,7 +18,8 @@ name = "neocogi_com_host"
 crate-type = ["rlib"]
 
 [dependencies]
+neocogi-com-serialization = { workspace = true, features = ["std"] }
 neocogi-com-core = { workspace = true, default-features = false, features = ["std"] }
 
-# Shared ownership, contracts and codecs; the host selects no client-service or macro features.
+# Shared ownership/contracts and the separate NCB implementation; the host owns no format registry.
 neocogi-com = { workspace = true, default-features = false, features = ["std"] }

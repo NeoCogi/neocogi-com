@@ -10,9 +10,9 @@ pub const MODULE_ID: ::neocogi_com::NcGuid = ::neocogi_com::NcGuid::from_fields(
 );
 /// Transitive canonical ABI fingerprint of this generated module.
 pub const ABI_FINGERPRINT: [::core::primitive::u8; 32] = [
-    182u8, 55u8, 62u8, 249u8, 3u8, 238u8, 213u8, 199u8, 221u8, 160u8, 116u8, 107u8,
-    155u8, 29u8, 77u8, 72u8, 188u8, 131u8, 29u8, 182u8, 172u8, 8u8, 244u8, 185u8, 219u8,
-    109u8, 36u8, 126u8, 227u8, 17u8, 76u8, 179u8,
+    52u8, 178u8, 151u8, 181u8, 67u8, 79u8, 205u8, 215u8, 57u8, 48u8, 191u8, 186u8, 78u8,
+    133u8, 210u8, 219u8, 209u8, 129u8, 152u8, 237u8, 51u8, 63u8, 197u8, 134u8, 189u8,
+    120u8, 200u8, 90u8, 217u8, 161u8, 136u8, 213u8,
 ];
 /// Exact dotted module name derived from the normalized IDL path.
 pub const MODULE_NAME: &::core::primitive::str = "neocogi.com.serialization";
@@ -1622,7 +1622,7 @@ const _: () = {
 impl IDeserializerAbi {
     ///Canonical validation form of this interface's typed ABI contract.
     pub const ABI_SIGNATURE: ::neocogi_com::NcAbiSignature = ::neocogi_com::NcAbiSignature::from_static(
-        b"\x14: \xF35\xDB@\xC0\x7F\xA0\xE1\xF7\x18\x1C\0Q+%Rg\xAC6\xDC\xA4]\x9B+\xC1W\x1D\x17v",
+        b"\xA0\\\x87\x8D\rW\xB4]z\x90\x0F\x18\x103\xFD \xFE\x846\x08\xA6&\x90\x81\xE8\x05\xC3\xF1\xC1\x8F[\xFB",
     );
     ///Static descriptors for this interface's ABI methods.
     pub const METHOD_DESCRIPTORS: [::neocogi_com::NcMethodDescriptor; 27usize] = [
@@ -2086,6 +2086,732 @@ impl IDeserializerAbi {
         &[&[&Self::INTERFACE_DESCRIPTOR]],
     )] = ::neocogi_com::__nc_interface_chain(&Self::INTERFACE_DESCRIPTOR, &[]);
 }
+/// Immutable first-failure details on an owning serializer/deserializer session.
+/// Coordinates are optional: u64::MAX means no byte offset, zero means no line/column.
+/// IDL source: `neocogi/com/serialization/formats.ncidl:141:11` (module `neocogi.com.serialization`).
+pub trait ISerializationDiagnostics {
+    /// Returns the original failed operation's status, as data.
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:143:8` (module `neocogi.com.serialization`).
+    fn failure_status(
+        &self,
+    ) -> ::core::result::Result<::neocogi_com::NcStatus, ::neocogi_com::NcStatus>;
+    /// Reports a zero-based byte cursor/offset, or u64::MAX when unavailable.
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:145:8` (module `neocogi.com.serialization`).
+    fn byte_offset(
+        &self,
+    ) -> ::core::result::Result<::core::primitive::u64, ::neocogi_com::NcStatus>;
+    /// Reports a one-based source line, or zero when unavailable.
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:147:8` (module `neocogi.com.serialization`).
+    fn line(
+        &self,
+    ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus>;
+    /// Reports a one-based source column, or zero when unavailable.
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:149:8` (module `neocogi.com.serialization`).
+    fn column(
+        &self,
+    ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus>;
+    /// Reports the diagnostic message's UTF-8 byte length.
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:151:8` (module `neocogi.com.serialization`).
+    fn message_len(
+        &self,
+    ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus>;
+    /// Copies the complete message to fresh output; short capacity writes no prefix.
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:153:8` (module `neocogi.com.serialization`).
+    fn copy_message(
+        &self,
+        output: ::neocogi_com::NcOutputWriter<'_, ::core::primitive::u8>,
+    ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus>;
+    /// Reports the logical field/index path's UTF-8 byte length.
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:155:8` (module `neocogi.com.serialization`).
+    fn path_len(
+        &self,
+    ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus>;
+    /// Copies the complete logical path, rooted at $, into fresh output.
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:157:8` (module `neocogi.com.serialization`).
+    fn copy_path(
+        &self,
+        output: ::neocogi_com::NcOutputWriter<'_, ::core::primitive::u8>,
+    ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus>;
+}
+///Interface marker for [`ISerializationDiagnostics`]; handles carry its object/table pair.
+pub enum ISerializationDiagnosticsAbi {}
+#[repr(C)]
+///C-compatible vtable for [`ISerializationDiagnostics`].
+pub struct ISerializationDiagnosticsVTable {
+    /// Common identity, query and reference-count slots.
+    pub unknown: ::neocogi_com::IUnknownVTable,
+    /// Returns the original failed operation's status, as data.
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:143:8` (module `neocogi.com.serialization`).
+    ///Raw COM ABI vtable slot for [`ISerializationDiagnostics::failure_status`].
+    ///
+    ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
+    ///
+    ///# Safety
+    ///
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///
+    ///On success, `out` receives `< :: neocogi_com :: NcStatus as :: neocogi_com :: ComValue > :: Wire`.
+    #[allow(
+        clippy::type_complexity,
+        reason = "Raw vtable slots retain the exact flattened IDL ABI."
+    )]
+    pub failure_status: unsafe extern "C" fn(
+        __nc_this: *mut ::core::ffi::c_void,
+        __nc_out: *mut <::neocogi_com::NcStatus as ::neocogi_com::ComValue>::Wire,
+    ) -> ::neocogi_com::NcStatus,
+    /// Reports a zero-based byte cursor/offset, or u64::MAX when unavailable.
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:145:8` (module `neocogi.com.serialization`).
+    ///Raw COM ABI vtable slot for [`ISerializationDiagnostics::byte_offset`].
+    ///
+    ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
+    ///
+    ///# Safety
+    ///
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///
+    ///On success, `out` receives `< :: core :: primitive :: u64 as :: neocogi_com :: ComValue > :: Wire`.
+    #[allow(
+        clippy::type_complexity,
+        reason = "Raw vtable slots retain the exact flattened IDL ABI."
+    )]
+    pub byte_offset: unsafe extern "C" fn(
+        __nc_this: *mut ::core::ffi::c_void,
+        __nc_out: *mut <::core::primitive::u64 as ::neocogi_com::ComValue>::Wire,
+    ) -> ::neocogi_com::NcStatus,
+    /// Reports a one-based source line, or zero when unavailable.
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:147:8` (module `neocogi.com.serialization`).
+    ///Raw COM ABI vtable slot for [`ISerializationDiagnostics::line`].
+    ///
+    ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
+    ///
+    ///# Safety
+    ///
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///
+    ///On success, `out` receives `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: Wire`.
+    #[allow(
+        clippy::type_complexity,
+        reason = "Raw vtable slots retain the exact flattened IDL ABI."
+    )]
+    pub line: unsafe extern "C" fn(
+        __nc_this: *mut ::core::ffi::c_void,
+        __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
+    ) -> ::neocogi_com::NcStatus,
+    /// Reports a one-based source column, or zero when unavailable.
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:149:8` (module `neocogi.com.serialization`).
+    ///Raw COM ABI vtable slot for [`ISerializationDiagnostics::column`].
+    ///
+    ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
+    ///
+    ///# Safety
+    ///
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///
+    ///On success, `out` receives `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: Wire`.
+    #[allow(
+        clippy::type_complexity,
+        reason = "Raw vtable slots retain the exact flattened IDL ABI."
+    )]
+    pub column: unsafe extern "C" fn(
+        __nc_this: *mut ::core::ffi::c_void,
+        __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
+    ) -> ::neocogi_com::NcStatus,
+    /// Reports the diagnostic message's UTF-8 byte length.
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:151:8` (module `neocogi.com.serialization`).
+    ///Raw COM ABI vtable slot for [`ISerializationDiagnostics::message_len`].
+    ///
+    ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
+    ///
+    ///# Safety
+    ///
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///
+    ///On success, `out` receives `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: Wire`.
+    #[allow(
+        clippy::type_complexity,
+        reason = "Raw vtable slots retain the exact flattened IDL ABI."
+    )]
+    pub message_len: unsafe extern "C" fn(
+        __nc_this: *mut ::core::ffi::c_void,
+        __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
+    ) -> ::neocogi_com::NcStatus,
+    /// Copies the complete message to fresh output; short capacity writes no prefix.
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:153:8` (module `neocogi.com.serialization`).
+    ///Raw COM ABI vtable slot for [`ISerializationDiagnostics::copy_message`].
+    ///
+    ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
+    ///
+    ///# Safety
+    ///
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///- `output` uses ABI storage `* mut < :: core :: primitive :: u8 as :: neocogi_com :: ComValue > :: Wire` for `:: neocogi_com :: NcOutputWriter < '_ , :: core :: primitive :: u8 >`. The writable buffer pointer is accompanied by `offset: u64`, `capacity: u64`, and a separate `written: *mut u64`. Old contents are not input. Only the successfully reported initialized prefix may be read; count and element storage must not alias.
+    ///
+    ///On success, `out` receives `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: Wire`.
+    #[allow(
+        clippy::type_complexity,
+        reason = "Raw vtable slots retain the exact flattened IDL ABI."
+    )]
+    pub copy_message: unsafe extern "C" fn(
+        __nc_this: *mut ::core::ffi::c_void,
+        __nc_arg_0_offset: ::core::primitive::u64,
+        __nc_arg_0_len: ::core::primitive::u64,
+        __nc_arg_0_ptr: *mut <::core::primitive::u8 as ::neocogi_com::ComValue>::Wire,
+        __nc_arg_0_written: *mut ::core::primitive::u64,
+        __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
+    ) -> ::neocogi_com::NcStatus,
+    /// Reports the logical field/index path's UTF-8 byte length.
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:155:8` (module `neocogi.com.serialization`).
+    ///Raw COM ABI vtable slot for [`ISerializationDiagnostics::path_len`].
+    ///
+    ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
+    ///
+    ///# Safety
+    ///
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///
+    ///On success, `out` receives `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: Wire`.
+    #[allow(
+        clippy::type_complexity,
+        reason = "Raw vtable slots retain the exact flattened IDL ABI."
+    )]
+    pub path_len: unsafe extern "C" fn(
+        __nc_this: *mut ::core::ffi::c_void,
+        __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
+    ) -> ::neocogi_com::NcStatus,
+    /// Copies the complete logical path, rooted at $, into fresh output.
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:157:8` (module `neocogi.com.serialization`).
+    ///Raw COM ABI vtable slot for [`ISerializationDiagnostics::copy_path`].
+    ///
+    ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
+    ///
+    ///# Safety
+    ///
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///- `output` uses ABI storage `* mut < :: core :: primitive :: u8 as :: neocogi_com :: ComValue > :: Wire` for `:: neocogi_com :: NcOutputWriter < '_ , :: core :: primitive :: u8 >`. The writable buffer pointer is accompanied by `offset: u64`, `capacity: u64`, and a separate `written: *mut u64`. Old contents are not input. Only the successfully reported initialized prefix may be read; count and element storage must not alias.
+    ///
+    ///On success, `out` receives `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: Wire`.
+    #[allow(
+        clippy::type_complexity,
+        reason = "Raw vtable slots retain the exact flattened IDL ABI."
+    )]
+    pub copy_path: unsafe extern "C" fn(
+        __nc_this: *mut ::core::ffi::c_void,
+        __nc_arg_0_0_offset: ::core::primitive::u64,
+        __nc_arg_0_0_len: ::core::primitive::u64,
+        __nc_arg_0_0_ptr: *mut <::core::primitive::u8 as ::neocogi_com::ComValue>::Wire,
+        __nc_arg_0_0_written: *mut ::core::primitive::u64,
+        __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
+    ) -> ::neocogi_com::NcStatus,
+}
+unsafe impl ::neocogi_com::ComInterface for ISerializationDiagnosticsAbi {
+    const IID: ::neocogi_com::NcGuid = ::neocogi_com::NcGuid {
+        data1: 3478217469u32,
+        data2: 8526u16,
+        data3: 23497u16,
+        data4: [162u8, 217u8, 71u8, 39u8, 16u8, 184u8, 184u8, 223u8],
+    };
+    const INTERFACE_ID: ::neocogi_com::NcInterfaceId = ::neocogi_com::NcInterfaceId::new(
+        ::neocogi_com::NcGuid {
+            data1: 3478217469u32,
+            data2: 8526u16,
+            data3: 23497u16,
+            data4: [162u8, 217u8, 71u8, 39u8, 16u8, 184u8, 184u8, 223u8],
+        },
+        ISerializationDiagnosticsAbi::ABI_SIGNATURE,
+    );
+    type VTable = ISerializationDiagnosticsVTable;
+    type Threading = ::neocogi_com::ThreadLocal;
+}
+#[repr(transparent)]
+///Borrowed static method view for [`ISerializationDiagnostics`].
+pub struct ISerializationDiagnosticsClient<
+    __NcThreading: ::neocogi_com::ThreadingModel = ::neocogi_com::ThreadLocal,
+> {
+    /// Certified transparent storage supplied only by a live COM pointer borrow.
+    __nc_pointer: ::neocogi_com::NcClientPointer<
+        ISerializationDiagnosticsAbi,
+        __NcThreading,
+    >,
+}
+unsafe impl ::neocogi_com::ComClientInterface for ISerializationDiagnosticsAbi {
+    type Client<__NcThreading: ::neocogi_com::ThreadingModel> = ISerializationDiagnosticsClient<
+        __NcThreading,
+    >;
+    fn __nc_client_ref<__NcThreading: ::neocogi_com::ThreadingModel>(
+        pointer: &::neocogi_com::NcClientPointer<Self, __NcThreading>,
+    ) -> &Self::Client<__NcThreading> {
+        unsafe {
+            &*(::core::ptr::from_ref(pointer)
+                as *const ISerializationDiagnosticsClient<__NcThreading>)
+        }
+    }
+    fn __nc_client_mut<__NcThreading: ::neocogi_com::ThreadingModel>(
+        pointer: &mut ::neocogi_com::NcClientPointer<Self, __NcThreading>,
+    ) -> &mut Self::Client<__NcThreading> {
+        unsafe {
+            &mut *(::core::ptr::from_mut(pointer)
+                as *mut ISerializationDiagnosticsClient<__NcThreading>)
+        }
+    }
+}
+const _: () = {
+    #[allow(unused_imports)]
+    use ::core::convert::{
+        identity as __nc_dispatch_object, identity as __nc_dispatch_value,
+        identity as __nc_arg_0, identity as __nc_arg_0_owner_slot,
+        identity as __nc_arg_0_offset, identity as __nc_arg_0_len,
+        identity as __nc_arg_0_ptr, identity as __nc_arg_0_values,
+        identity as __nc_arg_0_written, identity as __nc_arg_0_0,
+        identity as __nc_arg_0_0_owner_slot, identity as __nc_arg_0_0_offset,
+        identity as __nc_arg_0_0_len, identity as __nc_arg_0_0_ptr,
+        identity as __nc_arg_0_0_values, identity as __nc_arg_0_0_written,
+        identity as __nc_this, identity as __nc_status, identity as __nc_value,
+        identity as __nc_raw, identity as __nc_result, identity as __nc_values,
+        identity as __nc_writer, identity as __nc_out, identity as __nc_identity,
+        identity as __nc_this_0, identity as __nc_status_0, identity as __nc_result_0,
+        identity as __nc_prepared, identity as __nc_out_0, identity as __nc_this_1,
+        identity as __nc_status_1, identity as __nc_result_1,
+        identity as __nc_prepared_0, identity as __nc_out_1, identity as __nc_this_2,
+        identity as __nc_status_2, identity as __nc_result_2,
+        identity as __nc_prepared_1, identity as __nc_out_2, identity as __nc_this_3,
+        identity as __nc_status_3, identity as __nc_result_3,
+        identity as __nc_prepared_2, identity as __nc_out_3, identity as __nc_this_4,
+        identity as __nc_status_4, identity as __nc_result_4,
+        identity as __nc_prepared_3, identity as __nc_out_4, identity as __nc_this_5,
+        identity as __nc_status_5, identity as __nc_result_5,
+        identity as __nc_prepared_4, identity as __nc_out_5, identity as __nc_this_6,
+        identity as __nc_status_6, identity as __nc_result_6,
+        identity as __nc_prepared_5, identity as __nc_out_6, identity as __nc_this_7,
+        identity as __nc_status_7, identity as __nc_result_7,
+        identity as __nc_prepared_6, identity as __nc_out_7,
+    };
+    impl<
+        __NcThreading: ::neocogi_com::ThreadingModel,
+    > ISerializationDiagnosticsClient<__NcThreading> {
+        /// Returns the original failed operation's status, as data.
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:143:8` (module `neocogi.com.serialization`).
+        ///
+        ///Calls [`ISerializationDiagnostics::failure_status`] through the generated COM ABI vtable.
+        ///
+        ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
+        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///
+        ///On success, returns `:: neocogi_com :: NcStatus` from the ABI out slot.
+        pub fn failure_status(
+            &self,
+        ) -> ::core::result::Result<::neocogi_com::NcStatus, ::neocogi_com::NcStatus> {
+            let mut __nc_out_0 = ::core::mem::MaybeUninit::<
+                <::neocogi_com::NcStatus as ::neocogi_com::ComValue>::Wire,
+            >::uninit();
+            let __nc_this_0 = self.__nc_pointer.as_raw();
+            let __nc_status_0 = unsafe {
+                ((*__nc_this_0.vtable)
+                    .failure_status)(__nc_this_0.object, __nc_out_0.as_mut_ptr())
+            };
+            if __nc_status_0.is_err() {
+                return ::core::result::Result::Err(__nc_status_0);
+            }
+            let __nc_result_0 = (unsafe {
+                ::neocogi_com::decode_inline::<
+                    ::neocogi_com::NcStatus,
+                >(__nc_out_0.assume_init())
+            })?;
+            ::core::result::Result::Ok(__nc_result_0)
+        }
+        /// Reports a zero-based byte cursor/offset, or u64::MAX when unavailable.
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:145:8` (module `neocogi.com.serialization`).
+        ///
+        ///Calls [`ISerializationDiagnostics::byte_offset`] through the generated COM ABI vtable.
+        ///
+        ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
+        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///
+        ///On success, returns `:: core :: primitive :: u64` from the ABI out slot.
+        pub fn byte_offset(
+            &self,
+        ) -> ::core::result::Result<::core::primitive::u64, ::neocogi_com::NcStatus> {
+            let mut __nc_out_1 = ::core::mem::MaybeUninit::<
+                <::core::primitive::u64 as ::neocogi_com::ComValue>::Wire,
+            >::uninit();
+            let __nc_this_1 = self.__nc_pointer.as_raw();
+            let __nc_status_1 = unsafe {
+                ((*__nc_this_1.vtable)
+                    .byte_offset)(__nc_this_1.object, __nc_out_1.as_mut_ptr())
+            };
+            if __nc_status_1.is_err() {
+                return ::core::result::Result::Err(__nc_status_1);
+            }
+            let __nc_result_1 = (unsafe {
+                ::neocogi_com::decode_inline::<
+                    ::core::primitive::u64,
+                >(__nc_out_1.assume_init())
+            })?;
+            ::core::result::Result::Ok(__nc_result_1)
+        }
+        /// Reports a one-based source line, or zero when unavailable.
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:147:8` (module `neocogi.com.serialization`).
+        ///
+        ///Calls [`ISerializationDiagnostics::line`] through the generated COM ABI vtable.
+        ///
+        ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
+        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///
+        ///On success, returns `:: core :: primitive :: u32` from the ABI out slot.
+        pub fn line(
+            &self,
+        ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus> {
+            let mut __nc_out_2 = ::core::mem::MaybeUninit::<
+                <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
+            >::uninit();
+            let __nc_this_2 = self.__nc_pointer.as_raw();
+            let __nc_status_2 = unsafe {
+                ((*__nc_this_2.vtable).line)(__nc_this_2.object, __nc_out_2.as_mut_ptr())
+            };
+            if __nc_status_2.is_err() {
+                return ::core::result::Result::Err(__nc_status_2);
+            }
+            let __nc_result_2 = (unsafe {
+                ::neocogi_com::decode_inline::<
+                    ::core::primitive::u32,
+                >(__nc_out_2.assume_init())
+            })?;
+            ::core::result::Result::Ok(__nc_result_2)
+        }
+        /// Reports a one-based source column, or zero when unavailable.
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:149:8` (module `neocogi.com.serialization`).
+        ///
+        ///Calls [`ISerializationDiagnostics::column`] through the generated COM ABI vtable.
+        ///
+        ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
+        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///
+        ///On success, returns `:: core :: primitive :: u32` from the ABI out slot.
+        pub fn column(
+            &self,
+        ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus> {
+            let mut __nc_out_3 = ::core::mem::MaybeUninit::<
+                <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
+            >::uninit();
+            let __nc_this_3 = self.__nc_pointer.as_raw();
+            let __nc_status_3 = unsafe {
+                ((*__nc_this_3.vtable)
+                    .column)(__nc_this_3.object, __nc_out_3.as_mut_ptr())
+            };
+            if __nc_status_3.is_err() {
+                return ::core::result::Result::Err(__nc_status_3);
+            }
+            let __nc_result_3 = (unsafe {
+                ::neocogi_com::decode_inline::<
+                    ::core::primitive::u32,
+                >(__nc_out_3.assume_init())
+            })?;
+            ::core::result::Result::Ok(__nc_result_3)
+        }
+        /// Reports the diagnostic message's UTF-8 byte length.
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:151:8` (module `neocogi.com.serialization`).
+        ///
+        ///Calls [`ISerializationDiagnostics::message_len`] through the generated COM ABI vtable.
+        ///
+        ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
+        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///
+        ///On success, returns `:: core :: primitive :: u32` from the ABI out slot.
+        pub fn message_len(
+            &self,
+        ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus> {
+            let mut __nc_out_4 = ::core::mem::MaybeUninit::<
+                <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
+            >::uninit();
+            let __nc_this_4 = self.__nc_pointer.as_raw();
+            let __nc_status_4 = unsafe {
+                ((*__nc_this_4.vtable)
+                    .message_len)(__nc_this_4.object, __nc_out_4.as_mut_ptr())
+            };
+            if __nc_status_4.is_err() {
+                return ::core::result::Result::Err(__nc_status_4);
+            }
+            let __nc_result_4 = (unsafe {
+                ::neocogi_com::decode_inline::<
+                    ::core::primitive::u32,
+                >(__nc_out_4.assume_init())
+            })?;
+            ::core::result::Result::Ok(__nc_result_4)
+        }
+        /// Copies the complete message to fresh output; short capacity writes no prefix.
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:153:8` (module `neocogi.com.serialization`).
+        ///
+        ///Calls [`ISerializationDiagnostics::copy_message`] through the generated COM ABI vtable.
+        ///
+        ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
+        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///- `output` supplies output storage for `:: core :: primitive :: u8` through [`::neocogi_com::NcOutput`]. See its lifecycle contract for acquisition, preparation and publication.
+        ///
+        ///On success, returns `:: core :: primitive :: u32` from the ABI out slot.
+        pub fn copy_message(
+            &self,
+            __nc_arg_0: ::neocogi_com::NcOutput<'_, ::core::primitive::u8>,
+        ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus> {
+            let mut __nc_arg_0 = __nc_arg_0.prepare()?;
+            let mut __nc_out_5 = ::core::mem::MaybeUninit::<
+                <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
+            >::uninit();
+            let __nc_this_5 = self.__nc_pointer.as_raw();
+            let __nc_status_5 = unsafe {
+                ((*__nc_this_5.vtable)
+                    .copy_message)(
+                    __nc_this_5.object,
+                    __nc_arg_0.offset(),
+                    __nc_arg_0.capacity(),
+                    __nc_arg_0.as_mut_ptr(),
+                    __nc_arg_0.written_ptr(),
+                    __nc_out_5.as_mut_ptr(),
+                )
+            };
+            if __nc_status_5.is_err() {
+                return ::core::result::Result::Err(__nc_status_5);
+            }
+            let __nc_result_5 = (unsafe {
+                ::neocogi_com::decode_inline::<
+                    ::core::primitive::u32,
+                >(__nc_out_5.assume_init())
+            })?;
+            (unsafe { __nc_arg_0.convert_output() })?;
+            __nc_arg_0.publish();
+            ::core::result::Result::Ok(__nc_result_5)
+        }
+        /// Reports the logical field/index path's UTF-8 byte length.
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:155:8` (module `neocogi.com.serialization`).
+        ///
+        ///Calls [`ISerializationDiagnostics::path_len`] through the generated COM ABI vtable.
+        ///
+        ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
+        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///
+        ///On success, returns `:: core :: primitive :: u32` from the ABI out slot.
+        pub fn path_len(
+            &self,
+        ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus> {
+            let mut __nc_out_6 = ::core::mem::MaybeUninit::<
+                <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
+            >::uninit();
+            let __nc_this_6 = self.__nc_pointer.as_raw();
+            let __nc_status_6 = unsafe {
+                ((*__nc_this_6.vtable)
+                    .path_len)(__nc_this_6.object, __nc_out_6.as_mut_ptr())
+            };
+            if __nc_status_6.is_err() {
+                return ::core::result::Result::Err(__nc_status_6);
+            }
+            let __nc_result_6 = (unsafe {
+                ::neocogi_com::decode_inline::<
+                    ::core::primitive::u32,
+                >(__nc_out_6.assume_init())
+            })?;
+            ::core::result::Result::Ok(__nc_result_6)
+        }
+        /// Copies the complete logical path, rooted at $, into fresh output.
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:157:8` (module `neocogi.com.serialization`).
+        ///
+        ///Calls [`ISerializationDiagnostics::copy_path`] through the generated COM ABI vtable.
+        ///
+        ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
+        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///- `output` supplies output storage for `:: core :: primitive :: u8` through [`::neocogi_com::NcOutput`]. See its lifecycle contract for acquisition, preparation and publication.
+        ///
+        ///On success, returns `:: core :: primitive :: u32` from the ABI out slot.
+        pub fn copy_path(
+            &self,
+            __nc_arg_0_0: ::neocogi_com::NcOutput<'_, ::core::primitive::u8>,
+        ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus> {
+            let mut __nc_arg_0_0 = __nc_arg_0_0.prepare()?;
+            let mut __nc_out_7 = ::core::mem::MaybeUninit::<
+                <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
+            >::uninit();
+            let __nc_this_7 = self.__nc_pointer.as_raw();
+            let __nc_status_7 = unsafe {
+                ((*__nc_this_7.vtable)
+                    .copy_path)(
+                    __nc_this_7.object,
+                    __nc_arg_0_0.offset(),
+                    __nc_arg_0_0.capacity(),
+                    __nc_arg_0_0.as_mut_ptr(),
+                    __nc_arg_0_0.written_ptr(),
+                    __nc_out_7.as_mut_ptr(),
+                )
+            };
+            if __nc_status_7.is_err() {
+                return ::core::result::Result::Err(__nc_status_7);
+            }
+            let __nc_result_7 = (unsafe {
+                ::neocogi_com::decode_inline::<
+                    ::core::primitive::u32,
+                >(__nc_out_7.assume_init())
+            })?;
+            (unsafe { __nc_arg_0_0.convert_output() })?;
+            __nc_arg_0_0.publish();
+            ::core::result::Result::Ok(__nc_result_7)
+        }
+    }
+};
+impl ISerializationDiagnosticsAbi {
+    ///Canonical validation form of this interface's typed ABI contract.
+    pub const ABI_SIGNATURE: ::neocogi_com::NcAbiSignature = ::neocogi_com::NcAbiSignature::from_static(
+        b"\x13\x1E\xEF\xE7;\xA1\x9F\xEB\xB1\x9B\xB2'\x81\xE1\xB2\xFAe\x07\xEA\x12\xFCX\xF01\x98\x01\x89H\x1By\xEF\x15",
+    );
+    ///Static descriptors for this interface's ABI methods.
+    pub const METHOD_DESCRIPTORS: [::neocogi_com::NcMethodDescriptor; 8usize] = [
+        ::neocogi_com::NcMethodDescriptor {
+            name: ::neocogi_com::NcStaticUtf8::from_static("failure_status"),
+            receiver: ::neocogi_com::NC_ABI_RECEIVER_SHARED,
+            param_count: 0u32,
+            params: (&[] as &'static [::neocogi_com::NcMethodParamDescriptor]).as_ptr(),
+            returns: ::neocogi_com::NcMethodReturnDescriptor {
+                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
+                    ::neocogi_com::NcAbiPassing::Out,
+                ),
+                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
+                    ::neocogi_com::__nc_abi_type::<::neocogi_com::NcStatus>(),
+                ),
+            },
+        },
+        ::neocogi_com::NcMethodDescriptor {
+            name: ::neocogi_com::NcStaticUtf8::from_static("byte_offset"),
+            receiver: ::neocogi_com::NC_ABI_RECEIVER_SHARED,
+            param_count: 0u32,
+            params: (&[] as &'static [::neocogi_com::NcMethodParamDescriptor]).as_ptr(),
+            returns: ::neocogi_com::NcMethodReturnDescriptor {
+                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
+                    ::neocogi_com::NcAbiPassing::Out,
+                ),
+                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
+                    ::neocogi_com::__nc_abi_type::<::core::primitive::u64>(),
+                ),
+            },
+        },
+        ::neocogi_com::NcMethodDescriptor {
+            name: ::neocogi_com::NcStaticUtf8::from_static("line"),
+            receiver: ::neocogi_com::NC_ABI_RECEIVER_SHARED,
+            param_count: 0u32,
+            params: (&[] as &'static [::neocogi_com::NcMethodParamDescriptor]).as_ptr(),
+            returns: ::neocogi_com::NcMethodReturnDescriptor {
+                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
+                    ::neocogi_com::NcAbiPassing::Out,
+                ),
+                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
+                    ::neocogi_com::__nc_abi_type::<::core::primitive::u32>(),
+                ),
+            },
+        },
+        ::neocogi_com::NcMethodDescriptor {
+            name: ::neocogi_com::NcStaticUtf8::from_static("column"),
+            receiver: ::neocogi_com::NC_ABI_RECEIVER_SHARED,
+            param_count: 0u32,
+            params: (&[] as &'static [::neocogi_com::NcMethodParamDescriptor]).as_ptr(),
+            returns: ::neocogi_com::NcMethodReturnDescriptor {
+                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
+                    ::neocogi_com::NcAbiPassing::Out,
+                ),
+                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
+                    ::neocogi_com::__nc_abi_type::<::core::primitive::u32>(),
+                ),
+            },
+        },
+        ::neocogi_com::NcMethodDescriptor {
+            name: ::neocogi_com::NcStaticUtf8::from_static("message_len"),
+            receiver: ::neocogi_com::NC_ABI_RECEIVER_SHARED,
+            param_count: 0u32,
+            params: (&[] as &'static [::neocogi_com::NcMethodParamDescriptor]).as_ptr(),
+            returns: ::neocogi_com::NcMethodReturnDescriptor {
+                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
+                    ::neocogi_com::NcAbiPassing::Out,
+                ),
+                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
+                    ::neocogi_com::__nc_abi_type::<::core::primitive::u32>(),
+                ),
+            },
+        },
+        ::neocogi_com::NcMethodDescriptor {
+            name: ::neocogi_com::NcStaticUtf8::from_static("copy_message"),
+            receiver: ::neocogi_com::NC_ABI_RECEIVER_SHARED,
+            param_count: 1u32,
+            params: (&[
+                ::neocogi_com::NcMethodParamDescriptor {
+                    name: ::neocogi_com::NcStaticUtf8::from_static("output"),
+                    passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
+                        ::neocogi_com::NcAbiPassing::OutputBuffer,
+                    ),
+                    ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
+                        ::neocogi_com::__nc_abi_plain_type::<::core::primitive::u8>(),
+                    ),
+                },
+            ] as &'static [::neocogi_com::NcMethodParamDescriptor])
+                .as_ptr(),
+            returns: ::neocogi_com::NcMethodReturnDescriptor {
+                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
+                    ::neocogi_com::NcAbiPassing::Out,
+                ),
+                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
+                    ::neocogi_com::__nc_abi_type::<::core::primitive::u32>(),
+                ),
+            },
+        },
+        ::neocogi_com::NcMethodDescriptor {
+            name: ::neocogi_com::NcStaticUtf8::from_static("path_len"),
+            receiver: ::neocogi_com::NC_ABI_RECEIVER_SHARED,
+            param_count: 0u32,
+            params: (&[] as &'static [::neocogi_com::NcMethodParamDescriptor]).as_ptr(),
+            returns: ::neocogi_com::NcMethodReturnDescriptor {
+                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
+                    ::neocogi_com::NcAbiPassing::Out,
+                ),
+                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
+                    ::neocogi_com::__nc_abi_type::<::core::primitive::u32>(),
+                ),
+            },
+        },
+        ::neocogi_com::NcMethodDescriptor {
+            name: ::neocogi_com::NcStaticUtf8::from_static("copy_path"),
+            receiver: ::neocogi_com::NC_ABI_RECEIVER_SHARED,
+            param_count: 1u32,
+            params: (&[
+                ::neocogi_com::NcMethodParamDescriptor {
+                    name: ::neocogi_com::NcStaticUtf8::from_static("output"),
+                    passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
+                        ::neocogi_com::NcAbiPassing::OutputBuffer,
+                    ),
+                    ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
+                        ::neocogi_com::__nc_abi_plain_type::<::core::primitive::u8>(),
+                    ),
+                },
+            ] as &'static [::neocogi_com::NcMethodParamDescriptor])
+                .as_ptr(),
+            returns: ::neocogi_com::NcMethodReturnDescriptor {
+                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
+                    ::neocogi_com::NcAbiPassing::Out,
+                ),
+                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
+                    ::neocogi_com::__nc_abi_type::<::core::primitive::u32>(),
+                ),
+            },
+        },
+    ];
+    ///Static ABI descriptor for this interface.
+    pub const INTERFACE_DESCRIPTOR: ::neocogi_com::NcInterfaceDescriptor = ::neocogi_com::NcInterfaceDescriptor {
+        interface_id: <Self as ::neocogi_com::ComInterface>::IID,
+        qualified_name: ::neocogi_com::NcStaticUtf8::from_static(
+            "neocogi.com.serialization.ISerializationDiagnostics",
+        ),
+        abi_signature: Self::ABI_SIGNATURE,
+        base: ::neocogi_com::NcInterfaceId::NONE,
+        method_count: 8u32,
+        methods: Self::METHOD_DESCRIPTORS.as_ptr(),
+    };
+    /// Distinct projections in derived-first, declared-parent order.
+    /// Shared ancestors occur once; repeated identities must have the same ABI.
+    pub const INTERFACE_CHAIN: [&'static ::neocogi_com::NcInterfaceDescriptor; ::neocogi_com::__nc_object_interface_count(
+        &[&[&Self::INTERFACE_DESCRIPTOR]],
+    )] = ::neocogi_com::__nc_interface_chain(&Self::INTERFACE_DESCRIPTOR, &[]);
+}
 /// A format plugin's shared root; each document receives its own exclusive session.
 /// IDL source: `neocogi/com/serialization/formats.ncidl:124:11` (module `neocogi.com.serialization`).
 pub trait ISerializationFormat {
@@ -2393,7 +3119,7 @@ const _: () = {
 impl ISerializationFormatAbi {
     ///Canonical validation form of this interface's typed ABI contract.
     pub const ABI_SIGNATURE: ::neocogi_com::NcAbiSignature = ::neocogi_com::NcAbiSignature::from_static(
-        b"\xF87-Z5(\r\xE8L*\xC4\x17\x03M\xFC\0\x84\xF0\x0B\xE2m\xF9\xC0$/\x1C\x18r*\xC7:\x9C",
+        b"Q\x94\x92\xAB> \x82\x10'\xF7\xB2`\x945\xB2\xED:\x9A\xEFf\xBC\xB8o\xE1|b\x8F\xFD\\\xF5\xF2\xAA",
     );
     ///Static descriptors for this interface's ABI methods.
     pub const METHOD_DESCRIPTORS: [::neocogi_com::NcMethodDescriptor; 2usize] = [
@@ -2737,7 +3463,7 @@ const _: () = {
 impl ISerializationOutputAbi {
     ///Canonical validation form of this interface's typed ABI contract.
     pub const ABI_SIGNATURE: ::neocogi_com::NcAbiSignature = ::neocogi_com::NcAbiSignature::from_static(
-        b"\xE3\xCF\x14\xE9\x03 :\xEE'\xF2\x96,X\x1C& \xA9})\x93O0\x17\x05;\xCD V\xFA\xF9\xB2:",
+        b"\xD5\xA2\xA4a\xE0\xAE\xB7\xC2\x90\xCD4Gl\x8F\x0B(\xE6\xEC\xE4\xDD\x0FK\xDC\xD1x[W\xA1h\x9B\xB3j",
     );
     ///Static descriptors for this interface's ABI methods.
     pub const METHOD_DESCRIPTORS: [::neocogi_com::NcMethodDescriptor; 2usize] = [
@@ -2786,6 +3512,284 @@ impl ISerializationOutputAbi {
         interface_id: <Self as ::neocogi_com::ComInterface>::IID,
         qualified_name: ::neocogi_com::NcStaticUtf8::from_static(
             "neocogi.com.serialization.ISerializationOutput",
+        ),
+        abi_signature: Self::ABI_SIGNATURE,
+        base: ::neocogi_com::NcInterfaceId::NONE,
+        method_count: 2u32,
+        methods: Self::METHOD_DESCRIPTORS.as_ptr(),
+    };
+    /// Distinct projections in derived-first, declared-parent order.
+    /// Shared ancestors occur once; repeated identities must have the same ABI.
+    pub const INTERFACE_CHAIN: [&'static ::neocogi_com::NcInterfaceDescriptor; ::neocogi_com::__nc_object_interface_count(
+        &[&[&Self::INTERFACE_DESCRIPTOR]],
+    )] = ::neocogi_com::__nc_interface_chain(&Self::INTERFACE_DESCRIPTOR, &[]);
+}
+/// One serialization plugin bundles its enabled codecs, with NCB always available.
+/// IDL source: `neocogi/com/serialization/formats.ncidl:132:11` (module `neocogi.com.serialization`).
+pub trait ISerializationPlugin {
+    /// Returns the unconditional default NCB format factory.
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:134:8` (module `neocogi.com.serialization`).
+    fn default_format(
+        &self,
+    ) -> ::core::result::Result<
+        ::neocogi_com::ComPtr<self::ISerializationFormatAbi>,
+        ::neocogi_com::NcStatus,
+    >;
+    /// Selects ncb or json; disabled and unknown names return NC_E_NOINTERFACE.
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:136:8` (module `neocogi.com.serialization`).
+    fn format(
+        &self,
+        name: ::neocogi_com::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
+    ) -> ::core::result::Result<
+        ::neocogi_com::ComPtr<self::ISerializationFormatAbi>,
+        ::neocogi_com::NcStatus,
+    >;
+}
+///Interface marker for [`ISerializationPlugin`]; handles carry its object/table pair.
+pub enum ISerializationPluginAbi {}
+#[repr(C)]
+///C-compatible vtable for [`ISerializationPlugin`].
+pub struct ISerializationPluginVTable {
+    /// Common identity, query and reference-count slots.
+    pub unknown: ::neocogi_com::IUnknownVTable,
+    /// Returns the unconditional default NCB format factory.
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:134:8` (module `neocogi.com.serialization`).
+    ///Raw COM ABI vtable slot for [`ISerializationPlugin::default_format`].
+    ///
+    ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
+    ///
+    ///# Safety
+    ///
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///
+    ///On success, `out` receives `:: neocogi_com :: ComRaw < self :: ISerializationFormatAbi >` for `:: neocogi_com :: ComPtr < self :: ISerializationFormatAbi >`. The caller receives one shared owner and releases it when finished.
+    #[allow(
+        clippy::type_complexity,
+        reason = "Raw vtable slots retain the exact flattened IDL ABI."
+    )]
+    pub default_format: unsafe extern "C" fn(
+        __nc_this: *mut ::core::ffi::c_void,
+        __nc_out: *mut ::neocogi_com::ComRaw<self::ISerializationFormatAbi>,
+    ) -> ::neocogi_com::NcStatus,
+    /// Selects ncb or json; disabled and unknown names return NC_E_NOINTERFACE.
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:136:8` (module `neocogi.com.serialization`).
+    ///Raw COM ABI vtable slot for [`ISerializationPlugin::format`].
+    ///
+    ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
+    ///
+    ///# Safety
+    ///
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///- `name` uses ABI storage `* const < :: core :: primitive :: u8 as :: neocogi_com :: ComValue > :: Wire` for `:: neocogi_com :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
+    ///
+    ///On success, `out` receives `:: neocogi_com :: ComRaw < self :: ISerializationFormatAbi >` for `:: neocogi_com :: ComPtr < self :: ISerializationFormatAbi >`. The caller receives one shared owner and releases it when finished.
+    #[allow(
+        clippy::type_complexity,
+        reason = "Raw vtable slots retain the exact flattened IDL ABI."
+    )]
+    pub format: unsafe extern "C" fn(
+        __nc_this: *mut ::core::ffi::c_void,
+        __nc_arg_0_offset: ::core::primitive::u64,
+        __nc_arg_0_len: ::core::primitive::u64,
+        __nc_arg_0_ptr: *const <::core::primitive::u8 as ::neocogi_com::ComValue>::Wire,
+        __nc_out: *mut ::neocogi_com::ComRaw<self::ISerializationFormatAbi>,
+    ) -> ::neocogi_com::NcStatus,
+}
+unsafe impl ::neocogi_com::ComInterface for ISerializationPluginAbi {
+    const IID: ::neocogi_com::NcGuid = ::neocogi_com::NcGuid {
+        data1: 2947607689u32,
+        data2: 56026u16,
+        data3: 22309u16,
+        data4: [151u8, 196u8, 39u8, 112u8, 37u8, 75u8, 55u8, 139u8],
+    };
+    const INTERFACE_ID: ::neocogi_com::NcInterfaceId = ::neocogi_com::NcInterfaceId::new(
+        ::neocogi_com::NcGuid {
+            data1: 2947607689u32,
+            data2: 56026u16,
+            data3: 22309u16,
+            data4: [151u8, 196u8, 39u8, 112u8, 37u8, 75u8, 55u8, 139u8],
+        },
+        ISerializationPluginAbi::ABI_SIGNATURE,
+    );
+    type VTable = ISerializationPluginVTable;
+    type Threading = ::neocogi_com::ThreadLocal;
+}
+#[repr(transparent)]
+///Borrowed static method view for [`ISerializationPlugin`].
+pub struct ISerializationPluginClient<
+    __NcThreading: ::neocogi_com::ThreadingModel = ::neocogi_com::ThreadLocal,
+> {
+    /// Certified transparent storage supplied only by a live COM pointer borrow.
+    __nc_pointer: ::neocogi_com::NcClientPointer<ISerializationPluginAbi, __NcThreading>,
+}
+unsafe impl ::neocogi_com::ComClientInterface for ISerializationPluginAbi {
+    type Client<__NcThreading: ::neocogi_com::ThreadingModel> = ISerializationPluginClient<
+        __NcThreading,
+    >;
+    fn __nc_client_ref<__NcThreading: ::neocogi_com::ThreadingModel>(
+        pointer: &::neocogi_com::NcClientPointer<Self, __NcThreading>,
+    ) -> &Self::Client<__NcThreading> {
+        unsafe {
+            &*(::core::ptr::from_ref(pointer)
+                as *const ISerializationPluginClient<__NcThreading>)
+        }
+    }
+    fn __nc_client_mut<__NcThreading: ::neocogi_com::ThreadingModel>(
+        pointer: &mut ::neocogi_com::NcClientPointer<Self, __NcThreading>,
+    ) -> &mut Self::Client<__NcThreading> {
+        unsafe {
+            &mut *(::core::ptr::from_mut(pointer)
+                as *mut ISerializationPluginClient<__NcThreading>)
+        }
+    }
+}
+const _: () = {
+    #[allow(unused_imports)]
+    use ::core::convert::{
+        identity as __nc_dispatch_object, identity as __nc_dispatch_value,
+        identity as __nc_arg_0, identity as __nc_arg_0_owner_slot,
+        identity as __nc_arg_0_offset, identity as __nc_arg_0_len,
+        identity as __nc_arg_0_ptr, identity as __nc_arg_0_values,
+        identity as __nc_arg_0_written, identity as __nc_this, identity as __nc_status,
+        identity as __nc_value, identity as __nc_raw, identity as __nc_result,
+        identity as __nc_values, identity as __nc_writer, identity as __nc_out,
+        identity as __nc_identity, identity as __nc_this_0, identity as __nc_status_0,
+        identity as __nc_result_0, identity as __nc_prepared, identity as __nc_out_0,
+        identity as __nc_this_1, identity as __nc_status_1, identity as __nc_result_1,
+        identity as __nc_prepared_0, identity as __nc_out_1,
+    };
+    impl<
+        __NcThreading: ::neocogi_com::ThreadingModel,
+    > ISerializationPluginClient<__NcThreading> {
+        /// Returns the unconditional default NCB format factory.
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:134:8` (module `neocogi.com.serialization`).
+        ///
+        ///Calls [`ISerializationPlugin::default_format`] through the generated COM ABI vtable.
+        ///
+        ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
+        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///
+        ///On success, returns `:: neocogi_com :: ComPtr < self :: ISerializationFormatAbi >`. The caller receives one shared owner and releases it when finished.
+        pub fn default_format(
+            &self,
+        ) -> ::core::result::Result<
+            ::neocogi_com::ComPtr<self::ISerializationFormatAbi>,
+            ::neocogi_com::NcStatus,
+        > {
+            let mut __nc_out_0 = ::core::mem::MaybeUninit::<
+                ::neocogi_com::ComRaw<self::ISerializationFormatAbi>,
+            >::uninit();
+            let __nc_this_0 = self.__nc_pointer.as_raw();
+            let __nc_status_0 = unsafe {
+                ((*__nc_this_0.vtable)
+                    .default_format)(__nc_this_0.object, __nc_out_0.as_mut_ptr())
+            };
+            if __nc_status_0.is_err() {
+                return ::core::result::Result::Err(__nc_status_0);
+            }
+            let __nc_result_0 = (unsafe {
+                <::neocogi_com::ComPtr<
+                    self::ISerializationFormatAbi,
+                >>::__nc_from_raw_owned_checked(__nc_out_0.assume_init())
+            })?;
+            ::core::result::Result::Ok(__nc_result_0)
+        }
+        /// Selects ncb or json; disabled and unknown names return NC_E_NOINTERFACE.
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:136:8` (module `neocogi.com.serialization`).
+        ///
+        ///Calls [`ISerializationPlugin::format`] through the generated COM ABI vtable.
+        ///
+        ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
+        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///- `name` is passed as a safe readable `:: core :: primitive :: u8` buffer plus offset.
+        ///
+        ///On success, returns `:: neocogi_com :: ComPtr < self :: ISerializationFormatAbi >`. The caller receives one shared owner and releases it when finished.
+        pub fn format(
+            &self,
+            __nc_arg_0: ::neocogi_com::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
+        ) -> ::core::result::Result<
+            ::neocogi_com::ComPtr<self::ISerializationFormatAbi>,
+            ::neocogi_com::NcStatus,
+        > {
+            let __nc_arg_0 = ::neocogi_com::EncodedInput::new(__nc_arg_0)?;
+            let mut __nc_out_1 = ::core::mem::MaybeUninit::<
+                ::neocogi_com::ComRaw<self::ISerializationFormatAbi>,
+            >::uninit();
+            let __nc_this_1 = self.__nc_pointer.as_raw();
+            let __nc_status_1 = unsafe {
+                ((*__nc_this_1.vtable)
+                    .format)(
+                    __nc_this_1.object,
+                    __nc_arg_0.offset(),
+                    __nc_arg_0.len(),
+                    __nc_arg_0.as_ptr(),
+                    __nc_out_1.as_mut_ptr(),
+                )
+            };
+            if __nc_status_1.is_err() {
+                return ::core::result::Result::Err(__nc_status_1);
+            }
+            let __nc_result_1 = (unsafe {
+                <::neocogi_com::ComPtr<
+                    self::ISerializationFormatAbi,
+                >>::__nc_from_raw_owned_checked(__nc_out_1.assume_init())
+            })?;
+            ::core::result::Result::Ok(__nc_result_1)
+        }
+    }
+};
+impl ISerializationPluginAbi {
+    ///Canonical validation form of this interface's typed ABI contract.
+    pub const ABI_SIGNATURE: ::neocogi_com::NcAbiSignature = ::neocogi_com::NcAbiSignature::from_static(
+        b"^v3\x01\xBA\xFB;\x9D|\xE5\xAA\x02\x02ih\xA3\xEF\x94\x9Dm5\x17|k\xF7?J\xB5\xC8\"?\x14",
+    );
+    ///Static descriptors for this interface's ABI methods.
+    pub const METHOD_DESCRIPTORS: [::neocogi_com::NcMethodDescriptor; 2usize] = [
+        ::neocogi_com::NcMethodDescriptor {
+            name: ::neocogi_com::NcStaticUtf8::from_static("default_format"),
+            receiver: ::neocogi_com::NC_ABI_RECEIVER_SHARED,
+            param_count: 0u32,
+            params: (&[] as &'static [::neocogi_com::NcMethodParamDescriptor]).as_ptr(),
+            returns: ::neocogi_com::NcMethodReturnDescriptor {
+                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(::neocogi_com::NcAbiPassing::ComPtrOut {
+                    mode: <::neocogi_com::ThreadLocal as ::neocogi_com::ThreadingModel>::ABI_THREADING_MODE,
+                }),
+                ty: ::neocogi_com::NcAbiTypeDescriptor::from_interface(
+                    <self::ISerializationFormatAbi as ::neocogi_com::ComInterface>::INTERFACE_ID,
+                ),
+            },
+        },
+        ::neocogi_com::NcMethodDescriptor {
+            name: ::neocogi_com::NcStaticUtf8::from_static("format"),
+            receiver: ::neocogi_com::NC_ABI_RECEIVER_SHARED,
+            param_count: 1u32,
+            params: (&[
+                ::neocogi_com::NcMethodParamDescriptor {
+                    name: ::neocogi_com::NcStaticUtf8::from_static("name"),
+                    passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
+                        ::neocogi_com::NcAbiPassing::CopyFromBufferOffset,
+                    ),
+                    ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
+                        ::neocogi_com::__nc_abi_plain_type::<::core::primitive::u8>(),
+                    ),
+                },
+            ] as &'static [::neocogi_com::NcMethodParamDescriptor])
+                .as_ptr(),
+            returns: ::neocogi_com::NcMethodReturnDescriptor {
+                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(::neocogi_com::NcAbiPassing::ComPtrOut {
+                    mode: <::neocogi_com::ThreadLocal as ::neocogi_com::ThreadingModel>::ABI_THREADING_MODE,
+                }),
+                ty: ::neocogi_com::NcAbiTypeDescriptor::from_interface(
+                    <self::ISerializationFormatAbi as ::neocogi_com::ComInterface>::INTERFACE_ID,
+                ),
+            },
+        },
+    ];
+    ///Static ABI descriptor for this interface.
+    pub const INTERFACE_DESCRIPTOR: ::neocogi_com::NcInterfaceDescriptor = ::neocogi_com::NcInterfaceDescriptor {
+        interface_id: <Self as ::neocogi_com::ComInterface>::IID,
+        qualified_name: ::neocogi_com::NcStaticUtf8::from_static(
+            "neocogi.com.serialization.ISerializationPlugin",
         ),
         abi_signature: Self::ABI_SIGNATURE,
         base: ::neocogi_com::NcInterfaceId::NONE,
@@ -4310,7 +5314,7 @@ const _: () = {
 impl ISerializerAbi {
     ///Canonical validation form of this interface's typed ABI contract.
     pub const ABI_SIGNATURE: ::neocogi_com::NcAbiSignature = ::neocogi_com::NcAbiSignature::from_static(
-        b"\xDDM&\x14\x15\x1D\x0C9\xD5\xA8\x8E\xEB\xC7\xA3A\x9C\xA96\xBD$r\x93\xCFm]\xB4A\xB2@o\xC0x",
+        b"\xCC\x0C\xBA\xF7\xB68\xE1\xE1\xF3\xFFBEI%\x85\0\xA8\xF9\xDB%\xFD\xF5\xC9\xFD'\x1AQ?\xF1\xBC\xBB\xD9",
     );
     ///Static descriptors for this interface's ABI methods.
     pub const METHOD_DESCRIPTORS: [::neocogi_com::NcMethodDescriptor; 26usize] = [

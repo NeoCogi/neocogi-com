@@ -376,8 +376,8 @@ fn value_and_decoder_locals_do_not_capture_authored_const_expressions() {
             {declaration}
             #[test] fn raw_and_persistent_values_preserve_every_array() {{
                 let data = Data {{ first:[1,73], second:[2,91], third:[3,17], fourth:[4,29], fifth:[5,43], sixth:[6,57] }};
-                let bytes = neocogi_com::binary::to_vec(&data).unwrap();
-                let decoded = neocogi_com::binary::from_slice::<Data>(&bytes).unwrap();
+                let bytes = neocogi_com_serialization::ncb::to_vec(&data).unwrap();
+                let decoded = neocogi_com_serialization::ncb::from_slice::<Data>(&bytes).unwrap();
                 assert_eq!(decoded.second, [2,91]);
                 assert_eq!(decoded.third, [3,17]);
                 assert_eq!(decoded.fifth, [5,43]);
@@ -387,7 +387,12 @@ fn value_and_decoder_locals_do_not_capture_authored_const_expressions() {
             ),
         )
     });
-    run_consumers("const-expression-ownership-proof", cases);
+    run_consumers_with_files(
+        super::test_consumer::Consumer::new("const-expression-ownership-proof").with_serialization(),
+        cases,
+        &[],
+        &[],
+    );
 }
 
 /// Field types resolve at the application owner before private codec/decoder
@@ -437,24 +442,24 @@ fn field_types_keep_application_self_and_opaque_macro_scope() {
         #[derive(neocogi_com::ComSerialize)] struct Prefix { prefix: u8 }
         pub fn opaque_round_trips() {
             let native = Opaque { value: 73 };
-            let bytes = neocogi_com::binary::to_vec(&native).unwrap();
-            assert_eq!(neocogi_com::binary::from_slice::<Opaque>(&bytes).unwrap(), native);
-            let explicit = neocogi_com::binary::to_vec(&Explicit { value: 91 }).unwrap();
-            assert_eq!(neocogi_com::binary::from_slice::<Explicit>(&explicit).unwrap().value, 91);
-            let visible = neocogi_com::binary::to_vec(&Visible { value: 17 }).unwrap();
-            assert_eq!(neocogi_com::binary::from_slice::<Visible>(&visible).unwrap().value, 17);
+            let bytes = neocogi_com_serialization::ncb::to_vec(&native).unwrap();
+            assert_eq!(neocogi_com_serialization::ncb::from_slice::<Opaque>(&bytes).unwrap(), native);
+            let explicit = neocogi_com_serialization::ncb::to_vec(&Explicit { value: 91 }).unwrap();
+            assert_eq!(neocogi_com_serialization::ncb::from_slice::<Explicit>(&explicit).unwrap().value, 91);
+            let visible = neocogi_com_serialization::ncb::to_vec(&Visible { value: 17 }).unwrap();
+            assert_eq!(neocogi_com_serialization::ncb::from_slice::<Visible>(&visible).unwrap().value, 17);
             let native = Positional(5, 43);
-            let bytes = neocogi_com::binary::to_vec(&native).unwrap();
-            assert_eq!(neocogi_com::binary::from_slice::<Positional>(&bytes).unwrap(), native);
+            let bytes = neocogi_com_serialization::ncb::to_vec(&native).unwrap();
+            assert_eq!(neocogi_com_serialization::ncb::from_slice::<Positional>(&bytes).unwrap(), native);
             for native in [Shapes::Empty, Shapes::Wrapped(57), Shapes::Pair(7, 61), Shapes::Named { value: 79 }] {
-                let bytes = neocogi_com::binary::to_vec(&native).unwrap();
-                assert_eq!(neocogi_com::binary::from_slice::<Shapes>(&bytes).unwrap(), native);
+                let bytes = neocogi_com_serialization::ncb::to_vec(&native).unwrap();
+                assert_eq!(neocogi_com_serialization::ncb::from_slice::<Shapes>(&bytes).unwrap(), native);
             }
-            let prefix = neocogi_com::binary::to_vec(&Prefix { prefix: 19 }).unwrap();
-            assert_eq!(neocogi_com::binary::from_slice::<Defaulted>(&prefix).unwrap(), Defaulted { prefix: 19, value: 29 });
+            let prefix = neocogi_com_serialization::ncb::to_vec(&Prefix { prefix: 19 }).unwrap();
+            assert_eq!(neocogi_com_serialization::ncb::from_slice::<Defaulted>(&prefix).unwrap(), Defaulted { prefix: 19, value: 29 });
             let native = Defaulted { prefix: 23, value: 83 };
-            let bytes = neocogi_com::binary::to_vec(&native).unwrap();
-            assert_eq!(neocogi_com::binary::from_slice::<Defaulted>(&bytes).unwrap(), native);
+            let bytes = neocogi_com_serialization::ncb::to_vec(&native).unwrap();
+            assert_eq!(neocogi_com_serialization::ncb::from_slice::<Defaulted>(&bytes).unwrap(), native);
         }
     "#;
     // Expand top-level derives before wrapping: source_items is deliberately non-recursive.
@@ -466,8 +471,8 @@ fn field_types_keep_application_self_and_opaque_macro_scope() {
         struct Aliased { large: u32, small: usize }
         pub(super) fn round_trip() {
             let large = ::core::primitive::u64::from(::core::primitive::u32::MAX) + 73;
-            let bytes = neocogi_com::binary::to_vec(&Aliased { large, small: 17 }).unwrap();
-            let decoded = neocogi_com::binary::from_slice::<Aliased>(&bytes).unwrap();
+            let bytes = neocogi_com_serialization::ncb::to_vec(&Aliased { large, small: 17 }).unwrap();
+            let decoded = neocogi_com_serialization::ncb::from_slice::<Aliased>(&bytes).unwrap();
             assert_eq!(decoded.large, large); assert_eq!(decoded.small, 17);
         }
     "#;
@@ -511,18 +516,18 @@ fn field_types_keep_application_self_and_opaque_macro_scope() {
                     native_aliases::round_trip();
                     opaque_round_trips();
                     let fixed = Fixed {{ direct: [1, 73], opaque: [2, 91] }};
-                    let bytes = neocogi_com::binary::to_vec(&fixed).unwrap();
-                    let decoded = neocogi_com::binary::from_slice::<Fixed>(&bytes).unwrap();
+                    let bytes = neocogi_com_serialization::ncb::to_vec(&fixed).unwrap();
+                    let decoded = neocogi_com_serialization::ncb::from_slice::<Fixed>(&bytes).unwrap();
                     assert_eq!(decoded.opaque, [2, 91]);
                     let tree = Tree {{ bytes: [3, 17], children: vec![Tree {{ bytes: [4, 29], children: vec![] }}] }};
-                    let bytes = neocogi_com::binary::to_vec(&tree).unwrap();
-                    let decoded = neocogi_com::binary::from_slice::<Tree>(&bytes).unwrap();
+                    let bytes = neocogi_com_serialization::ncb::to_vec(&tree).unwrap();
+                    let decoded = neocogi_com_serialization::ncb::from_slice::<Tree>(&bytes).unwrap();
                     assert_eq!(decoded.children[0].bytes, [4, 29]);
-                    let bytes = neocogi_com::binary::to_vec(&Persistent {{ bytes: [5, 43] }}).unwrap();
-                    let decoded = neocogi_com::binary::from_slice::<Persistent>(&bytes).unwrap();
+                    let bytes = neocogi_com_serialization::ncb::to_vec(&Persistent {{ bytes: [5, 43] }}).unwrap();
+                    let decoded = neocogi_com_serialization::ncb::from_slice::<Persistent>(&bytes).unwrap();
                     assert_eq!(decoded.bytes, [5, 43]);
-                    let bytes = neocogi_com::binary::to_vec(&PublicPersistent {{ inner: decoded }}).unwrap();
-                    let decoded = neocogi_com::binary::from_slice::<PublicPersistent>(&bytes).unwrap();
+                    let bytes = neocogi_com_serialization::ncb::to_vec(&PublicPersistent {{ inner: decoded }}).unwrap();
+                    let decoded = neocogi_com_serialization::ncb::from_slice::<PublicPersistent>(&bytes).unwrap();
                     assert_eq!(decoded.inner.bytes, [5, 43]);
                 }}
             "#
@@ -530,7 +535,7 @@ fn field_types_keep_application_self_and_opaque_macro_scope() {
         )
     });
     run_consumers_with_files(
-        super::test_consumer::Consumer::new("field-type-ownership-proof"),
+        super::test_consumer::Consumer::new("field-type-ownership-proof").with_serialization(),
         cases,
         &[(
             "tests/public_persistence.rs",
@@ -538,9 +543,9 @@ fn field_types_keep_application_self_and_opaque_macro_scope() {
         #[test] fn public_persistence_does_not_require_native_field_visibility() {
             use field_type_ownership_proof::{envelope, Envelope};
             let native = envelope();
-            let bytes = neocogi_com::binary::to_vec(&native).unwrap();
-            let decoded = neocogi_com::binary::from_slice::<Envelope>(&bytes).unwrap();
-            assert_eq!(neocogi_com::binary::to_vec(&decoded).unwrap(), bytes);
+            let bytes = neocogi_com_serialization::ncb::to_vec(&native).unwrap();
+            let decoded = neocogi_com_serialization::ncb::from_slice::<Envelope>(&bytes).unwrap();
+            assert_eq!(neocogi_com_serialization::ncb::to_vec(&decoded).unwrap(), bytes);
         }
     "#,
         )],

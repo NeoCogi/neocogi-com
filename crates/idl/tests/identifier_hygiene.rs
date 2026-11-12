@@ -45,8 +45,9 @@ fn authored_names_preserve_values_across_generated_com() {
     fs::write(
         project.path().join("Cargo.toml"),
         format!(
-            "[package]\nname='identifier-hygiene-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\n",
-            root.join("crates/com")
+            "[package]\nname='identifier-hygiene-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\nneocogi-com-serialization={{path={:?},features=['std']}}\n",
+            root.join("crates/com"),
+            root.join("crates/serialization")
         ),
     )
     .unwrap();

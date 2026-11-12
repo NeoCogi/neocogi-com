@@ -85,7 +85,7 @@ fn main(runtime: Runtime) {
     // A valid collection count followed by no elements must not reserve 64 MiB
     // for 65,536 records of 1,024 bytes each before detecting truncated input.
     count(|| {
-        assert!(neocogi_com::binary::from_slice::<Vec<[u8; 1024]>>(b"NCB\x01\0\0\x01\0").is_err());
+        assert!(neocogi_com_serialization::ncb::from_slice::<Vec<[u8; 1024]>>(b"NCB\x01\0\0\x01\0").is_err());
     });
     let largest = LARGEST_ALLOCATION.load(Ordering::Relaxed);
     assert!(largest <= 4096, "malformed input reserved {largest} bytes before validation");

@@ -1,8 +1,9 @@
 //! Real runtime cycle identity, ordering, provider failures and destruction.
 
+use neocogi_com_serialization::ncb as binary;
 use std::{cell::Cell, rc::Rc};
 use neocogi_com::{
-    binary, com_object, ComInterface, ComPtr, ComRef, IUnknown, IUnknownVTable, INcBytesAbi, LocalCom, NcBytes, NcGuid, NcStatus, WeakComPtr, NC_E_BUSY,
+    com_object, ComInterface, ComPtr, ComRef, IUnknown, IUnknownVTable, INcBytesAbi, LocalCom, NcBytes, NcGuid, NcStatus, WeakComPtr, NC_E_BUSY,
     NC_E_INVALID_ARG, NC_E_NOT_FOUND, NC_E_OUT_OF_RANGE,
 };
 use neocogi_com::persistence::{IPersistable, IPersistableAbi, IPersistableVtblFor, Limits, ObjectRecord};

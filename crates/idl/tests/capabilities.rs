@@ -81,8 +81,8 @@ fn accepted_generic_deserializers_compile_and_reconstruct_values() {
     fs::write(
         project.path().join("Cargo.toml"),
         format!(
-            "[package]\nname='operation-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\n",
-            root.join("crates/com")
+            "[package]\nname='operation-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\nneocogi-com-serialization={{path={:?},default-features=false,features=['std']}}\n",
+            root.join("crates/com"), root.join("crates/serialization")
         ),
     )
     .unwrap();
@@ -133,16 +133,16 @@ fn accepted_generic_deserializers_compile_and_reconstruct_values() {
                 root: Node { value: "parent".into(), children: vec![Node { value: "child".into(), children: vec![] }] },
                 optional: OptionalFlags::Some(Flags { enabled: true }), mask: [false, true, false], pair: [7, 9], units: vec![(), ()],
             };
-            let bytes = neocogi_com::binary::to_vec(&source).unwrap();
-            let decoded: contract::Snapshot = neocogi_com::binary::from_slice(&bytes).unwrap();
+            let bytes = neocogi_com_serialization::ncb::to_vec(&source).unwrap();
+            let decoded: contract::Snapshot = neocogi_com_serialization::ncb::from_slice(&bytes).unwrap();
             assert_eq!(decoded.root.children[0].value, "child");
             assert!(matches!(decoded.optional, contract::OptionalFlags::Some(flags) if flags.enabled));
             assert_eq!(decoded.mask, [false, true, false]);
             assert_eq!((decoded.pair.first, decoded.pair.second), (7, 9));
             assert_eq!(decoded.units.len(), 2);
             // An empty record invokes the explicitly supplied custom Default.
-            let empty = neocogi_com::binary::to_vec(&EmptyRecord {}).unwrap();
-            let defaults: contract::Config = neocogi_com::binary::from_slice(&empty).unwrap();
+            let empty = neocogi_com_serialization::ncb::to_vec(&EmptyRecord {}).unwrap();
+            let defaults: contract::Config = neocogi_com_serialization::ncb::from_slice(&empty).unwrap();
             assert!(defaults.enabled);
         }
     "#,
@@ -193,8 +193,8 @@ fn generated_ncb_values_execute_without_allocation_features() {
     let project = tempfile::tempdir().unwrap();
     fs::create_dir(project.path().join("src")).unwrap();
     fs::write(project.path().join("Cargo.toml"), format!(
-        "[package]\nname='noalloc-ncb-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?},default-features=false,features=['macros']}}\n",
-        root.join("crates/com"),
+        "[package]\nname='noalloc-ncb-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?},default-features=false,features=['macros']}}\nneocogi-com-serialization={{path={:?},default-features=false}}\n",
+        root.join("crates/com"), root.join("crates/serialization"),
     )).unwrap();
     fs::write(
         project.path().join("src/contract.rs"),
@@ -209,7 +209,7 @@ fn generated_ncb_values_execute_without_allocation_features() {
         #[test]
         fn concrete_codecs_use_only_caller_storage() {
             use contract::{Choice, Point};
-            use neocogi_com::binary;
+            use neocogi_com_serialization::ncb as binary;
             for value in [Choice::Empty, Choice::Pair(7, 9), Choice::Record { enabled: true }, Choice::Point(Point { x: 13, y: 27 })] {
                 let mut bytes = [0; 64];
                 let written = binary::to_slice(&value, &mut bytes).unwrap();

@@ -1,6 +1,8 @@
 //! Format selection crosses COM; typed values never depend on a format's Rust storage.
-use neocogi_com::{binary, ComDeserialize, ComSerialize, NcStatus, NC_E_INVALID_ARG, NcCopyFromBufferOffset, NcOutputWriter};
+use neocogi_com_serialization::ncb as binary;
+use neocogi_com::{ComDeserialize, ComSerialize, NcStatus, NC_E_INVALID_ARG, NcCopyFromBufferOffset, NcOutputWriter};
 use neocogi_com::serialization::*;
+use binary::{NcbSerializer, NcbDeserializer};
 use serde_json::Value;
 use std::collections::BTreeMap;
 
@@ -26,13 +28,13 @@ fn settings() -> Settings {
 /// The built-in NCB object produces the unchanged binary representation.
 #[test]
 fn owning_ncb_objects_round_trip_through_the_format_factory() {
-    let format = Format::ncb(Limits::default());
+    let format = binary::format(Limits::default());
     let bytes = format.serialize(&settings()).unwrap();
     assert_eq!(bytes, binary::to_vec(&settings()).unwrap());
     assert_eq!(format.deserialize::<Settings>(&bytes).unwrap(), settings());
     let mut trailing = bytes;
     trailing.push(0);
-    assert_eq!(format.deserialize::<Settings>(&trailing), Err(NC_E_INVALID_ARG));
+    assert_eq!(format.deserialize::<Settings>(&trailing).unwrap_err().status, NC_E_INVALID_ARG);
 }
 
 /// Complete output remains readable after a rejected short-copy operation.
@@ -63,7 +65,7 @@ fn output_is_committed_once_and_session_failures_are_terminal() {
 /// The constructor copies its input; later mutations of the caller's bytes cannot change it.
 #[test]
 fn source_owns_input_and_checks_raw_outputs_and_terminal_errors() {
-    let format = Format::ncb(Limits::default());
+    let format = binary::format(Limits::default());
     let mut bytes = binary::to_vec(&false).unwrap();
     let source = format.deserializer(&bytes).unwrap();
     bytes.fill(0xff);
@@ -611,8 +613,10 @@ fn native_plugin_provides_format_objects_without_sharing_rust_layouts() {
         dynamic-plugin=[]
         [dependencies]
         neocogi-com={{path={:?},features=["runtime"]}}
+        neocogi-com-serialization={{path={:?}}}
     "#,
-            root.join("crates/com")
+            root.join("crates/com"),
+            root.join("crates/serialization")
         ),
     )
     .unwrap();
@@ -620,7 +624,8 @@ fn native_plugin_provides_format_objects_without_sharing_rust_layouts() {
         project.path().join("src/lib.rs"),
         r#"
         use neocogi_com::{ComPtr,NcStatus,Runtime};
-        use neocogi_com::serialization::{ISerializationFormatAbi,NcbFormat};
+        use neocogi_com::serialization::ISerializationFormatAbi;
+        use neocogi_com_serialization::ncb::NcbFormat;
         #[neocogi_com::plugin(name="nc.tests.serialization_format",version="0.0.0")]
         fn acquire(_runtime:Runtime)->Result<ComPtr<ISerializationFormatAbi>,NcStatus>{
             NcbFormat::from_value(NcbFormat).query()
@@ -703,16 +708,16 @@ fn value_callback_failures_abort_the_com_session() {
 fn owning_formats_enforce_document_and_container_limits() {
     let value = settings();
     let bytes = binary::to_vec(&value).unwrap();
-    let small = Format::ncb(Limits {
+    let small = binary::format(Limits {
         bytes: bytes.len() - 1,
         ..Limits::default()
     });
     assert!(small.serialize(&value).is_err());
     assert!(small.deserialize::<Settings>(&bytes).is_err());
-    let entries = Format::ncb(Limits { elements: 2, ..Limits::default() });
+    let entries = binary::format(Limits { elements: 2, ..Limits::default() });
     assert!(entries.serialize(&value).is_err());
     assert!(entries.deserialize::<Settings>(&bytes).is_err());
-    let exact = Format::ncb(Limits { bytes: bytes.len(), ..Limits::default() });
+    let exact = binary::format(Limits { bytes: bytes.len(), ..Limits::default() });
     assert_eq!(exact.serialize(&value).unwrap(), bytes);
     assert_eq!(exact.deserialize::<Settings>(&bytes).unwrap(), value);
 }
@@ -761,4 +766,18 @@ fn authored_names_omit_rust_raw_identifier_prefixes() {
         }
     }
     assert!(json.deserialize::<KeywordCase>(br#""unknown""#).is_err());
+}
+
+/// Static registration uses the exact descriptor returned by the dynamic shim.
+#[cfg(feature = "runtime")]
+#[test]
+fn statically_linked_plugin_acquires_the_common_format_root() {
+    // SAFETY: this final executable owns the host tables for its complete lifetime.
+    let runtime = unsafe { neocogi_com::Runtime::__from_host_api(neocogi_com_host::initialize_process()) }.unwrap();
+    let descriptor = neocogi_com_serialization::plugin_descriptor();
+    // SAFETY: the descriptor and all reachable code are linked into this executable.
+    unsafe { runtime.register_plugin_descriptor(descriptor) }.unwrap();
+    let root = runtime.acquire_plugin_root::<ISerializationPluginAbi>(descriptor.plugin_id).unwrap();
+    let format = Format::new(root.default_format().unwrap(), Limits::default());
+    assert_eq!(format.deserialize::<Settings>(&format.serialize(&settings()).unwrap()).unwrap(), settings());
 }

@@ -1,8 +1,9 @@
 //! Exercises identical typed construction in dynamic and monolithic hosts.
 
+use neocogi_com_serialization::ncb as binary;
 #[path = "../support/notification_channel.rs"]
 mod notification_channel;
-use neocogi_com::{binary, Runtime, ComPtr, ComRef, IUnknown, NcCopyFromBufferOffset, NcStatus, NC_E_ABI_VERSION, NC_E_INVALID_ARG, guid_from_qualified_name};
+use neocogi_com::{Runtime, ComPtr, ComRef, IUnknown, NcCopyFromBufferOffset, NcStatus, NC_E_ABI_VERSION, NC_E_INVALID_ARG, guid_from_qualified_name};
 use neocogi_com::persistence::{FactoryRegistry, snapshot};
 use neocogi_com::NcValueRef;
 

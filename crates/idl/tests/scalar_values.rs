@@ -33,8 +33,8 @@ fn scalar_bindings_compile_and_execute_without_default_features_or_alloc() {
     let project = tempfile::tempdir().unwrap();
     fs::create_dir(project.path().join("src")).unwrap();
     fs::write(project.path().join("Cargo.toml"), format!(
-        "[package]\nname='scalar-no-alloc-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?},default-features=false}}\n",
-        root.join("crates/com"),
+        "[package]\nname='scalar-no-alloc-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?},default-features=false}}\nneocogi-com-serialization={{path={:?},default-features=false}}\n",
+        root.join("crates/com"), root.join("crates/serialization"),
     )).unwrap();
     fs::write(
         project.path().join("src/lib.rs"),
@@ -44,7 +44,8 @@ fn scalar_bindings_compile_and_execute_without_default_features_or_alloc() {
         {generated}
         #[cfg(test)] mod tests {{
             use super::*;
-            use neocogi_com::{{binary, encode_inline}};
+            use neocogi_com::encode_inline;
+            use neocogi_com_serialization::ncb as binary;
             #[test] fn primitive_storage_and_checked_values_need_no_alloc() {{
                 assert_eq!(encode_inline(&Word::Maximum), Ok(u32::MAX));
                 assert_eq!(encode_inline(&SignedWord::Minimum), Ok(i32::MIN));

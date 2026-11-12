@@ -12,6 +12,10 @@ Historical draft numbers do not define additional supported COM baselines.
   Named fields and enum cases are available to providers; NCB v1 bytes stay the same.
   Sessions own their buffers, finish once and reject reuse after a format or schema
   failure. Fixed-buffer NCB helpers use scoped COM calls without allocation.
+  Move codecs into the reusable `neocogi-com-serialization` rlib with a thin
+  `serialization-dylib` shim. NCB is unconditional/default; the custom JSON codec is
+  optional. No runtime Serde/parser dependency is introduced. Preserve failure messages and locations through a COM
+  diagnostic projection and caller-owned convenience errors.
   See the [format contract](docs/contracts/SERIALIZATION_FORMATS.md).
 - Remove declaration versions from nominal identity and canonical SHA-256 input.
   Ordinary declarations derive IDs from their qualified names; explicit overrides

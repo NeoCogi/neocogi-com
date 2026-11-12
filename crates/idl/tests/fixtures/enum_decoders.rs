@@ -3,7 +3,8 @@ pub mod contract;
 #[cfg(test)]
 mod tests {
     use crate::contract;
-    use neocogi_com::{binary, ComSerialize};
+    use neocogi_com::ComSerialize;
+    use neocogi_com_serialization::ncb as binary;
     /// Copied active fields cover every enum payload convention.
     #[derive(ComSerialize)]
     enum Packet { Empty, Flag(bool), Pair(u8, u16), Values { flags: [bool; 3] } }

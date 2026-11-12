@@ -9,3 +9,4 @@ RUST_TEST_THREADS = { value = "1", force = true }
 
 [alias]
 xtask = "run --locked --package xtask --"
+build-min-size = "run --locked --package xtask -- min-size"

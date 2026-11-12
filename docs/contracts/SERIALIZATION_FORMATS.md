@@ -2,11 +2,13 @@
 
 Serialization formats are ordinary COM providers. The canonical interfaces live
 in [formats.ncidl](../../crates/core/schemas/neocogi/com/serialization/formats.ncidl).
-Core owns their checked-in ABI, clients and scoped adapters; the facade owns
-ordinary object storage and the supplied NCB implementation. The IDL bootstrap
-freshness test derives both halves from this source, including owned object
-storage from `serialization/objects.rs.in`. No compiler or host runtime is linked
-just to use a format.
+Core owns their checked-in ABI, clients and scoped adapters; the SDK facade owns
+ordinary provider thunks and the runtime-selectable `Format` convenience API.
+The bootstrap freshness test derives these halves from the single NCIDL source.
+The reusable `neocogi-com-serialization` rlib owns every codec. The separate
+`neocogi-com-serialization-dylib` crate only exports its native descriptor entry
+point, following the platform implementation/shim split. No host implementation
+is linked merely to use a codec.
 
 This supersedes the 0.1.0 constraint that value traits accept concrete NCB cursors.
 The retired generic Rust serializer/access traits are not restored. The new
@@ -16,6 +18,8 @@ format boundary consists of explicit C-compatible COM calls.
 
 | Interface | Responsibility | Lifetime |
 | --- | --- | --- |
+| `ISerializationPlugin` | Select `ncb` or `json`; NCB is always default | Shared static or dynamic plugin root |
+| `ISerializationDiagnostics` | Read the first failure and copy its message/path | Borrowed projection of a failed owning session |
 | `ISerializationFormat` | Create bounded document sessions | Shared COM factory; suitable for a plugin root |
 | `ISerializer` | Accept typed scalars, named fields and container operations; finish one document | Exclusive `ComBox` for owned implementations |
 | `IDeserializer` | Supply typed scalars and named/ordered children; require complete input | Exclusive `ComBox` owning its input |
@@ -33,7 +37,10 @@ returns. Source strings use a length-admission call followed by copying into a
 fresh output buffer; the client checks the exact reported and written lengths
 and validates UTF-8 before constructing its own `String`.
 
-The format factory copies borrowed input before returning an owning source.
+The format factory acquires borrowed input before returning an owning source.
+NCB owns its input bytes; JSON owns a parsed syntax tree, with no retained
+caller pointers. A syntax failure produces a failed source with queryable details,
+rather than discarding the explanation during factory creation.
 The NCB objects retain concrete codec state in ordinary fields. Their generated
 COM object gate admits each mutable call before borrowing that state. No provider
 lock or interior mutability replaces the exclusive document owner.
@@ -84,7 +91,7 @@ not enter NCB output. No COM pointer, native padding or ABI signature is saved.
 The NCB protocol stack has a fixed ceiling of 128 open values in addition to
 configured limits, keeping fixed-buffer operations allocation-free.
 
-`binary::to_vec`, `to_slice`, `from_slice` and measurement are NCB conveniences
+`neocogi_com_serialization::ncb::{to_vec,to_slice,from_slice}` and measurement are NCB conveniences
 using the same COM protocol. Borrowed input and fixed output use nonretainable
 scoped COM objects: AddRef, owning QueryInterface and weak references are rejected.
 A required `UnsafeCell` and busy flag admit one mutable foreign call at a time;
@@ -94,15 +101,85 @@ returned or retained as ordinary owning format objects.
 
 NCB conveniences preserve detailed local byte-offset errors. COM format methods
 return `NcStatus`; no Rust error representation crosses an artifact boundary.
-`NcbSerializer::create` and `NcbDeserializer::create` construct ordinary owning
-objects. `Format::ncb` selects the NCB factory; `Format::new` selects any compatible
+`ncb::NcbSerializer::create` and `ncb::NcbDeserializer::create` construct ordinary
+owning objects. The strict native source constructor returns a native NCB error
+on failed admission. `ncb::format` selects NCB; `Format::new` selects any compatible
 COM factory supplied by an application or acquired from a plugin.
+
+## Feature selection and JSON grammar
+
+NCB is unconditional, including with `--no-default-features`; there is no `ncb`
+feature to disable. The rlib defaults enable allocation and its static `plugin_descriptor`; neither
+NCB nor optional JSON requires standard-library support. `json` adds the custom JSON codec. The dylib
+shim forwards that switch and always includes NCB. Disabled or unknown names
+return `NC_E_NOINTERFACE`; optional JSON never changes `default_format` from NCB.
+Fixed-buffer NCB also works in a `no_std` consumer without default features.
+
+JSON uses our own bounded UTF-8 parser and compact writer. It has no external
+runtime parser/serialization dependencies. The private finite syntax enum stores
+only JSON syntax; application payloads and dynamic Rust value traits never enter
+it. Parsing is single-pass after UTF-8 admission. Unescaped strings and output
+text runs are copied in bulk. Error coordinates/path strings are constructed only
+on failure. Rust's standard numeric conversion/formatting preserves finite floats.
+
+| Typed value | JSON representation |
+| --- | --- |
+| Unit, absent option | `null` (distinguished by the requested typed operation) |
+| Boolean, integer, finite float, string | Ordinary scalar syntax |
+| Record | Object/mapping using authored field names |
+| Tuple or sequence | Array/sequence |
+| Present option | `{"$some": value}` |
+| Enum case | `{"$case": "Name"}` plus optional `"$value"` payload |
+| Map with arbitrary typed keys | `{"$map": [[key, value], ...]}` |
+
+Nested options preserve `None`, `Some(None)` and `Some(Some(value))` distinctly.
+Non-finite floats are rejected by the text formats. Signed/unsigned integer
+endpoints and finite float bits, including negative zero/subnormals, round-trip.
+JSON validates number grammar before converting: no leading zeros, incomplete
+fractions/exponents or non-finite values. Integral syntax must fit i64/u64;
+floating syntax must fit finite f64. String parsing validates every escape and
+surrogate pair, rejects lone surrogates/raw ASCII controls, and preserves Unicode.
+Duplicate object keys, trailing commas and trailing data are rejected. Decoded
+maps also reject duplicate typed keys.
+
+Text syntax has a separate maximum depth of 128 and bounded overhead for explicit
+map/case framing: syntax depth is at most `min(3*depth+4,128)`, total syntax nodes
+at most `3*values+16`, and syntax containers at most `max(elements,2)`. Writers
+check the same bounds before emission. Logical budgets remain exact and retain
+encoder/decoder symmetry. Output bytes, including escaping/framing, are bounded
+before each append. NCB remains the direct byte codec; it builds no syntax tree.
+
+## Failure diagnostics
+
+Owning supplied sessions expose `ISerializationDiagnostics`. Read-only calls
+return the first failure's status, message length, complete copied UTF-8 message,
+logical path, byte offset and line/column when available. Short output storage
+publishes no prefix. Queries never replace the original failure. Active or
+successfully finished sessions report that no failure exists.
+
+NCB supplies its exact failure cursor and native diagnostic. JSON syntax
+errors include an exact zero-based byte offset and one-based line/column. Columns
+count Unicode scalars, and lines count LF separators. Typed text failures report the expected type and a field/index path,
+for example `$.items[0].count`. A semantic path does not fabricate a source
+coordinate after parsing. Unavailable offsets use `u64::MAX`, and unavailable
+line/column use zero in COM. The native NCB helpers retain their existing error
+representation and allocation-free diagnostics.
+
+`Format::serialize` and `deserialize` return a caller-owned `serialization::Error`
+with `status`, `message`, `path` and optional coordinates. They copy the diagnostic
+before releasing the failed COM session. Low-level creation/traversal methods
+still return `NcStatus`; callers retaining a session can query details themselves.
+Providers lacking a usable diagnostic projection retain their original status
+with a generic fallback. Diagnostic copies are bounded to 64 KiB each in the
+convenience API. Successful traversal does no diagnostic formatting; field keys
+move from the syntax map into path components, and a path string is built only
+on failure.
 
 ## Usage and object persistence
 
 ```rust,ignore
 use neocogi_com::serialization::{Format, Limits};
-let format = Format::ncb(Limits::default());
+let format = neocogi_com_serialization::ncb::format(Limits::default());
 let bytes = format.serialize(&state)?;
 let restored: State = format.deserialize(&bytes)?;
 ```
@@ -130,10 +207,15 @@ Discovery remains ABI v1 on `0.2.0-wip`. These interfaces are documented in the
 
 ## Verification
 
+The [size and throughput report](../SERIALIZATION_COSTS.md) compares each optional
+feature combination for the deployed shared library and a statically linked
+executable, including the profile choice and reproduction commands.
+
 The binary persistence suite retains golden bytes, exact resource boundaries,
 allocation-free measurement, malformed input and partial-construction cleanup.
 Format tests exercise independently implemented named JSON record/case providers and
 a separately built native plugin, using the same typed values through COM.
-The JSON provider is a test fixture for its selected schema, not a supplied
-production JSON codec. Scoped tests reject retention, invalid raw scalar storage
+An independent JSON fixture also verifies that implementations need not share
+the supplied codecs' Rust storage or parser. Production JSON tests cover all
+value shapes, numeric endpoints, finite floating bits, limits and diagnostics. Scoped tests reject retention, invalid raw scalar storage
 and reentrant mutation. Core and facade reduced-feature builds remain required.

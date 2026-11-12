@@ -14,12 +14,12 @@
 
 #[cfg(feature = "alloc")]
 use alloc::vec::Vec;
-use crate::{ComDeserialize, ComSerialize};
+use neocogi_com::{ComDeserialize, ComSerialize};
 
 /// Wire-format marker, including the independently versioned codec revision.
 const MAGIC: &[u8; 4] = b"NCB\x01";
 
-pub use crate::serialization::Limits;
+pub use neocogi_com::serialization::Limits;
 
 /// A deterministic parse/encoding failure with a byte offset.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -76,11 +76,11 @@ fn encode<'a, T: ComSerialize + ?Sized>(value: &T, limits: Limits, output: Outpu
         phase: Phase::Active,
     };
     encoder.write(MAGIC)?;
-    let scoped = crate::serialization::scope::Scoped::new(encoder);
+    let scoped = neocogi_com::serialization::scope::Scoped::new(encoder);
     let result = {
         // SAFETY: this generated table guards exactly Scoped<Encoder> and rejects ownership.
-        let interface = unsafe { scoped.interface(&crate::serialization::ScopedSerializer::<Encoder<'_>>::VTABLE) };
-        crate::serialization::Serializer::new(interface).serialize(value)
+        let interface = unsafe { scoped.interface(&neocogi_com::serialization::ScopedSerializer::<Encoder<'_>>::VTABLE) };
+        neocogi_com::serialization::Serializer::new(interface).serialize(value)
     };
     let encoder = scoped.into_inner();
     result.map_err(|_| encoder.failure("invalid persistent value"))?;
@@ -93,18 +93,18 @@ pub fn from_slice<T: ComDeserialize>(bytes: &[u8]) -> Result<T, Error> {
 /// Decodes under explicit byte, collection, depth, and total-value limits.
 pub fn from_slice_with_limits<T: ComDeserialize>(bytes: &[u8], limits: Limits) -> Result<T, Error> {
     let decoder = Decoder::borrowed(bytes, limits)?;
-    let scoped = crate::serialization::scope::Scoped::new(decoder);
+    let scoped = neocogi_com::serialization::scope::Scoped::new(decoder);
     let result = {
         // SAFETY: the table and the borrowed state have this scope's exact provider type.
-        let interface = unsafe { scoped.interface(&crate::serialization::ScopedDeserializer::<Decoder<'_>>::VTABLE) };
-        crate::serialization::Deserializer::with_limits(interface, limits).deserialize()
+        let interface = unsafe { scoped.interface(&neocogi_com::serialization::ScopedDeserializer::<Decoder<'_>>::VTABLE) };
+        neocogi_com::serialization::Deserializer::with_limits(interface, limits).deserialize()
     };
     let decoder = scoped.into_inner();
     result.map_err(|_| decoder.failure("invalid persistent value"))
 }
 
-mod format;
-use format::{Phase, Protocol};
+mod protocol;
+use protocol::{Phase, Protocol};
 /// Structural resource accounting shared by both directions of the binary codec.
 ///
 /// Each schema value enters once and leaves after its children. Internal wire
@@ -464,4 +464,25 @@ impl Input<'_> {
             Self::Owned(bytes) => bytes,
         }
     }
+}
+
+#[cfg(feature = "alloc")]
+mod objects;
+#[cfg(feature = "alloc")]
+pub use objects::{NcbSerializer, NcbDeserializer, NcbFormat};
+
+/// Selects the always-available NCB factory with explicit document limits.
+#[cfg(feature = "alloc")]
+pub fn format(limits: Limits) -> neocogi_com::serialization::Format {
+    neocogi_com::serialization::Format::new(factory(), limits)
+}
+/// Constructs a shared NCB COM factory without loading a host implementation.
+#[cfg(feature = "alloc")]
+pub fn factory() -> neocogi_com::ComPtr<neocogi_com::serialization::ISerializationFormatAbi> {
+    NcbFormat::from_value(NcbFormat).query().unwrap_or_else(|_| unreachable!("NCB projection"))
+}
+/// Measures a leaf envelope using its authoritative format-neutral value schema.
+#[cfg(feature = "alloc")]
+pub fn encoded_leaf_len(state_bytes: usize, limits: Limits) -> Result<usize, Error> {
+    encoded_len_with_limits(&neocogi_com::persistence::ObjectRecord::leaf_size(state_bytes), limits)
 }

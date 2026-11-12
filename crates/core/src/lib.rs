@@ -15,7 +15,7 @@
 //!
 //! [`ComDeserialize`] constructs local typed values through COM format objects.
 //! [`serialization`] owns their checked interfaces and traversal facades;
-//! [`binary`] supplies NCB and allocation-free scoped adapters. Owned document
+//! Format implementations live in the serialization plugin crate. Owned document
 //! objects live in the facade. Wire layouts and application storage remain separate.
 //!
 //! [`NC_COM_CORE_ABI_VERSION`] is the first public compatibility generation 18.
@@ -34,7 +34,6 @@ mod abi;
 mod abi_hash;
 #[doc(hidden)]
 pub use abi_hash::__nc_abi_digest;
-pub mod binary;
 mod buffer;
 mod client;
 mod method_names;

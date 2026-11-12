@@ -201,6 +201,7 @@ pub(crate) fn sources(runner: &Runner) -> Result<(TempDir, Runner)> {
     let owner = fixture.scratch("sources-")?;
     for relative in [
         "crates",
+        ".cargo",
         "schemas",
         "tests",
         "tools/neocogi-inspect",
