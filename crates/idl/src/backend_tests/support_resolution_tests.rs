@@ -105,9 +105,13 @@ fn plugin_source(shadow: &str, explicit_version: bool, expand: bool) -> String {
             let mut raw = neocogi_com::ComRaw::<neocogi_com::IUnknown>::null();
             // SAFETY: live output storage receives one owner from the generated C adapter.
             assert!(unsafe {{ descriptor.acquire.unwrap()(neocogi_com_host::initialize_process(), &mut raw) }}.is_ok());
-            // SAFETY: successful acquisition returned that one shared owner.
-            let root = unsafe {{ neocogi_com::ComPtr::<neocogi_com::IUnknown>::from_raw_owned(raw) }}.unwrap();
-            assert_eq!(root.query::<IRootAbi>().unwrap().value().unwrap(), 73);
+            // SAFETY: the successful transfer has a live common prefix, whose
+            // identity remains IRoot even though its raw transport is erased.
+            assert_eq!(unsafe {{ neocogi_com::raw::validate_interface(raw) }}, Err(neocogi_com::NC_E_NOINTERFACE));
+            // SAFETY: checked adoption validates the exact factory and consumes
+            // its transferred reference, including on rejection.
+            let root = unsafe {{ neocogi_com::ComPtr::<IRootAbi>::__nc_from_raw_owned_checked(raw.cast()) }}.unwrap();
+            assert_eq!(root.value().unwrap(), 73);
         }}
     "#
     )

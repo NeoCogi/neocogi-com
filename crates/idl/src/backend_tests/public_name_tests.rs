@@ -181,9 +181,13 @@ fn plugin_export_spelling_is_legal_with_dynamic_feature_off_and_on() {
                 let mut raw = neocogi_com::ComRaw::null();
                 // SAFETY: live writable slot receives one owner from the actual adapter.
                 assert!(unsafe {{ descriptor.acquire.unwrap()(neocogi_com_host::initialize_process(), &mut raw) }}.is_ok());
-                // SAFETY: successful adapter transferred the initialized owner.
-                let owner = unsafe {{ neocogi_com::ComPtr::<neocogi_com::IUnknown>::from_raw_owned(raw) }}.unwrap();
-                assert_eq!(owner.query::<RootAbi>().unwrap().value(), Ok(73));
+                // SAFETY: success supplies a live common prefix; erasure leaves
+                // the Root identity intact rather than converting to IUnknown.
+                assert_eq!(unsafe {{ neocogi_com::raw::validate_interface(raw) }}, Err(neocogi_com::NC_E_NOINTERFACE));
+                // SAFETY: the checked adopter verifies Root before constructing
+                // its typed owner and releases a rejected transfer.
+                let owner = unsafe {{ neocogi_com::ComPtr::<RootAbi>::__nc_from_raw_owned_checked(raw.cast()) }}.unwrap();
+                assert_eq!(owner.value(), Ok(73));
             }}
         "#
         );

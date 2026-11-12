@@ -321,8 +321,13 @@ fn plugin_implementation_items_have_private_lexical_ownership() {
                                 assert!(raw.is_null());
                             }} else {{
                                 assert!(status.is_ok());
-                                let acquired = unsafe {{ neocogi_com::ComPtr::<neocogi_com::IUnknown>::from_raw_owned(raw) }}.unwrap();
-                                assert_eq!(acquired.query::<IRootAbi>().unwrap().value().unwrap(), 73);
+                                // SAFETY: success supplies a live common prefix. Erasure must
+                                // retain the root's identity rather than certify IUnknown.
+                                assert_eq!(unsafe {{ neocogi_com::raw::validate_interface(raw) }}, Err(neocogi_com::NC_E_NOINTERFACE));
+                                // SAFETY: the live transferred owner is releasable; checked
+                                // adoption proves the actual factory contract before use.
+                                let acquired = unsafe {{ neocogi_com::ComPtr::<IRootAbi>::__nc_from_raw_owned_checked(raw.cast()) }}.unwrap();
+                                assert_eq!(acquired.value().unwrap(), 73);
                             }}
                             assert_eq!(root.query::<IRootAbi>().unwrap().value().unwrap(), 73);
                         }}
