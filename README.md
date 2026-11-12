@@ -10,7 +10,7 @@ protocol.
 This is experimental software. Build the host, plugins and generated interfaces
 with the same SDK release. Loaded plugins stay mapped until the process exits.
 
-The Git prerelease is **0.2.0-alpha.3**, using [ABI v2](docs/abi-v2.md).
+The Git prerelease is **0.2.0-alpha.4**, using [ABI v2](docs/abi-v2.md).
 Package publication and platform qualification are separate steps.
 
 Start with the complete [application and calculator plugin walkthrough](examples/getting-started/README.md).

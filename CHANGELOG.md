@@ -4,6 +4,19 @@ The current contract uses [ABI v2, core generation 19](docs/abi-v2.md). Entries 
 its development; later entries can supersede older implementation details.
 Historical draft numbers do not define additional supported COM baselines.
 
+## 0.2.0-alpha.4 — 2026-11-12
+
+- Keep resolved qualification source paths in an equivalent ordinary Win32
+  spelling where possible, so nested native builds do not inherit unnecessary
+  extended-path names. Preserve paths that require the extended namespace and
+  retain the macOS alias fix. Add a Windows driver regression that links a DLL
+  beneath a temporary parent containing spaces and Unicode.
+- Coordinate all eight SDK packages, exact internal requirements, maintained
+  lockfiles, tutorials and current release links as `0.2.0-alpha.4`. ABI family 2,
+  core generation 19, IDL v14 and NCB v1 retain their existing contracts. NCB and
+  JSON remain built into the native serialization plugin, with NCB the default.
+  This Git prerelease does not claim crates.io publication.
+
 ## 0.2.0-alpha.3 — 2026-11-12
 
 - Resolve temporary source paths before creating qualification workspaces, so
