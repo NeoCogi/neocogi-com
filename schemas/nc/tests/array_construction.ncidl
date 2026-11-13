@@ -1,0 +1,20 @@
+#[threading(shared)]
+/// Large wire arrays have tiny native results and remain checked before dispatch.
+interface IArrays {
+    /// Unit elements occupy one raw byte each but no native application bytes.
+    fn accept(&self, values: [(); 65536]) -> Result<u32>;
+}
+
+/// Observable owner used to test partial acquisition and independent retention.
+interface IProbe {
+    /// The object remains callable while any acquired array element owns it.
+    fn value(&self) -> Result<u32>;
+}
+
+/// The owner is acquired before validating the later restricted boolean.
+struct Owned {
+    /// Real shared capability with normal generated lifecycle functions.
+    owner: ComPtr<IProbe>,
+    /// Invalid bytes must clean both the complete prefix and current child owner.
+    flag: bool,
+}

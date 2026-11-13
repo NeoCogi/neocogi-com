@@ -23,6 +23,10 @@ pub(crate) const GENERATION_SENTINEL: &str = "retired_bootstrap_is_rejected_befo
 pub(crate) const ABI_TESTS: &[(&str, &str)] = &[
     ("client_views", "mutable_inherited_views_preserve_identity_and_lifecycle"),
     ("checked_values", "invalid_nested_bool_fails_copied_and_buffer_thunks"),
+    (
+        "array_construction",
+        "borrowed_array_acquisition_releases_every_failed_owner_and_retains_success",
+    ),
     ("output_buffers", "raw_output_initializes_only_reported_prefix_and_reuses_capacity"),
     (
         "output_completion",
@@ -653,6 +657,14 @@ fn safety(runner: &Runner) -> Result<Value> {
                 vec!["abi::array_tests::array_signature_matches_known_sha256_and_distinguishes_shapes"],
             ),
             (
+                words(&["-p", "neocogi-com-core", "--test", "array_values", "--features", "std"]),
+                vec!["split_encoding_drops_child_local_and_completed_prefix_backing_once"],
+            ),
+            (
+                words(&["-p", "neocogi-com-serialization", "--test", "arrays", "--features", "json"]),
+                vec!["completed_array_and_record_drop_owners_on_each_late_failure"],
+            ),
+            (
                 words(&["-p", "neocogi-com-host", "--lib"]),
                 vec!["loader::plan::tests::orders_dependencies_before_dependents_deterministically"],
             ),
@@ -677,6 +689,7 @@ fn safety(runner: &Runner) -> Result<Value> {
         for name in [
             "client_views",
             "checked_values",
+            "array_construction",
             "output_buffers",
             "output_completion",
             "exclusive_com",

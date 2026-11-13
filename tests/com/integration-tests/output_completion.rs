@@ -64,7 +64,7 @@ fn provider_validates_all_converted_outputs_before_publishing_any() {
     };
     assert_eq!(status, NC_E_OUT_OF_RANGE);
     assert_eq!(flags, [0]);
-    assert!(choices.iter().all(|wire| unsafe { decode_inline::<Choice>(&wire) }.unwrap() == Choice::Idle));
+    assert!(choices.iter().all(|wire| unsafe { decode_inline::<Choice>(wire) }.unwrap() == Choice::Idle));
     let mut out = std::mem::MaybeUninit::uninit();
     // SAFETY: output storage matches the copied wire, including its zero size.
     let status = unsafe { ((*raw.vtable).result)(raw.object, 0, 1, flags.as_mut_ptr(), &mut flags_written, out.as_mut_ptr()) };

@@ -223,6 +223,16 @@ enum ReadValue {
     /// A case is probed by name before its optional payload is acquired.
     Variant { name: String, child: Option<Node>, matched: bool },
 }
+/// Failure context distinguishes an existing value from a requested next child.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum PathSite {
+    /// Provider framing/conversion failed on the currently entered value.
+    Current,
+    /// Schema failure may name a selected/missing field, never an unentered index.
+    SelectedField,
+    /// Entering the next child failed before its path was pushed.
+    NextChild,
+}
 /// Provider-owned input syntax and exclusive typed-construction cursor.
 struct Reader {
     /// Legal transitions, including the first failed status.
@@ -265,7 +275,12 @@ impl Reader {
         call(self).inspect_err(|&status| {
             if self.failure.is_none() {
                 let mut error = Failure::new(status, format!("{}; found {actual}", expectation(operation)));
-                error.path = self.path(operation == "enter_value" || operation == "fail");
+                let site = match operation {
+                    "enter_value" => PathSite::NextChild,
+                    "fail" => PathSite::SelectedField,
+                    _ => PathSite::Current,
+                };
+                error.path = self.path(site);
                 self.failure = Some(error);
             }
             self.phase = Phase::Failed(status);
@@ -297,8 +312,11 @@ impl Reader {
             Some(ReadValue::Option(selected)) => (selected.take(), Part::Some),
             Some(ReadValue::Ordered { kind, values, index }) => {
                 let part = if *kind == Ordered::Map { Part::Map(*index) } else { Part::Index(*index) };
+                // A failed entry refers to the attempted child, not its successor.
+                // Advance only after acquiring an actual node.
+                let node = values.pop_front().ok_or(NC_E_INVALID_ARG)?;
                 *index += 1;
-                (values.pop_front(), part)
+                (Some(node), part)
             }
             Some(ReadValue::Variant { child, matched: true, .. }) => (child.take(), Part::Payload),
             _ => (None, Part::Root),
@@ -808,7 +826,7 @@ impl IDeserializer for JsonDeserializer {
     fn fail(&mut self, message: NcCopyFromBufferOffset<'_, u8>) -> Result<(), NcStatus> {
         self.reader.run("fail", |r| {
             let mut error = Failure::new(NC_E_INVALID_ARG, text(message)?);
-            error.path = r.path(true);
+            error.path = r.path(PathSite::SelectedField);
             r.failure = Some(error);
             Err(NC_E_INVALID_ARG)
         })
@@ -874,22 +892,24 @@ impl Reader {
         }
     }
     /// Builds a logical path only on failure; successful scalar calls do no formatting.
-    fn path(&self, pending: bool) -> String {
+    fn path(&self, site: PathSite) -> String {
         let mut path = String::from("$");
         for part in &self.paths {
             part.append(&mut path);
         }
-        if pending {
+        if site != PathSite::Current {
             match self.values.last() {
                 Some(ReadValue::Record { selected: Some((name, _)), .. }) => Part::Field(name.clone()).append(&mut path),
                 Some(ReadValue::Record { missing: Some(name), .. }) => Part::Field(name.clone()).append(&mut path),
-                Some(ReadValue::Ordered { kind, index, .. }) => {
+                Some(ReadValue::Ordered { kind, index, .. }) if site == PathSite::NextChild => {
                     if *kind == Ordered::Map {
                         Part::Map(*index).append(&mut path);
                     } else {
                         Part::Index(*index).append(&mut path);
                     }
                 }
+                Some(ReadValue::Option(_)) if site == PathSite::NextChild => Part::Some.append(&mut path),
+                Some(ReadValue::Variant { matched: true, .. }) if site == PathSite::NextChild => Part::Payload.append(&mut path),
                 _ => {}
             }
         }

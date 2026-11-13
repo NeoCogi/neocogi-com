@@ -29,3 +29,7 @@ neocogi-com = { workspace = true, features = ["std", "macros"] }
 [[example]]
 name = "format_costs"
 required-features = ["plugin"]
+
+[[example]]
+name = "array_costs"
+required-features = ["plugin", "json"]

@@ -91,6 +91,11 @@ require substantial space, and Rust does not guarantee elimination of all return
 copies. Applications needing heap collection storage can use existing `Vec<T>`
 or `Box<[T]>` decoding. Logical document limits are not a native-stack allocator.
 
+JSON length and duplicate-key failures identify the enclosing container, without
+inventing a next child index. Selected or missing record fields retain their
+field name. A failure while entering a child identifies the attempted child;
+failed entry does not advance that cursor. The first diagnostic stays immutable.
+
 ## Limits and NCB
 
 Defaults bound a complete document to 16 MiB, each container to 65,536 entries,

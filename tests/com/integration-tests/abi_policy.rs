@@ -83,7 +83,7 @@ mod external_fields {
         let mut output = core::mem::MaybeUninit::uninit();
         // SAFETY: real checked input wire, live owned provider and writable exact output.
         assert_eq!(unsafe { ((*raw.vtable).echo)(raw.object, input, output.as_mut_ptr()) }, neocogi_com::NC_OK);
-        let decoded = unsafe { Sample::decode_value(&output.assume_init_ref(), &mut Default::default()) }.unwrap();
+        let decoded = unsafe { Sample::decode_value(output.assume_init_ref(), &mut Default::default()) }.unwrap();
         let (returned, _) = decoded.pairs[0].encode_value(&mut Default::default()).unwrap();
         let result = unsafe { Pair::decode_value(&returned, &mut Default::default()) }.unwrap();
         assert_eq!(result, native);

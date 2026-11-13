@@ -4,6 +4,81 @@ The native dylib now always contains NCB and JSON, with NCB selected by default.
 The earlier NCB-only dylib measurements below are historical comparisons, not a
 current dylib build option. Static rlib consumers retain optional JSON.
 
+## Fixed-array construction and diagnostic repair — 2026-11-13
+
+Measured against `d07a53c` with the same `array_costs` source, locked dependencies,
+Linux x86_64, Intel Core Ultra 7 155H, and rustc 1.102.0-nightly
+(`3ef0c22cd`, LLVM 23.1.5). Both sides used SDK source version `0.2.0` before
+preparing alpha.5 metadata. NCB and JSON are included on both sides.
+
+| Ordinary min-size artifact | Before | Array repair | Array + diagnostic repair |
+| --- | ---: | ---: | ---: |
+| Serialization `.so` | 126,360 | 126,360 | 126,504 |
+| Static array example | 173,136 | 170,656 | 170,800 |
+
+These are stripped file bytes from ordinary `cargo build --profile min-size`,
+including the checkout's rebuilt target std and deployment flags. Array repair
+alone left the dylib byte-identical: most affected constructors are instantiated
+in their typed caller. The diagnostic correction adds 144 file bytes to each
+measured artifact; the combined static example remains 2,336 bytes smaller.
+The dylib exports only `nc_get_plugin_descriptor_v2` and needs only `libc.so.6`.
+Version-string metadata changes after this comparison are separate from these
+same-version implementation measurements.
+
+Release timing uses five interleaved pairs pinned to CPU 0, with 10,000 base
+iterations, 20 warm-ups for successful format/value cases, and timing that
+includes decoding and destruction. Format cases create fresh owning COM sources
+from already encoded input. COM cases measure local checked wire construction
+and receiver acquisition, rather than a vtable method dispatch; they use 100x
+iterations for scalar/small, 10x for large/nested, and 1x for owned values.
+
+| Case | Before ns | Combined repair ns | Median time change |
+| --- | ---: | ---: | ---: |
+| ncb-scalar | 248.7 | 256.1 | +3.0% |
+| ncb-small | 675.9 | 697.4 | +3.2% |
+| ncb-large | 26,587.0 | 26,958.1 | +1.4% |
+| ncb-nested | 59,434.3 | 56,942.9 | -4.2% |
+| json-scalar | 182.9 | 178.1 | -2.6% |
+| json-small | 1,000.1 | 976.7 | -2.3% |
+| json-large | 43,929.5 | 43,586.4 | -0.8% |
+| json-nested | 97,059.3 | 98,719.7 | +1.7% |
+| com-scalar | 3.4 | 3.6 | +5.9% |
+| com-small | 9.9 | 5.0 | -49.5% |
+| com-large | 754.0 | 280.9 | -62.7% |
+| com-nested | 1,762.8 | 1,370.3 | -22.3% |
+| com-owned | 243.3 | 236.8 | -2.7% |
+| ncb-wrong-length | 149.4 | 138.4 | -7.4% |
+| ncb-late-bool | 7,411.1 | 7,638.3 | +3.1% |
+
+Small/large cases contain 8/512 elements; nested cases contain 32 arrays of 32.
+Formats use u64 elements; local COM arrays use bool; owned COM conversion uses
+eight Strings. Failure cases decode `[bool; 512]` from an admitted zero count or
+an invalid final byte. The source lists every input and iteration multiplier.
+
+Frequency, thermals and system load were not fixed. Sample ranges overlap for
+many format cases, so the table does not establish a universal speedup or zero
+regression. Local COM array conversion improved substantially in this run;
+late invalid-boolean rejection increased from 7,411.1 to 7,638.3 ns. An earlier
+interleaved batch saw a larger late-error increase, which reinforces the need to
+retain raw samples instead of treating one median as a stable platform property.
+The repair removes stack amplification and preserves ownership across those
+failures; it does not promise arbitrary large by-value results fit a small stack.
+
+Reproduce the instantiating static target and timing driver:
+
+```sh
+cargo build --profile min-size -p neocogi-com-serialization --features json --example array_costs
+cargo build --profile min-size -p neocogi-com-serialization-dylib
+cargo run --release -p neocogi-com-serialization --features json --example array_costs -- 10000
+```
+
+Build both revisions with the identical compiler/profile/features and source,
+then interleave saved release executables on the same CPU without concurrent
+builds. Exact commands, compiler, hashes, sizes, all samples/ranges and retained
+fixture sources are under `/tmp/neocogi-array-fix-2026-11-13`. Native one-MiB
+regressions cover NCB/JSON aligned-ZST arrays, split COM backing, acquisition and
+actual generated safe/raw calls; interpreter tests independently cover cleanup.
+
 ## Alpha.2 native plugin — 2026-11-12
 
 The ordinary `cargo build --profile min-size -p neocogi-com-serialization-dylib`

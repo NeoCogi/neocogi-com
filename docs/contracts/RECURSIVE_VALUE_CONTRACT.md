@@ -62,6 +62,25 @@ own contents before the borrowed wire expires. `NcValueRef` retains its existing
 wire snapshot and backing owners; `to_owned()` borrows that snapshot. This Rust
 decoder contract does not change the C wire layout, vtables or signatures.
 
+Fixed-array conversion uses storage with the actual element layout and one
+initialized-prefix owner. Encoding keeps wire slots separate from backing
+Storage slots, so their independent alignments cannot introduce per-element
+tuple padding. Only Storage needs partial destruction; raw Wire slots are Copy
+and are never published until the complete array succeeds. Decoding borrows raw
+elements and acquires each native element once. No per-element Option completion
+tag, allocator or Default bound is introduced by array construction.
+
+The prefix guard cleans successful children on failure or ordinary unwinding;
+children clean their own unfinished fields. Completed arrays use normal Rust
+destruction. This removes avoidable scratch overhead and recursive input copies,
+not the storage required by actual large native results or the retained wire
+snapshot. Rust does not guarantee elimination of all return-place copies.
+
+Rust compiler proof recursion is separate from runtime depth admission. Deliberately
+deep wire types can need a crate `recursion_limit` large enough for the standard
+library's private wrapper types and their trait proofs. Raising that compiler
+budget does not raise the value decoder's depth or resource limits.
+
 ```mermaid
 flowchart LR
     A[Application value] --> E[Recursive checked encoding]

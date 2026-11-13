@@ -9,7 +9,7 @@ autotests = false
 description = "Checkout integration tests and executable COM examples"
 
 [dependencies]
-neocogi-com-serialization = { workspace = true, features = ["std"] }
+neocogi-com-serialization = { workspace = true, features = ["std", "json"] }
 # Trybuild copies dependencies independently of this package's feature forwarding.
 # Every fixture uses std/macro clients; runtime remains an explicit selection.
 neocogi-com = { workspace = true, features = ["std", "macros"] }
@@ -26,6 +26,7 @@ neocogi-com-host.workspace = true
 cc = { version = "=1.2.0", default-features = false }
 trybuild.workspace = true
 tempfile.workspace = true
+libc = "0.2"
 serde_json.workspace = true
 
 [features]
@@ -121,6 +122,11 @@ required-features = ["runtime"]
 [[test]]
 name = "checked_values"
 path = "integration-tests/checked_values.rs"
+
+[[test]]
+name = "array_construction"
+path = "integration-tests/array_construction.rs"
+required-features = ["macros", "std"]
 
 [[test]]
 name = "scalar_values"

@@ -1,10 +1,12 @@
-#![recursion_limit = "256"]
+#![recursion_limit = "512"]
 //! Restricted nested fields cross real generated COM slots only as checked wire values.
 #[allow(unused_imports, unused_macros)]
 mod test_contracts {
     include!(concat!(env!("OUT_DIR"), "/test_contracts.rs"));
 }
 // The depth-limit regression deliberately instantiates a 65-level wire type.
+// Stable std versions may wrap MaybeUninit in additional private types; leave
+// room for their Freeze/Copy proofs without changing the runtime depth policy.
 use neocogi_com::*;
 
 extern crate self as fixture_checked_values;

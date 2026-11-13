@@ -263,6 +263,7 @@ name = "neocogi-com-tests"
 version = "0.2.0"
 dependencies = [
  "cc",
+ "libc",
  "neocogi-com",
  "neocogi-com-core",
  "neocogi-com-host",

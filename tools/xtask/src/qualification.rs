@@ -165,7 +165,7 @@ fn floor_semantics(runner: &Runner) -> Result<()> {
     ];
     for (name, sentinel) in ABI_TESTS
         .iter()
-        .filter(|(name, _)| matches!(*name, "checked_values" | "output_buffers" | "output_completion"))
+        .filter(|(name, _)| matches!(*name, "checked_values" | "array_construction" | "output_buffers" | "output_completion"))
     {
         rows.push(("neocogi-com-tests", name, vec![*sentinel]));
     }

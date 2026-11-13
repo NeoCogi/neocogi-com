@@ -483,17 +483,25 @@ unsafe impl<T: ComValue, const N: usize> ComValue for [T; N] {
 /// An array's wire and lifetime storage come from its one ComValue contract.
 type EncodedArray<T, const N: usize> = (<[T; N] as ComValue>::Wire, <[T; N] as ComValue>::Storage);
 
-/// Retains initialized array guards and drops a partial prefix on conversion failure.
+/// Keeps independent wire/storage layouts and guards only the owning storage prefix.
 fn encode_array<T: ComValue, const N: usize>(
     values: &[T; N],
     mut convert: impl FnMut(&T) -> Result<(T::Wire, T::Storage), NcStatus>,
 ) -> Result<EncodedArray<T, N>, NcStatus> {
-    let mut slots: [Option<(T::Wire, T::Storage)>; N] = core::array::from_fn(|_| None);
-    for (slot, value) in slots.iter_mut().zip(values) {
-        *slot = Some(convert(value)?);
-    }
-    let elements = core::array::from_fn(|index| slots[index].as_ref().expect("initialized wire slot").0);
-    let storage = slots.map(|slot| slot.expect("initialized storage slot").1);
+    let mut wires = core::mem::MaybeUninit::<[T::Wire; N]>::uninit();
+    let pointer = wires.as_mut_ptr().cast::<T::Wire>();
+    let storage = crate::array::try_from_fn::<_, N>(|index| {
+        let (wire, storage) = convert(&values[index])?;
+        // SAFETY: the initializer calls each index in 0..N once. Wire is Copy
+        // with no drop glue; partial slots are never published on failure.
+        unsafe { pointer.add(index).write(wire) };
+        // The initializer immediately writes/counts this owner. No fallible/user
+        // work separates this wire write from its Storage ownership commit.
+        Ok(storage)
+    })?;
+    // SAFETY: every successful Storage insertion followed its initialized wire
+    // slot; success proves all N wires exist. Only Storage required cleanup.
+    let elements = unsafe { wires.assume_init() };
     Ok((ValueArray { elements }, storage))
 }
 
@@ -502,11 +510,7 @@ fn decode_array<T: ComValue, const N: usize>(
     wire: &ValueArray<T::Wire, N>,
     mut convert: impl FnMut(&T::Wire) -> Result<T, NcStatus>,
 ) -> Result<[T; N], NcStatus> {
-    let mut values: [Option<T>; N] = core::array::from_fn(|_| None);
-    for (slot, raw) in values.iter_mut().zip(&wire.elements) {
-        *slot = Some(convert(raw)?);
-    }
-    Ok(values.map(|value| value.expect("initialized application slot")))
+    crate::array::try_from_fn(|index| convert(&wire.elements[index]))
 }
 
 /// A raw sequence points to wire elements rather than application Rust values.

@@ -36,11 +36,13 @@ impl Drop for Acquired {
 /// Production derived record framing surrounds the array under test.
 #[derive(ComSerialize)]
 struct Input {
+    /// Encoded field selected by the independently derived decoder.
     values: [(); 3],
 }
 /// Its independent decoder acquires owners before a later completion failure.
 #[derive(ComDeserialize)]
 struct Output {
+    /// Normal record destruction owns the complete array after construction.
     values: [Acquired; 3],
 }
 
@@ -130,9 +132,68 @@ fn json_uses_the_same_exact_count_admission() {
     let format = Format::new(neocogi_com_serialization::json::factory(), Limits::default());
     for bytes in [b"[]".as_slice(), b"[null,null]", b"[null,null,null,null]"] {
         OWNERS.with(|owners| owners.set((0, 0)));
-        assert!(format.deserialize::<[Acquired; 3]>(bytes).is_err());
+        let error = format.deserialize::<[Acquired; 3]>(bytes).unwrap_err();
+        assert_eq!(error.message, "invalid sequence length");
+        assert_eq!(error.path, "$");
         assert_eq!(OWNERS.with(Cell::get), (0, 0));
     }
     drop(format.deserialize::<[Acquired; 3]>(b"[null,null,null]").unwrap());
     assert_eq!(OWNERS.with(Cell::get), (3, 3));
+}
+
+#[cfg(feature = "json")]
+#[test]
+fn json_container_errors_keep_real_paths_and_child_entry_keeps_attempted_index() {
+    use neocogi_com::serialization::{Format, Limits, Error};
+    use std::collections::BTreeMap;
+    /// Nested arrays separate the enclosing container path from its next child.
+    #[derive(Debug, ComDeserialize)]
+    #[allow(dead_code)]
+    struct Nested {
+        /// A wrong inner shape should identify the inner container itself.
+        items: [[u8; 2]; 2],
+    }
+    let format = Format::new(neocogi_com_serialization::json::factory(), Limits::default());
+    let error = format.deserialize::<Nested>(br#"{"items":[[1],[2,3]]}"#).unwrap_err();
+    assert_eq!(error.path, "$.items[0]");
+    let missing = format.deserialize::<Nested>(b"{}").unwrap_err();
+    assert_eq!(missing.path, "$.items");
+    let duplicate = format.deserialize::<BTreeMap<u32, u32>>(br#"{"$map":[[1,2],[1,3]]}"#).unwrap_err();
+    assert_eq!(duplicate.message, "duplicate map key");
+    assert_eq!(duplicate.path, "$");
+    let source = format.deserializer(b"[]").unwrap();
+    source.as_com_ref().enter_value().unwrap();
+    assert_eq!(source.as_com_ref().begin_sequence().unwrap(), 0);
+    let status = source.as_com_ref().enter_value().unwrap_err();
+    let error = Error::capture(status, &source);
+    assert_eq!(error.path, "$[0]");
+    assert_eq!(source.as_com_ref().finish(), Err(status));
+    assert_eq!(Error::capture(status, &source), error);
+    // Schema failure after field selection keeps that field's real name.
+    let source = format.deserializer(br#"{"items":[]}"#).unwrap();
+    source.as_com_ref().enter_value().unwrap();
+    assert_eq!(source.as_com_ref().begin_record(1).unwrap(), 1);
+    assert!(source.as_com_ref().field(neocogi_com::NcCopyFromBufferOffset::new(0, b"items")).unwrap());
+    let status = source
+        .as_com_ref()
+        .fail(neocogi_com::NcCopyFromBufferOffset::new(0, b"invalid selected field"))
+        .unwrap_err();
+    assert_eq!(Error::capture(status, &source).path, "$.items");
+    // Child budget failures happen before pushing their path, including payloads.
+    let shallow = Format::new(neocogi_com_serialization::json::factory(), Limits { depth: 1, ..Default::default() });
+    let child = shallow.deserialize::<[u8; 1]>(b"[1]").unwrap_err();
+    assert_eq!(child.status, neocogi_com::NC_E_OUT_OF_RANGE);
+    assert_eq!(child.path, "$[0]");
+    let child = shallow.deserialize::<Option<u8>>(br#"{"$some":1}"#).unwrap_err();
+    assert_eq!(child.status, neocogi_com::NC_E_OUT_OF_RANGE);
+    assert_eq!(child.path, "$.$some");
+    /// A matched enum has one selected payload even before its scope is entered.
+    #[derive(Debug, ComSerialize, ComDeserialize)]
+    enum Payload {
+        Value(u8),
+    }
+    let bytes = format.serialize(&Payload::Value(1)).unwrap();
+    let child = shallow.deserialize::<Payload>(&bytes).unwrap_err();
+    assert_eq!(child.status, neocogi_com::NC_E_OUT_OF_RANGE);
+    assert_eq!(child.path, "$.$value");
 }
