@@ -319,7 +319,7 @@ fn expand_parts(plan: InterfacePlan, dispatch: ProviderDispatch) -> Result<Inter
                 let ty = &arg.rust_ty;
                 quote! {
                     // SAFETY: copied wire storage is initialized; restricted fields are validated here.
-                    let #ident = match unsafe { #nc::decode_inline::<#ty>(#ident) } {
+                    let #ident = match unsafe { #nc::decode_inline::<#ty>(&#ident) } {
                         ::core::result::Result::Ok(#value_local) => #value_local, ::core::result::Result::Err(#status_local) => return #status_local,
                     };
                 }
@@ -925,7 +925,7 @@ fn safe_client_method_body(nc: &syn::Path, method: &AbiMethod, names: &mut Priva
             let abi_ret = &method.ok.abi_ty;
             let decode = match kind {
                 AbiReturnKind::Plain => quote! {
-                    (unsafe { #nc::decode_inline::<#rust_ret>(#output_local.assume_init()) }) #acquire
+                    (unsafe { #nc::decode_inline::<#rust_ret>(#output_local.assume_init_ref()) }) #acquire
                 },
                 AbiReturnKind::ComPtr { .. } => quote! {
                     (unsafe { <#rust_ret>::__nc_from_raw_owned_checked(#output_local.assume_init()) }) #acquire

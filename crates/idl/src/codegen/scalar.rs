@@ -302,7 +302,7 @@ pub fn emit_scalar(plan: &ScalarPlan, nc: &syn::Path) -> TokenStream {
                 #budget.value(|_| unsafe { <Self as #nc::ComValue>::encode_prechecked(self) })
             }
             /// Accounts for one scalar, then validates the wire domain.
-            unsafe fn decode_value(#wire: #repr, #budget: &mut #nc::ValueBudget) -> ::core::result::Result<Self, #nc::NcStatus> {
+            unsafe fn decode_value(#wire: &#repr, #budget: &mut #nc::ValueBudget) -> ::core::result::Result<Self, #nc::NcStatus> {
                 // SAFETY: the raw primitive is initialized and value charges its scalar cost.
                 #budget.value(|_| unsafe { <Self as #nc::ComValue>::decode_prechecked(#wire) })
             }
@@ -314,8 +314,8 @@ pub fn emit_scalar(plan: &ScalarPlan, nc: &syn::Path) -> TokenStream {
                 }
             }
             /// Rejects unknown values/bits even when resource accounting is prepaid.
-            unsafe fn decode_prechecked(#wire: #repr) -> ::core::result::Result<Self, #nc::NcStatus> {
-                let #decoded = Self::from_raw(#wire);
+            unsafe fn decode_prechecked(#wire: &#repr) -> ::core::result::Result<Self, #nc::NcStatus> {
+                let #decoded = Self::from_raw(*#wire);
                 match #decoded.#predicate() {
                     true => ::core::result::Result::Ok(#decoded),
                     false => ::core::result::Result::Err(#nc::NC_E_INVALID_TAG),

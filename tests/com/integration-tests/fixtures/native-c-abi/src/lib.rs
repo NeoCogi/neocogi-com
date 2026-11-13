@@ -284,7 +284,7 @@ mod tests {
         assert_eq!(results.zero_copy_from_status, NC_OK.code());
         assert_eq!(results.zero_copy_to_status, NC_OK.code());
         assert_eq!(
-            unsafe { <NativeAggregate as neocogi_com::ComValue>::decode_value(results.aggregate, &mut Default::default()) }.unwrap(),
+            unsafe { <NativeAggregate as neocogi_com::ComValue>::decode_value(&results.aggregate, &mut Default::default()) }.unwrap(),
             NativeAggregate { tag: 4, count: 7, value: 14 }
         );
         assert_eq!(unsafe { nc_c_validate_abi_layouts(&native_abi_layouts()) }, 1);

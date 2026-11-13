@@ -47,6 +47,21 @@ that of raw records. The synchronous call guard retains both the source borrow
 and typed temporary storage for converted indirect elements. No `Any` registry,
 erased allocation list, or shared mutable parent object is involved.
 
+Decoding borrows its raw input: `ComValue::decode_value` and
+`decode_prechecked` accept `&Self::Wire`, and `decode_inline` accepts `&T::Wire`.
+Record fields, selected enum/option payloads, arrays and sequence elements are
+borrowed recursively rather than copied into another whole raw record at each
+decoder boundary. Validate a tag before borrowing its active payload. Borrowing
+raw bytes never establishes that a native boolean or enum is already valid.
+
+The wire record and text/element regions borrowed through shared references must
+remain live and immutable for the conversion, including reentrant acquisition
+callbacks, subject to normal `UnsafeCell` rules. Referenced COM objects retain
+their own mutable-state and lifecycle contracts. Decoded owners acquire their
+own contents before the borrowed wire expires. `NcValueRef` retains its existing
+wire snapshot and backing owners; `to_owned()` borrows that snapshot. This Rust
+decoder contract does not change the C wire layout, vtables or signatures.
+
 ```mermaid
 flowchart LR
     A[Application value] --> E[Recursive checked encoding]

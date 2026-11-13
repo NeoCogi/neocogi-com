@@ -20,7 +20,7 @@ fn public_wires_and_storage_preserve_bound_idl_types() {
     );
     wire.budget = 91;
     // SAFETY: encoding initialized every raw field; only a valid scalar changed.
-    let decoded = unsafe { decode_inline::<Record>(wire) }.unwrap();
+    let decoded = unsafe { decode_inline::<Record>(&wire) }.unwrap();
     assert_eq!(decoded, Record { budget: 91, ..native });
 
     for (tag, native) in [Choice::Named { first: true, raw_0: 7, budget: 73 }, Choice::Tuple(native), Choice::Empty]
@@ -30,7 +30,7 @@ fn public_wires_and_storage_preserve_bound_idl_types() {
         let wire: <Choice as ComValue>::Wire = encode_inline(&native).unwrap();
         assert_eq!(wire.tag, tag as ::core::primitive::i64);
         // SAFETY: encoding initialized exactly the active payload selected by tag.
-        let decoded = unsafe { decode_inline::<Choice>(wire) }.unwrap();
+        let decoded = unsafe { decode_inline::<Choice>(&wire) }.unwrap();
         assert_eq!(decoded, native);
     }
 
@@ -45,7 +45,7 @@ fn public_wires_and_storage_preserve_bound_idl_types() {
     assert_eq!((wire.first, wire.raw_0), (1, 11));
     // SAFETY: source text and converted Vec<Record> storage stay alive through decode.
     // Record's bool requires checked conversion, so this nonempty vector uses backing.
-    let decoded = unsafe { <Owned as ComValue>::decode_value(wire, &mut ValueBudget::default()) }.unwrap();
+    let decoded = unsafe { <Owned as ComValue>::decode_value(&wire, &mut ValueBudget::default()) }.unwrap();
     assert!(decoded.first);
     assert_eq!(decoded.raw_0, 11);
     assert_eq!(decoded.budget, "owned backing");

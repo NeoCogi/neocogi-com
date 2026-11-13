@@ -210,7 +210,7 @@ fn copied_aggregate_budget_boundaries_remain_exact() {
         assert!(matches!(value.encode_value(&mut ValueBudget::new(0, values, depth)), Err(NC_E_OUT_OF_RANGE)));
         // SAFETY: the successful encoding supplies a fully initialized raw record.
         assert_eq!(
-            unsafe { Settings::decode_value(wire, &mut ValueBudget::new(0, values, depth)) },
+            unsafe { Settings::decode_value(&wire, &mut ValueBudget::new(0, values, depth)) },
             Err(NC_E_OUT_OF_RANGE)
         );
     }
@@ -222,9 +222,9 @@ fn copied_aggregate_budget_boundaries_remain_exact() {
     let mut decode_budget = ValueBudget::new(0, 4, 3);
     // SAFETY: wire came from the checked encoder and bool uses an unrestricted byte.
     unsafe {
-        assert_eq!(Settings::decode_value(wire, &mut decode_budget), Ok(value));
-        assert_eq!(bool::decode_value(1, &mut decode_budget), Ok(true));
-        assert_eq!(bool::decode_value(1, &mut decode_budget), Err(NC_E_OUT_OF_RANGE));
+        assert_eq!(Settings::decode_value(&wire, &mut decode_budget), Ok(value));
+        assert_eq!(bool::decode_value(&1, &mut decode_budget), Ok(true));
+        assert_eq!(bool::decode_value(&1, &mut decode_budget), Err(NC_E_OUT_OF_RANGE));
     }
 }
 
@@ -239,7 +239,7 @@ fn fixed_arrays_charge_whole_subtrees_and_still_validate_each_element() {
     wire.elements[1].flags.enabled = 7;
     // SAFETY: the raw array is initialized; its invalid boolean must be rejected.
     assert_eq!(
-        unsafe { <[Settings; 2]>::decode_value(wire, &mut ValueBudget::new(0, 7, 4)) },
+        unsafe { <[Settings; 2]>::decode_value(&wire, &mut ValueBudget::new(0, 7, 4)) },
         Err(NC_E_INVALID_ARG)
     );
 }
@@ -255,9 +255,9 @@ fn variant_dependent_shapes_retain_exact_dynamic_accounting() {
     assert!(matches!(configured.encode_value(&mut ValueBudget::new(0, 3, 4)), Err(NC_E_OUT_OF_RANGE)));
     // SAFETY: both wires came from checked conversion and contain no indirect data.
     unsafe {
-        assert_eq!(Action::decode_value(idle_wire, &mut ValueBudget::new(0, 1, 1)), Ok(idle));
-        assert_eq!(Action::decode_value(configured_wire, &mut ValueBudget::new(0, 4, 4)), Ok(configured));
-        assert_eq!(Action::decode_value(configured_wire, &mut ValueBudget::new(0, 4, 3)), Err(NC_E_OUT_OF_RANGE));
+        assert_eq!(Action::decode_value(&idle_wire, &mut ValueBudget::new(0, 1, 1)), Ok(idle));
+        assert_eq!(Action::decode_value(&configured_wire, &mut ValueBudget::new(0, 4, 4)), Ok(configured));
+        assert_eq!(Action::decode_value(&configured_wire, &mut ValueBudget::new(0, 4, 3)), Err(NC_E_OUT_OF_RANGE));
     }
 }
 
@@ -279,12 +279,12 @@ fn mixed_records_preserve_cumulative_bytes_values_and_depth() {
         ));
         // SAFETY: the source and typed guard retain every active wire field.
         assert!(matches!(
-            unsafe { MixedSettings::decode_value(wire, &mut ValueBudget::new(bytes, values, depth)) },
+            unsafe { MixedSettings::decode_value(&wire, &mut ValueBudget::new(bytes, values, depth)) },
             Err(NC_E_OUT_OF_RANGE)
         ));
     }
     // SAFETY: the retained source supplies the valid string backing.
-    let decoded = unsafe { MixedSettings::decode_value(wire, &mut ValueBudget::new(2, 9, 5)) }.unwrap();
+    let decoded = unsafe { MixedSettings::decode_value(&wire, &mut ValueBudget::new(2, 9, 5)) }.unwrap();
     assert_eq!(decoded.settings, value.settings);
     assert_eq!(decoded.title, value.title);
     assert_eq!(decoded.action, value.action);
@@ -306,14 +306,14 @@ fn inline_bound_falls_back_to_selected_depth() {
     let absent: Optional64 = None;
     let wire = encode_inline(&absent).unwrap();
     // SAFETY: absent storage has no initialized payload requirement.
-    assert_eq!(unsafe { decode_inline::<Optional64>(wire) }, Ok(absent));
+    assert_eq!(unsafe { decode_inline::<Optional64>(&wire) }, Ok(absent));
     let deepest = present8(present8(present8(present8(present8(present8(present8(present8(true))))))));
     assert!(matches!(encode_inline(&deepest), Err(NC_E_OUT_OF_RANGE)));
     // Produce valid depth-65 storage with an explicit larger budget, then ensure
     // ordinary inline acquisition still enforces its depth-64 default.
     let (wire, _storage) = deepest.encode_value(&mut ValueBudget::new(0, 65, 65)).unwrap();
     // SAFETY: all selected optional fields are initialized by the checked encoder.
-    assert_eq!(unsafe { decode_inline::<Optional64>(wire) }, Err(NC_E_OUT_OF_RANGE));
+    assert_eq!(unsafe { decode_inline::<Optional64>(&wire) }, Err(NC_E_OUT_OF_RANGE));
 }
 
 /// Buffer bounds may exceed the budget while the actual small variants still fit.
@@ -359,4 +359,19 @@ fn numeric_arrays_borrow_in_place_but_boolean_arrays_are_checked() {
     let decoded = unsafe { DecodedInput::<[Coordinates; 2]>::from_raw(encoded.as_ptr(), encoded.len()) }.unwrap();
     assert_eq!(decoded.as_slice().as_ptr(), values.as_ptr());
     const { assert!(!<[Settings; 2]>::BORROW_WIRE) };
+}
+
+/// Identity decode must address the raw pointee rather than a reference variable.
+#[test]
+fn borrowed_identity_decoder_preserves_distinct_fields_and_array_elements() {
+    let values = [Coordinates { x: 13.25, y: -91.5 }, Coordinates { x: -0.125, y: 4097.0 }];
+    for value in &values {
+        let wire = encode_inline(value).unwrap();
+        // SAFETY: this is the initialized wire produced from the live numeric record.
+        assert_eq!(unsafe { decode_inline::<Coordinates>(&wire) }.unwrap(), *value);
+    }
+    let wire = encode_inline(&values).unwrap();
+    // SAFETY: array and field bits are initialized and unrestricted.
+    assert_eq!(unsafe { decode_inline::<[Coordinates; 2]>(&wire) }.unwrap(), values);
+    assert_eq!(NcValueRef::new(&values).unwrap().to_owned().unwrap(), values);
 }

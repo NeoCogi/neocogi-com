@@ -27,7 +27,7 @@ mod external_fields {
         fn encode_value(&self, budget: &mut neocogi_com::ValueBudget) -> Result<(Self::Wire, ()), NcStatus> {
             neocogi_com::ComValue::encode_value(&ContractPair { x: self.x, y: self.y }, budget)
         }
-        unsafe fn decode_value(wire: Self::Wire, budget: &mut neocogi_com::ValueBudget) -> Result<Self, NcStatus> {
+        unsafe fn decode_value(wire: &Self::Wire, budget: &mut neocogi_com::ValueBudget) -> Result<Self, NcStatus> {
             // SAFETY: the caller supplies the explicit generated ContractPair wire.
             let pair = unsafe { <ContractPair as neocogi_com::ComValue>::decode_value(wire, budget) }?;
             Ok(Self { x: pair.x, y: pair.y })
@@ -77,15 +77,15 @@ mod external_fields {
         let interface: ComPtr<IExternalFieldsAbi> = ExternalFields::from_value(ExternalFields).query().unwrap();
         let native = Pair { x: 1.25, y: -2.5 };
         let (pair_wire, _storage) = native.encode_value(&mut Default::default()).unwrap();
-        let contract_pair = unsafe { ContractPair::decode_value(pair_wire, &mut Default::default()) }.unwrap();
+        let contract_pair = unsafe { ContractPair::decode_value(&pair_wire, &mut Default::default()) }.unwrap();
         let (input, _storage) = Sample { pairs: [contract_pair; 2] }.encode_value(&mut Default::default()).unwrap();
         let raw = interface.as_raw();
         let mut output = core::mem::MaybeUninit::uninit();
         // SAFETY: real checked input wire, live owned provider and writable exact output.
         assert_eq!(unsafe { ((*raw.vtable).echo)(raw.object, input, output.as_mut_ptr()) }, neocogi_com::NC_OK);
-        let decoded = unsafe { Sample::decode_value(output.assume_init(), &mut Default::default()) }.unwrap();
+        let decoded = unsafe { Sample::decode_value(&output.assume_init_ref(), &mut Default::default()) }.unwrap();
         let (returned, _) = decoded.pairs[0].encode_value(&mut Default::default()).unwrap();
-        let result = unsafe { Pair::decode_value(returned, &mut Default::default()) }.unwrap();
+        let result = unsafe { Pair::decode_value(&returned, &mut Default::default()) }.unwrap();
         assert_eq!(result, native);
     }
 }

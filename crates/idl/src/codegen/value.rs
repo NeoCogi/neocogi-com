@@ -102,9 +102,9 @@ pub(crate) fn expand(
                 match <#ty as #nc::ComValue>::FIXED_COST {
                     // SAFETY: the selected raw field is live and its cost was included
                     // in the enclosing preflight. Content validation still happens here.
-                    ::core::option::Option::Some(_) => unsafe { <#ty as #nc::ComValue>::decode_prechecked(#raw_record.#member) },
+                    ::core::option::Option::Some(_) => unsafe { <#ty as #nc::ComValue>::decode_prechecked(&#raw_record.#member) },
                     // SAFETY: this field's active backing remains live for conversion.
-                    ::core::option::Option::None => unsafe { <#ty as #nc::ComValue>::decode_value(#raw_record.#member, #budget) },
+                    ::core::option::Option::None => unsafe { <#ty as #nc::ComValue>::decode_value(&#raw_record.#member, #budget) },
                 }?
             });
             encoding_fixed.push(quote! {
@@ -114,7 +114,7 @@ pub(crate) fn expand(
             decoding_fixed.push(quote! {
                 // SAFETY: the selected field is initialized, its resource requirements were checked,
                 // and this converter still validates every restricted raw value.
-                unsafe { <#ty as #nc::ComValue>::decode_prechecked(#raw_record.#member) }?
+                unsafe { <#ty as #nc::ComValue>::decode_prechecked(&#raw_record.#member) }?
             });
             raw_values.push(quote! { #member: #raw });
             stored_values.push(quote! { #member: #stored });
@@ -181,7 +181,7 @@ pub(crate) fn expand(
         let read = (!bindings.is_empty()).then(|| {
             if is_enum {
                 quote! { // SAFETY: this match arm validated the tag before selecting a payload.
-                let #raw_record = unsafe { #wire_input.payload.#member }; }
+                let #raw_record = unsafe { &#wire_input.payload.#member }; }
             } else {
                 quote! { let #raw_record = #wire_input; }
             }
@@ -287,7 +287,7 @@ pub(crate) fn expand(
             if <Self as #nc::ComValue>::BORROW_WIRE {
                 // SAFETY: the recursive proof excludes bools/tags and equates every
                 // active field layout. Padding stays padding in the copied value.
-                return ::core::result::Result::Ok(unsafe { ::core::ptr::from_ref(&#wire_input).cast::<Self>().read() });
+                return ::core::result::Result::Ok(unsafe { ::core::ptr::from_ref(#wire_input).cast::<Self>().read() });
             }
         }
     });
@@ -354,7 +354,7 @@ pub(crate) fn expand(
             /// Selects the valid alternative before decoding any application field.
             /// A shared traversal avoids duplicating its budget handling into every buffer adapter.
             #[inline(never)]
-            unsafe fn decode_value(#wire_input: <Self as #nc::ComValue>::Wire, #budget: &mut #nc::ValueBudget) -> ::core::result::Result<Self, #nc::NcStatus> {
+            unsafe fn decode_value(#wire_input: &<Self as #nc::ComValue>::Wire, #budget: &mut #nc::ValueBudget) -> ::core::result::Result<Self, #nc::NcStatus> {
                 match <Self as #nc::ComValue>::FIXED_COST {
                     ::core::option::Option::Some(#cost) => {
                         #budget.fixed(#cost)?;
@@ -372,7 +372,7 @@ pub(crate) fn expand(
             }
             /// Checks tags and every field after the whole conversion was proved to fit.
             #[inline]
-            unsafe fn decode_prechecked(#wire_input: <Self as #nc::ComValue>::Wire) -> ::core::result::Result<Self, #nc::NcStatus> {
+            unsafe fn decode_prechecked(#wire_input: &<Self as #nc::ComValue>::Wire) -> ::core::result::Result<Self, #nc::NcStatus> {
                 #direct_decode
                 #decode_prechecked_body
             }

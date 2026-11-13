@@ -173,9 +173,9 @@ mod tests {
         // SAFETY: the default budgets admit this fixed, allocation-free record.
         // Raw data came from the matching encoder and stays initialized and live.
         let (wire, _) = unsafe { record().encode_prechecked() }.unwrap();
-        check(unsafe { Record::decode_prechecked(wire) }.unwrap());
+        check(unsafe { Record::decode_prechecked(&wire) }.unwrap());
         let (wire, _) = record().encode_value(&mut ValueBudget::default()).unwrap();
-        check(unsafe { Record::decode_value(wire, &mut ValueBudget::default()) }.unwrap());
+        check(unsafe { Record::decode_value(&wire, &mut ValueBudget::default()) }.unwrap());
     }
 
     #[test]

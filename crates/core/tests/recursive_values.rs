@@ -38,12 +38,12 @@ unsafe impl ComValue for Node {
             Ok((NodeWire { enabled, children }, NodeStorage { _children: storage }))
         })
     }
-    unsafe fn decode_value(wire: NodeWire, budget: &mut ValueBudget) -> Result<Self, NcStatus> {
+    unsafe fn decode_value(wire: &NodeWire, budget: &mut ValueBudget) -> Result<Self, NcStatus> {
         budget.value(|budget| {
             // SAFETY: caller supplies initialized raw fields and live pointees.
             Ok(Self {
-                enabled: unsafe { bool::decode_value(wire.enabled, budget) }?,
-                children: unsafe { Vec::<Node>::decode_value(wire.children, budget) }?,
+                enabled: unsafe { bool::decode_value(&wire.enabled, budget) }?,
+                children: unsafe { Vec::<Node>::decode_value(&wire.children, budget) }?,
             })
         })
     }
@@ -76,7 +76,7 @@ fn invalid_boolean_inside_sequence_is_rejected_without_typed_bool_borrow() {
         children: ValueSlice { pointer: raw_children.as_ptr(), len: 1 },
     };
     // SAFETY: storage is readable and initialized; invalid scalar values are intentional.
-    assert_eq!(unsafe { Node::decode_value(raw, &mut ValueBudget::default()) }, Err(NC_E_INVALID_ARG));
+    assert_eq!(unsafe { Node::decode_value(&raw, &mut ValueBudget::default()) }, Err(NC_E_INVALID_ARG));
 }
 
 #[test]
@@ -90,9 +90,9 @@ fn optional_tag_selects_whether_payload_may_be_read() {
         payload: core::mem::MaybeUninit::uninit(),
     };
     // SAFETY: absent and invalid tags do not require initialized payload storage.
-    assert_eq!(unsafe { Option::<bool>::decode_value(absent, &mut ValueBudget::default()) }, Ok(None));
+    assert_eq!(unsafe { Option::<bool>::decode_value(&absent, &mut ValueBudget::default()) }, Ok(None));
     assert_eq!(
-        unsafe { Option::<bool>::decode_value(invalid, &mut ValueBudget::default()) },
+        unsafe { Option::<bool>::decode_value(&invalid, &mut ValueBudget::default()) },
         Err(NC_E_INVALID_TAG)
     );
 }
@@ -105,10 +105,7 @@ fn zero_sized_values_still_consume_work_and_nested_values_share_limits() {
     let guard = NcValueRef::new(&text).unwrap();
     // Two allocations must share the remaining bytes after the outer Vec storage.
     let mut budget = ValueBudget::new(2 * core::mem::size_of::<String>() + 7, 100, 8);
-    assert_eq!(
-        unsafe { Vec::<String>::decode_value(guard.as_ptr().read(), &mut budget) },
-        Err(NC_E_OUT_OF_RANGE)
-    );
+    assert_eq!(unsafe { Vec::<String>::decode_value(&*guard.as_ptr(), &mut budget) }, Err(NC_E_OUT_OF_RANGE));
     let tree = Node {
         enabled: true,
         children: vec![Node { enabled: false, children: vec![] }],
@@ -119,11 +116,11 @@ fn zero_sized_values_still_consume_work_and_nested_values_share_limits() {
 #[test]
 fn array_fields_check_each_boolean_and_preflight_text_shape() {
     let raw = neocogi_com_core::ValueArray { elements: [1, 0, 3] };
-    assert_eq!(unsafe { <[bool; 3]>::decode_value(raw, &mut ValueBudget::default()) }, Err(NC_E_INVALID_ARG));
+    assert_eq!(unsafe { <[bool; 3]>::decode_value(&raw, &mut ValueBudget::default()) }, Err(NC_E_INVALID_ARG));
     // Oversized lengths are rejected before dereferencing the intentionally null pointer.
     let raw = ValueSlice {
         pointer: core::ptr::null(),
         len: u64::MAX,
     };
-    assert_eq!(unsafe { String::decode_value(raw, &mut ValueBudget::default()) }, Err(NC_E_OUT_OF_RANGE));
+    assert_eq!(unsafe { String::decode_value(&raw, &mut ValueBudget::default()) }, Err(NC_E_OUT_OF_RANGE));
 }

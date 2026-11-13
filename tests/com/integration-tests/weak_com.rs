@@ -429,7 +429,7 @@ fn checked_weak_wire_preserves_expiration_and_rejects_wrong_contracts() {
         assert_eq!(checked.upgrade().unwrap().is_none(), expired);
         let (wire, _) = weak.encode_value(&mut ValueBudget::default()).unwrap();
         // SAFETY: weak retains the borrowed wire's header through decoding.
-        let acquired = unsafe { WeakComPtr::<IValueAbi>::decode_value(wire, &mut ValueBudget::default()) }.unwrap();
+        let acquired = unsafe { WeakComPtr::<IValueAbi>::decode_value(&wire, &mut ValueBudget::default()) }.unwrap();
         assert!(weak.same_object(&acquired));
         // SAFETY: wrong interface/revision tokens still transfer valid weak storage.
         assert_eq!(
@@ -446,7 +446,7 @@ fn checked_weak_wire_preserves_expiration_and_rejects_wrong_contracts() {
             NC_E_POINTER
         );
         assert_eq!(
-            unsafe { WeakComPtr::<IValueAbi>::decode_value(NcWeakRaw::null(), &mut ValueBudget::default()) }.unwrap_err(),
+            unsafe { WeakComPtr::<IValueAbi>::decode_value(&NcWeakRaw::null(), &mut ValueBudget::default()) }.unwrap_err(),
             NC_E_POINTER
         );
         drop((checked, acquired));

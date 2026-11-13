@@ -151,14 +151,14 @@ fn checked_weak_transport_balances_tokens_before_and_after_destruction() {
         );
         assert_eq!(unsafe { (*control).weak.load(Ordering::Relaxed) }, before);
         // SAFETY: the source lends a live header; acquisition adds only one weak owner.
-        let acquired = unsafe { WeakComPtr::<IUnknown>::decode_value(NcWeakRaw { control }, &mut ValueBudget::default()) }.unwrap();
+        let acquired = unsafe { WeakComPtr::<IUnknown>::decode_value(&NcWeakRaw { control }, &mut ValueBudget::default()) }.unwrap();
         assert_eq!(unsafe { (*control).weak.load(Ordering::Relaxed) }, before + 1);
         assert_eq!(unsafe { (*control).state.load(Ordering::Relaxed) }, if expired { 0 } else { 1 });
         drop(acquired);
         assert_eq!(unsafe { (*control).weak.load(Ordering::Relaxed) }, before);
         // A rejected conversion neither acquires nor releases the caller's token.
         assert_eq!(
-            unsafe { WeakComPtr::<IUnknown>::decode_value(NcWeakRaw { control }, &mut ValueBudget::new(0, 0, 0)) }.unwrap_err(),
+            unsafe { WeakComPtr::<IUnknown>::decode_value(&NcWeakRaw { control }, &mut ValueBudget::new(0, 0, 0)) }.unwrap_err(),
             crate::NC_E_OUT_OF_RANGE
         );
         assert_eq!(unsafe { (*control).weak.load(Ordering::Relaxed) }, before);

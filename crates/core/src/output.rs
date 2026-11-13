@@ -394,7 +394,9 @@ impl<T: ComInlineValue> PreparedOutput<'_, T> {
                     for index in 0..count {
                         // SAFETY: read only initialized active fields of the
                         // reported prefix, after whole-capacity admission.
-                        let wire = unsafe { buffer.wires.as_ptr().add(index).read().assume_init() };
+                        // The provider writes reserved slots; Vec length stays zero
+                        // until acquisition/publication, so borrow capacity by pointer.
+                        let wire = unsafe { (&*buffer.wires.as_ptr().add(index)).assume_init_ref() };
                         let value = unsafe { T::decode_prechecked(wire) }?;
                         buffer.values.push(value);
                     }
@@ -408,7 +410,7 @@ impl<T: ComInlineValue> PreparedOutput<'_, T> {
                     for slot in &slots[..count] {
                         // SAFETY: successful nested provider initialized active
                         // fields in the checked prefix. No native storage escapes.
-                        let wire = unsafe { slot.assume_init_read() };
+                        let wire = unsafe { slot.assume_init_ref() };
                         unsafe { T::decode_prechecked(wire) }?;
                     }
                 }

@@ -64,7 +64,7 @@ fn provider_validates_all_converted_outputs_before_publishing_any() {
     };
     assert_eq!(status, NC_E_OUT_OF_RANGE);
     assert_eq!(flags, [0]);
-    assert!(choices.iter().all(|wire| unsafe { decode_inline::<Choice>(*wire) }.unwrap() == Choice::Idle));
+    assert!(choices.iter().all(|wire| unsafe { decode_inline::<Choice>(&wire) }.unwrap() == Choice::Idle));
     let mut out = std::mem::MaybeUninit::uninit();
     // SAFETY: output storage matches the copied wire, including its zero size.
     let status = unsafe { ((*raw.vtable).result)(raw.object, 0, 1, flags.as_mut_ptr(), &mut flags_written, out.as_mut_ptr()) };
@@ -171,7 +171,7 @@ fn consuming_output_admission_checks_bytes_count_depth_and_exact_boundaries() {
         fn encode_value(&self, budget: &mut ValueBudget) -> Result<(Self::Wire, ()), NcStatus> {
             budget.value(|_| unsafe { self.encode_prechecked() })
         }
-        unsafe fn decode_value(wire: Self::Wire, budget: &mut ValueBudget) -> Result<Self, NcStatus> {
+        unsafe fn decode_value(wire: &Self::Wire, budget: &mut ValueBudget) -> Result<Self, NcStatus> {
             budget.value(|_| unsafe { Self::decode_prechecked(wire) })
         }
         unsafe fn encode_prechecked(&self) -> Result<(Self::Wire, ()), NcStatus> {
@@ -179,9 +179,9 @@ fn consuming_output_admission_checks_bytes_count_depth_and_exact_boundaries() {
             raw[0] = u8::from(self.0);
             Ok((raw, ()))
         }
-        unsafe fn decode_prechecked(wire: Self::Wire) -> Result<Self, NcStatus> {
+        unsafe fn decode_prechecked(wire: &Self::Wire) -> Result<Self, NcStatus> {
             // SAFETY: the first initialized wire byte has the checked bool format.
-            unsafe { bool::decode_prechecked(wire[0]) }.map(Self)
+            unsafe { bool::decode_prechecked(&wire[0]) }.map(Self)
         }
     }
     // SAFETY: the initialized wire contains no references or owned resources.

@@ -909,7 +909,7 @@ const _: () = {
             let __nc_result_3 = (unsafe {
                 ::neocogi_com::decode_inline::<
                     ::core::primitive::bool,
-                >(__nc_out_3.assume_init())
+                >(__nc_out_3.assume_init_ref())
             })?;
             ::core::result::Result::Ok(__nc_result_3)
         }
@@ -939,7 +939,7 @@ const _: () = {
             let __nc_result_4 = (unsafe {
                 ::neocogi_com::decode_inline::<
                     ::core::primitive::u8,
-                >(__nc_out_4.assume_init())
+                >(__nc_out_4.assume_init_ref())
             })?;
             ::core::result::Result::Ok(__nc_result_4)
         }
@@ -969,7 +969,7 @@ const _: () = {
             let __nc_result_5 = (unsafe {
                 ::neocogi_com::decode_inline::<
                     ::core::primitive::u16,
-                >(__nc_out_5.assume_init())
+                >(__nc_out_5.assume_init_ref())
             })?;
             ::core::result::Result::Ok(__nc_result_5)
         }
@@ -999,7 +999,7 @@ const _: () = {
             let __nc_result_6 = (unsafe {
                 ::neocogi_com::decode_inline::<
                     ::core::primitive::u32,
-                >(__nc_out_6.assume_init())
+                >(__nc_out_6.assume_init_ref())
             })?;
             ::core::result::Result::Ok(__nc_result_6)
         }
@@ -1029,7 +1029,7 @@ const _: () = {
             let __nc_result_7 = (unsafe {
                 ::neocogi_com::decode_inline::<
                     ::core::primitive::u64,
-                >(__nc_out_7.assume_init())
+                >(__nc_out_7.assume_init_ref())
             })?;
             ::core::result::Result::Ok(__nc_result_7)
         }
@@ -1059,7 +1059,7 @@ const _: () = {
             let __nc_result_8 = (unsafe {
                 ::neocogi_com::decode_inline::<
                     ::core::primitive::i8,
-                >(__nc_out_8.assume_init())
+                >(__nc_out_8.assume_init_ref())
             })?;
             ::core::result::Result::Ok(__nc_result_8)
         }
@@ -1089,7 +1089,7 @@ const _: () = {
             let __nc_result_9 = (unsafe {
                 ::neocogi_com::decode_inline::<
                     ::core::primitive::i16,
-                >(__nc_out_9.assume_init())
+                >(__nc_out_9.assume_init_ref())
             })?;
             ::core::result::Result::Ok(__nc_result_9)
         }
@@ -1119,7 +1119,7 @@ const _: () = {
             let __nc_result_10 = (unsafe {
                 ::neocogi_com::decode_inline::<
                     ::core::primitive::i32,
-                >(__nc_out_10.assume_init())
+                >(__nc_out_10.assume_init_ref())
             })?;
             ::core::result::Result::Ok(__nc_result_10)
         }
@@ -1149,7 +1149,7 @@ const _: () = {
             let __nc_result_11 = (unsafe {
                 ::neocogi_com::decode_inline::<
                     ::core::primitive::i64,
-                >(__nc_out_11.assume_init())
+                >(__nc_out_11.assume_init_ref())
             })?;
             ::core::result::Result::Ok(__nc_result_11)
         }
@@ -1179,7 +1179,7 @@ const _: () = {
             let __nc_result_12 = (unsafe {
                 ::neocogi_com::decode_inline::<
                     ::core::primitive::f32,
-                >(__nc_out_12.assume_init())
+                >(__nc_out_12.assume_init_ref())
             })?;
             ::core::result::Result::Ok(__nc_result_12)
         }
@@ -1209,7 +1209,7 @@ const _: () = {
             let __nc_result_13 = (unsafe {
                 ::neocogi_com::decode_inline::<
                     ::core::primitive::f64,
-                >(__nc_out_13.assume_init())
+                >(__nc_out_13.assume_init_ref())
             })?;
             ::core::result::Result::Ok(__nc_result_13)
         }
@@ -1239,7 +1239,7 @@ const _: () = {
             let __nc_result_14 = (unsafe {
                 ::neocogi_com::decode_inline::<
                     ::core::primitive::u32,
-                >(__nc_out_14.assume_init())
+                >(__nc_out_14.assume_init_ref())
             })?;
             ::core::result::Result::Ok(__nc_result_14)
         }
@@ -1279,7 +1279,7 @@ const _: () = {
             let __nc_result_15 = (unsafe {
                 ::neocogi_com::decode_inline::<
                     ::core::primitive::u32,
-                >(__nc_out_15.assume_init())
+                >(__nc_out_15.assume_init_ref())
             })?;
             (unsafe { __nc_arg_0.convert_output() })?;
             __nc_arg_0.publish();
@@ -1311,7 +1311,7 @@ const _: () = {
             let __nc_result_16 = (unsafe {
                 ::neocogi_com::decode_inline::<
                     ::core::primitive::bool,
-                >(__nc_out_16.assume_init())
+                >(__nc_out_16.assume_init_ref())
             })?;
             ::core::result::Result::Ok(__nc_result_16)
         }
@@ -1348,7 +1348,7 @@ const _: () = {
             let __nc_result_17 = (unsafe {
                 ::neocogi_com::decode_inline::<
                     ::core::primitive::u32,
-                >(__nc_out_17.assume_init())
+                >(__nc_out_17.assume_init_ref())
             })?;
             ::core::result::Result::Ok(__nc_result_17)
         }
@@ -1390,7 +1390,7 @@ const _: () = {
             let __nc_result_18 = (unsafe {
                 ::neocogi_com::decode_inline::<
                     ::core::primitive::bool,
-                >(__nc_out_18.assume_init())
+                >(__nc_out_18.assume_init_ref())
             })?;
             ::core::result::Result::Ok(__nc_result_18)
         }
@@ -1442,7 +1442,7 @@ const _: () = {
             let __nc_result_20 = (unsafe {
                 ::neocogi_com::decode_inline::<
                     ::core::primitive::u32,
-                >(__nc_out_20.assume_init())
+                >(__nc_out_20.assume_init_ref())
             })?;
             ::core::result::Result::Ok(__nc_result_20)
         }
@@ -1494,7 +1494,7 @@ const _: () = {
             let __nc_result_22 = (unsafe {
                 ::neocogi_com::decode_inline::<
                     ::core::primitive::u32,
-                >(__nc_out_22.assume_init())
+                >(__nc_out_22.assume_init_ref())
             })?;
             ::core::result::Result::Ok(__nc_result_22)
         }
@@ -1559,7 +1559,7 @@ const _: () = {
             let __nc_result_24 = (unsafe {
                 ::neocogi_com::decode_inline::<
                     ::core::primitive::bool,
-                >(__nc_out_24.assume_init())
+                >(__nc_out_24.assume_init_ref())
             })?;
             ::core::result::Result::Ok(__nc_result_24)
         }
@@ -2414,7 +2414,7 @@ const _: () = {
             let __nc_result_0 = (unsafe {
                 ::neocogi_com::decode_inline::<
                     ::neocogi_com::NcStatus,
-                >(__nc_out_0.assume_init())
+                >(__nc_out_0.assume_init_ref())
             })?;
             ::core::result::Result::Ok(__nc_result_0)
         }
@@ -2444,7 +2444,7 @@ const _: () = {
             let __nc_result_1 = (unsafe {
                 ::neocogi_com::decode_inline::<
                     ::core::primitive::u64,
-                >(__nc_out_1.assume_init())
+                >(__nc_out_1.assume_init_ref())
             })?;
             ::core::result::Result::Ok(__nc_result_1)
         }
@@ -2473,7 +2473,7 @@ const _: () = {
             let __nc_result_2 = (unsafe {
                 ::neocogi_com::decode_inline::<
                     ::core::primitive::u32,
-                >(__nc_out_2.assume_init())
+                >(__nc_out_2.assume_init_ref())
             })?;
             ::core::result::Result::Ok(__nc_result_2)
         }
@@ -2503,7 +2503,7 @@ const _: () = {
             let __nc_result_3 = (unsafe {
                 ::neocogi_com::decode_inline::<
                     ::core::primitive::u32,
-                >(__nc_out_3.assume_init())
+                >(__nc_out_3.assume_init_ref())
             })?;
             ::core::result::Result::Ok(__nc_result_3)
         }
@@ -2533,7 +2533,7 @@ const _: () = {
             let __nc_result_4 = (unsafe {
                 ::neocogi_com::decode_inline::<
                     ::core::primitive::u32,
-                >(__nc_out_4.assume_init())
+                >(__nc_out_4.assume_init_ref())
             })?;
             ::core::result::Result::Ok(__nc_result_4)
         }
@@ -2573,7 +2573,7 @@ const _: () = {
             let __nc_result_5 = (unsafe {
                 ::neocogi_com::decode_inline::<
                     ::core::primitive::u32,
-                >(__nc_out_5.assume_init())
+                >(__nc_out_5.assume_init_ref())
             })?;
             (unsafe { __nc_arg_0.convert_output() })?;
             __nc_arg_0.publish();
@@ -2605,7 +2605,7 @@ const _: () = {
             let __nc_result_6 = (unsafe {
                 ::neocogi_com::decode_inline::<
                     ::core::primitive::u32,
-                >(__nc_out_6.assume_init())
+                >(__nc_out_6.assume_init_ref())
             })?;
             ::core::result::Result::Ok(__nc_result_6)
         }
@@ -2645,7 +2645,7 @@ const _: () = {
             let __nc_result_7 = (unsafe {
                 ::neocogi_com::decode_inline::<
                     ::core::primitive::u32,
-                >(__nc_out_7.assume_init())
+                >(__nc_out_7.assume_init_ref())
             })?;
             (unsafe { __nc_arg_0_0.convert_output() })?;
             __nc_arg_0_0.publish();
@@ -3412,7 +3412,7 @@ const _: () = {
             let __nc_result_0 = (unsafe {
                 ::neocogi_com::decode_inline::<
                     ::core::primitive::u64,
-                >(__nc_out_0.assume_init())
+                >(__nc_out_0.assume_init_ref())
             })?;
             ::core::result::Result::Ok(__nc_result_0)
         }
@@ -3452,7 +3452,7 @@ const _: () = {
             let __nc_result_1 = (unsafe {
                 ::neocogi_com::decode_inline::<
                     ::core::primitive::u64,
-                >(__nc_out_1.assume_init())
+                >(__nc_out_1.assume_init_ref())
             })?;
             (unsafe { __nc_arg_0.convert_output() })?;
             __nc_arg_0.publish();

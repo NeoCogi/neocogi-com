@@ -667,7 +667,7 @@ fn value_case(family: ValueFamily, incompatible: bool) -> String {
             // A record/alternative plus its u32 requires exactly two values/depth two.
             assert!(<Record as neocogi_com::ComValue>::encode_value(&native, &mut neocogi_com::ValueBudget::new(0, 1, 1)).is_err());
             let (wire, storage) = <Record as neocogi_com::ComValue>::encode_value(&native, &mut neocogi_com::ValueBudget::new(0, {cost}, 2)).unwrap();
-            let decoded = unsafe {{ <Record as neocogi_com::ComValue>::decode_value(wire, &mut neocogi_com::ValueBudget::new(0, {cost}, 2)) }}.unwrap();
+            let decoded = unsafe {{ <Record as neocogi_com::ComValue>::decode_value(&wire, &mut neocogi_com::ValueBudget::new(0, {cost}, 2)) }}.unwrap();
             assert_eq!({read}, 73);
             drop(storage);
             let owner = Object::from_value(Object).query::<IValueAbi>().unwrap();
@@ -716,7 +716,7 @@ fn authored_wire_names_are_distinct_from_private_wire_definitions() {
             #[test] fn associated_wire_type_is_the_only_required_locator() {{
                 for native in [Selection::Wire(Wire {{ value: 73 }}), Selection::Storage(Wire {{ value: 91 }})] {{
                     let wire = neocogi_com::encode_inline(&native).unwrap();
-                    let decoded = unsafe {{ neocogi_com::decode_inline::<Selection>(wire) }}.unwrap();
+                    let decoded = unsafe {{ neocogi_com::decode_inline::<Selection>(&wire) }}.unwrap();
                     match (native, decoded) {{
                         (Selection::Wire(a), Selection::Wire(b)) | (Selection::Storage(a), Selection::Storage(b)) => assert_eq!(a.value, b.value),
                         _ => panic!("variant changed"),
@@ -763,7 +763,7 @@ fn core_support_cannot_be_replaced_by_application_traits_or_macros() {
                 ::core::assert!(!Tag::from_raw(99).is_known());
                 ::core::assert_eq!(neocogi_com::encode_inline(&Tag::from_raw(99)).unwrap_err(), neocogi_com::NC_E_INVALID_TAG);
                 ::core::assert_eq!(neocogi_com::encode_inline(&Tag::Ready).unwrap(), 1);
-                let decoded = unsafe {{ <Tag as neocogi_com::ComValue>::decode_value(1, &mut neocogi_com::ValueBudget::default()) }}.unwrap();
+                let decoded = unsafe {{ <Tag as neocogi_com::ComValue>::decode_value(&1, &mut neocogi_com::ValueBudget::default()) }}.unwrap();
                 ::core::assert_eq!(decoded.raw(), 1);
                 let flags = Flags::KNOWN_BITS | Flags::WRITABLE;
                 ::core::assert!(flags.is_valid());
@@ -771,7 +771,7 @@ fn core_support_cannot_be_replaced_by_application_traits_or_macros() {
                 ::core::assert_eq!(<Flags as ::core::default::Default>::default().raw(), 0);
                 ::core::assert_eq!(neocogi_com::encode_inline(&flags).unwrap(), 3);
                 ::core::assert_eq!(neocogi_com::encode_inline(&Flags::from_raw(4)).unwrap_err(), neocogi_com::NC_E_INVALID_TAG);
-                let decoded = unsafe {{ <Flags as neocogi_com::ComValue>::decode_value(3, &mut neocogi_com::ValueBudget::default()) }}.unwrap();
+                let decoded = unsafe {{ <Flags as neocogi_com::ComValue>::decode_value(&3, &mut neocogi_com::ValueBudget::default()) }}.unwrap();
                 ::core::assert_eq!(decoded.raw(), 3);
                 let method = IValueAbi::METHOD_DESCRIPTORS[0];
                 ::core::assert_eq!(unsafe {{ method.name.as_str() }}.unwrap(), "echo");

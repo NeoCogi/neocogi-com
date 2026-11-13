@@ -10,6 +10,6 @@ fn main() {
     for value in [CaseFoldedVariant::Foo(1), CaseFoldedVariant::FOO(2), CaseFoldedVariant::Empty(3)] {
         let (wire, _storage) = value.encode_value(&mut Default::default()).unwrap();
         // SAFETY: valid inline encoding, with no foreign references.
-        assert_eq!(unsafe { CaseFoldedVariant::decode_value(wire, &mut Default::default()) }.unwrap(), value);
+        assert_eq!(unsafe { CaseFoldedVariant::decode_value(&wire, &mut Default::default()) }.unwrap(), value);
     }
 }

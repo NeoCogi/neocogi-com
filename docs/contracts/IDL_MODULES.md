@@ -388,7 +388,7 @@ fn documented_enum_wire_contract() {
         assert_eq!(tag, expected);
         // SAFETY: encode_inline initialized the active wire record. These copied
         // scalar variants retain no borrowed backing storage during decoding.
-        let decoded = unsafe { neocogi_com::decode_inline::<Choice>(wire) }.unwrap();
+        let decoded = unsafe { neocogi_com::decode_inline::<Choice>(&wire) }.unwrap();
         match (native, decoded) {
             (Choice::Empty, Choice::Empty) => {}
             (Choice::Data(expected), Choice::Data(actual)) => assert_eq!(actual, expected),

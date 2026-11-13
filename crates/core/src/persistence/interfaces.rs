@@ -174,7 +174,7 @@ const _: () = {
             let __nc_result_0 = (unsafe {
                 ::neocogi_com::decode_inline::<
                     ::core::primitive::u32,
-                >(__nc_out_0.assume_init())
+                >(__nc_out_0.assume_init_ref())
             })?;
             ::core::result::Result::Ok(__nc_result_0)
         }
@@ -519,7 +519,7 @@ const _: () = {
             let __nc_result_0 = (unsafe {
                 ::neocogi_com::decode_inline::<
                     ::neocogi_com::NcGuid,
-                >(__nc_out_0.assume_init())
+                >(__nc_out_0.assume_init_ref())
             })?;
             ::core::result::Result::Ok(__nc_result_0)
         }
@@ -549,7 +549,7 @@ const _: () = {
             let __nc_result_1 = (unsafe {
                 ::neocogi_com::decode_inline::<
                     ::core::primitive::u32,
-                >(__nc_out_1.assume_init())
+                >(__nc_out_1.assume_init_ref())
             })?;
             ::core::result::Result::Ok(__nc_result_1)
         }
@@ -612,7 +612,7 @@ const _: () = {
             let __nc_result_3 = (unsafe {
                 ::neocogi_com::decode_inline::<
                     ::core::primitive::u32,
-                >(__nc_out_3.assume_init())
+                >(__nc_out_3.assume_init_ref())
             })?;
             ::core::result::Result::Ok(__nc_result_3)
         }

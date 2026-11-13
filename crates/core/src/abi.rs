@@ -175,8 +175,8 @@ mod array_tests {
         assert_eq!(crate::encode_inline(&()), Ok(0));
         // SAFETY: initialized u8 storage tests semantic validity, not pointer validity.
         unsafe {
-            assert_eq!(crate::decode_inline::<()>(0), Ok(()));
-            assert_eq!(crate::decode_inline::<()>(1), Err(crate::NC_E_INVALID_ARG));
+            assert_eq!(crate::decode_inline::<()>(&0), Ok(()));
+            assert_eq!(crate::decode_inline::<()>(&1), Err(crate::NC_E_INVALID_ARG));
         }
         fn plain<T: AbiPlainValue>() {}
         plain::<()>();

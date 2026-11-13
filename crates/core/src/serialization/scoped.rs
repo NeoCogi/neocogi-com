@@ -963,7 +963,7 @@ const _: () = {
                 return ::neocogi_com::NC_E_POINTER;
             }
             let __nc_arg_0_0 = match unsafe {
-                ::neocogi_com::decode_inline::<::core::primitive::u32>(__nc_arg_0_0)
+                ::neocogi_com::decode_inline::<::core::primitive::u32>(&__nc_arg_0_0)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
@@ -1289,7 +1289,7 @@ const _: () = {
                 return ::neocogi_com::NC_E_POINTER;
             }
             let __nc_arg_0_2 = match unsafe {
-                ::neocogi_com::decode_inline::<::core::primitive::u32>(__nc_arg_0_2)
+                ::neocogi_com::decode_inline::<::core::primitive::u32>(&__nc_arg_0_2)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
@@ -1669,7 +1669,7 @@ const _: () = {
                 return ::neocogi_com::NC_E_POINTER;
             }
             let __nc_arg_0 = match unsafe {
-                ::neocogi_com::decode_inline::<::core::primitive::bool>(__nc_arg_0)
+                ::neocogi_com::decode_inline::<::core::primitive::bool>(&__nc_arg_0)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
@@ -1714,7 +1714,7 @@ const _: () = {
                 return ::neocogi_com::NC_E_POINTER;
             }
             let __nc_arg_0_0 = match unsafe {
-                ::neocogi_com::decode_inline::<::core::primitive::u8>(__nc_arg_0_0)
+                ::neocogi_com::decode_inline::<::core::primitive::u8>(&__nc_arg_0_0)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
@@ -1759,7 +1759,7 @@ const _: () = {
                 return ::neocogi_com::NC_E_POINTER;
             }
             let __nc_arg_0_1 = match unsafe {
-                ::neocogi_com::decode_inline::<::core::primitive::u16>(__nc_arg_0_1)
+                ::neocogi_com::decode_inline::<::core::primitive::u16>(&__nc_arg_0_1)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
@@ -1804,7 +1804,7 @@ const _: () = {
                 return ::neocogi_com::NC_E_POINTER;
             }
             let __nc_arg_0_2 = match unsafe {
-                ::neocogi_com::decode_inline::<::core::primitive::u32>(__nc_arg_0_2)
+                ::neocogi_com::decode_inline::<::core::primitive::u32>(&__nc_arg_0_2)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
@@ -1849,7 +1849,7 @@ const _: () = {
                 return ::neocogi_com::NC_E_POINTER;
             }
             let __nc_arg_0_3 = match unsafe {
-                ::neocogi_com::decode_inline::<::core::primitive::u64>(__nc_arg_0_3)
+                ::neocogi_com::decode_inline::<::core::primitive::u64>(&__nc_arg_0_3)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
@@ -1894,7 +1894,7 @@ const _: () = {
                 return ::neocogi_com::NC_E_POINTER;
             }
             let __nc_arg_0_4 = match unsafe {
-                ::neocogi_com::decode_inline::<::core::primitive::i8>(__nc_arg_0_4)
+                ::neocogi_com::decode_inline::<::core::primitive::i8>(&__nc_arg_0_4)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
@@ -1939,7 +1939,7 @@ const _: () = {
                 return ::neocogi_com::NC_E_POINTER;
             }
             let __nc_arg_0_5 = match unsafe {
-                ::neocogi_com::decode_inline::<::core::primitive::i16>(__nc_arg_0_5)
+                ::neocogi_com::decode_inline::<::core::primitive::i16>(&__nc_arg_0_5)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
@@ -1984,7 +1984,7 @@ const _: () = {
                 return ::neocogi_com::NC_E_POINTER;
             }
             let __nc_arg_0_6 = match unsafe {
-                ::neocogi_com::decode_inline::<::core::primitive::i32>(__nc_arg_0_6)
+                ::neocogi_com::decode_inline::<::core::primitive::i32>(&__nc_arg_0_6)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
@@ -2029,7 +2029,7 @@ const _: () = {
                 return ::neocogi_com::NC_E_POINTER;
             }
             let __nc_arg_0_7 = match unsafe {
-                ::neocogi_com::decode_inline::<::core::primitive::i64>(__nc_arg_0_7)
+                ::neocogi_com::decode_inline::<::core::primitive::i64>(&__nc_arg_0_7)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
@@ -2074,7 +2074,7 @@ const _: () = {
                 return ::neocogi_com::NC_E_POINTER;
             }
             let __nc_arg_0_8 = match unsafe {
-                ::neocogi_com::decode_inline::<::core::primitive::f32>(__nc_arg_0_8)
+                ::neocogi_com::decode_inline::<::core::primitive::f32>(&__nc_arg_0_8)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
@@ -2119,7 +2119,7 @@ const _: () = {
                 return ::neocogi_com::NC_E_POINTER;
             }
             let __nc_arg_0_9 = match unsafe {
-                ::neocogi_com::decode_inline::<::core::primitive::f64>(__nc_arg_0_9)
+                ::neocogi_com::decode_inline::<::core::primitive::f64>(&__nc_arg_0_9)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
@@ -2217,7 +2217,7 @@ const _: () = {
                 return ::neocogi_com::NC_E_POINTER;
             }
             let __nc_arg_0_11 = match unsafe {
-                ::neocogi_com::decode_inline::<::core::primitive::bool>(__nc_arg_0_11)
+                ::neocogi_com::decode_inline::<::core::primitive::bool>(&__nc_arg_0_11)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
@@ -2299,7 +2299,7 @@ const _: () = {
                 return ::neocogi_com::NC_E_POINTER;
             }
             let __nc_arg_0_12 = match unsafe {
-                ::neocogi_com::decode_inline::<::core::primitive::u32>(__nc_arg_0_12)
+                ::neocogi_com::decode_inline::<::core::primitive::u32>(&__nc_arg_0_12)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
@@ -2434,7 +2434,7 @@ const _: () = {
                 return ::neocogi_com::NC_E_POINTER;
             }
             let __nc_arg_0_14 = match unsafe {
-                ::neocogi_com::decode_inline::<::core::primitive::u32>(__nc_arg_0_14)
+                ::neocogi_com::decode_inline::<::core::primitive::u32>(&__nc_arg_0_14)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
@@ -2516,7 +2516,7 @@ const _: () = {
                 return ::neocogi_com::NC_E_POINTER;
             }
             let __nc_arg_0_15 = match unsafe {
-                ::neocogi_com::decode_inline::<::core::primitive::u32>(__nc_arg_0_15)
+                ::neocogi_com::decode_inline::<::core::primitive::u32>(&__nc_arg_0_15)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
@@ -2601,7 +2601,7 @@ const _: () = {
                 return ::neocogi_com::NC_E_POINTER;
             }
             let __nc_arg_0_16 = match unsafe {
-                ::neocogi_com::decode_inline::<::core::primitive::u32>(__nc_arg_0_16)
+                ::neocogi_com::decode_inline::<::core::primitive::u32>(&__nc_arg_0_16)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,

@@ -39,7 +39,7 @@ fn shared_nested_sequences_charge_actual_count_and_depth() {
         // Outer Vec + two Vecs + five options + three payloads = eleven.
         let (wire, _storage) = value.encode_value(&mut ValueBudget::new(MAX_VALUE_BYTES, 11, 4)).unwrap();
         // SAFETY: checked producer and retained source/storage own every wire region.
-        let decoded = unsafe { Vec::<Vec<Option<u8>>>::decode_value(wire, &mut ValueBudget::new(MAX_VALUE_BYTES, 11, 4)) }.unwrap();
+        let decoded = unsafe { Vec::<Vec<Option<u8>>>::decode_value(&wire, &mut ValueBudget::new(MAX_VALUE_BYTES, 11, 4)) }.unwrap();
         assert_eq!(decoded, value);
         for (count, depth) in [(10, 4), (11, 3)] {
             assert!(matches!(
@@ -48,7 +48,7 @@ fn shared_nested_sequences_charge_actual_count_and_depth() {
             ));
             // SAFETY: only resource bounds change; the same valid backing stays live.
             assert!(matches!(
-                unsafe { Vec::<Vec<Option<u8>>>::decode_value(wire, &mut ValueBudget::new(MAX_VALUE_BYTES, count, depth)) },
+                unsafe { Vec::<Vec<Option<u8>>>::decode_value(&wire, &mut ValueBudget::new(MAX_VALUE_BYTES, count, depth)) },
                 Err(NC_E_OUT_OF_RANGE)
             ));
         }
@@ -65,7 +65,7 @@ fn mixed_record_and_sequence_permutations_retain_exact_boundaries() {
         let value = Payload { batches };
         let (wire, _storage) = value.encode_value(&mut ValueBudget::new(MAX_VALUE_BYTES, 30, 6)).unwrap();
         // SAFETY: the concrete producer/guard retain all active option payloads.
-        let decoded = unsafe { Payload::decode_value(wire, &mut ValueBudget::new(MAX_VALUE_BYTES, 30, 6)) }.unwrap();
+        let decoded = unsafe { Payload::decode_value(&wire, &mut ValueBudget::new(MAX_VALUE_BYTES, 30, 6)) }.unwrap();
         assert_eq!(decoded.batches, value.batches);
         assert!(matches!(
             value.encode_value(&mut ValueBudget::new(MAX_VALUE_BYTES, 29, 6)),
@@ -128,7 +128,7 @@ fn restricted_vec_retains_conversion_and_rejects_bad_wire_bits() {
     let wire = ValueSlice { pointer: malformed.as_ptr(), len: 2 };
     // SAFETY: both initialized raw bytes are readable; the second is an invalid bool.
     assert!(matches!(
-        unsafe { Vec::<bool>::decode_value(wire, &mut ValueBudget::default()) },
+        unsafe { Vec::<bool>::decode_value(&wire, &mut ValueBudget::default()) },
         Err(NC_E_INVALID_ARG)
     ));
 }

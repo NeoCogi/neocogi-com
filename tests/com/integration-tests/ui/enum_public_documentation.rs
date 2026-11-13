@@ -11,6 +11,6 @@ fn main() {
     let value = Documented::Named { weight: 2.0 };
     let (wire, _storage) = value.encode_value(&mut Default::default()).unwrap();
     // SAFETY: the checked encoder produced this fully initialized inline wire.
-    let decoded = unsafe { Documented::decode_value(wire, &mut Default::default()) }.unwrap();
+    let decoded = unsafe { Documented::decode_value(&wire, &mut Default::default()) }.unwrap();
     assert!(matches!(decoded, Documented::Named { weight: 2.0 }));
 }

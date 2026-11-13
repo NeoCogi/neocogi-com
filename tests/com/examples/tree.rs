@@ -83,7 +83,7 @@ fn main() -> Result<(), NcStatus> {
     let (wire, _storage) = mutation.encode_value(&mut Default::default())?;
     println!("mutation wire tag = {}", wire.tag);
     // SAFETY: the checked encoder supplied this self-contained raw value.
-    let decoded = unsafe { TreeMutation::decode_value(wire, &mut Default::default()) }?;
+    let decoded = unsafe { TreeMutation::decode_value(&wire, &mut Default::default()) }?;
     println!("mutation round trip = {decoded:?}");
 
     let _ = NodeKind::Document;

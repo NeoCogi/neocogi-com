@@ -114,6 +114,11 @@ impl Default for ValueBudget {
 /// values are valid. Encoding returns storage that keeps every generated wire
 /// pointer live while the application value is borrowed. Decoding validates raw
 /// tags/fields before constructing Rust values and acquires all retained data.
+/// Moving Wire, Storage or their call guard must not invalidate wire backing.
+/// Decoder inputs borrow the raw record and active text/element regions; those
+/// shared regions remain live and immutable throughout conversion, including
+/// reentrant acquisition callbacks (with normal UnsafeCell rules). Referenced
+/// COM objects retain their own mutable-state and lifecycle contracts.
 pub unsafe trait ComValue: Sized + 'static {
     /// True only when Self and Wire have identical layout and all initialized
     /// bit patterns require no content validation, ownership, or conversion.
@@ -159,16 +164,18 @@ pub unsafe trait ComValue: Sized + 'static {
     /// The caller must satisfy decode_value's memory contract and encode_prechecked's
     /// resource preflight contract. Restricted boolean/tag values still require checks.
     #[doc(hidden)]
-    unsafe fn decode_prechecked(_wire: Self::Wire) -> Result<Self, NcStatus> {
+    unsafe fn decode_prechecked(_wire: &Self::Wire) -> Result<Self, NcStatus> {
         unreachable!("unbounded codec cannot use prechecked conversion")
     }
-    /// Validates a raw value and acquires independent application-owned contents.
+    /// Borrows a raw value and acquires independent application-owned contents.
     ///
     /// # Safety
     /// Active raw storage and pointees must be initialized, aligned, readable,
-    /// and live for this call. Interface fields must pair live COM objects with their matching tables.
+    /// and live for this call. Shared raw regions cannot be mutated during the
+    /// conversion. Interface fields pair live COM objects with matching tables;
+    /// their mutable state follows their separate synchronization contracts.
     /// These memory obligations do not require raw boolean/tag values to be valid.
-    unsafe fn decode_value(wire: Self::Wire, budget: &mut ValueBudget) -> Result<Self, NcStatus>;
+    unsafe fn decode_value(wire: &Self::Wire, budget: &mut ValueBudget) -> Result<Self, NcStatus>;
 }
 
 /// A named value's compiler-assigned identity, independent of its ownership.
@@ -250,7 +257,7 @@ impl<'a, T: ComValue> NcValueRef<'a, T> {
     pub fn to_owned(&self) -> Result<T, NcStatus> {
         // SAFETY: construction retains the application borrow and wire storage;
         // raw construction requires the equivalent active-field memory contract.
-        unsafe { T::decode_value(self.wire, &mut ValueBudget::default()) }
+        unsafe { T::decode_value(&self.wire, &mut ValueBudget::default()) }
     }
     /// Borrows the raw record while this guard retains its typed backing storage.
     pub fn as_ptr(&self) -> *const T::Wire {
@@ -298,13 +305,13 @@ macro_rules! scalar_values {
                 budget.value(|_| Ok((*self, ())))
             }
             /// Counts the scalar before accepting any initialized bit pattern.
-            unsafe fn decode_value(wire: Self, budget: &mut ValueBudget) -> Result<Self, NcStatus> {
-                budget.value(|_| Ok(wire))
+            unsafe fn decode_value(wire: &Self, budget: &mut ValueBudget) -> Result<Self, NcStatus> {
+                budget.value(|_| Ok(*wire))
             }
             /// Copies a scalar whose resource requirements were already checked.
             unsafe fn encode_prechecked(&self) -> Result<(Self, ()), NcStatus> { Ok((*self, ())) }
             /// Accepts unrestricted scalar bits after the enclosing resource check.
-            unsafe fn decode_prechecked(wire: Self) -> Result<Self, NcStatus> { Ok(wire) }
+            unsafe fn decode_prechecked(wire: &Self) -> Result<Self, NcStatus> { Ok(*wire) }
         }
         // SAFETY: primitive scalar wires are self-contained copied values.
         unsafe impl ComInlineValue for $ty {}
@@ -322,7 +329,7 @@ unsafe impl ComValue for bool {
         budget.value(|_| Ok((u8::from(*self), ())))
     }
     /// Counts this leaf and validates its raw byte before constructing a Rust value.
-    unsafe fn decode_value(wire: u8, budget: &mut ValueBudget) -> Result<Self, NcStatus> {
+    unsafe fn decode_value(wire: &u8, budget: &mut ValueBudget) -> Result<Self, NcStatus> {
         budget.value(|_| unsafe { Self::decode_prechecked(wire) })
     }
     /// Encodes the sole active leaf after its enclosing resource check.
@@ -330,7 +337,7 @@ unsafe impl ComValue for bool {
         Ok((u8::from(*self), ()))
     }
     /// Rejects invalid raw bytes even when no budget bookkeeping is needed.
-    unsafe fn decode_prechecked(wire: u8) -> Result<Self, NcStatus> {
+    unsafe fn decode_prechecked(wire: &u8) -> Result<Self, NcStatus> {
         match wire {
             0 => Ok(false),
             1 => Ok(true),
@@ -382,11 +389,11 @@ unsafe impl<T: ComValue> ComValue for Option<T> {
             }
         })
     }
-    unsafe fn decode_value(wire: Self::Wire, budget: &mut ValueBudget) -> Result<Self, NcStatus> {
+    unsafe fn decode_value(wire: &Self::Wire, budget: &mut ValueBudget) -> Result<Self, NcStatus> {
         budget.value(|budget| match wire.present {
             0 => Ok(None),
             // SAFETY: the validated present tag selects the initialized raw payload.
-            1 => unsafe { T::decode_value(wire.payload.assume_init(), budget) }.map(Some),
+            1 => unsafe { T::decode_value(wire.payload.assume_init_ref(), budget) }.map(Some),
             _ => Err(NC_E_INVALID_TAG),
         })
     }
@@ -414,11 +421,11 @@ unsafe impl<T: ComValue> ComValue for Option<T> {
         }
     }
     /// Validates presence before inspecting the prechecked optional payload.
-    unsafe fn decode_prechecked(wire: Self::Wire) -> Result<Self, NcStatus> {
+    unsafe fn decode_prechecked(wire: &Self::Wire) -> Result<Self, NcStatus> {
         match wire.present {
             0 => Ok(None),
             // SAFETY: the tag selects initialized storage and the child bound fits.
-            1 => unsafe { T::decode_prechecked(wire.payload.assume_init()) }.map(Some),
+            1 => unsafe { T::decode_prechecked(wire.payload.assume_init_ref()) }.map(Some),
             _ => Err(NC_E_INVALID_TAG),
         }
     }
@@ -453,7 +460,7 @@ unsafe impl<T: ComValue, const N: usize> ComValue for [T; N] {
         }
     }
     /// Active raw elements remain checked in both accounting modes.
-    unsafe fn decode_value(wire: Self::Wire, budget: &mut ValueBudget) -> Result<Self, NcStatus> {
+    unsafe fn decode_value(wire: &Self::Wire, budget: &mut ValueBudget) -> Result<Self, NcStatus> {
         match Self::FIXED_COST {
             Some(cost) => {
                 budget.fixed(cost)?;
@@ -468,7 +475,7 @@ unsafe impl<T: ComValue, const N: usize> ComValue for [T; N] {
         encode_array(self, |value| unsafe { T::encode_prechecked(value) })
     }
     /// Validates each statically accounted child before assembling application storage.
-    unsafe fn decode_prechecked(wire: Self::Wire) -> Result<Self, NcStatus> {
+    unsafe fn decode_prechecked(wire: &Self::Wire) -> Result<Self, NcStatus> {
         decode_array(wire, |raw| unsafe { T::decode_prechecked(raw) })
     }
 }
@@ -492,11 +499,11 @@ fn encode_array<T: ComValue, const N: usize>(
 
 /// Acquires an array transactionally without leaking an already-decoded prefix.
 fn decode_array<T: ComValue, const N: usize>(
-    wire: ValueArray<T::Wire, N>,
-    mut convert: impl FnMut(T::Wire) -> Result<T, NcStatus>,
+    wire: &ValueArray<T::Wire, N>,
+    mut convert: impl FnMut(&T::Wire) -> Result<T, NcStatus>,
 ) -> Result<[T; N], NcStatus> {
     let mut values: [Option<T>; N] = core::array::from_fn(|_| None);
-    for (slot, raw) in values.iter_mut().zip(wire.elements) {
+    for (slot, raw) in values.iter_mut().zip(&wire.elements) {
         *slot = Some(convert(raw)?);
     }
     Ok(values.map(|value| value.expect("initialized application slot")))
@@ -609,7 +616,7 @@ unsafe impl<T: ComValue> ComValue for Vec<T> {
             ))
         })
     }
-    unsafe fn decode_value(wire: Self::Wire, budget: &mut ValueBudget) -> Result<Self, NcStatus> {
+    unsafe fn decode_value(wire: &Self::Wire, budget: &mut ValueBudget) -> Result<Self, NcStatus> {
         budget.value(|budget| {
             let len = usize::try_from(wire.len).map_err(|_| NC_E_OUT_OF_RANGE)?;
             budget.sequence::<T>(len)?;
@@ -622,8 +629,8 @@ unsafe impl<T: ComValue> ComValue for Vec<T> {
                 // SAFETY: each element and active backing satisfy the enclosing raw contract.
                 values.push(match fixed {
                     // SAFETY: elements are initialized; their fixed costs were prepaid.
-                    true => unsafe { T::decode_prechecked(*element) },
-                    false => unsafe { T::decode_value(*element, budget) },
+                    true => unsafe { T::decode_prechecked(element) },
+                    false => unsafe { T::decode_value(element, budget) },
                 }?);
             }
             Ok(values)
@@ -648,7 +655,7 @@ unsafe impl ComValue for String {
             ))
         })
     }
-    unsafe fn decode_value(wire: Self::Wire, budget: &mut ValueBudget) -> Result<Self, NcStatus> {
+    unsafe fn decode_value(wire: &Self::Wire, budget: &mut ValueBudget) -> Result<Self, NcStatus> {
         budget.value(|budget| {
             budget.bytes(usize::try_from(wire.len).map_err(|_| NC_E_OUT_OF_RANGE)?)?;
             // SAFETY: the caller supplies live bytes and the size was preflighted.
@@ -669,11 +676,11 @@ unsafe impl<T: crate::ComInterface + 'static, M: crate::ThreadingModel> ComValue
     fn encode_value(&self, budget: &mut ValueBudget) -> Result<(Self::Wire, ()), NcStatus> {
         budget.value(|_| Ok((self.as_raw(), ())))
     }
-    unsafe fn decode_value(wire: Self::Wire, budget: &mut ValueBudget) -> Result<Self, NcStatus> {
+    unsafe fn decode_value(wire: &Self::Wire, budget: &mut ValueBudget) -> Result<Self, NcStatus> {
         budget.value(|_| {
             // SAFETY: raw callers provide a live common lifecycle pair; this operation
             // checks identity before acquiring a separately owned reference.
-            unsafe { crate::ComRef::<T, M>::__nc_from_raw_borrowed_checked(wire) }?.try_add_ref()
+            unsafe { crate::ComRef::<T, M>::__nc_from_raw_borrowed_checked(*wire) }?.try_add_ref()
         })
     }
 }
@@ -688,7 +695,7 @@ unsafe impl<T: crate::ComInterface + 'static, M: crate::ThreadingModel> ComValue
         budget.value(|_| Ok((self.as_raw(), ())))
     }
     /// Acquires an independent weak reference, even after concrete destruction.
-    unsafe fn decode_value(wire: Self::Wire, budget: &mut ValueBudget) -> Result<Self, NcStatus> {
+    unsafe fn decode_value(wire: &Self::Wire, budget: &mut ValueBudget) -> Result<Self, NcStatus> {
         budget.value(|_| {
             // SAFETY: the caller lends valid header/class storage; null, ownership
             // kind and exact interface identity are checked before acquisition.
@@ -696,7 +703,7 @@ unsafe impl<T: crate::ComInterface + 'static, M: crate::ThreadingModel> ComValue
             // SAFETY: successful validation proves a present retained header.
             unsafe { crate::lifetime::nc_weak_retain(wire.control) };
             // SAFETY: this function just acquired the exact validated weak owner.
-            Ok(unsafe { Self::from_raw_owned(wire) }.expect("validated weak token is present"))
+            Ok(unsafe { Self::from_raw_owned(*wire) }.expect("validated weak token is present"))
         })
     }
 }
@@ -712,11 +719,11 @@ unsafe impl<T: crate::ComInterface + 'static, M: crate::ThreadingModel> ComValue
         budget.value(|_| Ok((self.as_raw(), ())))
     }
     /// Acquires an observer without borrowing, promoting or resurrecting its value.
-    unsafe fn decode_value(wire: Self::Wire, budget: &mut ValueBudget) -> Result<Self, NcStatus> {
+    unsafe fn decode_value(wire: &Self::Wire, budget: &mut ValueBudget) -> Result<Self, NcStatus> {
         budget.value(|_| {
             // SAFETY: the caller lends initialized common header/table storage.
             // Validate the supplied pair before finding the canonical projection.
-            unsafe { crate::raw::validate_interface(wire) }?;
+            unsafe { crate::raw::validate_interface(*wire) }?;
             let control = wire.object.cast();
             // SAFETY: the valid borrowed header survives this call; projection
             // rejects shared ownership and mismatched interface metadata.
@@ -757,7 +764,7 @@ pub fn encode_inline<T: ComInlineValue>(value: &T) -> Result<T::Wire, NcStatus> 
 /// # Safety
 /// The raw value must satisfy ComValue::decode_value's initialized-storage contract.
 #[inline(always)]
-pub unsafe fn decode_inline<T: ComInlineValue>(wire: T::Wire) -> Result<T, NcStatus> {
+pub unsafe fn decode_inline<T: ComInlineValue>(wire: &T::Wire) -> Result<T, NcStatus> {
     match T::MAX_COST {
         Some(cost) if cost.values <= MAX_VALUE_COUNT && cost.depth <= MAX_VALUE_DEPTH => {
             // SAFETY: raw storage is initialized; the complete bound fits an isolated
@@ -836,8 +843,8 @@ unsafe fn decode_buffer_elements<T: ComInlineValue>(
         result.push(match prechecked {
             // SAFETY: initialized wire elements and their prepaid recursive costs
             // satisfy the codec contract; restricted bits still require validation.
-            true => unsafe { T::decode_prechecked(*element) },
-            false => unsafe { T::decode_value(*element, &mut budget) },
+            true => unsafe { T::decode_prechecked(element) },
+            false => unsafe { T::decode_value(element, &mut budget) },
         }?);
     }
     Ok(())
@@ -877,7 +884,7 @@ unsafe impl ComValue for () {
         budget.value(|_| Ok((0, ())))
     }
     /// Counts this leaf and validates its raw byte before constructing a Rust value.
-    unsafe fn decode_value(wire: u8, budget: &mut ValueBudget) -> Result<Self, NcStatus> {
+    unsafe fn decode_value(wire: &u8, budget: &mut ValueBudget) -> Result<Self, NcStatus> {
         budget.value(|_| unsafe { Self::decode_prechecked(wire) })
     }
     /// Encodes the sole active leaf after its enclosing resource check.
@@ -885,7 +892,7 @@ unsafe impl ComValue for () {
         Ok((0, ()))
     }
     /// Rejects invalid raw bytes even when no budget bookkeeping is needed.
-    unsafe fn decode_prechecked(wire: u8) -> Result<Self, NcStatus> {
+    unsafe fn decode_prechecked(wire: &u8) -> Result<Self, NcStatus> {
         match wire {
             0 => Ok(()),
             _ => Err(NC_E_INVALID_ARG),
