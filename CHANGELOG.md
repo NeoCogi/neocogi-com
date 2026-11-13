@@ -4,6 +4,20 @@ The current contract uses [ABI v2, core generation 19](docs/abi-v2.md). Entries 
 its development; later entries can supersede older implementation details.
 Historical draft numbers do not define additional supported COM baselines.
 
+## 0.2.0 — 2026-11-13
+
+- Promote the coordinated eight-package SDK from `0.2.0-alpha.4` to `0.2.0`,
+  updating exact internal requirements, maintained lockfiles, tutorial manifests,
+  installation examples and current documentation links together.
+- Retain ABI family 2, core generation 19, IDL encoding v14 and NCB wire v1.
+  Rebuild hosts, providers and generated bindings from this SDK release; ABI v1
+  plugins remain unsupported. Deprecated declaration version attributes are
+  accepted with warnings and do not participate in contract identity.
+- Include NCB and the custom JSON codec in the native serialization plugin, with
+  NCB selected by default. The reusable serialization rlib keeps JSON optional.
+  This source promotion does not claim crates.io publication or fresh native
+  platform qualification; follow the release procedure before publishing.
+
 ## 0.2.0-alpha.4 — 2026-11-12
 
 - Keep resolved qualification source paths in an equivalent ordinary Win32
