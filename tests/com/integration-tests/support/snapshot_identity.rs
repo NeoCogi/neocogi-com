@@ -45,6 +45,9 @@ enum Stage {
     BytesLen,
     /// Failure while copying the admitted nested provider bytes.
     BytesCopy,
+    /// Foreign length content that cannot fit a Rust byte vector, despite a
+    /// permissive snapshot policy. No copy or allocation may be attempted.
+    BytesOversize,
 }
 
 /// External observers use Cells because provider calls update counters through &self.
@@ -121,6 +124,7 @@ impl IPersistable for Node {
         Ok(match self.fail {
             Some(Stage::BytesLen) => failing_bytes(bytes, 0),
             Some(Stage::BytesCopy) => failing_bytes(bytes, 1),
+            Some(Stage::BytesOversize) => failing_bytes(bytes, 2),
             _ => bytes,
         })
     }
@@ -137,13 +141,14 @@ impl IPersistable for Node {
 }
 
 // These immutable alternate tables retain the real byte provider's allocation,
-// identity and lifecycle functions. Only the chosen getter returns an error.
+// identity and lifecycle functions. The selected operation fails or reports
+// oversized length content; backing storage and every pointer remain valid.
 // They outlive every returned byte owner on this test thread; no registry or
 // production implementation participates in this test-only dispatch substitution.
 thread_local! {
     /// Thread-confined immutable tables; each capture releases byte owners before
     /// thread teardown. OnceCell supplies stable addresses without a Send promise.
-    static BYTE_TABLES: std::cell::OnceCell<[neocogi_com::INcBytesVTable; 2]> = const { std::cell::OnceCell::new() };
+    static BYTE_TABLES: std::cell::OnceCell<[neocogi_com::INcBytesVTable; 3]> = const { std::cell::OnceCell::new() };
     /// Synchronous capture stays on this thread; independent tests cannot alter counts.
     static BYTE_ERRORS: Cell<[usize; 2]> = const { Cell::new([0, 0]) };
 }
@@ -172,7 +177,23 @@ unsafe extern "C" fn reject_copy(_: *mut core::ffi::c_void, _: u64, _: u64, _: *
     NC_E_NOT_FOUND
 }
 
-/// Transfers one actual NcBytes owner through a table with one failing getter.
+/// Reports an unrepresentable foreign length through valid output storage.
+/// The test never grants a read/copy of that fictitious byte range: admission
+/// must reject the length before touching the real provider's byte payload.
+/// # Safety
+/// `out` is writable for one u64, as required by the byte length slot.
+unsafe extern "C" fn oversized_length(_: *mut core::ffi::c_void, out: *mut u64) -> NcStatus {
+    BYTE_ERRORS.with(|value| {
+        let mut counts = value.get();
+        counts[0] += 1;
+        value.set(counts);
+    });
+    // SAFETY: The checked COM client lends a live, writable length output.
+    unsafe { out.write(isize::MAX as u64 + 1) };
+    neocogi_com::NC_OK
+}
+
+/// Transfers one actual NcBytes owner through a table with one selected probe.
 fn failing_bytes(owner: ComPtr<INcBytesAbi>, stage: usize) -> ComPtr<INcBytesAbi> {
     let mut raw = owner.into_raw();
     raw.vtable = BYTE_TABLES.with(|cell| {
@@ -191,13 +212,56 @@ fn failing_bytes(owner: ComPtr<INcBytesAbi>, stage: usize) -> ComPtr<INcBytesAbi
                 byte_at: original.byte_at,
                 copy_to,
             };
-            [table(reject_length, original.copy_to), table(original.len, reject_copy)]
+            [table(reject_length, original.copy_to), table(original.len, reject_copy), table(oversized_length, reject_copy)]
         });
         &tables[stage] as *const _
     });
     // SAFETY: same allocation/identity/lifecycle and one transferred strong owner;
-    // only the selected byte operation rejects without accessing caller output.
+    // only the selected byte operation fails or returns malformed length content.
     unsafe { ComPtr::from_raw_owned(raw) }.unwrap()
+}
+
+/// Both real runtime entrypoints use the SDK byte-copy policy. Empty state still
+/// queries length but never calls copy_to; nonempty failures publish no document.
+/// Even permissive limits reject Rust-vector-unrepresentable lengths as range
+/// errors before allocation/copy. Provider owners are released on every outcome.
+#[test]
+fn snapshot_state_uses_the_sdk_bounded_copy_contract() {
+    let defaults = Limits::default();
+    let permissive = Limits {
+        binary: binary::Limits { bytes: usize::MAX, elements: usize::MAX, ..defaults.binary },
+        ..defaults
+    };
+    for which in [Entry::Safe, Entry::Raw] {
+        for (fail, state_len, limits, expected, byte_calls) in [
+            (None, 2, defaults, None, [0, 0]),
+            (Some(Stage::BytesCopy), 0, defaults, None, [0, 0]),
+            (Some(Stage::BytesLen), 0, defaults, Some(NC_E_NOT_FOUND), [1, 0]),
+            (Some(Stage::BytesCopy), 2, defaults, Some(NC_E_NOT_FOUND), [0, 1]),
+            (Some(Stage::BytesOversize), 0, permissive, Some(NC_E_OUT_OF_RANGE), [1, 0]),
+        ] {
+            let metrics = Rc::new(Metrics::default());
+            let local = Node::into_local(Node {
+                edges: vec![], fail, state_len, metrics: metrics.clone(), tag: 7, keepalive: vec![],
+            });
+            let root = local.query::<IUnknown>().unwrap();
+            let before = BYTE_ERRORS.with(Cell::get);
+            let result = which.capture(root.as_com_ref(), limits);
+            let after = BYTE_ERRORS.with(Cell::get);
+            assert_eq!(result.as_ref().err().copied(), expected, "{which:?} {fail:?} state={state_len}");
+            assert_eq!([after[0] - before[0], after[1] - before[1]], byte_calls);
+            let completed = usize::from(expected.is_none());
+            assert_eq!(metrics.entries(), [1, 1, 0, completed, completed]);
+            if let Ok(bytes) = result {
+                let record: ObjectRecord = binary::from_slice(&bytes).unwrap();
+                assert_eq!(record.state, vec![7; state_len]);
+                assert!(record.children.is_empty());
+            }
+            drop(root);
+            drop(local);
+            assert_eq!(metrics.drops.get(), 1);
+        }
+    }
 }
 
 /// Both entrypoints reach the actual linked runtime, never a copied algorithm.

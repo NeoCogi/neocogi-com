@@ -4,7 +4,6 @@
 //! plugin state. Each traversal uses ordinary local mutable budgets and retains
 //! COM ownership until it either returns a complete tree or cleans up failure.
 
-mod bytes;
 mod children;
 mod registry;
 mod snapshot;

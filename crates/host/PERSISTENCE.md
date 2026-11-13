@@ -30,6 +30,14 @@ result is an NCB-v1 document, which the application may embed or save wherever
 its platform permits. Saving observes the provider's current persistent fields.
 It is not an automatic dump of arbitrary private COM implementation memory.
 
+State copying uses the SDK's `INcBytesComPtrExt::to_vec_bounded` contract. The
+provider's length is checked before host-local allocation or copying; lengths
+above the selected limit or Rust vector capacity return `NC_E_OUT_OF_RANGE`.
+A successfully reported zero length yields empty state without calling the
+provider's `copy_to` method. Length-query errors still propagate for empty state;
+nonempty copy errors discard private storage and publish no snapshot. A copy
+callback is therefore not an empty-state validation hook.
+
 The wire format and these APIs are experimental. The tests exercise recursive
 real COM objects, exact snapshot round trips, whole-tree preflight, bounded
 traversal, duplicate recipe rejection, and cleanup after parent failure.

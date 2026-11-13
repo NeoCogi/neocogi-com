@@ -9,6 +9,9 @@ Historical draft numbers do not define additional supported COM baselines.
 - Walk authored layout/projection and module dependency graphs with explicit
   frames, so long shallow chains resolve on a one-MiB caller stack. Preserve
   cycle diagnostics, canonical dependency order and existing signature bytes.
+- Reuse the SDK's bounded byte-copy contract for persistence state. Empty state
+  needs no provider copy call; unrepresentable lengths return a range error
+  before allocation. Remove duplicate copying and post-copy length checks.
 - Promote the coordinated eight-package SDK from `0.2.0-alpha.4` to `0.2.0`,
   updating exact internal requirements, maintained lockfiles, tutorial manifests,
   installation examples and current documentation links together.

@@ -1,7 +1,7 @@
 //! Bounded capture of semantic initialization trees, with owned-path cycle checks.
 
 use neocogi_com_serialization::ncb as binary;
-use neocogi_com::{ComPtr, ComRef, IUnknown, NcStatus, NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE};
+use neocogi_com::{ComPtr, ComRef, INcBytesComPtrExt, IUnknown, NcStatus, NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE};
 use neocogi_com::persistence::{IPersistableAbi, Limits, ObjectRecord};
 
 /// Exports a shared opt-in tree, detects ownership cycles, and bounds traversal.
@@ -54,11 +54,9 @@ impl Capture {
             return Err(NC_E_OUT_OF_RANGE);
         }
         let state = value.save_state()?;
-        // Inspect the remote byte count before copying consumer-owned storage.
-        let state = super::bytes::copy_bounded(&state, self.bytes_left.min(self.limits.binary.elements))?;
-        if state.len() > self.bytes_left || state.len() > self.limits.binary.elements {
-            return Err(NC_E_OUT_OF_RANGE);
-        }
+        // The SDK owns length/capacity admission and publishes initialized bytes
+        // only after a complete copy. Empty state needs no foreign copy call.
+        let state = state.to_vec_bounded(self.bytes_left.min(self.limits.binary.elements))?;
         self.bytes_left -= state.len();
         let mut children = Vec::with_capacity(count as usize);
         for index in 0..count {

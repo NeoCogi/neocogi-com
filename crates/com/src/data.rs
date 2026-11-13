@@ -174,6 +174,8 @@ pub trait INcBytesComPtrExt {
 
     /// Copies at most `max_len` bytes into a Rust `Vec<u8>`.
     ///
+    /// Empty sequences return an empty vector without calling `copy_to`.
+    ///
     /// Returns [`NC_E_OUT_OF_RANGE`] before copying when the object reports a
     /// larger or Rust-vector-unrepresentable length and
     /// [`NC_E_OUT_OF_MEMORY`] when the allocation fails.
