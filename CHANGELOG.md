@@ -4,15 +4,27 @@ The current contract uses [ABI v2, core generation 19](docs/abi-v2.md). Entries 
 its development; later entries can supersede older implementation details.
 Historical draft numbers do not define additional supported COM baselines.
 
-## 0.2.0 — 2026-11-13
+## 0.2.0-alpha.5 — 2026-11-13
 
+- Construct fixed arrays with their actual element layout and one initialized
+  prefix guard. Reject wrong sequence counts before child acquisition; preserve
+  partial-owner cleanup, alignment, no-alloc support and completed-value cleanup
+  on later framing failure.
+- Borrow raw inputs throughout `ComValue` decoding and `decode_inline`, removing
+  recursive whole-wire copies. Handwritten implementations now accept
+  `&Self::Wire`; callers pass `&wire` or an initialized slot reference. Regenerate
+  bindings with this SDK; no compatibility decoder API is retained.
+- Report JSON container errors at their real container, preserve selected/missing
+  field names and attempted array/map/option/enum child paths, and retain the
+  first diagnostic. Cover actual generated COM calls on one-MiB callers plus
+  owner counts, failure/unwind cleanup and min-size/runtime measurements.
 - Walk authored layout/projection and module dependency graphs with explicit
   frames, so long shallow chains resolve on a one-MiB caller stack. Preserve
   cycle diagnostics, canonical dependency order and existing signature bytes.
 - Reuse the SDK's bounded byte-copy contract for persistence state. Empty state
   needs no provider copy call; unrepresentable lengths return a range error
   before allocation. Remove duplicate copying and post-copy length checks.
-- Promote the coordinated eight-package SDK from `0.2.0-alpha.4` to `0.2.0`,
+- Prepare the coordinated eight-package SDK as `0.2.0-alpha.5`,
   updating exact internal requirements, maintained lockfiles, tutorial manifests,
   installation examples and current documentation links together.
 - Retain ABI family 2, core generation 19, IDL encoding v14 and NCB wire v1.
@@ -21,8 +33,8 @@ Historical draft numbers do not define additional supported COM baselines.
   accepted with warnings and do not participate in contract identity.
 - Include NCB and the custom JSON codec in the native serialization plugin, with
   NCB selected by default. The reusable serialization rlib keeps JSON optional.
-  This source promotion does not claim crates.io publication or fresh native
-  platform qualification; follow the release procedure before publishing.
+  This source candidate does not claim crates.io publication or native
+  macOS/Windows qualification; follow the release procedure before publishing.
 
 ## 0.2.0-alpha.4 — 2026-11-12
 

@@ -235,7 +235,7 @@ factory owns those bytes' schema and interpretation. The existing runtime
 snapshot envelope remains NCB v1 by default. The format interfaces add no global
 registry, filesystem access, loader policy or automatic object-memory capture.
 
-Discovery uses ABI v2 for `0.2.0`. These interfaces are documented in the
+Discovery uses ABI v2 for `0.2.0-alpha.5`. These interfaces are documented in the
 [ABI v2 specification](../abi-v2.md); NCB persistence retains format version 1.
 
 ## Verification

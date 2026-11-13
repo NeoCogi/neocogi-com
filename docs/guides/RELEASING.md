@@ -21,7 +21,7 @@ publication. [Trusted publishing](https://crates.io/docs/trusted-publishing) can
 replace stored CI tokens for later releases.
 
 The compatibility rule is separate from Cargo versions. The prepared candidate
-is `0.2.0`, using ABI v2: runtime and descriptor family 2, core generation
+is `0.2.0-alpha.5`, using ABI v2: runtime and descriptor family 2, core generation
 19, and `nc_get_plugin_descriptor_v2`. Deploy hosts, providers and generated
 bindings from one SDK release. ABI v1 libraries are rejected before bootstrap;
 there is no compatibility export. Interface signatures, IDL encoding and NCB
