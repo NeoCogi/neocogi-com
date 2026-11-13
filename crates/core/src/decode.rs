@@ -67,14 +67,13 @@ impl<T: ComDeserialize> ComDeserialize for Option<T> {
 }
 impl<T: ComDeserialize, const N: usize> ComDeserialize for [T; N] {
     /// Requires exactly N elements and drops initialized slots on every error.
-    /// Option slots avoid unsafe uninitialized storage for non-Copy elements.
+    /// Length admission precedes child construction; one guard owns the prefix.
     fn com_deserialize(reader: &mut Deserializer<'_>) -> Result<Self, NcStatus> {
         reader.sequence(|sequence| {
-            let mut values: [Option<T>; N] = core::array::from_fn(|_| None);
-            for slot in &mut values {
-                *slot = Some(sequence.read_next()?.ok_or_else(|| sequence.error("invalid sequence length"))?);
+            if sequence.remaining() != N {
+                return Err(sequence.error("invalid sequence length"));
             }
-            Ok(values.map(|value| value.expect("every fixed-array slot was acquired")))
+            crate::array::try_from_fn(|_| sequence.read_next()?.ok_or_else(|| sequence.error("invalid sequence length")))
         })
     }
 }

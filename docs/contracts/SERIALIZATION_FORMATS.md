@@ -76,6 +76,21 @@ their declared raw integer representation. Decoded maps reject duplicate keys.
 A format that cannot represent a value must return an error; successful encoding
 must preserve that value's semantics.
 
+Fixed-array decoding requires the admitted sequence count to equal the target
+array length before constructing any element. Existing provider/facade count
+failures retain precedence over the typed length check. Construction uses the
+actual element layout and one initialized-prefix count, with no per-element
+completion tag or allocator requirement. On error or ordinary Rust unwinding,
+only completed elements are destroyed; a child owns its own unfinished fields.
+Once all elements exist, ordinary array ownership takes over. A later sequence
+end, value leave or document finish error drops that completed value normally.
+
+This bounds avoidable construction metadata, not total native stack usage.
+Returned arrays, containing records, element temporaries and alignment can still
+require substantial space, and Rust does not guarantee elimination of all return
+copies. Applications needing heap collection storage can use existing `Vec<T>`
+or `Box<[T]>` decoding. Logical document limits are not a native-stack allocator.
+
 ## Limits and NCB
 
 Defaults bound a complete document to 16 MiB, each container to 65,536 entries,

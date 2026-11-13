@@ -32,6 +32,7 @@ extern crate self as neocogi_com;
 
 mod abi;
 mod abi_hash;
+mod array;
 #[doc(hidden)]
 pub use abi_hash::__nc_abi_digest;
 mod buffer;
