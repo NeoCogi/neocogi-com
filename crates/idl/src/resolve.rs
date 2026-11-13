@@ -305,31 +305,20 @@ fn resolve_semantics_with_limits(mut modules: Vec<Module>, limits: crate::specia
         });
     }
 
-    let mut states = vec![VisitState::Unvisited; entries.len()];
-    let mut fingerprints = vec![None; entries.len()];
-    let mut stack = Vec::new();
-    for index in 0..entries.len() {
-        fingerprint_module(index, &entries, &mut states, &mut fingerprints, &mut stack)?;
-    }
+    let fingerprints = fingerprint_modules(&entries)?;
 
     // Capture peer data before consuming graph entries. This avoids
     // self-referential output while retaining caller module order.
     let snapshots = entries
         .iter()
         .enumerate()
-        .map(|(index, entry)| {
-            (
-                entry.name.clone(),
-                entry.module_id,
-                fingerprints[index].expect("all module fingerprints completed"),
-            )
-        })
+        .map(|(index, entry)| (entry.name.clone(), entry.module_id, fingerprints[index]))
         .collect::<Vec<_>>();
     let modules = entries
         .into_iter()
         .enumerate()
         .map(|(index, entry)| {
-            let module_fingerprint = fingerprints[index].expect("all module fingerprints completed");
+            let module_fingerprint = fingerprints[index];
             let dependencies = entry
                 .dependencies
                 .iter()
@@ -494,14 +483,14 @@ impl SymbolKind {
     }
 }
 
-/// Depth-first traversal state for dependency fingerprinting.
+/// Admission state shared by explicit layout and dependency graph walks.
 #[derive(Clone, Copy, Eq, PartialEq)]
 enum VisitState {
-    /// No dependency path has reached this module yet.
+    /// No traversal path has reached this node yet.
     Unvisited,
-    /// The module is on the active recursion stack.
+    /// The node has an active heap-backed traversal frame.
     Visiting,
-    /// The module and all dependencies have final fingerprints.
+    /// All outgoing edges finished; module nodes also have a final fingerprint.
     Complete,
 }
 
@@ -828,12 +817,45 @@ fn validate_generated_names(graph: &ResolvedModules, module: &ResolvedModule) ->
     }
 }
 
-/// Rejects inline-value and required-interface cycles before generated Rust reaches layout checking.
+/// Pending local layout traversal. The iterator owns only this declaration's
+/// direct edges; source spans borrow immutable admitted entries. Frames also
+/// retain diagnostic ancestry, so named graph depth never uses native recursion.
+struct LayoutFrame<'a> {
+    /// Declaration whose visiting state lasts until all direct edges finish.
+    declaration: usize,
+    /// Next edge in the original deterministic source/value-graph order.
+    references: std::vec::IntoIter<(Symbol, &'a SourceSpan)>,
+}
+
+/// Rejects inline-value and required-interface cycles before generated Rust
+/// reaches layout checking. A frame stays visiting while its children run and
+/// becomes complete only when its iterator is exhausted.
 fn validate_layouts(index: usize, entries: &[ModuleEntry], values: &crate::ValueGraph) -> Result<(), ResolutionError> {
     let mut states = vec![VisitState::Unvisited; entries[index].module.declarations.len()];
-    let mut stack = Vec::new();
+    let mut stack: Vec<LayoutFrame<'_>> = Vec::new();
     for declaration in 0..states.len() {
-        visit_layout(index, declaration, entries, values, &mut states, &mut stack)?;
+        match states[declaration] {
+            VisitState::Complete => continue,
+            VisitState::Unvisited => {}
+            VisitState::Visiting => unreachable!("completed layout root retains no active frames"),
+        }
+        states[declaration] = VisitState::Visiting;
+        stack.push(layout_frame(index, declaration, entries, values));
+        while let Some(frame) = stack.last_mut() {
+            let Some((symbol, span)) = frame.references.next() else {
+                states[frame.declaration] = VisitState::Complete;
+                stack.pop();
+                continue;
+            };
+            match states[symbol.declaration] {
+                VisitState::Complete => {}
+                VisitState::Unvisited => {
+                    states[symbol.declaration] = VisitState::Visiting;
+                    stack.push(layout_frame(index, symbol.declaration, entries, values));
+                }
+                VisitState::Visiting => return Err(layout_cycle(index, symbol, span, entries, &stack)),
+            }
+        }
     }
     Ok(())
 }
@@ -846,27 +868,14 @@ fn authored_declaration_name(declaration: &Declaration) -> String {
     }
 }
 
-/// Walks one local declaration and reports the edge closing a cycle.
-fn visit_layout(
-    module: usize,
-    declaration: usize,
-    entries: &[ModuleEntry],
-    values: &crate::ValueGraph,
-    states: &mut [VisitState],
-    stack: &mut Vec<usize>,
-) -> Result<(), ResolutionError> {
-    match states[declaration] {
-        VisitState::Complete => return Ok(()),
-        VisitState::Visiting => return Ok(()),
-        VisitState::Unvisited => {}
-    }
-    states[declaration] = VisitState::Visiting;
-    stack.push(declaration);
-
+/// Resolves one frame's finite direct edges, retaining the original source span
+/// for each canonical value edge. Imported layouts belong to their own module;
+/// unlike-kind references cannot close this local layout/projection walk.
+fn layout_frame<'a>(module: usize, declaration: usize, entries: &'a [ModuleEntry], values: &crate::ValueGraph) -> LayoutFrame<'a> {
     let owner = &entries[module].module.declarations[declaration];
     let mut source_references = Vec::new();
     collect_layout_references(owner, &mut source_references);
-    let references = match values.definitions.get(&entries[module].declaration_identities[declaration].qualified_name) {
+    let mut references = match values.definitions.get(&entries[module].declaration_identities[declaration].qualified_name) {
         Some(definition) => definition
             .inline_references()
             .into_iter()
@@ -886,49 +895,48 @@ fn visit_layout(
             .filter_map(|reference| resolve_named(module, reference, entries).ok().map(|symbol| (symbol, &reference.span)))
             .collect(),
     };
-    for (symbol, span) in references {
-        if symbol.module != module || symbol.kind != symbol_kind(&owner.kind) {
-            continue;
-        }
-        match states[symbol.declaration] {
-            VisitState::Visiting => {
-                let (layout, label, note) = match symbol.kind {
-                    SymbolKind::Value => (
-                        "copied-value layout",
-                        "field",
-                        "values require finite inline size; use an explicit sequence or object reference, since optional and array fields remain inline",
-                    ),
-                    SymbolKind::Interface => (
-                        "interface projections",
-                        "required interface",
-                        "required interfaces must form an acyclic graph; use a method result for recursive object relationships",
-                    ),
-                };
-                let cycle_start = stack.iter().position(|candidate| *candidate == symbol.declaration).unwrap_or(0);
-                let mut names = stack[cycle_start..]
-                    .iter()
-                    .map(|index| authored_declaration_name(&entries[module].module.declarations[*index]))
-                    .collect::<Vec<_>>();
-                names.push(authored_declaration_name(&entries[module].module.declarations[symbol.declaration]));
-                let definition = &entries[module].module.declarations[symbol.declaration];
-                return Err(ResolutionError {
-                    diagnostics: vec![
-                        Diagnostic::new("EIDL063", format!("recursive {layout}: {}", names.join(" -> ")))
-                            .with_sources(&entries[module].module.sources)
-                            .primary(span, format!("this {label} closes the recursive layout"))
-                            .secondary(&definition.span, "recursive declaration is defined here")
-                            .note(note),
-                    ],
-                });
-            }
-            VisitState::Unvisited => visit_layout(module, symbol.declaration, entries, values, states, stack)?,
-            VisitState::Complete => {}
-        }
+    references.retain(|(symbol, _)| symbol.module == module && symbol.kind == symbol_kind(&owner.kind));
+    LayoutFrame {
+        declaration,
+        references: references.into_iter(),
     }
+}
 
-    stack.pop();
-    states[declaration] = VisitState::Complete;
-    Ok(())
+/// Renders the edge closing a cycle using frame ancestry, preserving source
+/// locations, diagnostic names and the distinction between inline values and
+/// required interface projections. Only the error path allocates diagnostic text.
+fn layout_cycle(module: usize, symbol: Symbol, span: &SourceSpan, entries: &[ModuleEntry], stack: &[LayoutFrame<'_>]) -> ResolutionError {
+    let (layout, label, note) = match symbol.kind {
+        SymbolKind::Value => (
+            "copied-value layout",
+            "field",
+            "values require finite inline size; use an explicit sequence or object reference, since optional and array fields remain inline",
+        ),
+        SymbolKind::Interface => (
+            "interface projections",
+            "required interface",
+            "required interfaces must form an acyclic graph; use a method result for recursive object relationships",
+        ),
+    };
+    let cycle_start = stack
+        .iter()
+        .position(|frame| frame.declaration == symbol.declaration)
+        .expect("visiting declaration has a frame");
+    let mut names = stack[cycle_start..]
+        .iter()
+        .map(|frame| authored_declaration_name(&entries[module].module.declarations[frame.declaration]))
+        .collect::<Vec<_>>();
+    names.push(authored_declaration_name(&entries[module].module.declarations[symbol.declaration]));
+    let definition = &entries[module].module.declarations[symbol.declaration];
+    ResolutionError {
+        diagnostics: vec![
+            Diagnostic::new("EIDL063", format!("recursive {layout}: {}", names.join(" -> ")))
+                .with_sources(&entries[module].module.sources)
+                .primary(span, format!("this {label} closes the recursive layout"))
+                .secondary(&definition.span, "recursive declaration is defined here")
+                .note(note),
+        ],
+    }
 }
 
 /// Collects inline value dependencies and required interface relationships for
@@ -1755,45 +1763,68 @@ fn resolve_named(index: usize, name: &NamedType, entries: &[ModuleEntry]) -> Res
     })
 }
 
-/// Computes a fingerprint after recursively completing dependencies.
-fn fingerprint_module(
-    index: usize,
-    entries: &[ModuleEntry],
-    states: &mut [VisitState],
-    fingerprints: &mut [Option<[u8; 32]>],
-    stack: &mut Vec<usize>,
-) -> Result<[u8; 32], ResolutionError> {
-    match states[index] {
-        VisitState::Complete => {
-            return Ok(fingerprints[index].expect("complete module has a fingerprint"));
-        }
-        VisitState::Visiting => {
-            let cycle_start = stack.iter().position(|candidate| *candidate == index).unwrap_or(0);
-            let mut cycle = stack[cycle_start..]
-                .iter()
-                .map(|candidate| entries[*candidate].name.as_str())
-                .collect::<Vec<_>>();
-            cycle.push(entries[index].name.as_str());
-            return Err(error(Some(&entries[index].name), format!("contract dependency cycle: {}", cycle.join(" -> "))));
-        }
-        VisitState::Unvisited => {}
-    }
+/// One active module whose dependencies are completed before its own digest.
+/// The frame order is also the ancestry used for deterministic cycle errors.
+struct FingerprintFrame {
+    /// Canonical module index; a completed frame publishes exactly one digest.
+    module: usize,
+    /// First dependency not yet admitted in the module's canonical name order.
+    next_dependency: usize,
+}
 
-    states[index] = VisitState::Visiting;
-    stack.push(index);
-    let mut dependencies = Vec::with_capacity(entries[index].dependencies.len());
-    for &dependency in &entries[index].dependencies {
-        let fingerprint = fingerprint_module(dependency, entries, states, fingerprints, stack)?;
-        // Dependency connection stores modules in name order. Retain
-        // that order so caller source order cannot affect the digest.
-        dependencies.push((dependency, fingerprint));
+/// Completes a module DAG with an explicit postorder walk. Only Complete slots
+/// may supply a digest, and each slot is written before its state becomes
+/// Complete. Canonical dependency order and encoding remain unchanged.
+fn fingerprint_modules(entries: &[ModuleEntry]) -> Result<Vec<[u8; 32]>, ResolutionError> {
+    let mut states = vec![VisitState::Unvisited; entries.len()];
+    let mut fingerprints = vec![[0; 32]; entries.len()];
+    let mut stack: Vec<FingerprintFrame> = Vec::new();
+    for index in 0..entries.len() {
+        match states[index] {
+            VisitState::Complete => continue,
+            VisitState::Unvisited => {}
+            VisitState::Visiting => unreachable!("completed fingerprint root retains no active frames"),
+        }
+        states[index] = VisitState::Visiting;
+        stack.push(FingerprintFrame { module: index, next_dependency: 0 });
+        while let Some(frame) = stack.last_mut() {
+            let module = frame.module;
+            if let Some(&dependency) = entries[module].dependencies.get(frame.next_dependency) {
+                frame.next_dependency += 1;
+                match states[dependency] {
+                    VisitState::Complete => {}
+                    VisitState::Unvisited => {
+                        states[dependency] = VisitState::Visiting;
+                        stack.push(FingerprintFrame { module: dependency, next_dependency: 0 });
+                    }
+                    VisitState::Visiting => {
+                        let cycle_start = stack.iter().position(|frame| frame.module == dependency).expect("visiting module has a frame");
+                        let mut cycle = stack[cycle_start..].iter().map(|frame| entries[frame.module].name.as_str()).collect::<Vec<_>>();
+                        cycle.push(entries[dependency].name.as_str());
+                        return Err(error(
+                            Some(&entries[dependency].name),
+                            format!("contract dependency cycle: {}", cycle.join(" -> ")),
+                        ));
+                    }
+                }
+            } else {
+                // Reconstruct only the direct canonical dependency list after
+                // children finish; pending frames need no digest copies.
+                let dependencies = entries[module]
+                    .dependencies
+                    .iter()
+                    .map(|&dependency| {
+                        debug_assert!(states[dependency] == VisitState::Complete);
+                        (dependency, fingerprints[dependency])
+                    })
+                    .collect::<Vec<_>>();
+                fingerprints[module] = encode_module(module, entries, &dependencies)?;
+                states[module] = VisitState::Complete;
+                stack.pop();
+            }
+        }
     }
-    stack.pop();
-
-    let fingerprint = encode_module(index, entries, &dependencies)?;
-    fingerprints[index] = Some(fingerprint);
-    states[index] = VisitState::Complete;
-    Ok(fingerprint)
+    Ok(fingerprints)
 }
 
 /// Exact domain prefix for canonical module ABI fingerprint bytes.
@@ -2429,6 +2460,9 @@ pub(crate) fn builtin_object(name: &NamedType) -> Option<neocogi_com_core::NcInt
         _ => None,
     }
 }
+
+#[cfg(all(test, not(miri)))]
+mod graph_tests;
 
 #[cfg(test)]
 mod reference_encoding_tests {

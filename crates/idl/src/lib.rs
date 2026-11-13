@@ -13,7 +13,7 @@
 #![deny(missing_docs)]
 
 mod binding;
-#[cfg(all(test, target_os = "linux", not(miri)))]
+#[cfg(all(test, not(miri)))]
 mod bounded_child;
 mod diagnostic;
 mod metadata_names;

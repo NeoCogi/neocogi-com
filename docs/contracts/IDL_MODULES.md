@@ -75,6 +75,16 @@ no syntax worker and retains `ResolutionError` diagnostics through
 Empty input still fails before bundled admission; the reserved-library-name
 check follows bundled parsing. Internal worker panics retain their payloads.
 
+Inline-layout/projection cycle validation and module dependency fingerprinting
+walk named graph edges with explicit heap-backed frames. Long chains of shallow
+authored declarations therefore do not consume one native call frame per edge.
+The frames also retain cycle ancestry: inline/projection cycles keep source-located
+`EIDL063` errors, and module cycles keep their deterministic dependency path.
+Dependency completion retains canonical module-name order and identical digest
+bytes; this traversal change does not alter IDL encoding v14 or impose a new
+authored graph-depth limit. Syntax nesting and generated-specialization budgets
+remain separate policies.
+
 ## Closed generic values and interfaces
 
 Structs, enums, and interfaces can declare type parameters. Each use must supply all arguments:

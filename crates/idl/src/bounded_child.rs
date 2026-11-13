@@ -1,5 +1,5 @@
-//! Small native-Linux regression guard. Only the selected operation child gets
-//! rlimits; Cargo, rustc and the parent test process retain their normal resources.
+//! Native regression watchdog and optional Linux operation-child resource caps.
+//! Cargo, rustc and the parent test process retain their normal resources.
 
 use std::{
     fs::File,
@@ -23,6 +23,7 @@ impl Drop for Running {
 
 /// Installs the regression ceiling, allowing joined 8 MiB syntax workers and
 /// normal allocator arenas. Installation failure is a test failure, never a skip.
+#[cfg(target_os = "linux")]
 pub(crate) fn cap() {
     let address = libc::rlimit {
         rlim_cur: 512 * 1024 * 1024,

@@ -6,6 +6,9 @@ Historical draft numbers do not define additional supported COM baselines.
 
 ## 0.2.0 — 2026-11-13
 
+- Walk authored layout/projection and module dependency graphs with explicit
+  frames, so long shallow chains resolve on a one-MiB caller stack. Preserve
+  cycle diagnostics, canonical dependency order and existing signature bytes.
 - Promote the coordinated eight-package SDK from `0.2.0-alpha.4` to `0.2.0`,
   updating exact internal requirements, maintained lockfiles, tutorial manifests,
   installation examples and current documentation links together.
