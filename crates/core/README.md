@@ -31,7 +31,7 @@ lookup/enumeration output: metadata plus first registration origin, without a
 bootstrap function or live factory reference. These records have different roles
 and do not own the storage behind their pointers.
 
-Runtime discovery stays v1, with three tables: complete plugin operations, debug,
+Runtime discovery supplies three tables: complete plugin operations, debug,
 and persistence. See [runtime ABI v2](https://github.com/NeoCogi/neocogi-com/blob/v0.2.0/docs/abi-v2.md#runtime-and-global-registry) for descriptor
 lifetimes, inspection and acquisition, and the
 [ABI specification entrypoint](https://github.com/NeoCogi/neocogi-com/blob/v0.2.0/docs/abi-v2.md) for object layouts.

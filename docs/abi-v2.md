@@ -970,8 +970,9 @@ opened, the mapping is pinned even if validation or the visitor later fails.
 The regression suites check complete lookup/enumeration agreement, dependency
 ordering, failed publication, duplicate registration, owned copies, borrowed
 views across catalog growth, null/empty/undersized buffers and untouched spare
-slots. They also verify that metadata does not invoke bootstrap, that ABI remains
-v1, and that independent C layouts match the combined table and plugin record.
+slots. They also verify that metadata does not invoke bootstrap, that admission
+enforces the current discovery family and core generation, and that independent
+C layouts match the combined table and plugin record.
 Native-library tests cover provenance, identity conflicts, post-unlink metadata
 and retained factory code. Both independently loaded and statically linked providers exercise
 the same contracts; generated factories still undergo exact identity checks.

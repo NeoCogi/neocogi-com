@@ -142,7 +142,7 @@ mod tests {
 
     /// Runtime family 2 and core generation 19 identify separate contracts.
     #[test]
-    fn host_runtime_version_remains_one() {
+    fn host_runtime_uses_family_two() {
         assert_eq!(crate::initialize_process().runtime_abi_version, 2);
     }
 
