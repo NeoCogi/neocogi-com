@@ -4,6 +4,22 @@ The current contract uses [ABI v2, core generation 19](docs/abi-v2.md). Entries 
 its development; later entries can supersede older implementation details.
 Historical draft numbers do not define additional supported COM baselines.
 
+## 0.2.0 — 2026-11-13
+
+- Promote the qualified alpha.6 implementation to the coordinated eight-package
+  0.2.0 SDK release. Update exact internal dependencies, maintained lockfiles,
+  tutorial manifests, installation commands and release documentation together.
+- Use ABI v2, core generation 19, IDL encoding v14 and NCB wire v1. Rebuild hosts,
+  providers and generated bindings from this SDK; ABI v1 plugins are rejected
+  before bootstrap.
+- Include the COM serialization interfaces, default NCB and lightweight JSON
+  codecs, diagnostic paths, borrowed wire decoding and guarded fixed-array
+  construction described in the prerelease entries below. The native serialization
+  plugin includes both formats; the reusable rlib keeps JSON optional.
+- Carry forward bounded IDL syntax and prospective template-height admission,
+  immutable admitted-model accessors and shallow layout proofs. See the
+  [IDL contract](docs/contracts/IDL_MODULES.md) for migration and compiler limits.
+
 ## 0.2.0-alpha.6 — 2026-11-13
 
 - Parse the supported IDL grammar directly after iterative token-group admission.
