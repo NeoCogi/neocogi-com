@@ -1190,8 +1190,9 @@ Linux, macOS and Windows. `--report PATH` retains the invocation's evidence.
 The Python driver and shell/PowerShell entry points have been removed; tasks
 invoke subprocess argument vectors directly. Temporary sources, nested test
 scratch and targets live below the checkout's `target/xtask-work` directory and
-are explicitly retired before success. The runner forces one build job and one
-test thread in all children, including compiler-spawning tests.
+are explicitly retired before success. The runner forces one test thread in
+children, including compiler-spawning tests. Cargo uses its normal build
+parallelism and honors a caller's build-job configuration; no one-job cap is imposed.
 The checkout, copied source and archive workspaces exclude their `target` and
 `tmp` subtrees from Cargo workspace membership. `TMPDIR`, `TMP` and `TEMP` point
 to `tmp`; generated Cargo projects such as Miri's sysroot builder therefore

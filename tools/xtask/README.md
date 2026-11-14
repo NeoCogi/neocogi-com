@@ -54,11 +54,10 @@ extracted contents on Rust 1.85. It does not replace the online release dry-run.
 
 Tasks invoke argument vectors directly and never evaluate shell commands. The
 runner removes ambient compiler/profile/loader overrides, retains tool discovery
-and registry credentials, and forces `CARGO_BUILD_JOBS=1` and
-`RUST_TEST_THREADS=1` for every child. The checkout also bootstraps Cargo with
-one build job and configures Cargo-launched tests to use one thread, so plain
-workspace test commands retain the same bound. No task runs concurrent compilers.
-CI has four jobs total.
+and registry credentials, and forces `RUST_TEST_THREADS=1` for every child.
+Cargo uses its normal build parallelism and honors a caller's `CARGO_BUILD_JOBS`;
+the checkout and CI impose no build-job cap. Task commands run sequentially,
+and compiler-spawning test cases use one thread. CI has four jobs total.
 
 Compiler and documentation flags/executable selectors include their ordinary,
 encoded and supported `CARGO_BUILD_*` spellings. Output-directory aliases and

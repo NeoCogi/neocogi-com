@@ -1,5 +1,5 @@
 //! Unpublished, cross-platform owner of repository qualification policy.
-//! Children run sequentially with one Cargo job and one test thread. A task
+//! Children run sequentially with one test thread; Cargo selects build parallelism. A task
 //! owns its temporary sources and targets until every child has exited.
 mod compatibility;
 mod markdown;

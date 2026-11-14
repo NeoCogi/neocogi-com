@@ -161,7 +161,6 @@ impl Fixture {
             .args([verb, "--offline", "--lib", "--manifest-path"])
             .arg(self.consumer.directory.path().join("Cargo.toml"))
             .env("CARGO_TARGET_DIR", self.consumer.directory.path().join("target"))
-            .env("CARGO_BUILD_JOBS", "1")
             .output()
             .unwrap()
     }

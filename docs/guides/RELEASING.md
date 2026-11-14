@@ -53,8 +53,8 @@ must point to this exact verified commit, never an earlier pre-version revision.
 
 Install stable with rustfmt, Clippy and rust-src, Rust 1.85.0, and the nightly
 components required by [repository tasks](../../tools/xtask/README.md). Native
-checks require a C compiler and linker. Keep compiler and test concurrency at
-the repository's existing bound. From the clean candidate, run serially:
+checks require a C compiler and linker. Cargo uses its normal build parallelism;
+run compiler-spawning test cases serially. From the clean candidate, run serially:
 
 ```sh
 cargo fetch --locked

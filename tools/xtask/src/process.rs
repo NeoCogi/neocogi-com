@@ -25,7 +25,7 @@ pub(crate) struct Runner {
 }
 
 impl Runner {
-    /// Capture an isolated environment and enforce serial nested compilation/tests.
+    /// Capture an isolated environment with serial tests and caller-selected Cargo jobs.
     pub fn new(root: PathBuf) -> Self {
         Self {
             work: root.join("target/xtask-work"),
@@ -242,12 +242,10 @@ pub(crate) fn clean_environment(values: impl IntoIterator<Item = (OsString, OsSt
                         | "LD_LIBRARY_PATH"
                         | "DYLD_LIBRARY_PATH"
                         | "DYLD_FALLBACK_LIBRARY_PATH"
-                        | "CARGO_BUILD_JOBS"
                         | "RUST_TEST_THREADS"
                 )
         })
         .collect();
-    env.insert("CARGO_BUILD_JOBS".into(), "1".into());
     env.insert("RUST_TEST_THREADS".into(), "1".into());
     env
 }

@@ -208,7 +208,7 @@ fn explicit_policy_removes_ambient_state_and_keeps_harness_last() -> Result<()> 
             ("PATH".into(), "tools".into()),
             ("CARGO_NET_OFFLINE".into(), "true".into()),
             ("CARGO_REGISTRIES_TEST_TOKEN".into(), "fake-test-value".into()),
-            ("CARGO_BUILD_JOBS".into(), "1".into()),
+            ("CARGO_BUILD_JOBS".into(), "99".into()),
             ("RUST_TEST_THREADS".into(), "1".into())
         ])
     );
