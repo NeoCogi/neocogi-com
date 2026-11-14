@@ -15,7 +15,7 @@ default = ["dynamic-plugin"]
 dynamic-plugin = []
 
 [dependencies]
-neocogi-com = "=0.2.0-alpha.5"
+neocogi-com = "=0.2.0-alpha.6"
 
 [build-dependencies]
-neocogi-idl = "=0.2.0-alpha.5"
+neocogi-idl = "=0.2.0-alpha.6"

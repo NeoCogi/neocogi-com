@@ -4,6 +4,30 @@ The current contract uses [ABI v2, core generation 19](docs/abi-v2.md). Entries 
 its development; later entries can supersede older implementation details.
 Historical draft numbers do not define additional supported COM baselines.
 
+## 0.2.0-alpha.6 — 2026-11-13
+
+- Parse the supported IDL grammar directly after iterative token-group admission.
+  Excessive groups or inline type depth return source-located `EIDL068` errors;
+  deeply unsupported Rust syntax is rejected without building a general Rust AST.
+- Keep admitted source declarations/templates and resolved values behind immutable
+  accessors. Migrate direct readers to `Module::declarations()`, `templates()` and
+  `ResolvedModules::values()`. Detached clones remain available for inspection;
+  unchecked installation into compiler-owned graphs is no longer public.
+- Check prospective normalized type height before template copying/substitution,
+  returning `EIDL060` when valid source halves would compose beyond the limit.
+  Preserve existing work/storage, combined descent and recursive-cache limits.
+- Emit shallow constant layout proofs for broad copied records, preserving
+  predicate order and short-circuit evaluation. Cover maximum inline shapes,
+  small-caller cleanup, independent generated COM calls and failure publication.
+- Remove imposed Cargo build-job caps from workspace configuration, CI and task
+  subprocesses. Honor Cargo defaults and caller job settings; keep compiler-spawning
+  test cases serial.
+- Prepare the coordinated eight-package SDK as `0.2.0-alpha.6`, retaining ABI
+  family 2, core generation 19, IDL encoding v14 and NCB wire v1. Rebuild hosts,
+  providers and generated bindings together. Native/Cargo text APIs retain their
+  documented process context; arbitrary nominal graph depth and total allocation
+  are separate from inline syntax admission.
+
 ## 0.2.0-alpha.5 — 2026-11-13
 
 - Construct fixed arrays with their actual element layout and one initialized
