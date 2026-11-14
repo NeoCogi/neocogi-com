@@ -9,7 +9,7 @@ build = "../build.rs"
 
 [dependencies]
 neocogi-com = { version = "=0.2.0", features = ["runtime"] }
-neocogi-com-host = "=0.2.0"
+neocogi-com-host = "=0.2.1"
 
 [build-dependencies]
 neocogi-idl = "=0.2.0"

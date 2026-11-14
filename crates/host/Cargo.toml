@@ -1,6 +1,7 @@
 [package]
 name = "neocogi-com-host"
-version.workspace = true
+# Implementation-only patch; retain the published 0.2.0 SDK dependency identities.
+version = "0.2.1"
 authors.workspace = true
 edition.workspace = true
 rust-version.workspace = true

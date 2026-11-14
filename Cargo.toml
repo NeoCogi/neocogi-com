@@ -32,7 +32,7 @@ repository = "https://github.com/NeoCogi/neocogi-com"
 neocogi-com-core = { path = "crates/core", version = "=0.2.0", default-features = false }
 neocogi-idl = { path = "crates/idl", version = "=0.2.0" }
 neocogi-com-macros = { path = "crates/macros", version = "=0.2.0", default-features = false }
-neocogi-com-host = { path = "crates/host", version = "=0.2.0", default-features = false }
+neocogi-com-host = { path = "crates/host", version = "=0.2.1", default-features = false }
 neocogi-com = { path = "crates/com", version = "=0.2.0", default-features = false }
 neocogi-com-serialization = { path = "crates/serialization", version = "=0.2.0", default-features = false }
 prettyplease = "0.2"

@@ -11,7 +11,7 @@ use crate::{
         ABI_TESTS, GENERATION_SENTINEL, IMPORTED_INTERFACE_PROVIDER_TEST, SHARED_SOURCE_CONSUMER_TEST, abi_sentinel, execute_tests, require_execution,
         require_named_execution, require_tests, words,
     },
-    packages::PUBLISHED,
+    packages::{PUBLISHED, host_version, release_version},
     process::{Result, Runner, sources},
 };
 
@@ -276,8 +276,10 @@ pub(crate) fn workspace(runner: &Runner) -> Result<()> {
     }
     let root: toml::Value = toml::from_str(&fs::read_to_string(runner.root.join("Cargo.toml"))?)?;
     let version = root["workspace"]["package"]["version"].as_str().ok_or("missing workspace version")?;
+    let selected_host = host_version(&runner.root)?;
     for package in published {
-        if package["version"] != version || !PUBLISHED.iter().any(|(name, _)| package["name"] == *name) {
+        let name = package["name"].as_str().ok_or("missing package name")?;
+        if package["version"] != release_version(name, version, &selected_host) || !PUBLISHED.iter().any(|(published, _)| name == *published) {
             return Err("published package version or inventory mismatch".into());
         }
     }
@@ -300,6 +302,15 @@ pub(crate) fn workspace(runner: &Runner) -> Result<()> {
         .any(|dependency| dependency["name"] == "neocogi-com" && dependency["kind"].is_null())
     {
         return Err("host implementation must depend on the shared SDK".into());
+    }
+    // Inspect Cargo's resolved target graph, including conditional dependencies,
+    // rather than inferring implementation ownership from manifest text alone.
+    let host_tree = runner.cargo(
+        "stable",
+        &["tree", "-p", "neocogi-com-host", "--edges", "normal", "--target", "all", "--locked"],
+    )?;
+    if host_tree.contains("neocogi-com-serialization") {
+        return Err("host runtime graph must not embed the serialization implementation".into());
     }
     let fixtures = runner.root.join("tests/com/integration-tests/fixtures");
     for entry in fs::read_dir(fixtures)? {

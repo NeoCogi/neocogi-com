@@ -4,6 +4,31 @@ The current contract uses [ABI v2, core generation 19](docs/abi-v2.md). Entries 
 its development; later entries can supersede older implementation details.
 Historical draft numbers do not define additional supported COM baselines.
 
+## neocogi-com-host 0.2.1 — 2026-11-14
+
+- Remove the host's runtime dependency on the serialization implementation.
+  Snapshot and restore acquire `nc.serialization` through this host's own catalog
+  and request named `ncb`, preserving the C ABI and NCB-v1 bytes. Register the
+  static serialization descriptor or load `neocogi-com-serialization-dylib`
+  explicitly before persistence. No implicit codec fallback remains.
+- Preserve argument, ownership and capture-budget error precedence; missing
+  providers return `NC_E_NOT_FOUND` and format-selection statuses propagate.
+  Retain root/format capabilities through each operation and keep callbacks
+  outside catalog locks. Preserve permissive `usize` budget ceilings at the
+  existing `u32` format ABI boundary.
+- Release only the host implementation as `0.2.1`. SDK, core, macros, IDL and
+  serialization remain `0.2.0`, preserving published platform
+  `0.3.0-alpha.1`'s SDK dependency identity. Update release/archive qualification
+  to admit this implementation-only patch without coordinated SDK version bumps.
+- Linux regressions cover static and real-DLL persistence, isolated missing
+  providers, JSON defaults, selection failures, reentrant callbacks, exact bytes,
+  truncation/trailing input and retained-owner cleanup. Existing malformed-input,
+  budget, cycle and constructor-failure coverage remains. Final publication and
+  native release qualification are separate from source preparation.
+- Performance remains unqualified for this final release: the prototype passed
+  its Vulkan 2% gate but one UI CPU case regressed 3.51%. Recheck against the final
+  published host build; historical prototype results do not qualify this candidate.
+
 ## 0.2.0 — 2026-11-13
 
 - Promote the qualified alpha.6 implementation to the coordinated eight-package

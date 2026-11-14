@@ -4,6 +4,22 @@ The native dylib now always contains NCB and JSON, with NCB selected by default.
 The earlier NCB-only dylib measurements below are historical comparisons, not a
 current dylib build option. Static rlib consumers retain optional JSON.
 
+## Host persistence linkage repair — 2026-11-14
+
+Host `0.2.1` uses the application's registered `nc.serialization` provider for
+named NCB in both directions. Its normal Cargo graph contains no serialization
+implementation; dynamic applications can load the serialization dylib without
+the host adding a second NCB implementation to their executable. Static
+applications register `neocogi_com_serialization::plugin_descriptor()` explicitly.
+SDK, core and serialization stay at `0.2.0`, including NCB-v1 bytes.
+
+This architecture is covered by static and real min-size DLL persistence tests;
+these are correctness/linkage results, not performance qualification. The UI
+reference prototype passed its Vulkan 2% performance gate, but one UI CPU
+benchmark case regressed 3.51%. That case and the affected workloads must be
+rechecked against the final published host build. No final-build throughput or
+executable-size comparison is claimed here.
+
 ## Fixed-array construction and diagnostic repair — 2026-11-13
 
 Measured against `d07a53c` with the same `array_costs` source, locked dependencies,

@@ -21,6 +21,22 @@ pub(crate) const PUBLISHED: &[(&str, &str)] = &[
     ("neocogi-com-host", "crates/host"),
     ("neocogi-inspect", "tools/neocogi-inspect"),
 ];
+
+/// The exact selected host version can advance without changing SDK identities.
+/// Cargo validates that this requirement also matches the host's own manifest.
+pub(crate) fn host_version(repository: &Path) -> Result<String> {
+    let root: toml::Value = toml::from_str(&fs::read_to_string(repository.join("Cargo.toml"))?)?;
+    Ok(root["workspace"]["dependencies"]["neocogi-com-host"]["version"]
+        .as_str()
+        .and_then(|requirement| requirement.strip_prefix('='))
+        .ok_or("host implementation must have an exact workspace requirement")?
+        .to_owned())
+}
+
+/// Archive names follow the selected host patch or the coordinated SDK version.
+pub(crate) fn release_version<'a>(package: &str, sdk: &'a str, host: &'a str) -> &'a str {
+    if package == "neocogi-com-host" { host } else { sdk }
+}
 /// Validate and extract this package's single archive prefix without an external tar.
 /// Only regular source files/directories are inputs to Cargo; links are rejected.
 pub(crate) fn extract(archive: &Path, destination: &Path, prefix: &str) -> Result<()> {
@@ -67,12 +83,15 @@ fn toml_string(value: &Path) -> Result<String> {
     Ok(toml::Value::String(value.to_str().ok_or("non-UTF8 Cargo path")?.to_owned()).to_string())
 }
 /// Create consumers outside the workspace; only extracted siblings supply SDK code.
-fn consumers(repository: &Path, root: &Path, version: &str) -> Result<()> {
+fn consumers(repository: &Path, root: &Path, version: &str, host: &str) -> Result<()> {
     // Scratch lives below the checkout's target directory. This workspace
     // boundary owns only extracted packages and consumers, with no inherited
     // metadata or source-checkout dependencies to mask incomplete archives.
     // Temporary Cargo projects remain independent, just as in copied sources.
-    let mut members = PUBLISHED.iter().map(|(name, _)| format!("{name}-{version}")).collect::<Vec<_>>();
+    let mut members = PUBLISHED
+        .iter()
+        .map(|(name, _)| format!("{name}-{}", release_version(name, version, host)))
+        .collect::<Vec<_>>();
     members.extend(["consumer".into(), "strings-consumer".into()]);
     let members = toml::Value::Array(members.into_iter().map(toml::Value::String).collect());
     fs::write(
@@ -84,7 +103,7 @@ fn consumers(repository: &Path, root: &Path, version: &str) -> Result<()> {
     for (package, _) in PUBLISHED {
         patch.push_str(&format!(
             "{package} = {{ path = {} }}\n",
-            toml_string(&root.join(format!("{package}-{version}")))?
+            toml_string(&root.join(format!("{package}-{}", release_version(package, version, host))))?
         ));
     }
     fs::write(root.join(".cargo/config.toml"), patch)?;
@@ -108,7 +127,7 @@ fn consumers(repository: &Path, root: &Path, version: &str) -> Result<()> {
     fs::write(
         consumer.join("Cargo.toml"),
         format!(
-            "[package]\nname='archive-consumer'\nversion='0.0.0'\nedition='2024'\nlinks='nc_contract_70726f6f662e61726368697665'\n[dependencies]\nneocogi-com={{version='={version}',features=['runtime']}}\nneocogi-com-host='={version}'\n[build-dependencies]\nneocogi-idl='={version}'\n"
+            "[package]\nname='archive-consumer'\nversion='0.0.0'\nedition='2024'\nlinks='nc_contract_70726f6f662e61726368697665'\n[dependencies]\nneocogi-com={{version='={version}',features=['runtime']}}\nneocogi-com-host='={host}'\n[build-dependencies]\nneocogi-idl='={version}'\n"
         ),
     )?;
     fs::write(consumer.join("build.rs"), include_str!("../fixtures/archive-build.rs"))?;
@@ -244,6 +263,7 @@ pub(crate) fn run(runner: &Runner) -> Result<()> {
     runner.env.insert("CARGO_NET_OFFLINE".into(), "true".into());
     let manifest: toml::Value = toml::from_str(&fs::read_to_string(runner.root.join("Cargo.toml"))?)?;
     let version = manifest["workspace"]["package"]["version"].as_str().ok_or("missing workspace version")?;
+    let host = host_version(&runner.root)?;
     let license = fs::read(runner.root.join("LICENSE-MIT"))?;
     for (_, relative) in PUBLISHED {
         if fs::read(runner.root.join(relative).join("LICENSE-MIT"))? != license {
@@ -262,17 +282,17 @@ pub(crate) fn run(runner: &Runner) -> Result<()> {
     let result = (|| {
         let root = owner.path();
         for (package, _) in PUBLISHED {
-            let prefix = format!("{package}-{version}");
+            let prefix = format!("{package}-{}", release_version(package, version, &host));
             extract(&runner.target_dir().join("package").join(format!("{prefix}.crate")), root, &prefix)?;
             if fs::read(root.join(&prefix).join("LICENSE-MIT"))? != license {
                 return Err(format!("archive license mismatch: {package}").into());
             }
         }
-        consumers(&runner.root, root, version)?;
+        consumers(&runner.root, root, version, &host)?;
         crate::process::copy_tree(&runner.root.join("examples/getting-started"), &root.join("getting-started"))?;
         verification.env.insert("RUSTUP_TOOLCHAIN".into(), "1.85.0".into());
         for (package, _) in PUBLISHED {
-            let manifest = root.join(format!("{package}-{version}/Cargo.toml"));
+            let manifest = root.join(format!("{package}-{}/Cargo.toml", release_version(package, version, &host)));
             let output = qualify_package(&verification, &manifest)?;
             if *package == "neocogi-idl" {
                 require_named_execution(&output, IMPORTED_INTERFACE_PROVIDER_TEST)?;
@@ -284,7 +304,7 @@ pub(crate) fn run(runner: &Runner) -> Result<()> {
         if output.trim_end_matches(['\r', '\n']).replace("\r\n", "\n") != expected {
             return Err(format!("unexpected strings_and_bytes output: {output}").into());
         }
-        let runtime = format!("{}/Cargo.toml", root.join(format!("neocogi-com-host-{version}")).display());
+        let runtime = format!("{}/Cargo.toml", root.join(format!("neocogi-com-host-{host}")).display());
         verification.cargo("1.85.0", &["build", "--manifest-path", &runtime])?;
         crate::process::require_file(&verification.target_dir().join("debug/libneocogi_com_host.rlib"))?;
         verification.cargo("1.85.0", &["run", "--manifest-path", "consumer/Cargo.toml"])?;
@@ -401,6 +421,7 @@ mod tests {
 
     /// Cargo owns the extracted assembly below an unrelated source workspace.
     /// As in the checkout, its target subtree excludes nested task-owned projects.
+    /// A distinct host patch must also remain a single extracted dependency.
     #[test]
     fn extracted_workspace_cannot_join_the_source_checkout() -> Result<()> {
         let owner = tempfile::tempdir()?;
@@ -408,16 +429,17 @@ mod tests {
         let root = owner.path().join("target/extracted");
         fs::create_dir_all(&root)?;
         for (package, _) in PUBLISHED {
-            let member = root.join(format!("{package}-0.0.0"));
+            let version = release_version(package, "0.0.0", "0.0.1");
+            let member = root.join(format!("{package}-{version}"));
             fs::create_dir_all(member.join("src"))?;
             fs::write(
                 member.join("Cargo.toml"),
-                format!("[package]\nname='{package}'\nversion='0.0.0'\nedition='2024'\n[features]\nruntime=[]\nalloc=[]\n"),
+                format!("[package]\nname='{package}'\nversion='{version}'\nedition='2024'\n[features]\nruntime=[]\nalloc=[]\n"),
             )?;
             fs::write(member.join("src/lib.rs"), "")?;
         }
         let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-        consumers(&repository, &root, "0.0.0")?;
+        consumers(&repository, &root, "0.0.0", "0.0.1")?;
         let mut runner = Runner::new(root.canonicalize()?);
         runner.temporary_files(runner.root.join("tmp"))?;
         crate::tests::require_independent_temporary_package(&runner)?;

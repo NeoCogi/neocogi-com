@@ -9,7 +9,7 @@ Maintainers publish using the dedicated [release procedure](../../docs/guides/RE
 | Command | Checks |
 | --- | --- |
 | `cargo test -p xtask --locked` | Driver regressions, real harness admission, archive extraction and report failures |
-| `cargo xtask workspace` | Locked graphs, complete unpublished integration ownership, SDK/host dependency direction, and a compiler-free no-default consumer |
+| `cargo xtask workspace` | Locked graphs, complete unpublished integration ownership, SDK/host dependency direction, codec-free host runtime graph, and a compiler-free no-default consumer |
 | `cargo xtask quality` | Formatting, strict Clippy, allocation modes, ABI snippets, Markdown links and strict rustdoc |
 | `cargo xtask markdown` | Local Markdown files and heading anchors; external links are not fetched |
 | `cargo xtask msrv` | Rust 1.85 checks, library tests, exact semantic integration cases and feature boundaries |
