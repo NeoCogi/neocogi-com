@@ -11,7 +11,7 @@ default = []
 monolith = ["dep:neocogi-example-com-plugin"]
 
 [dependencies]
-neocogi-com-serialization = { workspace = true, features = ["std"] }
+neocogi-com-serialization = { workspace = true, features = ["std", "plugin"] }
 neocogi-com = { workspace = true, features = ["macros", "runtime"] }
 neocogi-com-host.workspace = true
 neocogi-example-com-plugin = { path = "../com-plugin", optional = true }

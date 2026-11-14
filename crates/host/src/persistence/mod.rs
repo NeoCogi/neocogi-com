@@ -10,3 +10,38 @@ mod snapshot;
 
 pub(crate) use registry::Registry;
 pub(crate) use snapshot::snapshot_with_limits;
+
+use neocogi_com::{ComPtr, NcCopyFromBufferOffset, NcStatus, guid_from_qualified_name};
+use neocogi_com::serialization::{Format, ISerializationPluginAbi, Limits};
+
+/// Strong capabilities selected once for one synchronous persistence operation.
+/// The format and its root stay alive through traversal and recipe callbacks;
+/// their code/metadata are process-pinned by this host's catalog registration.
+struct NcbFormat {
+    /// Retained format factory; each encode/decode creates its own exclusive session.
+    format: Format,
+    /// Keep the acquiring provider alive until after the format is released.
+    _provider: ComPtr<ISerializationPluginAbi>,
+}
+
+/// Selects named NCB through this implementation's own admitted service tables.
+/// Catalog lookup releases its lock before bootstrap or format callbacks run.
+/// Missing providers and format-selection failures propagate unchanged; no
+/// default selection, implicit registration, loading or embedded fallback exists.
+fn ncb_format(limits: Limits) -> Result<NcbFormat, NcStatus> {
+    let provider = crate::initialize_runtime().acquire_plugin_root::<ISerializationPluginAbi>(guid_from_qualified_name("nc.serialization"))?;
+    // Persistence accepts usize policy ceilings, while the existing format ABI
+    // admits u32 container/depth ceilings. NCB-v1 container counts are u32;
+    // saturate permissive ceilings rather than rejecting an otherwise small
+    // document merely because its caller allowed more than the ABI can express.
+    let limits = Limits {
+        elements: limits.elements.min(u32::MAX as usize),
+        depth: limits.depth.min(u32::MAX as usize),
+        ..limits
+    };
+    let format = Format::new(provider.format(NcCopyFromBufferOffset::new(0, b"ncb"))?, limits);
+    Ok(NcbFormat { format, _provider: provider })
+}
+
+#[cfg(all(test, not(miri)))]
+mod tests;

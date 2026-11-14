@@ -20,13 +20,15 @@
 //! The host role belongs to the final application that selects this package.
 //! Interface callers and providers share the separate `neocogi-com` SDK. A
 //! provider can call other providers, and a host can implement callbacks. This
-//! implementation uses SDK ownership/contracts/codecs with `std` and core raw
+//! implementation uses SDK ownership/contracts with `std` and core raw
 //! service records. The SDK's normal dependencies do not select this host.
 //!
 //! The Cargo package is `neocogi-com-host`; the Rust target is `neocogi_com_host`.
 //! Native and browser hosts link this implementation once and lend its immutable
 //! C service tables to providers. No runtime DSO is deployed. Pure ABI records remain
 //! in `neocogi-com-core`; importing them creates no runtime state.
+//! Persistence acquires named NCB from the application's explicitly registered
+//! `nc.serialization` provider; this implementation embeds no codec or fallback.
 
 #![deny(missing_docs)]
 #![deny(unsafe_op_in_unsafe_fn)]

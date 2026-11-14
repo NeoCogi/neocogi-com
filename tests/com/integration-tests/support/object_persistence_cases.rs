@@ -447,5 +447,8 @@ mod snapshot_identity;
 /// Initializes this final test executable's selected host and admits its static tables.
 fn host_runtime() -> neocogi_com::Runtime {
     // SAFETY: the explicit implementation owns its complete process-lived graph.
-    unsafe { neocogi_com::Runtime::__from_host_api(neocogi_com_host::initialize_process()) }.expect("test host API is compatible")
+    let runtime = unsafe { neocogi_com::Runtime::__from_host_api(neocogi_com_host::initialize_process()) }.expect("test host API is compatible");
+    // SAFETY: This standalone composition retains its static provider for process lifetime.
+    unsafe { runtime.register_plugin_descriptor(neocogi_com_serialization::plugin_descriptor()) }.unwrap();
+    runtime
 }

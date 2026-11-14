@@ -132,3 +132,13 @@ metadata returns the shared validation status before projection or callbacks.
 Registration separately checks dependency availability, identity conflicts and
 capacity at publication. Inspection neither performs those catalog checks nor
 registers a plugin or invokes its factory. All metadata/code remains process-pinned.
+
+## Persistence provider
+
+Applications explicitly supply `nc.serialization` before snapshot or restore:
+register `neocogi_com_serialization::plugin_descriptor()` for static compositions,
+or load `neocogi-com-serialization-dylib` for dynamic compositions. The host uses
+the registered provider's named `ncb` factory in both directions, regardless of
+its default format. It embeds no codec or fallback. Missing providers return
+`NC_E_NOT_FOUND`; selection errors propagate. See [PERSISTENCE.md](PERSISTENCE.md)
+for ownership, callback ordering, limits and error precedence.

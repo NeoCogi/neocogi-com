@@ -74,6 +74,82 @@ fn native_shim_supplies_formats_and_failure_details() {
     }
     let default = Format::new(root.default_format().unwrap(), Limits::default());
     assert!(default.serialize(&value).unwrap().starts_with(b"NCB\x01"));
+    persistence_round_trip(&runtime);
+}
+
+/// Exercises host persistence with the actual independently built deployment DLL.
+/// This process never registers a static serialization descriptor.
+fn persistence_round_trip(runtime: &neocogi_com::Runtime) {
+    use neocogi_com::persistence::{FactoryRegistry, IPersistableAbi, ObjectRecord, snapshot};
+    let value = Persistent::from_value(Persistent);
+    let bytes = snapshot(runtime, value.as_com_ref()).unwrap();
+    let expected = neocogi_com_serialization::ncb::to_vec(&ObjectRecord {
+        type_id: PERSISTENT_KIND.to_uuid_bytes(),
+        schema_version: 1,
+        state: vec![1, 2, 3],
+        children: vec![],
+    })
+    .unwrap();
+    assert_eq!(bytes, expected, "the loaded provider preserves NCB-v1 bytes");
+    let mut registry = FactoryRegistry::new(runtime).unwrap();
+    registry
+        .register(PERSISTENT_KIND, PersistenceFactory::from_value(PersistenceFactory).query().unwrap())
+        .unwrap();
+    let restored = registry.restore(&bytes).unwrap();
+    assert_eq!(restored.query::<IPersistableAbi>().unwrap().schema_version().unwrap(), 1);
+    assert_eq!(snapshot(runtime, restored.as_com_ref()).unwrap(), bytes);
+    for end in 0..bytes.len() {
+        assert_eq!(registry.restore(&bytes[..end]).unwrap_err(), neocogi_com::NC_E_INVALID_ARG);
+    }
+    let mut trailing = bytes;
+    trailing.push(0);
+    assert_eq!(registry.restore(&trailing).unwrap_err(), neocogi_com::NC_E_INVALID_ARG);
+}
+
+/// Explicit recipe identity for an application object crossing the loaded codec.
+const PERSISTENT_KIND: neocogi_com::NcGuid = neocogi_com::guid_from_qualified_name("nc.tests.loaded-serialization.persistence");
+
+/// Opaque application state; the host and codec own only its persistence envelope.
+#[neocogi_com::com_object(neocogi_com::persistence::IPersistable)]
+struct Persistent;
+impl neocogi_com::persistence::IPersistable for Persistent {
+    fn type_id(&self) -> Result<neocogi_com::NcGuid, neocogi_com::NcStatus> {
+        Ok(PERSISTENT_KIND)
+    }
+    fn schema_version(&self) -> Result<u32, neocogi_com::NcStatus> {
+        Ok(1)
+    }
+    fn save_state(&self) -> Result<neocogi_com::ComPtr<neocogi_com::INcBytesAbi>, neocogi_com::NcStatus> {
+        Ok(neocogi_com::NcBytes::from_vec(vec![1, 2, 3]))
+    }
+    fn child_count(&self) -> Result<u32, neocogi_com::NcStatus> {
+        Ok(0)
+    }
+    fn child(&self, _: u32) -> Result<neocogi_com::ComPtr<neocogi_com::IUnknown>, neocogi_com::NcStatus> {
+        Err(neocogi_com::NC_E_OUT_OF_RANGE)
+    }
+}
+
+/// Reconstruction validates the initialization received through real COM calls.
+#[neocogi_com::com_object(neocogi_com::persistence::IPersistenceFactory)]
+struct PersistenceFactory;
+impl neocogi_com::persistence::IPersistenceFactory for PersistenceFactory {
+    fn validate(&self, version: u32, state: NcCopyFromBufferOffset<'_, u8>, count: u32) -> Result<(), neocogi_com::NcStatus> {
+        if version == 1 && state.offset() == 0 && state.as_slice() == [1, 2, 3] && count == 0 {
+            Ok(())
+        } else {
+            Err(neocogi_com::NC_E_INVALID_ARG)
+        }
+    }
+    fn restore(
+        &self,
+        version: u32,
+        state: NcCopyFromBufferOffset<'_, u8>,
+        children: neocogi_com::ComRef<'_, neocogi_com::persistence::IObjectChildrenAbi>,
+    ) -> Result<neocogi_com::ComPtr<neocogi_com::IUnknown>, neocogi_com::NcStatus> {
+        self.validate(version, state, children.count()?)?;
+        Persistent::from_value(Persistent).query()
+    }
 }
 
 /// The unpublished test owner already uses serde_json for Cargo messages. Use it

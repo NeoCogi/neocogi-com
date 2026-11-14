@@ -1,6 +1,5 @@
 //! Caller-owned recipe registration and two-pass object reconstruction.
 
-use neocogi_com_serialization::ncb as binary;
 use std::collections::BTreeMap;
 use neocogi_com::{ComPtr, IUnknown, NcCopyFromBufferOffset, NcGuid, NcStatus, NC_E_INVALID_ARG, NC_E_NOT_FOUND, NC_E_OUT_OF_RANGE};
 use neocogi_com::persistence::{IPersistenceFactoryAbi, Limits, ObjectRecord};
@@ -29,7 +28,8 @@ impl Registry {
     }
     /// Uses bounded decoding and preflight before invoking any constructors.
     pub(crate) fn restore_with_limits(&self, bytes: &[u8], limits: Limits) -> Result<ComPtr<IUnknown>, NcStatus> {
-        let record: ObjectRecord = binary::from_slice_with_limits(bytes, limits.binary).map_err(|_| NC_E_INVALID_ARG)?;
+        let codec = super::ncb_format(limits.binary)?;
+        let record: ObjectRecord = codec.format.deserialize(bytes).map_err(|_| NC_E_INVALID_ARG)?;
         // Complete preflight must succeed before the first constructor runs.
         let mut remaining = limits.objects;
         self.validate(&record, limits, 0, &mut remaining)?;

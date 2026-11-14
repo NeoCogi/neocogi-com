@@ -18,8 +18,11 @@ name = "neocogi_com_host"
 crate-type = ["rlib"]
 
 [dependencies]
-neocogi-com-serialization = { workspace = true, features = ["std"] }
 neocogi-com-core = { workspace = true, default-features = false, features = ["std"] }
 
-# Shared ownership/contracts and the separate NCB implementation; the host owns no format registry.
-neocogi-com = { workspace = true, default-features = false, features = ["std"] }
+# COM clients use this host's own tables; the application supplies the codec provider.
+neocogi-com = { workspace = true, default-features = false, features = ["std", "runtime"] }
+
+[dev-dependencies]
+neocogi-com = { workspace = true, features = ["macros"] }
+neocogi-com-serialization = { workspace = true, features = ["plugin", "json", "std"] }

@@ -1,6 +1,5 @@
 //! Bounded capture of semantic initialization trees, with owned-path cycle checks.
 
-use neocogi_com_serialization::ncb as binary;
 use neocogi_com::{ComPtr, ComRef, INcBytesComPtrExt, IUnknown, NcStatus, NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE};
 use neocogi_com::persistence::{IPersistableAbi, Limits, ObjectRecord};
 
@@ -16,7 +15,10 @@ pub(crate) fn snapshot_with_limits(object: ComRef<'_, IUnknown>, limits: Limits)
         active: Vec::new(),
     };
     let record = capture.object(object)?;
-    binary::to_vec_with_limits(&record, limits.binary).map_err(|_| NC_E_INVALID_ARG)
+    // Complete capture first so ownership, cycle and traversal-budget failures
+    // preserve their precedence over codec availability and format selection.
+    let codec = super::ncb_format(limits.binary)?;
+    codec.format.serialize(&record).map_err(|_| NC_E_INVALID_ARG)
 }
 
 /// Per-snapshot traversal state, uniquely borrowed throughout recursive capture.

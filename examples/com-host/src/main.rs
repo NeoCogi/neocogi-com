@@ -15,6 +15,10 @@ use neocogi_example_com_host::contracts::{ExampleFactoryAbi, ExampleObjectAbi, E
 /// Registers the selected plugin, acquires its checked factory, and mutates one object.
 #[neocogi_com::com_main]
 fn main(runtime: Runtime) {
+    // This example also uses static NCB helpers for typed state. Select that same
+    // static serialization implementation explicitly for host persistence.
+    // SAFETY: The descriptor and all its code are linked for process lifetime.
+    unsafe { runtime.register_plugin_descriptor(neocogi_com_serialization::plugin_descriptor()) }.expect("static serialization registration");
     register_plugin(&runtime);
     qualify_peer(&runtime);
     // The runtime verifies the complete transitive contract before bootstrap.

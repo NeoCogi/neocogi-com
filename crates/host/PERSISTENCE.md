@@ -50,6 +50,22 @@ monolith. Its adapter reconstructs through the provider's existing typed factory
 
 ## Ownership and linkage
 
+The final application must supply `nc.serialization` in this host's catalog
+before snapshot or restore. A static/monolithic application explicitly registers
+`neocogi_com_serialization::plugin_descriptor()`; a dynamic application loads
+`neocogi-com-serialization-dylib`. Host initialization and empty context creation
+remain provider-independent. The host has no runtime dependency on a codec
+implementation, implicit registration, loader policy, format registry or fallback.
+
+Each operation acquires `ISerializationPluginAbi` through this host's own admitted
+runtime tables and requests `format("ncb")`, never `default_format()`. A provider
+whose default is JSON must still supply named NCB. The root and selected format
+factory are retained for the operation, including restoration preflight and
+construction; each document uses an independent exclusive session. Catalog locks
+are released before bootstrap, selection, session and recipe callbacks. Existing
+thread-local context and reentrancy rules still apply; this adds no global codec
+state or persistence-context mutation through shared access.
+
 Persistence is implemented in `neocogi-com-host` and called through
 `NcPersistenceApiV2`, supplied in the admitted host API description. Enable the
 facade's `runtime` feature for callers. All final hosts link the implementation
@@ -88,6 +104,9 @@ root-to-leaf path. The nested binary policy defaults to a 16 MiB document,
 decoded values. Binary nesting counts the encoded record/sequence structure,
 so it can be exhausted before the object-depth budget. Provider-state bytes
 and children also count toward binary container limits.
+The format COM ABI represents container and value-depth ceilings as `u32`.
+Persistence saturates larger `usize` ceilings to `u32::MAX` at that boundary,
+so permissive caller policy still accepts small NCB-v1 documents.
 
 Registration consumes an owned factory pointer. The runtime retains one
 reference on success; duplicate IDs return `NC_E_INVALID_ARG` and preserve
@@ -101,6 +120,14 @@ return `NC_E_OUT_OF_RANGE`. Codec failures are mapped to `NC_E_INVALID_ARG`,
 including codec limits, so callers must not assume every limit failure has one
 status. Application bindings and publication remain the caller's responsibility
 after a successful restore.
+
+An unregistered serialization provider returns `NC_E_NOT_FOUND`; root acquisition
+and named-format selection errors propagate unchanged. They never trigger another
+format or an embedded implementation. ABI argument admission precedes selection,
+including restore's input-byte budget and cleared output. Snapshot completes its
+ownership, capability, cycle and capture-budget checks before selection. Restore
+selects and decodes before any recipe callback. Encoding/decoding errors after
+selection retain their existing `NC_E_INVALID_ARG` mapping and cleanup semantics.
 
 ## Rust access
 

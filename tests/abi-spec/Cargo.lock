@@ -40,7 +40,6 @@ version = "0.2.0"
 dependencies = [
  "neocogi-com",
  "neocogi-com-core",
- "neocogi-com-serialization",
 ]
 
 [[package]]
@@ -49,13 +48,6 @@ version = "0.2.0"
 dependencies = [
  "neocogi-idl",
  "syn 2.0.119",
-]
-
-[[package]]
-name = "neocogi-com-serialization"
-version = "0.2.0"
-dependencies = [
- "neocogi-com",
 ]
 
 [[package]]
