@@ -1,5 +1,7 @@
 //! Source admission is exercised in bounded children so old aborts cannot kill CI.
-use std::{path::Path, process::Command};
+use std::path::Path;
+#[cfg(not(miri))]
+use std::process::Command;
 use crate::{ModuleSource, ParseError, parse_module, parse_module_parts};
 
 /// Builds source text, not compiler models that could bypass source admission.
