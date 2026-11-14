@@ -9,11 +9,9 @@ use std::{
 use neocogi_com_core::NcGuid;
 use proc_macro2::Span;
 use syn::{
-    Attribute, Expr, ExprLit, ExprUnary, FnArg, GenericArgument, Ident, Lit, LitInt, LitStr, Pat, PathArguments, ReturnType, Token, TraitItemFn, Type,
-    TypeParamBound, UnOp, braced, parenthesized,
+    Attribute, Expr, ExprLit, Ident, Lit, LitInt, LitStr, Token, braced, parenthesized,
     parse::{Parse, ParseStream},
     ext::IdentExt,
-    parse_str,
     punctuated::Punctuated,
     spanned::Spanned,
 };
@@ -22,6 +20,10 @@ use crate::{
     PersistencePolicy, AbiType, BitEnum, BitFlag, Declaration, DeclarationKind, Diagnostic, Enum, EnumNames, EnumRepr, EnumVariant, ExternalModule, Field,
     Import, Interface, Method, Module, ModuleName, ModulePathError, NamedType, Parameter, Receiver, SourceFile, SourceSpan, Struct, Threading, VariantFields,
 };
+
+mod attributes;
+mod methods;
+mod types;
 
 mod keyword {
     //! Custom declaration keywords that intentionally are not Rust items.
@@ -157,7 +159,14 @@ fn assemble_module<'a>(name: ModuleName, parts: impl IntoIterator<Item = ModuleS
                 Diagnostic::new("EIDL003", format!("IDL module contains source path {:?} more than once", source_file.path())).with_source(&source_file),
             ));
         }
-        let mut syntax = parse_str::<ModuleSyntax>(part.text).map_err(|error| ParseError::from(Diagnostic::from_syn(&source_file, error)))?;
+        // Fallback tokenization and cleanup are iterative. Admit groups before Syn's
+        // recursively constructed TokenBuffer, including unsupported syntax.
+        let tokens = part
+            .text
+            .parse::<proc_macro2::TokenStream>()
+            .map_err(|error| ParseError::from(Diagnostic::from_syn(&source_file, syn::Error::new(error.span(), error))))?;
+        crate::nesting::admit_tokens(&tokens).map_err(|error| ParseError::from(Diagnostic::from_syn(&source_file, error)))?;
+        let mut syntax = syn::parse2::<ModuleSyntax>(tokens).map_err(|error| ParseError::from(Diagnostic::from_syn(&source_file, error)))?;
         syntax.attach_source(&source_file);
         warnings.extend(syntax.warnings);
         // A dependency is a module-level fact, so repeating it in another
@@ -256,7 +265,7 @@ impl Parse for ModuleSyntax {
         let mut declaration_names = HashMap::new();
 
         while !input.is_empty() {
-            let attributes = Attribute::parse_outer(input)?;
+            let attributes = attributes::outer(input)?;
             if input.peek(Token![pub]) {
                 return Err(input.error("IDL declarations are public implicitly; remove `pub`"));
             }
@@ -486,273 +495,30 @@ fn parse_bases(input: ParseStream<'_>) -> syn::Result<Vec<NamedType>> {
         return Ok(Vec::new());
     }
     input.parse::<Token![:]>()?;
-    let bounds = Punctuated::<TypeParamBound, Token![+]>::parse_separated_nonempty(input)?;
-    bounds
-        .into_iter()
-        .map(|bound| match bound {
-            TypeParamBound::Trait(bound) if bound.lifetimes.is_none() && bound.modifier == syn::TraitBoundModifier::None => named_path(&bound.path),
-            _ => Err(syn::Error::new_spanned(bound, "IDL bases must be plain interface paths")),
-        })
-        .collect()
+    let mut bases = vec![types::base(input)?];
+    while input.peek(Token![+]) {
+        input.parse::<Token![+]>()?;
+        bases.push(types::base(input)?);
+    }
+    Ok(bases)
 }
 
-/// Parses ordered methods, reserving method names.
+/// Parses methods without accepting general Rust bodies, patterns or signatures.
 fn parse_methods(input: ParseStream<'_>) -> syn::Result<Vec<Method>> {
     let body;
     braced!(body in input);
     let mut methods = Vec::new();
     let mut names = HashMap::new();
     while !body.is_empty() {
-        let attributes = Attribute::parse_outer(&body)?;
-        let mut source = body.parse::<TraitItemFn>()?;
-        source.attrs.splice(0..0, attributes);
-        let span = source.sig.ident.span();
-        let method = lower_method(source)?;
+        let attributes = attributes::outer(&body)?;
+        let (method, span) = methods::method(&body, &attributes)?;
+        // Duplicate diagnostics use the original method identifier, not its body.
         if let Some(previous) = names.insert(method.name.clone(), span) {
             return Err(duplicate_error("EIDL016", "method or port", &method.name, span, previous));
         }
         methods.push(method);
     }
     Ok(methods)
-}
-
-/// Validates and lowers one Syn trait method into the language-neutral model.
-fn lower_method(source: TraitItemFn) -> syn::Result<Method> {
-    if source.default.is_some() {
-        return Err(syn::Error::new_spanned(source, "IDL methods have no bodies"));
-    }
-    let docs = parse_doc_only_attributes(&source.attrs)?;
-    let signature = source.sig;
-    require_snake_case(&signature.ident, "method")?;
-    if signature.constness.is_some()
-        || signature.asyncness.is_some()
-        || signature.unsafety.is_some()
-        || signature.abi.is_some()
-        || signature.variadic.is_some()
-        || !signature.generics.params.is_empty()
-        || signature.generics.where_clause.is_some()
-    {
-        return Err(syn::Error::new_spanned(
-            signature,
-            "IDL methods cannot be const, async, unsafe, extern, variadic, or generic",
-        ));
-    }
-
-    let mut inputs = signature.inputs.into_iter();
-    let receiver = match inputs.next() {
-        Some(FnArg::Receiver(receiver)) if receiver.reference.is_some() && receiver.colon_token.is_none() => {
-            reject_attributes(&receiver.attrs)?;
-            // Reject before narrowing Syn's receiver to its lifetime-free dispatch mode.
-            if let Some((_, Some(lifetime))) = &receiver.reference {
-                return Err(syn::Error::new_spanned(
-                    lifetime,
-                    "IDL receivers cannot declare lifetimes; use `&self` or `&mut self`",
-                ));
-            }
-            if receiver.mutability.is_some() { Receiver::Mutable } else { Receiver::Shared }
-        }
-        other => return Err(syn::Error::new_spanned(other, "IDL methods must begin with `&self` or `&mut self`")),
-    };
-
-    let mut parameters = Vec::new();
-    let mut names = HashMap::new();
-    for input in inputs {
-        let FnArg::Typed(argument) = input else {
-            return Err(syn::Error::new_spanned(input, "a method can have only one receiver"));
-        };
-        reject_attributes(&argument.attrs)?;
-        let Pat::Ident(pattern) = argument.pat.as_ref() else {
-            return Err(syn::Error::new_spanned(argument.pat, "IDL parameters require simple identifier patterns"));
-        };
-        if pattern.by_ref.is_some() || pattern.mutability.is_some() || pattern.subpat.is_some() {
-            return Err(syn::Error::new_spanned(
-                pattern,
-                "IDL parameter patterns cannot use `ref`, `mut`, or subpatterns",
-            ));
-        }
-        let name = pattern.ident.to_string();
-        require_snake_case(&pattern.ident, "parameter")?;
-        let span = SourceSpan::from_parser(pattern.ident.span());
-        if let Some(previous) = names.insert(name.clone(), pattern.ident.span()) {
-            return Err(duplicate_error("EIDL017", "parameter", &name, pattern.ident.span(), previous));
-        }
-        parameters.push(Parameter {
-            span,
-            name,
-            ty: lower_type(&argument.ty)?,
-        });
-    }
-
-    let ReturnType::Type(_, output) = signature.output else {
-        return Err(syn::Error::new_spanned(signature.ident, "IDL methods must return `Result<T>`"));
-    };
-    let output = lower_result_output(&output)?;
-    Ok(Method {
-        span: SourceSpan::from_parser(signature.ident.span()),
-        docs,
-        name: signature.ident.to_string(),
-        receiver,
-        parameters,
-        output,
-    })
-}
-
-/// Extracts the successful value from the required single-argument `Result<T>`.
-fn lower_result_output(output: &Type) -> syn::Result<AbiType> {
-    let Type::Path(path) = output else {
-        return Err(syn::Error::new_spanned(output, "IDL methods must return `Result<T>`"));
-    };
-    require_relative_path(&path.path)?;
-    if path.qself.is_some() || path.path.segments.len() != 1 || path.path.segments[0].ident != "Result" {
-        return Err(syn::Error::new_spanned(output, "IDL methods must return `Result<T>`"));
-    }
-    let PathArguments::AngleBracketed(arguments) = &path.path.segments[0].arguments else {
-        return Err(syn::Error::new_spanned(output, "`Result` requires one successful output type"));
-    };
-    if arguments.args.len() != 1 {
-        return Err(syn::Error::new_spanned(arguments, "IDL `Result` accepts exactly one output type"));
-    }
-    let Some(GenericArgument::Type(output)) = arguments.args.first() else {
-        return Err(syn::Error::new_spanned(arguments, "IDL `Result` output must be a type"));
-    };
-    lower_type(output)
-}
-
-/// Lowers one supported Rust-like type spelling into explicit ABI semantics.
-fn lower_type(source: &Type) -> syn::Result<AbiType> {
-    match source {
-        Type::Tuple(tuple) if tuple.elems.is_empty() => Ok(AbiType::Unit),
-        Type::Path(path) if path.qself.is_none() => lower_path_type(&path.path),
-        Type::Reference(reference) if reference.lifetime.is_none() => {
-            // Bracket and intrinsic spellings normalize before ownership validation.
-            let referent = lower_type(&reference.elem)?;
-            match (reference.mutability.is_some(), referent) {
-                (false, AbiType::UnsizedSlice(element)) => Ok(AbiType::Slice(element)),
-                (true, AbiType::UnsizedSlice(element)) => Ok(AbiType::OutputSlice(element)),
-                (false, referent) => Ok(AbiType::Borrowed(Box::new(referent))),
-                (true, _) => Err(syn::Error::new_spanned(reference, "IDL mutable borrows must use `&mut [T]` or `&mut Slice<T>`")),
-            }
-        }
-        Type::Array(array) => {
-            let len = parse_unsigned_integer(&array.len)?;
-            let len = u32::try_from(len).map_err(|_| syn::Error::new_spanned(&array.len, "IDL array length exceeds u32"))?;
-            Ok(AbiType::Array {
-                element: Box::new(lower_type(&array.elem)?),
-                len,
-            })
-        }
-        Type::Slice(slice) => Ok(AbiType::UnsizedSlice(Box::new(lower_type(&slice.elem)?))),
-        _ => Err(syn::Error::new_spanned(source, "unsupported IDL ABI type")),
-    }
-}
-
-/// Lowers a built-in, optional, or named path type.
-fn lower_path_type(path: &syn::Path) -> syn::Result<AbiType> {
-    require_relative_path(path)?;
-    if path.segments.len() == 1 {
-        let segment = &path.segments[0];
-        let name = segment.ident.to_string();
-        if matches!(
-            name.as_str(),
-            "bool" | "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "f32" | "f64" | "Guid" | "Status"
-        ) {
-            if segment.arguments != PathArguments::None {
-                return Err(syn::Error::new_spanned(segment, "scalar IDL types do not accept generic arguments"));
-            }
-            return Ok(AbiType::Scalar(name));
-        }
-        if name == "String" {
-            if segment.arguments != PathArguments::None {
-                return Err(syn::Error::new_spanned(segment, "IDL `String` does not accept generic arguments"));
-            }
-            return Ok(AbiType::String);
-        }
-        if name == "Array" {
-            let PathArguments::AngleBracketed(arguments) = &segment.arguments else {
-                return Err(syn::Error::new_spanned(segment, "Array requires an element type and integer length"));
-            };
-            let arguments = arguments.args.iter().collect::<Vec<_>>();
-            let [GenericArgument::Type(element), GenericArgument::Const(length)] = arguments.as_slice() else {
-                return Err(syn::Error::new_spanned(
-                    segment,
-                    "Array requires Array<T, N> with a literal nonnegative u32 length",
-                ));
-            };
-            let len = u32::try_from(parse_unsigned_integer(length)?).map_err(|_| syn::Error::new_spanned(length, "IDL array length exceeds u32"))?;
-            return Ok(AbiType::Array {
-                element: Box::new(lower_type(element)?),
-                len,
-            });
-        }
-        if matches!(name.as_str(), "ComPtr" | "WeakComPtr" | "ComBox" | "WeakComBox" | "Vec" | "Slice") {
-            let PathArguments::AngleBracketed(arguments) = &segment.arguments else {
-                return Err(syn::Error::new_spanned(segment, format!("IDL `{name}` requires one type argument")));
-            };
-            if arguments.args.len() != 1 {
-                return Err(syn::Error::new_spanned(arguments, format!("IDL `{name}` accepts exactly one type argument")));
-            }
-            let Some(GenericArgument::Type(value)) = arguments.args.first() else {
-                return Err(syn::Error::new_spanned(arguments, format!("IDL `{name}` argument must be a type")));
-            };
-            return Ok(match name.as_str() {
-                "ComPtr" => AbiType::ComPtr(Box::new(lower_type(value)?)),
-                "WeakComPtr" => AbiType::WeakComPtr(Box::new(lower_type(value)?)),
-                "ComBox" => AbiType::ComBox(Box::new(lower_type(value)?)),
-                "WeakComBox" => AbiType::WeakComBox(Box::new(lower_type(value)?)),
-                "Vec" => AbiType::Vector(Box::new(lower_type(value)?)),
-                "Slice" => AbiType::UnsizedSlice(Box::new(lower_type(value)?)),
-                _ => unreachable!("intrinsic constructor was checked above"),
-            });
-        }
-        if name == "Result" {
-            return Err(syn::Error::new_spanned(segment, "IDL `Result` is valid only as a method return"));
-        }
-    }
-
-    Ok(AbiType::Named(named_path(path)?))
-}
-
-/// Admits module-relative names before built-in, Result or named classification.
-fn require_relative_path(path: &syn::Path) -> syn::Result<()> {
-    if let Some(qualifier) = &path.leading_colon {
-        return Err(syn::Error::new_spanned(qualifier, "IDL paths are module-qualified without a leading ::"));
-    }
-    Ok(())
-}
-
-/// Admits logical module prefixes separately from final names and type arguments.
-/// Lifetime, const and associated-type syntax remain outside named arguments.
-fn named_path(path: &syn::Path) -> syn::Result<NamedType> {
-    require_relative_path(path)?;
-    let mut segments = Vec::new();
-    let mut arguments = Vec::new();
-    for (index, segment) in path.segments.iter().enumerate() {
-        if index + 1 < path.segments.len() {
-            ModuleName::validate_segment(&segment.ident.to_string()).map_err(|error| syn::Error::new(segment.ident.span(), error))?;
-        }
-        segments.push(segment.ident.to_string());
-        match &segment.arguments {
-            PathArguments::None => {}
-            PathArguments::AngleBracketed(values) if index + 1 == path.segments.len() && !values.args.is_empty() => {
-                for value in &values.args {
-                    match value {
-                        GenericArgument::Type(value) => arguments.push(lower_type(value)?),
-                        _ => return Err(syn::Error::new_spanned(value, "generic arguments must be types")),
-                    }
-                }
-            }
-            _ => return Err(syn::Error::new_spanned(segment, "type arguments belong on the final interface name")),
-        }
-    }
-    if segments.is_empty() {
-        return Err(syn::Error::new_spanned(path, "IDL type path cannot be empty"));
-    }
-    Ok(NamedType {
-        binding: crate::binding::Binding::Unbound,
-        span: SourceSpan::from_parser(path.span()),
-        segments,
-        arguments,
-    })
 }
 
 /// Accepts a small ordered set of plain type parameters; bounds are checked at each closed use.
@@ -784,7 +550,7 @@ fn parse_type_parameters(input: ParseStream<'_>) -> syn::Result<Vec<String>> {
 
 /// Parses one named field and consumes its required comma when another follows.
 fn parse_named_field(input: ParseStream<'_>) -> syn::Result<Parsed<Field>> {
-    let attributes = Attribute::parse_outer(input)?;
+    let attributes = attributes::outer(input)?;
     let docs = parse_doc_only_attributes(&attributes)?;
     if input.peek(Token![pub]) {
         return Err(input.error("IDL fields are public implicitly; remove `pub`"));
@@ -792,7 +558,7 @@ fn parse_named_field(input: ParseStream<'_>) -> syn::Result<Parsed<Field>> {
     let name = input.parse::<Ident>()?;
     require_snake_case(&name, "field")?;
     input.parse::<Token![:]>()?;
-    let ty = lower_type(&input.parse::<Type>()?)?;
+    let ty = types::abi(input)?;
     if !input.is_empty() {
         input.parse::<Token![,]>()?;
     }
@@ -809,18 +575,24 @@ fn parse_named_field(input: ParseStream<'_>) -> syn::Result<Parsed<Field>> {
 
 /// Parses one enum variant including an optional explicit discriminant.
 fn parse_enum_variant(input: ParseStream<'_>) -> syn::Result<Parsed<EnumVariant>> {
-    let attributes = Attribute::parse_outer(input)?;
+    let attributes = attributes::outer(input)?;
     let docs = parse_doc_only_attributes(&attributes)?;
     let name = input.parse::<Ident>()?;
     require_upper_camel_case(&name, "enum variant")?;
     let fields = if input.peek(syn::token::Paren) {
         let content;
         parenthesized!(content in input);
-        let values = Punctuated::<Type, Token![,]>::parse_terminated(&content)?;
+        let mut values = Vec::new();
+        while !content.is_empty() {
+            values.push(types::abi(&content)?);
+            if !content.is_empty() {
+                content.parse::<Token![,]>()?;
+            }
+        }
         if values.is_empty() {
             return Err(content.error("an empty tuple variant should be written without parentheses"));
         }
-        VariantFields::Tuple(values.iter().map(lower_type).collect::<syn::Result<Vec<_>>>()?)
+        VariantFields::Tuple(values)
     } else if input.peek(syn::token::Brace) {
         let content;
         braced!(content in input);
@@ -843,7 +615,7 @@ fn parse_enum_variant(input: ParseStream<'_>) -> syn::Result<Parsed<EnumVariant>
 
     let discriminant = if input.peek(Token![=]) {
         input.parse::<Token![=]>()?;
-        Some(parse_signed_integer(&input.parse::<Expr>()?)?)
+        Some(attributes::signed(input)?)
     } else {
         None
     };
@@ -864,12 +636,12 @@ fn parse_enum_variant(input: ParseStream<'_>) -> syn::Result<Parsed<EnumVariant>
 
 /// Parses one explicitly valued bit flag and consumes its trailing comma.
 fn parse_bit_flag(input: ParseStream<'_>) -> syn::Result<Parsed<BitFlag>> {
-    let attributes = Attribute::parse_outer(input)?;
+    let attributes = attributes::outer(input)?;
     let docs = parse_doc_only_attributes(&attributes)?;
     let name = input.parse::<Ident>()?;
     require_screaming_snake_case(&name, "bit enum flag")?;
     input.parse::<Token![=]>()?;
-    let value = parse_unsigned_integer(&input.parse::<Expr>()?)?;
+    let value = attributes::unsigned(input)?;
     if !input.is_empty() {
         input.parse::<Token![,]>()?;
     }
@@ -882,32 +654,6 @@ fn parse_bit_flag(input: ParseStream<'_>) -> syn::Result<Parsed<BitFlag>> {
             value,
         },
     })
-}
-
-/// Parses an attribute-free nonnegative literal for array lengths and bit flags.
-fn parse_unsigned_integer(expression: &Expr) -> syn::Result<u64> {
-    let Expr::Lit(ExprLit { attrs, lit: Lit::Int(value), .. }) = expression else {
-        return Err(syn::Error::new_spanned(expression, "expected an integer literal"));
-    };
-    reject_attributes(attrs)?;
-    value.base10_parse::<u64>()
-}
-
-/// Parses an attribute-free enum discriminant without accepting computed expressions.
-fn parse_signed_integer(expression: &Expr) -> syn::Result<i64> {
-    match expression {
-        Expr::Lit(ExprLit { attrs, lit: Lit::Int(value), .. }) => {
-            reject_attributes(attrs)?;
-            value.base10_parse::<i64>()
-        }
-        Expr::Unary(ExprUnary { attrs, op: UnOp::Neg(_), expr, .. }) => {
-            reject_attributes(attrs)?;
-            let magnitude = parse_unsigned_integer(expr)?;
-            let magnitude = i64::try_from(magnitude).map_err(|_| syn::Error::new_spanned(expression, "negative discriminant magnitude exceeds i64"))?;
-            Ok(-magnitude)
-        }
-        _ => Err(syn::Error::new_spanned(expression, "enum discriminants must be integer literals")),
-    }
 }
 
 /// Parses one dotted module import with one name or a braced name list.

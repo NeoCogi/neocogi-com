@@ -53,6 +53,28 @@ the exact map path from `BuildOutput::source_map`; the repository exposes includ
 paths in Cargo’s build-script JSON. The
 [source mapping guide](../guides/IDL_SOURCE_MAPS.md) defines the format and lookup rules.
 
+Authored text is tokenized once before Syn admission. The existing iterative
+`proc_macro2` fallback lexer owns comments/literals and token cleanup; actual token
+groups are limited to 128 levels before Syn builds its buffer. The frontend then
+parses the supported IDL grammar directly, never an unrestricted Rust type,
+expression, method body or attribute expression merely to reject it afterward.
+The dependency floor is the audited `proc-macro2` 1.0.107 implementation.
+
+Normalized inline types have a maximum height of 96: a leaf has height one, a
+constructor adds one, and generic siblings contribute their maximum, not their
+sum. Nominal declaration edges are not unfolded. Slice/array sugar has the same
+normalized bound as its intrinsic spelling; `Result` is fixed method framing.
+Excessive nesting returns an owned `EIDL068` diagnostic at its actual source part
+and location. These are compiler complexity limits, independent of runtime COM
+value budgets and specialization work/materialization limits. They preserve the
+existing 65-level output-type regression and do not impose a nominal graph cap.
+
+Text parsing/generation runs in ordinary native compiler/build-script processes.
+Rust procedural macro entry points consume rustc-supplied Rust syntax separately;
+calling the text APIs in a warmed procedural-macro process is not a supported
+context. Worker creation does not reset proc-macro2's process-wide backend state,
+and the compiler does not force that state globally.
+
 IDL source parsing and complete Rust generation use one explicit eight-MiB
 syntax-worker stack policy on every host. Deep valid
 output-buffer types therefore do not depend on a build-script main thread's

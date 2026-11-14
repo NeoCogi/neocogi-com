@@ -18,6 +18,7 @@ mod bounded_child;
 mod diagnostic;
 mod metadata_names;
 mod model;
+mod nesting;
 mod parser;
 mod path;
 mod resolve;

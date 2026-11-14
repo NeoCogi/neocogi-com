@@ -36,7 +36,7 @@ neocogi-com-host = { path = "crates/host", version = "=0.2.0-alpha.5", default-f
 neocogi-com = { path = "crates/com", version = "=0.2.0-alpha.5", default-features = false }
 neocogi-com-serialization = { path = "crates/serialization", version = "=0.2.0-alpha.5", default-features = false }
 prettyplease = "0.2"
-proc-macro2 = { version = "1", features = ["span-locations"] }
+proc-macro2 = { version = "1.0.107", features = ["span-locations"] }
 quote = "1"
 syn = { version = "2", features = ["full", "extra-traits"] }
 serde = { version = "1", features = ["derive"] }
