@@ -4,7 +4,7 @@ The current contract uses [ABI v2, core generation 19](docs/abi-v2.md). Entries 
 its development; later entries can supersede older implementation details.
 Historical draft numbers do not define additional supported COM baselines.
 
-## neocogi-com-host 0.2.1 — 2026-11-14
+## 0.3.0-alpha.1 — 2026-11-14
 
 - Remove the host's runtime dependency on the serialization implementation.
   Snapshot and restore acquire `nc.serialization` through this host's own catalog
@@ -16,10 +16,13 @@ Historical draft numbers do not define additional supported COM baselines.
   Retain root/format capabilities through each operation and keep callbacks
   outside catalog locks. Preserve permissive `usize` budget ceilings at the
   existing `u32` format ABI boundary.
-- Release only the host implementation as `0.2.1`. SDK, core, macros, IDL and
-  serialization remain `0.2.0`, preserving published platform
-  `0.3.0-alpha.1`'s SDK dependency identity. Update release/archive qualification
-  to admit this implementation-only patch without coordinated SDK version bumps.
+- Promote all eight COM packages together to `0.3.0-alpha.1`, superseding the
+  unpublished host-only `0.2.1` candidate and removing its version-policy exception.
+  Rust dependency compatibility with the `0.2.0` cohort is not promised; update
+  downstream UI/platform compositions together. Published platform
+  `0.3.0-alpha.1` still pins COM `0.2.0` and needs a corresponding update before
+  sharing the new SDK's Rust types. ABI family 2, core generation 19, IDL encoding
+  v14 and NCB wire v1 retain their existing authorities.
 - Linux regressions cover static and real-DLL persistence, isolated missing
   providers, JSON defaults, selection failures, reentrant callbacks, exact bytes,
   truncation/trailing input and retained-owner cleanup. Existing malformed-input,

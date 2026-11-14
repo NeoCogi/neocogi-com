@@ -10,10 +10,9 @@ protocol.
 This is experimental software. Build the host, plugins and generated interfaces
 with the same SDK release. Loaded plugins stay mapped until the process exits.
 
-The prepared SDK release is **0.2.0**, using [ABI v2](docs/abi-v2.md).
-The host implementation patch is **0.2.1**, retaining the **0.2.0** SDK, core and
-serialization dependencies. Persistence applications explicitly supply their
-selected serialization provider; see [host persistence](crates/host/PERSISTENCE.md).
+The prepared SDK release is **0.3.0-alpha.1**, using [ABI v2](docs/abi-v2.md).
+Persistence applications explicitly supply their selected serialization provider;
+see [host persistence](crates/host/PERSISTENCE.md).
 Package publication and platform qualification are separate steps.
 
 Start with the complete [application and calculator plugin walkthrough](examples/getting-started/README.md).

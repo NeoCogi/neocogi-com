@@ -6,12 +6,13 @@ current dylib build option. Static rlib consumers retain optional JSON.
 
 ## Host persistence linkage repair — 2026-11-14
 
-Host `0.2.1` uses the application's registered `nc.serialization` provider for
+Host `0.3.0-alpha.1` uses the application's registered `nc.serialization` provider for
 named NCB in both directions. Its normal Cargo graph contains no serialization
 implementation; dynamic applications can load the serialization dylib without
 the host adding a second NCB implementation to their executable. Static
 applications register `neocogi_com_serialization::plugin_descriptor()` explicitly.
-SDK, core and serialization stay at `0.2.0`, including NCB-v1 bytes.
+All COM packages advance together to `0.3.0-alpha.1`; the unpublished host-only
+patch is superseded. NCB-v1 bytes remain unchanged.
 
 This architecture is covered by static and real min-size DLL persistence tests;
 these are correctness/linkage results, not performance qualification. The UI

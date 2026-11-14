@@ -1,60 +1,14 @@
-# Publishing SDK and host implementation releases
+# Publishing a coordinated SDK release
 
 This is the maintainer procedure. The [first-use walkthrough](../../examples/getting-started/README.md)
 is the user entry point. Publication, Git pushes/tags and account changes are
 separate release actions; preparation and local dry-runs upload nothing.
 
-## Compatible host-only patches
-
-An implementation-only host patch may advance `neocogi-com-host` independently
-when it preserves the public C ABI, NCB bytes and the published SDK identities.
-Keep its SDK/core requirements exact at the existing coordinated version; do not
-bump the SDK merely to release an implementation fix. This exception does not
-permit changing shared contracts or mixing incompatible SDK generations. All
-other public packages remain on the coordinated SDK version. The authoritative
-host selection is the exact workspace dependency requirement, checked against
-the host's own package version by Cargo and `cargo xtask workspace`; archive
-qualification uses that version for the host and the SDK version for its peers.
-
-The prepared host patch is `0.2.1`, with SDK/core/serialization `0.2.0`. The UI
-should select `neocogi-com-host = "=0.2.1"` and retain its SDK and serialization
-requirements at `=0.2.0`, alongside published platform `=0.3.0-alpha.1`. Qualify
-an extracted host archive against the actual registry SDK with stable and Rust
-1.85, and the combined published platform consumer with current stable. Inspect
-Cargo metadata to reject duplicate SDK identities. Published platform contracts
-`0.3.0-alpha.1` use `slice::as_chunks` and do not compile on Rust 1.85; distinguish
-that existing platform floor limitation from the host/SDK's supported floor.
-Applications must explicitly supply their static or dynamic serialization
-provider before persistence. Update the host version, its exact workspace and
-tutorial selections, affected lockfiles, changelog and contract documentation.
-
-Run the affected host/persistence tests (including a real deployment DLL),
-consumer checks, quality and archive gates and normal nightly min-size build.
-The native Linux/macOS/Windows release requirements below still apply; record
-actual results rather than inheriting qualification from the prototype. UI
-performance must be rechecked against the final published build: the prototype's
-Vulkan 2% gate passed, but one CPU benchmark case regressed 3.51%.
-
-From the clean verified candidate, dry-run and publish **only** the host:
-
-```sh
-cargo publish --dry-run --locked --registry crates-io -p neocogi-com-host
-# Separate authorized release action, after qualification:
-cargo publish --locked --registry crates-io -p neocogi-com-host
-```
-
-Retain the host archive, SHA-256, exact source commit and dry-run/consumer logs
-outside Cargo targets. Use the annotated tag `host-v0.2.1` at that commit, and
-push it only after verifying the uploaded archive and registry consumer. Do not
-republish existing `0.2.0` packages or retag their coordinated release. Preparation
-does not claim a successful upload or completion of remote native qualification.
-
 ## Prepare the source before choosing a version
 
 Finish implementation, documentation, examples and compatibility changes first.
 Keep the eight SDK packages on one version and their internal dependency requirements
-exact for a coordinated release; the compatible host-only exception above is the
-only independent implementation version. The authoritative package inventory is `PUBLISHED` in
+exact. The authoritative package inventory is `PUBLISHED` in
 [packages.rs](../../tools/xtask/src/packages.rs).
 
 Check all eight names and the intended version on crates.io. A name available
@@ -67,10 +21,9 @@ publication. [Trusted publishing](https://crates.io/docs/trusted-publishing) can
 replace stored CI tokens for later releases.
 
 The compatibility rule is separate from Cargo versions. The prepared candidate
-is `0.2.0`, using ABI v2: runtime and descriptor family 2, core generation
+is `0.3.0-alpha.1`, using ABI v2: runtime and descriptor family 2, core generation
 19, and `nc_get_plugin_descriptor_v2`. Deploy hosts, providers and generated
-bindings from one SDK release, allowing its compatible host implementation patch.
-ABI v1 libraries are rejected before bootstrap;
+bindings from one SDK release. ABI v1 libraries are rejected before bootstrap;
 there is no compatibility export. Interface signatures, IDL encoding and NCB
 persistence format have their own authorities in the [ABI contract](../abi-v2.md).
 
@@ -78,6 +31,25 @@ persistence format have their own authorities in the [ABI contract](../abi-v2.md
 Prepare a user-facing changelog entry with features, migration instructions,
 known limits and actual platform results. Keep superseded development entries
 historical. The currently prepared version is a release candidate until uploaded.
+
+## Persistence migration for 0.3.0-alpha.1
+
+All eight COM packages advance together. The unpublished host-only `0.2.1`
+candidate is superseded; no host-specific version policy or archive handling
+remains. Applications explicitly register the static serialization descriptor or
+load the serialization dylib before persistence. Missing providers return
+`NC_E_NOT_FOUND`; persistence always requests named NCB.
+
+This release does not promise Rust dependency compatibility with the published
+`0.2.0` SDK or platform `0.3.0-alpha.1`, which pins that SDK. Move downstream UI
+and platform compositions to the new COM cohort together; do not combine COM
+Rust types from the two versions. ABI family 2, core generation 19, IDL encoding
+v14 and NCB-v1 bytes retain their independent authorities.
+
+Merge the candidate to master and push for native CI before publication. Publish
+only after every required job for that exact commit passes. Historical prototype
+results do not qualify its performance: Vulkan passed its 2% gate, but one UI CPU
+case regressed 3.51% and must be rechecked against the final published build.
 
 ## Apply the public version last
 

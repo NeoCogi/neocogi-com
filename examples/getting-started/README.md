@@ -22,7 +22,7 @@ source into its own Rust bindings. The host does not link the provider and the
 provider does not select a host implementation. Application version `0.0.0` in
 these manifests is independent of the SDK dependency version.
 
-The manifests select the prepared `0.2.0` SDK, including its versionless
+The manifests select the prepared `0.3.0-alpha.1` SDK, including its versionless
 IDL and ABI v2. Pre-publication checks supply local or extracted SDK patches.
 The registry-only commands below apply after this release is published; see
 [release preparation](../../docs/guides/RELEASING.md).
@@ -69,7 +69,7 @@ as overflow are ordinary returned statuses.
 Install the matching inspector after the SDK has been published:
 
 ```sh
-cargo install neocogi-inspect --version '=0.2.0' --locked
+cargo install neocogi-inspect --version '=0.3.0-alpha.1' --locked
 ```
 
 Inspect the library with `neocogi-inspect dump PATH_TO_LIBRARY`, or run

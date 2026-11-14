@@ -11,7 +11,7 @@ use crate::{
         ABI_TESTS, GENERATION_SENTINEL, IMPORTED_INTERFACE_PROVIDER_TEST, SHARED_SOURCE_CONSUMER_TEST, abi_sentinel, execute_tests, require_execution,
         require_named_execution, require_tests, words,
     },
-    packages::{PUBLISHED, host_version, release_version},
+    packages::PUBLISHED,
     process::{Result, Runner, sources},
 };
 
@@ -276,10 +276,8 @@ pub(crate) fn workspace(runner: &Runner) -> Result<()> {
     }
     let root: toml::Value = toml::from_str(&fs::read_to_string(runner.root.join("Cargo.toml"))?)?;
     let version = root["workspace"]["package"]["version"].as_str().ok_or("missing workspace version")?;
-    let selected_host = host_version(&runner.root)?;
     for package in published {
-        let name = package["name"].as_str().ok_or("missing package name")?;
-        if package["version"] != release_version(name, version, &selected_host) || !PUBLISHED.iter().any(|(published, _)| name == *published) {
+        if package["version"] != version || !PUBLISHED.iter().any(|(name, _)| package["name"] == *name) {
             return Err("published package version or inventory mismatch".into());
         }
     }
