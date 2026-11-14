@@ -30,9 +30,9 @@ fn weak_shared_identity_and_capabilities_are_distinct() {
     "#,
     )
     .unwrap();
-    let fields = &g.values.definitions["proof.weak.References"].fields;
+    let fields = &g.values().definitions["proof.weak.References"].fields;
     assert_ne!(fields[0], fields[1], "specialization identity retains ownership");
-    let value = &g.values.definitions["proof.weak.References"];
+    let value = &g.values().definitions["proof.weak.References"];
     assert!(!value.copied);
     assert_eq!(value.persistence, neocogi_idl::Persistence::Unsupported);
     let source = generate_rust(&g, "proof.weak").unwrap();

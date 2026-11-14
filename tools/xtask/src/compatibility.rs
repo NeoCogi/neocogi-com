@@ -653,6 +653,15 @@ fn safety(runner: &Runner) -> Result<Value> {
                 ],
             ),
             (
+                // Prospective composition is separate from combined Descent;
+                // interpret its real pre-copy gates and slice normalization too.
+                words(&["-p", "neocogi-idl", "--lib", "composed_"]),
+                vec![
+                    "specialize::tests::composed_inline_height_is_checked_before_generated_copies",
+                    "specialize::tests::composed_height_preserves_slice_normalization_and_phantom_arguments",
+                ],
+            ),
+            (
                 words(&["-p", "neocogi-com-core", "--lib", "--features", "std"]),
                 vec!["abi::array_tests::array_signature_matches_known_sha256_and_distinguishes_shapes"],
             ),

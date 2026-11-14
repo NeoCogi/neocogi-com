@@ -152,7 +152,7 @@ fn inherited_value_metadata_keeps_the_supplying_projection_without_bystander_dep
             .module("demo.mid")
             .unwrap()
             .source
-            .declarations
+            .declarations()
             .iter()
             .find(|declaration| {
                 declaration
@@ -213,7 +213,7 @@ fn inherited_value_metadata_keeps_the_supplying_projection_without_bystander_dep
     );
     assert!(String::from_utf8_lossy(&output.stdout).contains("supplying_metadata_and_real_calls ... ok"));
     assert!(matches!(
-        graph.module("demo.leaf").unwrap().source.declarations[0].kind,
+        graph.module("demo.leaf").unwrap().source.declarations()[0].kind,
         DeclarationKind::Interface(_)
     ));
 }

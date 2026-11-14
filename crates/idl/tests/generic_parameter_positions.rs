@@ -27,7 +27,7 @@ fn assert_same_contract(before: &ResolvedModules, after: &ResolvedModules) {
         assert_eq!(left.declarations, right.declarations, "declarations in {}", left.source.name);
     }
     assert_eq!(before.modules().len(), after.modules().len());
-    assert_eq!(before.values, after.values, "resolved value metadata must remain identical");
+    assert_eq!(before.values(), after.values(), "resolved value metadata must remain identical");
 }
 
 /// Renaming parameters is harmless through every supported aggregate/type position.
@@ -103,8 +103,8 @@ fn parameter_renames_preserve_lexical_binding_and_source_names() {
     let second = graph(after, consumer);
     assert_same_contract(&first, &second);
     // Fingerprint normalization must not rewrite the source model used for diagnostics.
-    assert_eq!(first.module("positions.library").unwrap().source.templates[0].parameters, ["T"]);
-    assert_eq!(second.module("positions.library").unwrap().source.templates[0].parameters, ["Local"]);
+    assert_eq!(first.module("positions.library").unwrap().source.templates()[0].parameters, ["T"]);
+    assert_eq!(second.module("positions.library").unwrap().source.templates()[0].parameters, ["Local"]);
 }
 
 /// Unused/open templates still contribute parameter arity, but never parameter spelling.
@@ -156,7 +156,7 @@ fn parameter_positions_remain_significant_with_identical_concrete_arguments() {
         let changed = changed.module("positions.consumer").unwrap();
         let index = first
             .source
-            .declarations
+            .declarations()
             .iter()
             .position(|value| {
                 value

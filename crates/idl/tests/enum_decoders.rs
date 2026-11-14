@@ -24,7 +24,10 @@ fn ordinary_enum_decoders_compile_and_reconstruct_every_payload_shape() {
         struct Position { x: i32, y: i32 }
     "#;
     let graph = resolve_modules(vec![parse_module(Path::new("proof/enums.ncidl"), source).unwrap()]).unwrap();
-    assert_eq!(graph.values.definitions["proof.enums.Number"].persistence, neocogi_idl::Persistence::Supported);
+    assert_eq!(
+        graph.values().definitions["proof.enums.Number"].persistence,
+        neocogi_idl::Persistence::Supported
+    );
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize().unwrap();
     let project = tempfile::tempdir().unwrap();
     fs::create_dir(project.path().join("src")).unwrap();

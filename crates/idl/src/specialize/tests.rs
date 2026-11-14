@@ -224,9 +224,14 @@ fn public_expansion_limits_are_bounded_on_small_caller_stack() {
                     assert_eq!(diagnostic.code, "EIDL060");
                     if case != "linear" {
                         assert!(
-                            ["compiler work limit", "compiler storage limit", "compiler nesting limit"]
-                                .iter()
-                                .any(|reason| diagnostic.message.contains(reason)),
+                            [
+                                "compiler work limit",
+                                "compiler storage limit",
+                                "compiler nesting limit",
+                                "compiler inline nesting limit"
+                            ]
+                            .iter()
+                            .any(|reason| diagnostic.message.contains(reason)),
                             "{diagnostic:?}"
                         );
                     }
@@ -264,4 +269,56 @@ fn closed_output_slice_spelling_is_preserved() {
     let graph = resolve("struct Marker<T> { marker: u8 } struct Root { value: Marker<&mut [u8]> }", Limits::default()).unwrap();
     let generated = crate::generate_rust(&graph, "proof.budget").unwrap();
     assert!(generated.contains("proof::budget::Marker<&mut [u8]>"), "{generated}");
+}
+
+/// Inline source halves fit separately; their substituted destination is admitted
+/// before either real copy gate, independently of combined active Descent.
+#[test]
+fn composed_inline_height_is_checked_before_generated_copies() {
+    let wrap = |ty: &str, n: usize| format!("{}{}{}", "[".repeat(n), ty, "; 1]".repeat(n));
+    for declaration in [
+        format!("struct Place<T> {{ value: {} }}", wrap("T", 48)),
+        format!("enum Place<T> {{ Value({}) }}", wrap("T", 48)),
+        format!("enum Place<T> {{ Value {{ item: {} }} }}", wrap("T", 48)),
+        format!("interface Place<T> {{ fn get(&self) -> Result<{}>; }}", wrap("T", 48)),
+        format!("interface Place<T> {{ fn put(&self, value: &[{}]) -> Result<()>; }}", wrap("T", 47)),
+        format!("interface Base<T> {{}} interface Place<T>: Base<{}> {{}}", wrap("T", 47)),
+    ] {
+        let interface = declaration.contains("interface");
+        let request = |depth| {
+            let argument = wrap("u8", depth);
+            if interface {
+                format!("{declaration} interface Root: Place<{argument}> {{}}")
+            } else {
+                format!("{declaration} struct Root {{ item: Place<{argument}> }}")
+            }
+        };
+        let text = request(48); // 48 wrappers + argument height 49 = 97 > 96.
+        for denied in [None, Some(CopyKind::Declaration), Some(CopyKind::Type)] {
+            let error = resolve(&text, Limits { denied_copy: denied, ..Limits::default() }).unwrap_err();
+            let ModuleGraphError::Resolution(error) = error else {
+                panic!("resolution error required")
+            };
+            assert_eq!(error.diagnostics[0].code, "EIDL060");
+            assert!(error.to_string().contains("compiler inline nesting limit"), "{error}");
+            assert_eq!(error.diagnostics[0].labels[0].span.path(), "proof/budget.ncidl");
+        }
+        // One less wrapper composes to exactly 96, including interface bases.
+        resolve(&request(47), Limits::default()).unwrap();
+    }
+}
+
+/// Borrowing a substituted unsized slice becomes one Slice node, and phantom
+/// arguments retain their own bounded type roots even without a stored field.
+#[test]
+fn composed_height_preserves_slice_normalization_and_phantom_arguments() {
+    let element = format!("{}u8{}", "[".repeat(93), "; 1]".repeat(93));
+    let text = format!("interface View<T> {{ fn take(&self, value: &T) -> Result<()>; }} interface Root: View<Slice<{element}>> {{}}");
+    resolve(&text, Limits::default()).unwrap();
+    let argument = format!("{}u8{}", "Vec<".repeat(94), ">".repeat(94));
+    resolve(
+        &format!("struct Phantom<T> {{ marker: u8 }} struct Root {{ item: Phantom<{argument}> }}"),
+        Limits::default(),
+    )
+    .unwrap();
 }

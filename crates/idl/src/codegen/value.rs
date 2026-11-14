@@ -265,10 +265,16 @@ pub(crate) fn expand(
             let raw = field.ident.clone().unwrap_or_else(|| format_ident!("field_{index}"));
             quote! { ::core::mem::offset_of!(Self, #application) == ::core::mem::offset_of!(<Self as #nc::ComValue>::Wire, #raw) }
         });
-        quote! { const BORROW_WIRE: ::core::primitive::bool = true #(&& <#fields as #nc::ComValue>::BORROW_WIRE)*
-        && ::core::mem::size_of::<Self>() == ::core::mem::size_of::<<Self as #nc::ComValue>::Wire>()
-        && ::core::mem::align_of::<Self>() == ::core::mem::align_of::<<Self as #nc::ComValue>::Wire>()
-        #(&& #offsets)*; }
+        // Sibling breadth must not become a recursively nested Syn binary tree.
+        // Each statement remains shallow and preserves left-to-right short circuit.
+        quote! { const BORROW_WIRE: ::core::primitive::bool = {
+            let mut valid = true;
+            #(valid = valid && <#fields as #nc::ComValue>::BORROW_WIRE;)*
+            valid = valid && ::core::mem::size_of::<Self>() == ::core::mem::size_of::<<Self as #nc::ComValue>::Wire>();
+            valid = valid && ::core::mem::align_of::<Self>() == ::core::mem::align_of::<<Self as #nc::ComValue>::Wire>();
+            #(valid = valid && #offsets;)*
+            valid
+        }; }
     } else {
         quote! {}
     };

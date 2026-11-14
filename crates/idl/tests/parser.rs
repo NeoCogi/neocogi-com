@@ -595,7 +595,7 @@ fn parses_a_complete_contract_module() {
         module.imports.iter().map(|import| import.name.as_str()).collect::<Vec<_>>(),
         ["ITexture", "TextureFactory"]
     );
-    assert_eq!(module.declarations.len(), 7);
+    assert_eq!(module.declarations().len(), 7);
     assert_eq!(module.declaration("IWidget").unwrap().name, "IWidget");
 
     let DeclarationKind::Struct(options) = &module.declaration("WidgetOptions").unwrap().kind else {
@@ -805,7 +805,7 @@ fn declarations_need_no_identity_attribute() {
         "interface Reader<T> { fn read(&self) -> Result<T>; }",
     ] {
         let module = parse_module(Path::new("neocogi/ui.ncidl"), declaration).unwrap();
-        assert!(module.declarations[0].explicit_id.is_none(), "{declaration}");
+        assert!(module.declarations()[0].explicit_id.is_none(), "{declaration}");
     }
 }
 
@@ -837,7 +837,7 @@ fn validates_explicit_identity_attributes() {
     ] {
         let source = format!("#[id(\"{uuid}\")] {declaration}");
         let module = parse_module(Path::new("neocogi/ui.ncidl"), &source).unwrap();
-        assert_eq!(module.declarations[0].explicit_id.unwrap().to_string(), uuid);
+        assert_eq!(module.declarations()[0].explicit_id.unwrap().to_string(), uuid);
         let duplicate = format!("#[id(\"{uuid}\")] {source}");
         let error = parse_module(Path::new("neocogi/ui.ncidl"), &duplicate).unwrap_err();
         assert!(error.to_string().contains("duplicate explicit ID"), "{error}");
@@ -874,7 +874,7 @@ fn deprecated_versions_are_ignored_and_reported_for_every_declaration_kind() {
         for version in ["0", "1", "7", "999999999999999999999999999999999999999999"] {
             let source = format!("// café\n#[version({version})]\n{declaration}");
             let parsed = parse_module(path, &source).unwrap();
-            assert!(parsed.declarations[0].explicit_id.is_none());
+            assert!(parsed.declarations()[0].explicit_id.is_none());
             assert_eq!(parsed.warnings.len(), 1);
             let warning = &parsed.warnings[0];
             assert_eq!(warning.severity, DiagnosticSeverity::Warning);
@@ -890,7 +890,7 @@ fn deprecated_versions_are_ignored_and_reported_for_every_declaration_kind() {
             let uuid = "9be73186-f123-47bc-8140-4a57825eeb21";
             let source = format!("#[version({version})]\n#[id({version}, \"{uuid}\")]\n{declaration}");
             let parsed = parse_module(path, &source).unwrap();
-            assert_eq!(parsed.declarations[0].explicit_id.unwrap().to_string(), uuid);
+            assert_eq!(parsed.declarations()[0].explicit_id.unwrap().to_string(), uuid);
             assert_eq!(parsed.warnings.len(), 2);
             assert!(parsed.warnings.iter().all(|warning| warning.severity == DiagnosticSeverity::Warning));
             assert_eq!(parsed.warnings[1].labels[0].span.start().line, 2);
@@ -935,10 +935,10 @@ fn merges_module_parts_without_file_order_semantics() {
 
     assert_eq!(forward.name.to_string(), "neocogi.ui");
     assert_eq!(
-        forward.declarations.iter().map(|item| item.name.as_str()).collect::<Vec<_>>(),
+        forward.declarations().iter().map(|item| item.name.as_str()).collect::<Vec<_>>(),
         ["IWidget", "Size"]
     );
-    assert_eq!(forward.declarations, reverse.declarations);
+    assert_eq!(forward.declarations(), reverse.declarations());
 }
 
 /// Confirms external dependencies are canonical module-level declarations

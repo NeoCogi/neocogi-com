@@ -65,7 +65,7 @@ pub fn generate(root: &Path) {
         let fixture = module.name.segments()[2..].join("__");
         // Independent revisions share one test's local namespace through
         // explicit type exports; each retains its own module constants/alloc scope.
-        let declarations = &graph.module(name).unwrap().source.declarations;
+        let declarations = graph.module(name).unwrap().source.declarations();
         let mut exports = Vec::new();
         for declaration in declarations {
             exports.push(declaration.name.clone());

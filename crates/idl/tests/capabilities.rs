@@ -48,7 +48,7 @@ fn transport_and_local_deserialization_are_separate_capabilities() {
     "#;
     let module = parse_module(Path::new("proof/operations.ncidl"), source).unwrap();
     let graph = resolve_modules(vec![module]).unwrap();
-    let snapshot = &graph.values.definitions["proof.operations.Snapshot"];
+    let snapshot = &graph.values().definitions["proof.operations.Snapshot"];
     assert!(!snapshot.copied);
     assert_eq!(snapshot.persistence, neocogi_idl::Persistence::Unsupported);
     neocogi_idl::generate_rust(&graph, "proof.operations").unwrap();
@@ -70,7 +70,7 @@ fn accepted_generic_deserializers_compile_and_reconstruct_values() {
     let graph = resolve_modules(vec![module]).unwrap();
     assert!(
         graph
-            .values
+            .values()
             .definitions
             .values()
             .all(|value| value.persistence == neocogi_idl::Persistence::Supported)
@@ -90,7 +90,7 @@ fn accepted_generic_deserializers_compile_and_reconstruct_values() {
         .module("proof.operations")
         .unwrap()
         .source
-        .declarations
+        .declarations()
         .iter()
         .find(|declaration| {
             declaration

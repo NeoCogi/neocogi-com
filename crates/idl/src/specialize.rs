@@ -9,6 +9,7 @@ use std::collections::HashMap;
 use crate::binding::{Binding, DeclarationKey, SemanticOrigin, semantic_origin_named};
 
 pub(crate) mod budget;
+mod height;
 use budget::{Budget, Descent, Limits};
 #[cfg(test)]
 mod tests;
@@ -192,6 +193,9 @@ impl Expansion {
             .declaration(&source_key.name)
             .or_else(|| self.modules[owner].declaration(&source_key.name))
             .ok_or_else(|| failure(&name.span, "bound declaration is absent"))?;
+        // Prospective normalized height is distinct from active specialization
+        // descent. Reject before copying/substituting the source declaration.
+        self.budget.admit_substitution(source, &name.arguments, at.child(), &name.span)?;
         let mut declaration = self.budget.copy_declaration(source, at.child(), &name.span)?;
         self.budget.allocate(
             self.originals[owner].name.segments().iter().map(String::len).sum::<usize>() + self.originals[owner].name.segments().len() - 1,

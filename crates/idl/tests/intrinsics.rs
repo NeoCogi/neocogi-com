@@ -30,7 +30,7 @@ fn array_and_slice_shorthands_have_identical_fingerprints() {
 fn generic_slice_referents_normalize_after_substitution() {
     let resolved = graph("interface IInput<T> { fn read(&self, values: &T) -> Result<()>; } interface Reader: IInput<Slice<u32>> {}");
     let module = &resolved.modules()[0];
-    let instance = module.source.declarations.iter().find(|value| value.specialization.is_some()).unwrap();
+    let instance = module.source.declarations().iter().find(|value| value.specialization.is_some()).unwrap();
     let DeclarationKind::Interface(interface) = &instance.kind else {
         panic!("interface instance expected")
     };
@@ -44,7 +44,7 @@ fn generic_slice_referents_normalize_after_substitution() {
 fn vector_fields_own_values_and_slice_fields_are_rejected() {
     let resolved = graph("struct Node { children: Vec<Node> }");
     assert!(matches!(
-        resolved.values.definitions["proof.intrinsics.Node"].fields[0],
+        resolved.values().definitions["proof.intrinsics.Node"].fields[0],
         neocogi_idl::ValueType::Sequence(_)
     ));
     for field in ["&[u8]", "&Slice<u8>", "Slice<u8>", "[u8]", "Vec<Slice<u8>>"] {
@@ -86,7 +86,7 @@ fn copied_arrays_compile_and_cross_real_com_thunks() {
         }
     "#,
     );
-    assert!(resolved.values.definitions["proof.intrinsics.Flags"].copied);
+    assert!(resolved.values().definitions["proof.intrinsics.Flags"].copied);
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize().unwrap();
     let project = tempfile::tempdir().unwrap();
     std::fs::create_dir(project.path().join("src")).unwrap();

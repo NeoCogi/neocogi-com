@@ -32,7 +32,7 @@ fn projection(graph: &ResolvedModules, template: &str) -> String {
         .module("proof.consumer")
         .unwrap()
         .source
-        .declarations
+        .declarations()
         .iter()
         .find(|declaration| {
             declaration

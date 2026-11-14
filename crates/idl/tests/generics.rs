@@ -47,7 +47,7 @@ fn instances(graph: &ResolvedModules, owner: &str) -> Vec<(String, neocogi_com_c
     let module = graph.module(owner).unwrap();
     module
         .source
-        .declarations
+        .declarations()
         .iter()
         .zip(&module.declarations)
         .filter(|(source, _)| source.specialization.is_some())
@@ -129,7 +129,7 @@ fn closed_generic_calls_cross_generated_module_boundaries() {
     let source = "extern proof.contracts; use proof.contracts::IValue; interface Counter: IValue<u32> {}";
     let graph = resolve_modules(vec![template, module("proof/producer.ncidl", source), module("proof/consumer.ncidl", source)]).unwrap();
     let owner = graph.module("proof.producer").unwrap();
-    let contract = &owner.source.declarations.iter().find(|source| source.specialization.is_some()).unwrap().name;
+    let contract = &owner.source.declarations().iter().find(|source| source.specialization.is_some()).unwrap().name;
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize().unwrap();
     let project = tempfile::tempdir().unwrap();
     fs::create_dir(project.path().join("src")).unwrap();
@@ -274,14 +274,15 @@ fn parameter_renames_preserve_cross_module_calls_and_event_adapters() {
     let rebound = make_graph("rebound", &rebound_template_source);
     assert_eq!(instances(&producer, "proof.contract"), instances(&consumer, "proof.contract"));
     assert_eq!(
-        producer.values, consumer.values,
+        producer.values(),
+        consumer.values(),
         "recursive metadata uses canonical identities, not consumer paths"
     );
     let owner = producer.module("proof.contract").unwrap();
     let instance = |template: &str| {
         owner
             .source
-            .declarations
+            .declarations()
             .iter()
             .find(|declaration| {
                 declaration

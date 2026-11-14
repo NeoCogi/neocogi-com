@@ -22,10 +22,10 @@ fn unit_values_use_checked_storage_in_copied_calls() {
         }
     "#;
     let graph = neocogi_idl::resolve_modules(vec![neocogi_idl::parse_module(Path::new("proof/units.ncidl"), source).unwrap()]).unwrap();
-    assert!(graph.values.definitions["proof.units.Completion"].copied);
-    assert!(graph.values.definitions["proof.units.Mixed"].copied);
+    assert!(graph.values().definitions["proof.units.Completion"].copied);
+    assert!(graph.values().definitions["proof.units.Mixed"].copied);
     let module = graph.module("proof.units").unwrap();
-    let optional = &module.source.declarations.iter().find(|d| d.specialization.is_some()).unwrap().name;
+    let optional = &module.source.declarations().iter().find(|d| d.specialization.is_some()).unwrap().name;
     let mut generated = neocogi_idl::generate_rust(&graph, "proof.units").unwrap();
     generated.push_str(&format!("\npub use {optional} as Maybe;\n"));
     let project = tempfile::tempdir().unwrap();

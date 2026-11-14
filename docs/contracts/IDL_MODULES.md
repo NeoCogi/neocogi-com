@@ -69,6 +69,20 @@ and location. These are compiler complexity limits, independent of runtime COM
 value budgets and specialization work/materialization limits. They preserve the
 existing 65-level output-type regression and do not impose a nominal graph cap.
 
+`Module` owns admitted declaration/template trees. The public `declarations()`
+and `templates()` accessors expose immutable slices; `ResolvedModules::values()`
+likewise exposes the resolved value graph by shared borrow. Detached model clones
+remain inspectable/editable, but there is no unchecked constructor, mutable
+accessor or reinsertion path into these owners. This invariant applies before
+bundled-source attachment, binding, specialization and generation. Migrate direct
+field readers to these accessors.
+
+Generated copied-value layout proofs use shallow sequential constant statements.
+Each predicate retains left-to-right short-circuit evaluation, including field,
+size/alignment and offset checks; field breadth does not become a linear binary
+expression tree. Nominal generator traversals and total input/output allocation
+are separate costs, so this is not an arbitrary-graph or process-memory bound.
+
 Text parsing/generation runs in ordinary native compiler/build-script processes.
 Rust procedural macro entry points consume rustc-supplied Rust syntax separately;
 calling the text APIs in a warmed procedural-macro process is not a supported
@@ -244,6 +258,14 @@ instance. Expansion also admits at most 1,048,576 generated structural visits,
 active descent levels. Descent composes expression traversal, substitution and
 reentrant materialization; entering another declaration does not reset it.
 Individually shallow expressions may therefore exceed the combined nesting bound.
+
+The same owner computes prospective normalized inline height before copying a
+template or substituting its arguments. A valid template and a valid argument
+can compose beyond height 96; that request returns source-located `EIDL060`
+with an inline-nesting reason before building the excessive type. The walk
+charges generated work and preserves slice normalization, including `&T` when
+`T` is an unsized slice. Height is independent of the combined active descent
+and materialization/cache limits above.
 
 Copies, identity/origin reads, comparisons and projection work are checked before
 the generated operation. Each repeated substitution pays independently, including

@@ -88,7 +88,7 @@ pub struct ResolvedModules {
     /// Modules retained in canonical logical-name and source-content order.
     modules: Vec<ResolvedModule>,
     /// Canonical recursive data graph shared with generated conversion and inspection.
-    pub values: crate::ValueGraph,
+    pub(crate) values: crate::ValueGraph,
 }
 
 /// Borrowed declaration selected through one already-validated type path.
@@ -103,6 +103,11 @@ pub struct ResolvedDeclaration<'a> {
 }
 
 impl ResolvedModules {
+    /// Borrows the canonical value graph without a mutable reinstallation route.
+    pub fn values(&self) -> &crate::ValueGraph {
+        &self.values
+    }
+
     /// Borrows every resolved module in canonical order.
     pub fn modules(&self) -> &[ResolvedModule] {
         &self.modules

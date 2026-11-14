@@ -46,15 +46,10 @@ fn specialization_cache_checks_meaning_before_reusing_a_uuid() {
                 );
                 let unrelated = format!("struct AFirst {{ value: Boxed<{first}> }}");
                 for source in [format!("{unrelated}{common}"), format!("{common}{unrelated}")] {
-                    for reversed in [false, true] {
-                        let mut parsed = module("proof/collision.ncidl", &source);
-                        if reversed {
-                            parsed.declarations.reverse();
-                        }
-                        let error = conflict(vec![parsed]);
-                        assert!(error.contains("conflicting semantic origins"), "{argument}, phantom={phantom}: {error}");
-                        assert!(error.contains("proof/collision.ncidl"), "{error}");
-                    }
+                    let parsed = module("proof/collision.ncidl", &source);
+                    let error = conflict(vec![parsed]);
+                    assert!(error.contains("conflicting semantic origins"), "{argument}, phantom={phantom}: {error}");
+                    assert!(error.contains("proof/collision.ncidl"), "{error}");
                 }
             }
         }
@@ -110,7 +105,7 @@ fn authored_names_cannot_impersonate_a_closed_canonical_definition() {
             let concrete = control.module("proof.middle").unwrap();
             let (source, identity) = concrete
                 .source
-                .declarations
+                .declarations()
                 .iter()
                 .zip(&concrete.declarations)
                 .find(|(source, _)| source.specialization.is_some())

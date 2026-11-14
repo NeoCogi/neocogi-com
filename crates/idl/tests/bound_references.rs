@@ -130,7 +130,7 @@ fn instance(graph: &ResolvedModules, template: &str) -> String {
         .module("proof.consumer")
         .unwrap()
         .source
-        .declarations
+        .declarations()
         .iter()
         .find(|d| d.specialization.as_ref().is_some_and(|s| s.template.segments.last().unwrap() == template))
         .unwrap()

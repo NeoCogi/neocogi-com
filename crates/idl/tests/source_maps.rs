@@ -476,7 +476,7 @@ fn imported_and_phantom_specializations_separate_definitions_from_use_sites() {
             first_fingerprint = Some(module.abi_fingerprint);
         }
         let mut closed = 0;
-        for declaration in &module.source.declarations {
+        for declaration in module.source.declarations() {
             let Some(instance) = &declaration.specialization else { continue };
             let name = instance.template.segments.last().unwrap();
             let owner = if matches!(declaration.kind, neocogi_idl::DeclarationKind::Interface(_)) {

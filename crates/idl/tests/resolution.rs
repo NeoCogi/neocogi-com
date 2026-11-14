@@ -707,7 +707,7 @@ fn value_and_open_interface_imports_do_not_acquire_phantom_companions() {
                     .module("proof.consumer")
                     .unwrap()
                     .source
-                    .declarations
+                    .declarations()
                     .iter()
                     .any(|declaration| declaration.specialization.is_some())
             );

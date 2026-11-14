@@ -57,12 +57,22 @@ pub struct Module {
     /// Explicit imports in canonical module and declaration-name order.
     pub imports: Vec<Import>,
     /// ABI declarations in canonical top-level name order.
-    pub declarations: Vec<Declaration>,
+    pub(crate) declarations: Vec<Declaration>,
     /// Generic value and interface definitions retained for canonical ABI fingerprints.
-    pub templates: Vec<Declaration>,
+    pub(crate) templates: Vec<Declaration>,
 }
 
 impl Module {
+    /// Inspects admitted declarations without permitting recursive type installation.
+    pub fn declarations(&self) -> &[Declaration] {
+        &self.declarations
+    }
+
+    /// Inspects retained templates under the same source-admission invariant.
+    pub fn templates(&self) -> &[Declaration] {
+        &self.templates
+    }
+
     /// Returns one declaration by its exact source identifier.
     pub fn declaration(&self, name: &str) -> Option<&Declaration> {
         // Declaration names are unique after parser validation, so the first

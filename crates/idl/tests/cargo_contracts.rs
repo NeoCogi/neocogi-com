@@ -201,7 +201,7 @@ fn imported_generics_use_typed_routes_through_direct_providers() {
     let closed = |template: &str| {
         module
             .source
-            .declarations
+            .declarations()
             .iter()
             .find(|declaration| {
                 declaration

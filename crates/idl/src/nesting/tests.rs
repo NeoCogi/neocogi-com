@@ -32,6 +32,31 @@ fn normalized_type_height_preserves_boundaries_and_sugar() {
     }
 }
 
+/// Every accepted recursive spelling reaches the same normalized boundary;
+/// semantic suitability of a constructor's child belongs to later resolution.
+#[test]
+fn all_recursive_type_spellings_share_the_inline_height_boundary() {
+    for (prefix, suffix) in [
+        ("Vec<", ">"),
+        ("ComPtr<", ">"),
+        ("WeakComPtr<", ">"),
+        ("ComBox<", ">"),
+        ("WeakComBox<", ">"),
+        ("Slice<", ">"),
+        ("Array<", ", 1>"),
+        ("[", "; 1]"),
+        ("[", "]"),
+        ("& ", ""),
+        ("&[", "]"),
+        ("&mut [", "]"),
+        ("Named::<", ">"),
+    ] {
+        let text = |count| format!("struct Deep {{ value: {}u8{} }}", prefix.repeat(count), suffix.repeat(count));
+        parse_module(Path::new("proof/limits.ncidl"), &text(super::TYPE_HEIGHT - 1)).unwrap_or_else(|error| panic!("{prefix}: {error}"));
+        assert_eq!(source_error(&text(super::TYPE_HEIGHT)).code, "EIDL068", "{prefix}");
+    }
+}
+
 /// Part ordering, source ownership and Unicode coordinates survive early rejection.
 #[test]
 fn group_limit_reports_the_actual_part_and_delimiter() {

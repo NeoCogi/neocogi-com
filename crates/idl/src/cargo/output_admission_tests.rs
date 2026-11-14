@@ -128,8 +128,8 @@ fn child(test: &str, case: &str, builder: Builder, seeded: bool, reverse: bool, 
     if case != "path" {
         // A successful seed may advertise metadata; only the rejected invocation
         // is denied success. The marker also proves that invocation actually ran.
-        let rejected = if case == "budget" {
-            stdout.split_once("begin budget rejection").expect("rejection marker").1
+        let rejected = if matches!(case, "budget" | "syntax" | "height") {
+            stdout.split_once(&format!("begin {case} rejection")).expect("rejection marker").1
         } else {
             &stdout
         };
@@ -334,6 +334,59 @@ fn expansion_limit_rejection_preserves_outputs() {
                 false,
                 false,
             );
+        }
+    }
+}
+
+/// Source and composed-type rejection happen before every Cargo publication,
+/// including later modules/parts and existing successful output trees.
+#[test]
+fn nesting_rejection_preserves_outputs_and_withholds_cargo_success() {
+    if let Ok(case) = std::env::var(CASE) {
+        assert!(matches!(case.as_str(), "syntax" | "height"));
+        let builder = Builder::child();
+        let root = std::path::PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").unwrap());
+        let output = std::path::PathBuf::from(std::env::var_os("OUT_DIR").unwrap());
+        let reverse = std::env::var("NEOCOGI_IDL_OUTPUT_REVERSE").unwrap() == "yes";
+        builder.sources(&root, "u64");
+        if std::env::var("NEOCOGI_IDL_OUTPUT_SEEDED").unwrap() == "yes" {
+            builder.build("proof::z", reverse).unwrap();
+            seed_unrelated(&output);
+        }
+        let before = snapshot(&output);
+        let bad = if case == "syntax" {
+            format!("struct Bad {{ value: {}u8{} }}", "Vec<".repeat(256), ">".repeat(256))
+        } else {
+            let nest = |ty| format!("{}{}{}", "[".repeat(48), ty, "; 1]".repeat(48));
+            format!("struct Place<T> {{ item: {} }} struct Bad {{ value: Place<{}> }}", nest("T"), nest("u8"))
+        };
+        let path = match builder {
+            Builder::Shared => root.join("schemas/proof/z.ncidl"),
+            Builder::File => root.join("schemas/proof/a.ncidl"),
+            Builder::Directory => root.join("schemas/proof/a/z_invalid.ncidl"),
+        };
+        fs::write(path, bad).unwrap();
+        println!("begin {case} rejection");
+        let error = builder.build("proof::z", reverse).unwrap_err().to_string();
+        assert!(error.contains(if case == "syntax" { "EIDL068" } else { "EIDL060" }), "{error}");
+        assert_eq!(snapshot(&output), before);
+        println!("{OBSERVED}");
+        return;
+    }
+    for case in ["syntax", "height"] {
+        for builder in [Builder::Shared, Builder::File, Builder::Directory] {
+            for seeded in [false, true] {
+                for reverse in [false, true] {
+                    child(
+                        "cargo::output_admission_tests::nesting_rejection_preserves_outputs_and_withholds_cargo_success",
+                        case,
+                        builder,
+                        seeded,
+                        reverse,
+                        false,
+                    );
+                }
+            }
         }
     }
 }

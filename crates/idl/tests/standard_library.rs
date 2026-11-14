@@ -22,7 +22,7 @@ fn option_is_an_ordinary_shadowable_library_enum() {
         let module = graph.module(owner).unwrap();
         let declaration = module
             .source
-            .declarations
+            .declarations()
             .iter()
             .find(|declaration| declaration.specialization.is_some())
             .unwrap();
@@ -30,7 +30,7 @@ fn option_is_an_ordinary_shadowable_library_enum() {
             panic!("ordinary enum expected")
         };
         assert_eq!(value.variants.iter().map(|variant| variant.name.as_str()).collect::<Vec<_>>(), ["None", "Some"]);
-        assert!(graph.values.definitions[&module.declaration(&declaration.name).unwrap().qualified_name].copied);
+        assert!(graph.values().definitions[&module.declaration(&declaration.name).unwrap().qualified_name].copied);
         let identity = module.declaration(&declaration.name).unwrap();
         identity.clone()
     };
