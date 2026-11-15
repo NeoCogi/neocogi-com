@@ -1,6 +1,6 @@
 //! The bundled Option is resolved, specialized, inspected and called as an enum.
 use std::{fs, path::Path, process::Command};
-use neocogi_idl::{AbiType, DeclarationKind, parse_module, resolve_modules};
+use neocogi_idl::{IdlType, DeclarationKind, parse_module, resolve_modules};
 
 /// Builds a source under a chosen module name without explicit standard imports.
 fn graph(name: &str, source: &str) -> neocogi_idl::ResolvedModules {
@@ -79,7 +79,7 @@ fn optional_copied_values_and_borrowed_owned_values_cross_com() {
         (&names.fields[2], "MaybeToken"),
         (&names.fields[3], "MaybeFlag"),
     ] {
-        let AbiType::Named(name) = &field.ty else { unreachable!() };
+        let IdlType::Named(name) = &field.ty else { unreachable!() };
         generated += &format!(
             "\n/// Test-facing name for a resolved ordinary enum.\npub use {} as {alias};\n",
             name.rust_path()

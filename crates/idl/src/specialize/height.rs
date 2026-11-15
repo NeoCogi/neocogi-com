@@ -4,7 +4,7 @@ use super::{
     budget::{Budget, Descent},
     failure,
 };
-use crate::{AbiType, Declaration, DeclarationKind, NamedType, ResolutionError, SourceSpan, VariantFields};
+use crate::{IdlType, Declaration, DeclarationKind, NamedType, ResolutionError, SourceSpan, VariantFields};
 use crate::binding::Binding;
 
 /// The only child shape that changes height when a source borrow is normalized.
@@ -36,8 +36,8 @@ impl Budget {
     /// Checks all substituted type roots while source and arguments remain borrowed.
     /// Charge each read through the existing monotone owner. Do not lower its
     /// unrelated Descent256/cache64 limits or copy an excessive intermediate tree.
-    pub(super) fn admit_substitution(&mut self, source: &Declaration, arguments: &[AbiType], at: Descent, span: &SourceSpan) -> Result<(), ResolutionError> {
-        let mut ty = |value: &AbiType| self.shape(value, Some(arguments), at, span).map(|_| ());
+    pub(super) fn admit_substitution(&mut self, source: &Declaration, arguments: &[IdlType], at: Descent, span: &SourceSpan) -> Result<(), ResolutionError> {
+        let mut ty = |value: &IdlType| self.shape(value, Some(arguments), at, span).map(|_| ());
         match &source.kind {
             DeclarationKind::Struct(record) => {
                 for field in &record.fields {
@@ -78,7 +78,7 @@ impl Budget {
     }
     /// Parameter replacement copies the already-admitted argument as-is. Other
     /// source nodes normalize after their children, matching substitute_type.
-    fn named_shape(&mut self, name: &NamedType, arguments: Option<&[AbiType]>, at: Descent, span: &SourceSpan) -> Result<Shape, ResolutionError> {
+    fn named_shape(&mut self, name: &NamedType, arguments: Option<&[IdlType]>, at: Descent, span: &SourceSpan) -> Result<Shape, ResolutionError> {
         self.enter(at, span)?;
         if let (Some(arguments), Binding::Parameter { position }) = (arguments, &name.binding) {
             if let Some(value) = arguments.get(*position as usize) {
@@ -93,30 +93,30 @@ impl Budget {
     }
     /// All borrowed recursive inputs were admitted by parser/previous construction.
     /// No declaration edge is followed, so long shallow graphs spend no height.
-    fn shape(&mut self, ty: &AbiType, arguments: Option<&[AbiType]>, at: Descent, span: &SourceSpan) -> Result<Shape, ResolutionError> {
-        if let AbiType::Named(name) = ty {
+    fn shape(&mut self, ty: &IdlType, arguments: Option<&[IdlType]>, at: Descent, span: &SourceSpan) -> Result<Shape, ResolutionError> {
+        if let IdlType::Named(name) = ty {
             return self.named_shape(name, arguments, at, span);
         }
         self.enter(at, span)?;
         match ty {
-            AbiType::Unit | AbiType::Scalar(_) | AbiType::String => Shape::new(1, Form::Other, span),
-            AbiType::Named(_) => unreachable!("named shape handled above"),
-            AbiType::ComPtr(child)
-            | AbiType::WeakComPtr(child)
-            | AbiType::ComBox(child)
-            | AbiType::WeakComBox(child)
-            | AbiType::Vector(child)
-            | AbiType::Slice(child)
-            | AbiType::OutputSlice(child)
-            | AbiType::Array { element: child, .. } => {
+            IdlType::Unit | IdlType::Scalar(_) | IdlType::String => Shape::new(1, Form::Other, span),
+            IdlType::Named(_) => unreachable!("named shape handled above"),
+            IdlType::ComPtr(child)
+            | IdlType::WeakComPtr(child)
+            | IdlType::ComBox(child)
+            | IdlType::WeakComBox(child)
+            | IdlType::Vector(child)
+            | IdlType::Slice(child)
+            | IdlType::OutputSlice(child)
+            | IdlType::Array { element: child, .. } => {
                 let child = self.shape(child, arguments, at.child(), span)?;
                 Shape::new(1 + child.height, Form::Other, span)
             }
-            AbiType::UnsizedSlice(child) => {
+            IdlType::UnsizedSlice(child) => {
                 let child = self.shape(child, arguments, at.child(), span)?;
                 Shape::new(1 + child.height, Form::UnsizedSlice, span)
             }
-            AbiType::Borrowed(child) => {
+            IdlType::Borrowed(child) => {
                 let child = self.shape(child, arguments, at.child(), span)?;
                 let height = if arguments.is_some() && matches!(child.form, Form::UnsizedSlice) {
                     child.height

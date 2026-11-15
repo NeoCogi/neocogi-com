@@ -3,7 +3,7 @@
 use std::fmt;
 
 use crate::{
-    AbiType, Declaration, DeclarationKind, EnumNames, EnumRepr, Method, NamedType, Receiver, ResolvedDeclaration, ResolvedModule, ResolvedModules, Threading,
+    IdlType, Declaration, DeclarationKind, EnumNames, EnumRepr, Method, NamedType, Receiver, ResolvedDeclaration, ResolvedModule, ResolvedModules, Threading,
     VariantFields,
 };
 use proc_macro2::{Ident, Literal, TokenStream};
@@ -347,20 +347,20 @@ fn public_rust_path(graph: &Generation<'_>, module: &ResolvedModule, name: &str)
 }
 
 /// Emits structural value metadata from an already bound field type.
-fn value_type_metadata(graph: &Generation<'_>, module: &ResolvedModule, ty: &AbiType) -> Result<TokenStream, GenerateError> {
+fn value_type_metadata(graph: &Generation<'_>, module: &ResolvedModule, ty: &IdlType) -> Result<TokenStream, GenerateError> {
     match ty {
-        AbiType::Unit => Ok(quote! { ::neocogi_com::idl_metadata::ValueType::Unit }),
-        AbiType::String => Ok(quote! { ::neocogi_com::idl_metadata::ValueType::Text }),
-        AbiType::Scalar(name) => {
+        IdlType::Unit => Ok(quote! { ::neocogi_com::idl_metadata::ValueType::Unit }),
+        IdlType::String => Ok(quote! { ::neocogi_com::idl_metadata::ValueType::Text }),
+        IdlType::Scalar(name) => {
             let name = Literal::string(name);
             Ok(quote! { ::neocogi_com::idl_metadata::ValueType::Scalar(#name) })
         }
-        AbiType::Named(name) if builtin_object_type(name).is_some() => {
+        IdlType::Named(name) if builtin_object_type(name).is_some() => {
             let name = Literal::string(&name.segments.join("."));
             Ok(quote! { ::neocogi_com::idl_metadata::ValueType::Object(#name) })
         }
-        AbiType::Named(name) if name.is_str() => Ok(quote! { ::neocogi_com::idl_metadata::ValueType::Text }),
-        AbiType::Named(name) => {
+        IdlType::Named(name) if name.is_str() => Ok(quote! { ::neocogi_com::idl_metadata::ValueType::Text }),
+        IdlType::Named(name) => {
             let resolved = resolve(graph, module, name)?;
             let qualified = Literal::string(&resolved.identity.qualified_name);
             Ok(match resolved.declaration.kind {
@@ -368,8 +368,8 @@ fn value_type_metadata(graph: &Generation<'_>, module: &ResolvedModule, ty: &Abi
                 _ => quote! { ::neocogi_com::idl_metadata::ValueType::Named(#qualified) },
             })
         }
-        AbiType::WeakComPtr(value) | AbiType::WeakComBox(value) => {
-            let AbiType::Named(name) = value.as_ref() else {
+        IdlType::WeakComPtr(value) | IdlType::WeakComBox(value) => {
+            let IdlType::Named(name) = value.as_ref() else {
                 return Err(GenerateError::new("weak target is not a contract"));
             };
             let qualified = match builtin_object_type(name) {
@@ -377,21 +377,21 @@ fn value_type_metadata(graph: &Generation<'_>, module: &ResolvedModule, ty: &Abi
                 None => resolve(graph, module, name)?.identity.qualified_name.clone(),
             };
             Ok(match ty {
-                AbiType::WeakComPtr(_) => quote! { ::neocogi_com::idl_metadata::ValueType::WeakObject(#qualified) },
+                IdlType::WeakComPtr(_) => quote! { ::neocogi_com::idl_metadata::ValueType::WeakObject(#qualified) },
                 _ => quote! { ::neocogi_com::idl_metadata::ValueType::WeakBoxObject(#qualified) },
             })
         }
-        AbiType::ComPtr(value) | AbiType::ComBox(value) => value_type_metadata(graph, module, value),
-        AbiType::Vector(value) => {
+        IdlType::ComPtr(value) | IdlType::ComBox(value) => value_type_metadata(graph, module, value),
+        IdlType::Vector(value) => {
             let value = value_type_metadata(graph, module, value)?;
             Ok(quote! { ::neocogi_com::idl_metadata::ValueType::Sequence(&#value) })
         }
-        AbiType::Array { element, len } => {
+        IdlType::Array { element, len } => {
             let element = value_type_metadata(graph, module, element)?;
             let len = Literal::u32_unsuffixed(*len);
             Ok(quote! { ::neocogi_com::idl_metadata::ValueType::Array(&#element, #len) })
         }
-        AbiType::Borrowed(_) | AbiType::UnsizedSlice(_) | AbiType::Slice(_) | AbiType::OutputSlice(_) => {
+        IdlType::Borrowed(_) | IdlType::UnsizedSlice(_) | IdlType::Slice(_) | IdlType::OutputSlice(_) => {
             Err(GenerateError::new("call-only type requires explicit method ownership metadata"))
         }
     }
@@ -431,29 +431,29 @@ fn interface_value_metadata<'a>(graph: &Generation<'a>, module: &ResolvedModule,
         Ok(())
     }
     fn root<'a>(
-        ty: &AbiType,
+        ty: &IdlType,
         graph: &Generation<'a>,
         module: &ResolvedModule,
         preferred: &ResolvedModule,
         names: &mut BTreeMap<String, ResolvedDeclaration<'a>>,
     ) -> Result<(), GenerateError> {
         match ty {
-            AbiType::Named(name) if builtin_object_type(name).is_none() && !name.is_str() => {
+            IdlType::Named(name) if builtin_object_type(name).is_none() && !name.is_str() => {
                 let value = resolve(graph, module, name)?;
                 if !matches!(value.declaration.kind, DeclarationKind::Interface(_)) {
                     data(value, graph, preferred, names)?;
                 }
             }
-            AbiType::ComPtr(value)
-            | AbiType::WeakComPtr(value)
-            | AbiType::ComBox(value)
-            | AbiType::WeakComBox(value)
-            | AbiType::Borrowed(value)
-            | AbiType::Vector(value)
-            | AbiType::UnsizedSlice(value)
-            | AbiType::Slice(value)
-            | AbiType::OutputSlice(value)
-            | AbiType::Array { element: value, .. } => root(value, graph, module, preferred, names)?,
+            IdlType::ComPtr(value)
+            | IdlType::WeakComPtr(value)
+            | IdlType::ComBox(value)
+            | IdlType::WeakComBox(value)
+            | IdlType::Borrowed(value)
+            | IdlType::Vector(value)
+            | IdlType::UnsizedSlice(value)
+            | IdlType::Slice(value)
+            | IdlType::OutputSlice(value)
+            | IdlType::Array { element: value, .. } => root(value, graph, module, preferred, names)?,
             _ => {}
         }
         Ok(())
@@ -639,18 +639,18 @@ fn snake_case(value: &str) -> String {
 }
 
 /// Lowers one copied aggregate field or payload type.
-fn value_type(graph: &mut Generation<'_>, module: &ResolvedModule, ty: &AbiType) -> Result<TokenStream, GenerateError> {
+fn value_type(graph: &mut Generation<'_>, module: &ResolvedModule, ty: &IdlType) -> Result<TokenStream, GenerateError> {
     match ty {
-        AbiType::Unit => Ok(quote! { () }),
-        AbiType::Scalar(name) => scalar(name),
-        AbiType::Named(name) => {
+        IdlType::Unit => Ok(quote! { () }),
+        IdlType::Scalar(name) => scalar(name),
+        IdlType::Named(name) => {
             let resolved = resolve(graph, module, name)?;
             match resolved.declaration.kind {
                 DeclarationKind::Struct(_) | DeclarationKind::BitEnum(_) | DeclarationKind::Enum(_) => named_rust_type(graph, module, resolved, false),
                 _ => Err(GenerateError::new(format!("{} is not a copied value declaration", name.rust_path()))),
             }
         }
-        AbiType::Array { element, len } => {
+        IdlType::Array { element, len } => {
             let element = value_type(graph, module, element)?;
             let len = Literal::u32_unsuffixed(*len);
             Ok(quote! { [#element; #len] })
@@ -774,12 +774,12 @@ fn origin_docs(lines: &[String], span: &crate::SourceSpan) -> TokenStream {
 }
 
 /// Emits explicit object ownership using the bound target's exact threading proof.
-fn owned_object_type(graph: &mut Generation<'_>, module: &ResolvedModule, ty: &AbiType) -> Result<TokenStream, GenerateError> {
+fn owned_object_type(graph: &mut Generation<'_>, module: &ResolvedModule, ty: &IdlType) -> Result<TokenStream, GenerateError> {
     let (target, wrapper) = match ty {
-        AbiType::ComPtr(target) => (target, "ComPtr"),
-        AbiType::WeakComPtr(target) => (target, "WeakComPtr"),
-        AbiType::ComBox(target) => (target, "ComBox"),
-        AbiType::WeakComBox(target) => (target, "WeakComBox"),
+        IdlType::ComPtr(target) => (target, "ComPtr"),
+        IdlType::WeakComPtr(target) => (target, "WeakComPtr"),
+        IdlType::ComBox(target) => (target, "ComBox"),
+        IdlType::WeakComBox(target) => (target, "WeakComBox"),
         _ => return Err(GenerateError::new("resolved type is not an object ownership wrapper")),
     };
     let (interface, mode) = lower::object(graph, module, target)?;

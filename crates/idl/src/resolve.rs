@@ -11,7 +11,7 @@ use std::{
 use neocogi_com_core::{NcComDenseEnumMember, NcGuid, guid_from_name, guid_from_qualified_name};
 
 use crate::{
-    AbiType, BitEnum, Declaration, DeclarationKind, Diagnostic, Enum, EnumRepr, Method, Module, NamedType, SourceFile, SourceSpan, Threading, VariantFields,
+    IdlType, BitEnum, Declaration, DeclarationKind, Diagnostic, Enum, EnumRepr, Method, Module, NamedType, SourceFile, SourceSpan, Threading, VariantFields,
     sha256::digest,
 };
 
@@ -397,11 +397,11 @@ fn resolve_semantics_with_limits(mut modules: Vec<Module>, limits: crate::specia
 /// Checks constructor well-formedness even for an unused template parameter.
 /// Field and method constraints are checked on substituted declarations, while
 /// an object-reference wrapper must always target a closed contract.
-fn validate_closed_argument(graph: &ResolvedModules, module: &ResolvedModule, ty: &AbiType, span: &SourceSpan) -> Result<(), ResolutionError> {
+fn validate_closed_argument(graph: &ResolvedModules, module: &ResolvedModule, ty: &IdlType, span: &SourceSpan) -> Result<(), ResolutionError> {
     match ty {
-        AbiType::ComPtr(value) | AbiType::WeakComPtr(value) | AbiType::ComBox(value) | AbiType::WeakComBox(value) => {
+        IdlType::ComPtr(value) | IdlType::WeakComPtr(value) | IdlType::ComBox(value) | IdlType::WeakComBox(value) => {
             let valid = match value.as_ref() {
-                AbiType::Named(name) => {
+                IdlType::Named(name) => {
                     builtin_object(name).is_some()
                         || graph
                             .resolve_declaration(name)
@@ -420,19 +420,19 @@ fn validate_closed_argument(graph: &ResolvedModules, module: &ResolvedModule, ty
             }
             validate_closed_argument(graph, module, value, span)
         }
-        AbiType::Named(name) => {
+        IdlType::Named(name) => {
             for argument in &name.arguments {
                 validate_closed_argument(graph, module, argument, span)?;
             }
             Ok(())
         }
-        AbiType::Borrowed(value)
-        | AbiType::Vector(value)
-        | AbiType::UnsizedSlice(value)
-        | AbiType::Slice(value)
-        | AbiType::OutputSlice(value)
-        | AbiType::Array { element: value, .. } => validate_closed_argument(graph, module, value, span),
-        AbiType::Unit | AbiType::Scalar(_) | AbiType::String => Ok(()),
+        IdlType::Borrowed(value)
+        | IdlType::Vector(value)
+        | IdlType::UnsizedSlice(value)
+        | IdlType::Slice(value)
+        | IdlType::OutputSlice(value)
+        | IdlType::Array { element: value, .. } => validate_closed_argument(graph, module, value, span),
+        IdlType::Unit | IdlType::Scalar(_) | IdlType::String => Ok(()),
     }
 }
 
@@ -977,22 +977,22 @@ fn collect_layout_references<'a>(declaration: &'a Declaration, output: &mut Vec<
 }
 
 /// Collects named paths nested through inline array and optional wrappers.
-fn collect_type_references<'a>(ty: &'a AbiType, output: &mut Vec<&'a NamedType>) {
+fn collect_type_references<'a>(ty: &'a IdlType, output: &mut Vec<&'a NamedType>) {
     match ty {
-        AbiType::Named(name) => output.push(name),
-        AbiType::Array { element, .. } => collect_type_references(element, output),
-        AbiType::ComPtr(_)
-        | AbiType::WeakComPtr(_)
-        | AbiType::ComBox(_)
-        | AbiType::WeakComBox(_)
-        | AbiType::Borrowed(_)
-        | AbiType::Vector(_)
-        | AbiType::UnsizedSlice(_)
-        | AbiType::Slice(_)
-        | AbiType::OutputSlice(_)
-        | AbiType::Unit
-        | AbiType::Scalar(_)
-        | AbiType::String => {}
+        IdlType::Named(name) => output.push(name),
+        IdlType::Array { element, .. } => collect_type_references(element, output),
+        IdlType::ComPtr(_)
+        | IdlType::WeakComPtr(_)
+        | IdlType::ComBox(_)
+        | IdlType::WeakComBox(_)
+        | IdlType::Borrowed(_)
+        | IdlType::Vector(_)
+        | IdlType::UnsizedSlice(_)
+        | IdlType::Slice(_)
+        | IdlType::OutputSlice(_)
+        | IdlType::Unit
+        | IdlType::Scalar(_)
+        | IdlType::String => {}
     }
 }
 
@@ -1283,7 +1283,7 @@ fn validate_methods(
 }
 
 /// Visits message storage without synthesizing callback methods or delivery parameters.
-pub(crate) fn value_fields(declaration: &Declaration) -> Vec<&AbiType> {
+pub(crate) fn value_fields(declaration: &Declaration) -> Vec<&IdlType> {
     match &declaration.kind {
         DeclarationKind::Struct(record) => record.fields.iter().map(|field| &field.ty).collect(),
         DeclarationKind::Enum(enumeration) => enumeration
@@ -1302,7 +1302,7 @@ pub(crate) fn value_fields(declaration: &Declaration) -> Vec<&AbiType> {
 /// One stored field use retains source context independently of its type binding.
 struct StoredField<'a> {
     /// Authored or substituted value type under this field's storage rules.
-    ty: &'a AbiType,
+    ty: &'a IdlType,
     /// Original field/tuple location, including template provenance.
     span: &'a SourceSpan,
     /// Concrete declaration/variant/field name used in an author diagnostic.
@@ -1353,36 +1353,36 @@ fn stored_fields(declaration: &Declaration) -> Vec<StoredField<'_>> {
 }
 
 /// Storage ownership form is independent of declaration lookup and specialization.
-fn validate_field_form(index: usize, ty: &AbiType, entries: &[ModuleEntry], context: &str, span: &SourceSpan) -> Result<(), ResolutionError> {
+fn validate_field_form(index: usize, ty: &IdlType, entries: &[ModuleEntry], context: &str, span: &SourceSpan) -> Result<(), ResolutionError> {
     match ty {
-        AbiType::ComBox(_) => Err(source_error(
+        IdlType::ComBox(_) => Err(source_error(
             &entries[index].module,
             "EIDL060",
             span,
             format!("{context}: exclusive owners are method transfers, not repeatable fields"),
             "use an explicit owning object contract instead of a repeatable value codec",
         )),
-        AbiType::Borrowed(_) | AbiType::Slice(_) | AbiType::UnsizedSlice(_) | AbiType::OutputSlice(_) => Err(source_error(
+        IdlType::Borrowed(_) | IdlType::Slice(_) | IdlType::UnsizedSlice(_) | IdlType::OutputSlice(_) => Err(source_error(
             &entries[index].module,
             "EIDL060",
             span,
             format!("{context} requires an owned field"),
             "use Vec<T> for indirect ownership; borrowed fields cannot escape a call",
         )),
-        AbiType::Array { element, .. } | AbiType::Vector(element) => validate_field_form(index, element, entries, context, span),
+        IdlType::Array { element, .. } | IdlType::Vector(element) => validate_field_form(index, element, entries, context, span),
         _ => Ok(()),
     }
 }
 
 /// Validates recursive field syntax independently from method ownership positions.
-fn validate_field_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], context: &str, span: &SourceSpan) -> Result<(), ResolutionError> {
+fn validate_field_type(index: usize, ty: &IdlType, entries: &[ModuleEntry], context: &str, span: &SourceSpan) -> Result<(), ResolutionError> {
     validate_field_form(index, ty, entries, context, span)?;
     match ty {
-        AbiType::Unit | AbiType::Scalar(_) | AbiType::String => Ok(()),
-        AbiType::ComPtr(value) | AbiType::WeakComPtr(value) | AbiType::ComBox(value) | AbiType::WeakComBox(value) => {
+        IdlType::Unit | IdlType::Scalar(_) | IdlType::String => Ok(()),
+        IdlType::ComPtr(value) | IdlType::WeakComPtr(value) | IdlType::ComBox(value) | IdlType::WeakComBox(value) => {
             validate_object_target(index, value, entries, context, span)
         }
-        AbiType::Named(name) => {
+        IdlType::Named(name) => {
             if builtin_object(name).is_some() {
                 return Err(source_error(
                     &entries[index].module,
@@ -1404,14 +1404,14 @@ fn validate_field_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], cont
                 )),
             }
         }
-        AbiType::Array { element, .. } | AbiType::Vector(element) => validate_field_type(index, element, entries, context, span),
-        AbiType::Borrowed(_) | AbiType::Slice(_) | AbiType::UnsizedSlice(_) | AbiType::OutputSlice(_) => unreachable!("field form already rejected"),
+        IdlType::Array { element, .. } | IdlType::Vector(element) => validate_field_type(index, element, entries, context, span),
+        IdlType::Borrowed(_) | IdlType::Slice(_) | IdlType::UnsizedSlice(_) | IdlType::OutputSlice(_) => unreachable!("field form already rejected"),
     }
 }
 
 /// Checks the referent kind of an explicit owner without treating it as stored data.
-fn validate_object_target(index: usize, ty: &AbiType, entries: &[ModuleEntry], context: &str, span: &SourceSpan) -> Result<(), ResolutionError> {
-    if let AbiType::Named(name) = ty {
+fn validate_object_target(index: usize, ty: &IdlType, entries: &[ModuleEntry], context: &str, span: &SourceSpan) -> Result<(), ResolutionError> {
+    if let IdlType::Named(name) = ty {
         if builtin_object(name).is_some() {
             return Ok(());
         }
@@ -1430,11 +1430,11 @@ fn validate_object_target(index: usize, ty: &AbiType, entries: &[ModuleEntry], c
 
 /// Reads copied use-site eligibility from the resolved structural graph.
 /// Layout validation separately reports inline cycles with source spans.
-fn copied_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], values: &crate::ValueGraph) -> bool {
+fn copied_type(index: usize, ty: &IdlType, entries: &[ModuleEntry], values: &crate::ValueGraph) -> bool {
     match ty {
-        AbiType::Unit | AbiType::Scalar(_) => true,
-        AbiType::Array { element, .. } => copied_type(index, element, entries, values),
-        AbiType::Named(name) => resolve_named(index, name, entries).is_ok_and(|symbol| {
+        IdlType::Unit | IdlType::Scalar(_) => true,
+        IdlType::Array { element, .. } => copied_type(index, element, entries, values),
+        IdlType::Named(name) => resolve_named(index, name, entries).is_ok_and(|symbol| {
             let qualified = &entries[symbol.module].declaration_identities[symbol.declaration].qualified_name;
             values.definitions.get(qualified).is_some_and(|value| value.copied)
         }),
@@ -1513,26 +1513,26 @@ fn admit_canonical_origins(entries: &[ModuleEntry]) -> Result<HashMap<String, Ca
 /// Resolves field paths once into finite named graph edges, including indirect recursion.
 /// Repeated projections reuse their admitted node; no shape is silently overwritten.
 fn resolve_value_graph(entries: &[ModuleEntry], admitted: &HashMap<String, CanonicalOrigin>) -> Result<crate::ValueGraph, ResolutionError> {
-    fn field(index: usize, ty: &AbiType, entries: &[ModuleEntry]) -> Result<crate::ValueType, ResolutionError> {
+    fn field(index: usize, ty: &IdlType, entries: &[ModuleEntry]) -> Result<crate::ValueType, ResolutionError> {
         use crate::ValueType as V;
         Ok(match ty {
-            AbiType::WeakComPtr(value) => match field(index, value, entries)? {
+            IdlType::WeakComPtr(value) => match field(index, value, entries)? {
                 V::Object(name) => V::WeakObject(name),
                 other => other,
             },
-            AbiType::WeakComBox(value) => match field(index, value, entries)? {
+            IdlType::WeakComBox(value) => match field(index, value, entries)? {
                 V::Object(name) => V::WeakBoxObject(name),
                 other => other,
             },
-            AbiType::ComPtr(value) | AbiType::ComBox(value) => match field(index, value, entries)? {
+            IdlType::ComPtr(value) | IdlType::ComBox(value) => match field(index, value, entries)? {
                 V::Object(name) => V::Object(name),
                 other => other,
             },
-            AbiType::Unit => V::Unit,
-            AbiType::Scalar(name) => V::Scalar(name.clone()),
-            AbiType::String => V::Text,
-            AbiType::Named(name) if builtin_object(name).is_some() => V::Object(name.segments.join(".")),
-            AbiType::Named(name) => {
+            IdlType::Unit => V::Unit,
+            IdlType::Scalar(name) => V::Scalar(name.clone()),
+            IdlType::String => V::Text,
+            IdlType::Named(name) if builtin_object(name).is_some() => V::Object(name.segments.join(".")),
+            IdlType::Named(name) => {
                 let Ok(symbol) = resolve_named(index, name, entries) else {
                     // Keep diagnostic collection in validate_module; unresolved
                     // edges are never eligible for copied lowering.
@@ -1544,9 +1544,9 @@ fn resolve_value_graph(entries: &[ModuleEntry], admitted: &HashMap<String, Canon
                     _ => V::Object(name),
                 }
             }
-            AbiType::Vector(value) => V::Sequence(Box::new(field(index, value, entries)?)),
-            AbiType::Array { element, len } => V::Array(Box::new(field(index, element, entries)?), *len),
-            AbiType::Borrowed(_) | AbiType::Slice(_) | AbiType::OutputSlice(_) | AbiType::UnsizedSlice(_) => V::Unit,
+            IdlType::Vector(value) => V::Sequence(Box::new(field(index, value, entries)?)),
+            IdlType::Array { element, len } => V::Array(Box::new(field(index, element, entries)?), *len),
+            IdlType::Borrowed(_) | IdlType::Slice(_) | IdlType::OutputSlice(_) | IdlType::UnsizedSlice(_) => V::Unit,
         })
     }
     let mut graph = crate::ValueGraph::default();
@@ -1596,7 +1596,7 @@ fn resolve_value_graph(entries: &[ModuleEntry], admitted: &HashMap<String, Canon
 /// Requires an implemented self-contained copied lowering at this method position.
 fn validate_value_type(
     index: usize,
-    ty: &AbiType,
+    ty: &IdlType,
     entries: &[ModuleEntry],
     values: &crate::ValueGraph,
     context: &str,
@@ -1619,38 +1619,38 @@ fn validate_value_type(
 /// Validates an input without allowing implicit COM ownership transfer.
 fn validate_parameter_type(
     index: usize,
-    ty: &AbiType,
+    ty: &IdlType,
     entries: &[ModuleEntry],
     values: &crate::ValueGraph,
     context: &str,
     span: &SourceSpan,
 ) -> Result<(), ResolutionError> {
     let span = type_span(ty).unwrap_or(span);
-    if let AbiType::Borrowed(referent) = ty {
-        if let AbiType::Named(name) = referent.as_ref() {
+    if let IdlType::Borrowed(referent) = ty {
+        if let IdlType::Named(name) = referent.as_ref() {
             if builtin_object(name).is_some() {
                 return Ok(());
             }
         }
     }
     match ty {
-        AbiType::ComBox(value) => validate_object_target(index, value, entries, context, span),
-        AbiType::WeakComBox(_) => Err(source_error(
+        IdlType::ComBox(value) => validate_object_target(index, value, entries, context, span),
+        IdlType::WeakComBox(_) => Err(source_error(
             &entries[index].module,
             "EIDL061",
             span,
             format!("{context}: weak box inputs must use a live interface borrow"),
             "unsupported ownership transfer",
         )),
-        AbiType::WeakComPtr(_) | AbiType::ComPtr(_) | AbiType::Unit | AbiType::String | AbiType::Vector(_) | AbiType::UnsizedSlice(_) => Err(source_error(
+        IdlType::WeakComPtr(_) | IdlType::ComPtr(_) | IdlType::Unit | IdlType::String | IdlType::Vector(_) | IdlType::UnsizedSlice(_) => Err(source_error(
             &entries[index].module,
             "EIDL061",
             span,
             format!("{context} has no valid input ownership"),
             "invalid parameter type",
         )),
-        AbiType::Scalar(_) => Ok(()),
-        AbiType::Named(name) => match resolve_named_or_str(index, name, entries)? {
+        IdlType::Scalar(_) => Ok(()),
+        IdlType::Named(name) => match resolve_named_or_str(index, name, entries)? {
             ResolvedName::Symbol(symbol) if symbol.kind == SymbolKind::Value => validate_value_type(index, ty, entries, values, context, span),
             ResolvedName::Symbol(symbol) => Err(kind_mismatch_error(
                 index,
@@ -1669,8 +1669,8 @@ fn validate_parameter_type(
                 "unsized string parameter",
             )),
         },
-        AbiType::Borrowed(referent) => match referent.as_ref() {
-            AbiType::Named(name) => match resolve_named_or_str(index, name, entries)? {
+        IdlType::Borrowed(referent) => match referent.as_ref() {
+            IdlType::Named(name) => match resolve_named_or_str(index, name, entries)? {
                 ResolvedName::Str => Ok(()),
                 ResolvedName::Symbol(symbol) if symbol.kind != SymbolKind::Value => Ok(()),
                 ResolvedName::Symbol(_) => Ok(()),
@@ -1683,15 +1683,15 @@ fn validate_parameter_type(
                 "unsupported borrow",
             )),
         },
-        AbiType::Slice(element) | AbiType::OutputSlice(element) => validate_value_type(index, element, entries, values, context, span),
-        AbiType::Array { .. } => validate_value_type(index, ty, entries, values, context, span),
+        IdlType::Slice(element) | IdlType::OutputSlice(element) => validate_value_type(index, element, entries, values, context, span),
+        IdlType::Array { .. } => validate_value_type(index, ty, entries, values, context, span),
     }
 }
 
 /// Validates outputs with explicit object ownership and copied-value semantics.
 fn validate_output_type(
     index: usize,
-    ty: &AbiType,
+    ty: &IdlType,
     entries: &[ModuleEntry],
     values: &crate::ValueGraph,
     context: &str,
@@ -1699,26 +1699,26 @@ fn validate_output_type(
 ) -> Result<(), ResolutionError> {
     let span = type_span(ty).unwrap_or(span);
     match ty {
-        AbiType::Unit | AbiType::Scalar(_) => Ok(()),
-        AbiType::ComPtr(value) | AbiType::WeakComPtr(value) | AbiType::ComBox(value) | AbiType::WeakComBox(value) => {
+        IdlType::Unit | IdlType::Scalar(_) => Ok(()),
+        IdlType::ComPtr(value) | IdlType::WeakComPtr(value) | IdlType::ComBox(value) | IdlType::WeakComBox(value) => {
             validate_object_target(index, value, entries, context, span)
         }
-        AbiType::Named(_) | AbiType::Array { .. } => validate_value_type(index, ty, entries, values, context, span),
-        AbiType::String => Err(source_error(
+        IdlType::Named(_) | IdlType::Array { .. } => validate_value_type(index, ty, entries, values, context, span),
+        IdlType::String => Err(source_error(
             &entries[index].module,
             "EIDL062",
             span,
             format!("{context}: return ComPtr<INcString> for an owned COM string"),
             "owned String values cannot escape a call-scoped wire guard",
         )),
-        AbiType::Vector(_) => Err(source_error(
+        IdlType::Vector(_) => Err(source_error(
             &entries[index].module,
             "EIDL062",
             span,
             format!("{context} cannot transfer an owned collection through a call-scoped wire guard"),
             "use an explicit COM collection contract or a caller-owned output buffer",
         )),
-        AbiType::Borrowed(_) | AbiType::Slice(_) | AbiType::OutputSlice(_) | AbiType::UnsizedSlice(_) => Err(source_error(
+        IdlType::Borrowed(_) | IdlType::Slice(_) | IdlType::OutputSlice(_) | IdlType::UnsizedSlice(_) => Err(source_error(
             &entries[index].module,
             "EIDL062",
             span,
@@ -2094,15 +2094,15 @@ enum TypeTag {
 }
 
 /// Encodes one recursively structured ABI type.
-fn encode_type(scope: EncodingScope<'_>, ty: &AbiType, entries: &[ModuleEntry], encoder: &mut CanonicalEncoder) -> Result<(), ResolutionError> {
+fn encode_type(scope: EncodingScope<'_>, ty: &IdlType, entries: &[ModuleEntry], encoder: &mut CanonicalEncoder) -> Result<(), ResolutionError> {
     match ty {
-        AbiType::Unit => encoder.type_tag(TypeTag::Unit),
-        AbiType::Scalar(name) => {
+        IdlType::Unit => encoder.type_tag(TypeTag::Unit),
+        IdlType::Scalar(name) => {
             encoder.type_tag(TypeTag::Scalar);
             encoder.text(name, &entries[scope.module].name)?;
         }
-        AbiType::String => encoder.type_tag(TypeTag::String),
-        AbiType::Named(name) => match classify_name(scope, name, entries)? {
+        IdlType::String => encoder.type_tag(TypeTag::String),
+        IdlType::Named(name) => match classify_name(scope, name, entries)? {
             NameBinding::Parameter { position } => {
                 encoder.type_tag(TypeTag::Parameter);
                 encoder.u32(position);
@@ -2123,45 +2123,45 @@ fn encode_type(scope: EncodingScope<'_>, ty: &AbiType, entries: &[ModuleEntry], 
                 }
             }
         },
-        AbiType::Borrowed(referent) => {
+        IdlType::Borrowed(referent) => {
             encoder.type_tag(TypeTag::Borrowed);
             encode_type(scope, referent, entries, encoder)?;
         }
-        AbiType::Slice(element) => {
+        IdlType::Slice(element) => {
             encoder.type_tag(TypeTag::Slice);
             encode_type(scope, element, entries, encoder)?;
         }
-        AbiType::Array { element, len } => {
+        IdlType::Array { element, len } => {
             encoder.type_tag(TypeTag::Array);
             encoder.u32(*len);
             encode_type(scope, element, entries, encoder)?;
         }
-        AbiType::ComBox(target) | AbiType::WeakComBox(target) => {
+        IdlType::ComBox(target) | IdlType::WeakComBox(target) => {
             encoder.type_tag(match ty {
-                AbiType::ComBox(_) => TypeTag::ComBox,
-                AbiType::WeakComBox(_) => TypeTag::WeakComBox,
+                IdlType::ComBox(_) => TypeTag::ComBox,
+                IdlType::WeakComBox(_) => TypeTag::WeakComBox,
                 _ => unreachable!(),
             });
             encode_type(scope, target, entries, encoder)?;
         }
-        AbiType::ComPtr(target) => {
+        IdlType::ComPtr(target) => {
             encoder.type_tag(TypeTag::ComPtr);
             encode_type(scope, target, entries, encoder)?;
         }
-        AbiType::WeakComPtr(target) => {
+        IdlType::WeakComPtr(target) => {
             // New ownership spelling cannot alias strong or exclusive weak transfers.
             encoder.type_tag(TypeTag::WeakComPtr);
             encode_type(scope, target, entries, encoder)?;
         }
-        AbiType::Vector(element) => {
+        IdlType::Vector(element) => {
             encoder.type_tag(TypeTag::Vector);
             encode_type(scope, element, entries, encoder)?;
         }
-        AbiType::UnsizedSlice(element) => {
+        IdlType::UnsizedSlice(element) => {
             encoder.type_tag(TypeTag::UnsizedSlice);
             encode_type(scope, element, entries, encoder)?;
         }
-        AbiType::OutputSlice(element) => {
+        IdlType::OutputSlice(element) => {
             // Output-only slots include an initialized-prefix count in ABI v2.
             // Their revision must differ from the retired initialized in/out ABI.
             encoder.type_tag(TypeTag::OutputSlice);
@@ -2372,20 +2372,20 @@ fn u32_len(value: usize, module: &str, field: &str) -> Result<u32, ResolutionErr
 }
 
 /// Returns the most precise named-type range nested inside an ABI type.
-fn type_span(ty: &AbiType) -> Option<&SourceSpan> {
+fn type_span(ty: &IdlType) -> Option<&SourceSpan> {
     match ty {
-        AbiType::Named(name) => Some(&name.span),
-        AbiType::ComPtr(value)
-        | AbiType::WeakComPtr(value)
-        | AbiType::ComBox(value)
-        | AbiType::WeakComBox(value)
-        | AbiType::Borrowed(value)
-        | AbiType::Vector(value)
-        | AbiType::UnsizedSlice(value)
-        | AbiType::Slice(value)
-        | AbiType::OutputSlice(value)
-        | AbiType::Array { element: value, .. } => type_span(value),
-        AbiType::Unit | AbiType::Scalar(_) | AbiType::String => None,
+        IdlType::Named(name) => Some(&name.span),
+        IdlType::ComPtr(value)
+        | IdlType::WeakComPtr(value)
+        | IdlType::ComBox(value)
+        | IdlType::WeakComBox(value)
+        | IdlType::Borrowed(value)
+        | IdlType::Vector(value)
+        | IdlType::UnsizedSlice(value)
+        | IdlType::Slice(value)
+        | IdlType::OutputSlice(value)
+        | IdlType::Array { element: value, .. } => type_span(value),
+        IdlType::Unit | IdlType::Scalar(_) | IdlType::String => None,
     }
 }
 
@@ -2498,7 +2498,7 @@ mod reference_encoding_tests {
             encode_named(scope, &name(&[parameter]), &entries, &mut reference).unwrap();
             assert_eq!(reference.bytes, [vec![0], (position as u32).to_be_bytes().to_vec()].concat());
             let mut ordinary = CanonicalEncoder::new();
-            encode_type(scope, &AbiType::Named(name(&[parameter])), &entries, &mut ordinary).unwrap();
+            encode_type(scope, &IdlType::Named(name(&[parameter])), &entries, &mut ordinary).unwrap();
             assert_eq!(ordinary.bytes, [vec![16], (position as u32).to_be_bytes().to_vec()].concat());
         }
         let mut free = CanonicalEncoder::new();
@@ -2509,7 +2509,7 @@ mod reference_encoding_tests {
         expected.extend_from_slice(&0u32.to_be_bytes());
         assert_eq!(free.bytes, expected);
         let mut invalid = name(&["B"]);
-        invalid.arguments.push(AbiType::Scalar("u32".to_owned()));
+        invalid.arguments.push(IdlType::Scalar("u32".to_owned()));
         let error = encode_named(scope, &invalid, &entries, &mut CanonicalEncoder::new()).unwrap_err();
         assert_eq!(error.diagnostics[0].code, "EIDL060");
         assert!(error.to_string().contains("proof/codec.ncidl"));
@@ -2523,9 +2523,9 @@ mod reference_encoding_tests {
         let entries = build_entries(vec![source]).unwrap();
         let parameters = vec!["T".to_owned()];
         let scope = EncodingScope { module: 0, parameters: &parameters };
-        let unit = || Box::new(AbiType::Unit);
+        let unit = || Box::new(IdlType::Unit);
         let named = |binding| {
-            AbiType::Named(NamedType {
+            IdlType::Named(NamedType {
                 span: entries[0].module.declarations[0].span.clone(),
                 segments: vec!["diagnostic_only".into()],
                 arguments: Vec::new(),
@@ -2533,20 +2533,20 @@ mod reference_encoding_tests {
             })
         };
         let alternatives = [
-            (AbiType::Unit, 0),
-            (AbiType::Scalar("u8".into()), 1),
-            (AbiType::String, 2),
+            (IdlType::Unit, 0),
+            (IdlType::Scalar("u8".into()), 1),
+            (IdlType::String, 2),
             (named(Binding::Declaration(DeclarationKey { module: 0, name: "Item".into() })), 3),
-            (AbiType::Borrowed(unit()), 4),
-            (AbiType::Slice(unit()), 5),
-            (AbiType::Array { element: unit(), len: 0 }, 6),
-            (AbiType::ComPtr(unit()), 9),
-            (AbiType::Vector(unit()), 10),
-            (AbiType::UnsizedSlice(unit()), 11),
-            (AbiType::ComBox(unit()), 12),
-            (AbiType::WeakComBox(unit()), 13),
-            (AbiType::OutputSlice(unit()), 14),
-            (AbiType::WeakComPtr(unit()), 15),
+            (IdlType::Borrowed(unit()), 4),
+            (IdlType::Slice(unit()), 5),
+            (IdlType::Array { element: unit(), len: 0 }, 6),
+            (IdlType::ComPtr(unit()), 9),
+            (IdlType::Vector(unit()), 10),
+            (IdlType::UnsizedSlice(unit()), 11),
+            (IdlType::ComBox(unit()), 12),
+            (IdlType::WeakComBox(unit()), 13),
+            (IdlType::OutputSlice(unit()), 14),
+            (IdlType::WeakComPtr(unit()), 15),
             (named(Binding::Parameter { position: 0 }), 16),
         ];
         let mut prefixes = std::collections::BTreeSet::new();

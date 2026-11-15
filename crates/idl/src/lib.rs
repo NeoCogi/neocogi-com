@@ -31,7 +31,7 @@ mod type_display;
 pub use standard::is_bundled_module;
 
 pub use model::{
-    PersistencePolicy, AbiType, BitEnum, BitFlag, Declaration, DeclarationKind, Enum, EnumNames, EnumRepr, EnumVariant, ExternalModule, Field, Import,
+    PersistencePolicy, IdlType, BitEnum, BitFlag, Declaration, DeclarationKind, Enum, EnumNames, EnumRepr, EnumVariant, ExternalModule, Field, Import,
     Interface, Method, NamedType, Parameter, Receiver, Struct, Threading, VariantFields, Specialization,
 };
 pub use diagnostic::{Diagnostic, DiagnosticLabel, DiagnosticSeverity, LabelStyle, SourceFile, SourcePosition, SourceSpan};

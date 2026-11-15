@@ -114,7 +114,7 @@ pub struct Field {
     /// Field identifier exactly as declared.
     pub name: String,
     /// Parsed ABI type expression.
-    pub ty: AbiType,
+    pub ty: IdlType,
 }
 
 /// Fixed integer representation selected by an enum's optional type suffix.
@@ -185,7 +185,7 @@ pub enum VariantFields {
     /// A positional payload in normative element order.
     Tuple(
         /// ABI types stored in the tuple payload.
-        Vec<AbiType>,
+        Vec<IdlType>,
     ),
     /// A payload with named fields.
     Named(
@@ -230,7 +230,7 @@ pub struct Method {
     /// Explicit parameters after the receiver.
     pub parameters: Vec<Parameter>,
     /// Successful value carried by the required `Result<T>` return.
-    pub output: AbiType,
+    pub output: IdlType,
 }
 
 /// Receiver capability for one COM method.
@@ -250,7 +250,7 @@ pub struct Parameter {
     /// Parameter identifier exactly as declared.
     pub name: String,
     /// Parsed ABI type expression.
-    pub ty: AbiType,
+    pub ty: IdlType,
 }
 
 /// One path naming an IDL declaration or built-in type.
@@ -261,7 +261,7 @@ pub struct NamedType {
     /// Path segments in source order without rewriting.
     pub segments: Vec<String>,
     /// Arguments to a declaration template, resolved before ordinary ABI validation.
-    pub arguments: Vec<AbiType>,
+    pub arguments: Vec<IdlType>,
     /// Semantic owner assigned once before specialization; source paths are not
     /// reinterpreted by hashing, ABI validation, metadata or Rust generation.
     pub(crate) binding: crate::binding::Binding,
@@ -292,14 +292,19 @@ impl NamedType {
         let path = self.segments.join("::");
         match self.arguments.is_empty() {
             true => path,
-            false => format!("{}<{}>", path, self.arguments.iter().map(AbiType::source_name).collect::<Vec<_>>().join(", ")),
+            false => format!("{}<{}>", path, self.arguments.iter().map(IdlType::source_name).collect::<Vec<_>>().join(", ")),
         }
     }
 }
 
-/// ABI-safe type expressions understood by the initial IDL language.
+/// Source-level IDL type before physical C ABI lowering.
+///
+/// Named paths, owned containers and borrowed buffer forms remain logical source
+/// constructs here. The core `AbiType` trait describes a separate emitted value
+/// ABI contract and retains its name. Renaming this enum changes no IDL spelling,
+/// canonical encoding, interface identity or generated C representation.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum AbiType {
+pub enum IdlType {
     /// The zero-sized successful result written as `()`.
     Unit,
     /// A built-in scalar such as `u32`, `i64`, `f32`, or `bool`.
@@ -313,44 +318,44 @@ pub enum AbiType {
     Named(NamedType),
     /// An owned COM reference to a closed interface contract.
     /// Ownership is explicit; the referenced implementation is never stored inline.
-    ComPtr(Box<AbiType>),
+    ComPtr(Box<IdlType>),
     /// A shared weak reference, stored in a value or transferred as a method result.
     /// It retains control metadata only and must be promoted before interface calls.
-    WeakComPtr(Box<AbiType>),
+    WeakComPtr(Box<IdlType>),
     /// One exclusive owner transferred by a factory or into a container.
     /// It cannot be copied into an ordinary struct or enum field.
-    ComBox(Box<AbiType>),
+    ComBox(Box<IdlType>),
     /// A cached weak interface token returned without retaining the value.
-    WeakComBox(Box<AbiType>),
+    WeakComBox(Box<IdlType>),
     /// A value borrowed only for the duration of one ABI call.
     Borrowed(
         /// Borrowed referent type.
-        Box<AbiType>,
+        Box<IdlType>,
     ),
     /// An explicitly owned variable-length sequence; generated Rust stores a Vec.
     Vector(
         /// Recursively owned element type, never an implicit borrowed field.
-        Box<AbiType>,
+        Box<IdlType>,
     ),
     /// An unsized sequence referent, valid through a call-scoped borrow only.
     UnsizedSlice(
         /// Element type before a borrow selects readable or writable passing.
-        Box<AbiType>,
+        Box<IdlType>,
     ),
     /// A borrowed contiguous sequence.
     Slice(
         /// ABI-safe sequence element type.
-        Box<AbiType>,
+        Box<IdlType>,
     ),
     /// A borrowed writable sequence filled synchronously by the callee.
     OutputSlice(
         /// ABI-safe sequence element type.
-        Box<AbiType>,
+        Box<IdlType>,
     ),
     /// A fixed-size inline array.
     Array {
         /// ABI-safe array element type.
-        element: Box<AbiType>,
+        element: Box<IdlType>,
         /// Compile-time array element count.
         len: u32,
     },
@@ -362,10 +367,10 @@ pub struct Specialization {
     /// Bound source template declaration with no arguments; spelling is diagnostic.
     pub template: NamedType,
     /// Bound, substituted argument types in template parameter order.
-    pub arguments: Vec<AbiType>,
+    pub arguments: Vec<IdlType>,
 }
 
-impl AbiType {
+impl IdlType {
     /// Renders authored structural spelling for diagnostics, never for fingerprinting.
     pub fn source_name(&self) -> String {
         match self {

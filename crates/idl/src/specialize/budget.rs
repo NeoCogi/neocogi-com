@@ -6,7 +6,7 @@
 //! Walks iterate siblings lazily; native recursion is limited by combined descent.
 
 use std::mem::size_of;
-use crate::{AbiType, Declaration, DeclarationKind, NamedType, ResolutionError, SourceSpan, VariantFields};
+use crate::{IdlType, Declaration, DeclarationKind, NamedType, ResolutionError, SourceSpan, VariantFields};
 use crate::binding::{Binding, DeclarationKey, SemanticOrigin};
 use super::failure;
 
@@ -123,7 +123,7 @@ impl Budget {
     }
 
     /// Fallible type copy: every occurrence independently pays before Clone.
-    pub(super) fn copy_type(&mut self, value: &AbiType, at: Descent, span: &SourceSpan) -> Result<AbiType, ResolutionError> {
+    pub(super) fn copy_type(&mut self, value: &IdlType, at: Descent, span: &SourceSpan) -> Result<IdlType, ResolutionError> {
         self.ty(value, at, span, true)?;
         #[cfg(test)]
         self.allow_copy(CopyKind::Type, span)?;
@@ -181,7 +181,7 @@ impl Budget {
             arguments: _,
             binding,
         } = value;
-        self.allocate(size_of::<AbiType>(), span)?;
+        self.allocate(size_of::<IdlType>(), span)?;
         self.span(source, span)?;
         self.strings(segments, span)?;
         match binding {
@@ -214,31 +214,31 @@ impl Budget {
 
     /// Exhaustive type storage/traversal policy. Recursive frames compose with
     /// the caller's active lowering path, including a substitution destination.
-    fn ty(&mut self, value: &AbiType, at: Descent, span: &SourceSpan, copy: bool) -> Result<(), ResolutionError> {
-        if let AbiType::Named(name) = value {
+    fn ty(&mut self, value: &IdlType, at: Descent, span: &SourceSpan, copy: bool) -> Result<(), ResolutionError> {
+        if let IdlType::Named(name) = value {
             return self.named(name, at, span, copy);
         }
         self.enter(at, span)?;
         self.enter(at, span)?;
-        self.allocate(if copy { size_of::<AbiType>() } else { 64 }, span)?;
+        self.allocate(if copy { size_of::<IdlType>() } else { 64 }, span)?;
         match value {
-            AbiType::Scalar(name) => {
+            IdlType::Scalar(name) => {
                 if copy {
                     self.allocate(name.len(), span)?;
                 }
             }
-            AbiType::Named(_) => unreachable!("named policy handled above"),
-            AbiType::ComPtr(child)
-            | AbiType::WeakComPtr(child)
-            | AbiType::ComBox(child)
-            | AbiType::WeakComBox(child)
-            | AbiType::Borrowed(child)
-            | AbiType::Vector(child)
-            | AbiType::UnsizedSlice(child)
-            | AbiType::Slice(child)
-            | AbiType::OutputSlice(child)
-            | AbiType::Array { element: child, len: _ } => self.ty(child, at.child(), span, copy)?,
-            AbiType::Unit | AbiType::String => {}
+            IdlType::Named(_) => unreachable!("named policy handled above"),
+            IdlType::ComPtr(child)
+            | IdlType::WeakComPtr(child)
+            | IdlType::ComBox(child)
+            | IdlType::WeakComBox(child)
+            | IdlType::Borrowed(child)
+            | IdlType::Vector(child)
+            | IdlType::UnsizedSlice(child)
+            | IdlType::Slice(child)
+            | IdlType::OutputSlice(child)
+            | IdlType::Array { element: child, len: _ } => self.ty(child, at.child(), span, copy)?,
+            IdlType::Unit | IdlType::String => {}
         }
         Ok(())
     }

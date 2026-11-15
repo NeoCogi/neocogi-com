@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use neocogi_idl::{
-    AbiType, DeclarationKind, EnumNames, EnumRepr, LabelStyle, ModuleSource, ParseError, Receiver, SourcePosition, Threading, VariantFields, generate_rust,
+    IdlType, DeclarationKind, EnumNames, EnumRepr, LabelStyle, ModuleSource, ParseError, Receiver, SourcePosition, Threading, VariantFields, generate_rust,
     parse_module, parse_module_parts, resolve_modules,
 };
 
@@ -604,12 +604,12 @@ fn parses_a_complete_contract_module() {
     assert_eq!(options.persistence, neocogi_idl::PersistencePolicy::Default);
     assert_eq!(
         options.fields[1].ty,
-        AbiType::Array {
-            element: Box::new(AbiType::Scalar("i32".into())),
+        IdlType::Array {
+            element: Box::new(IdlType::Scalar("i32".into())),
             len: 2,
         }
     );
-    assert_eq!(options.fields[2].ty, AbiType::Scalar("Status".into()));
+    assert_eq!(options.fields[2].ty, IdlType::Scalar("Status".into()));
 
     let DeclarationKind::Enum(direction) = &module.declaration("Direction").unwrap().kind else {
         panic!("Direction should be an enum");
@@ -650,9 +650,9 @@ fn parses_a_complete_contract_module() {
     let first = &factory.methods[0];
     let second = &factory.methods[1];
     let third = &factory.methods[2];
-    assert!(matches!(first.parameters[0].ty, AbiType::Borrowed(_)));
-    assert!(matches!(second.parameters[0].ty, AbiType::Slice(_)));
-    assert!(matches!(third.parameters[0].ty, AbiType::OutputSlice(_)));
+    assert!(matches!(first.parameters[0].ty, IdlType::Borrowed(_)));
+    assert!(matches!(second.parameters[0].ty, IdlType::Slice(_)));
+    assert!(matches!(third.parameters[0].ty, IdlType::OutputSlice(_)));
 }
 
 /// A typed stream is an ordinary generic base; IDL contains no event-specific members.

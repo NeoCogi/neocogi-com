@@ -65,7 +65,7 @@ signature without sharing generated Rust definitions. Cargo and module tooling
 recognize bundled source dependencies; no `neocogi-lang-contracts` package or
 `DEP_*` graph is required.
 
-There is no `AbiType::Option`, `ValueType::Optional`, or special optional metadata
+There is no `IdlType::Option`, `ValueType::Optional`, or special optional metadata
 constructor. `Option<u32>` is a named enum definition with `None` and `Some`
 variants. The latter's field references `u32`. The same enum codec validates tags,
 active fields, nesting, and resource use for application and library enums.

@@ -22,9 +22,9 @@ pub(super) fn bind(entries: &mut [ModuleEntry]) -> Result<Vec<Diagnostic>, Resol
 }
 
 /// Assigns semantic ownership once; recursive arguments retain their own scopes.
-fn bind_type(index: usize, parameters: &[String], ty: &mut AbiType, entries: &[ModuleEntry], diagnostics: &mut Vec<Diagnostic>) {
+fn bind_type(index: usize, parameters: &[String], ty: &mut IdlType, entries: &[ModuleEntry], diagnostics: &mut Vec<Diagnostic>) {
     match ty {
-        AbiType::Named(name) => {
+        IdlType::Named(name) => {
             let result = bind_name(index, parameters, name, entries);
             match result {
                 Ok(binding) => name.binding = binding,
@@ -34,19 +34,19 @@ fn bind_type(index: usize, parameters: &[String], ty: &mut AbiType, entries: &[M
                 bind_type(index, parameters, argument, entries, diagnostics);
             }
         }
-        AbiType::ComPtr(value)
-        | AbiType::WeakComPtr(value)
-        | AbiType::ComBox(value)
-        | AbiType::WeakComBox(value)
-        | AbiType::Borrowed(value)
-        | AbiType::Vector(value)
-        | AbiType::UnsizedSlice(value)
-        | AbiType::Slice(value)
-        | AbiType::OutputSlice(value)
-        | AbiType::Array { element: value, .. } => {
+        IdlType::ComPtr(value)
+        | IdlType::WeakComPtr(value)
+        | IdlType::ComBox(value)
+        | IdlType::WeakComBox(value)
+        | IdlType::Borrowed(value)
+        | IdlType::Vector(value)
+        | IdlType::UnsizedSlice(value)
+        | IdlType::Slice(value)
+        | IdlType::OutputSlice(value)
+        | IdlType::Array { element: value, .. } => {
             bind_type(index, parameters, value, entries, diagnostics);
         }
-        AbiType::Unit | AbiType::Scalar(_) | AbiType::String => {}
+        IdlType::Unit | IdlType::Scalar(_) | IdlType::String => {}
     }
 }
 

@@ -2,7 +2,7 @@
 //! never changes lexical owners or Rust projections, nor constructs a display AST.
 
 use std::fmt::{self, Write};
-use crate::{AbiType, NamedType, ResolvedModules, Specialization};
+use crate::{IdlType, NamedType, ResolvedModules, Specialization};
 
 /// Diagnostic names have a finite payload; generated documentation retains the
 /// complete already-admitted spelling. Truncation never splits a UTF-8 scalar.
@@ -56,7 +56,7 @@ fn segments(text: &mut Text, values: &[String]) -> fmt::Result {
 
 /// Only display qualification is derived here; canonical and supplying binding
 /// keys remain unchanged and nominal declarations are never unfolded.
-fn named(text: &mut Text, name: &NamedType, arguments: &[AbiType], graph: Option<&ResolvedModules>) -> fmt::Result {
+fn named(text: &mut Text, name: &NamedType, arguments: &[IdlType], graph: Option<&ResolvedModules>) -> fmt::Result {
     if let Some((graph, key)) = graph.zip(name.binding.declaration()) {
         segments(text, graph.modules()[key.module].source.name.segments())?;
         text.write_str("::")?;
@@ -78,28 +78,28 @@ fn named(text: &mut Text, name: &NamedType, arguments: &[AbiType], graph: Option
 }
 
 /// Exhaustive structural spelling over finite admitted expressions only.
-fn ty(text: &mut Text, value: &AbiType, graph: Option<&ResolvedModules>) -> fmt::Result {
+fn ty(text: &mut Text, value: &IdlType, graph: Option<&ResolvedModules>) -> fmt::Result {
     let (prefix, child, suffix) = match value {
-        AbiType::Unit => return text.write_str("()"),
-        AbiType::Scalar(name) => return text.write_str(name),
-        AbiType::String => return text.write_str("String"),
-        AbiType::Named(name) => return named(text, name, &name.arguments, graph),
-        AbiType::ComPtr(child) => ("ComPtr<", child, ">"),
-        AbiType::WeakComPtr(child) => ("WeakComPtr<", child, ">"),
-        AbiType::ComBox(child) => ("ComBox<", child, ">"),
-        AbiType::WeakComBox(child) => ("WeakComBox<", child, ">"),
-        AbiType::Borrowed(child) => ("&", child, ""),
-        AbiType::Vector(child) => ("Vec<", child, ">"),
-        AbiType::UnsizedSlice(child) | AbiType::Slice(child) => ("&[", child, "]"),
-        AbiType::OutputSlice(child) => ("&mut [", child, "]"),
-        AbiType::Array { element, len } => {
+        IdlType::Unit => return text.write_str("()"),
+        IdlType::Scalar(name) => return text.write_str(name),
+        IdlType::String => return text.write_str("String"),
+        IdlType::Named(name) => return named(text, name, &name.arguments, graph),
+        IdlType::ComPtr(child) => ("ComPtr<", child, ">"),
+        IdlType::WeakComPtr(child) => ("WeakComPtr<", child, ">"),
+        IdlType::ComBox(child) => ("ComBox<", child, ">"),
+        IdlType::WeakComBox(child) => ("WeakComBox<", child, ">"),
+        IdlType::Borrowed(child) => ("&", child, ""),
+        IdlType::Vector(child) => ("Vec<", child, ">"),
+        IdlType::UnsizedSlice(child) | IdlType::Slice(child) => ("&[", child, "]"),
+        IdlType::OutputSlice(child) => ("&mut [", child, "]"),
+        IdlType::Array { element, len } => {
             text.write_str("[")?;
             ty(text, element, graph)?;
             return write!(text, "; {len}]");
         }
     };
     // Unsized referents have no borrow prefix in authored spelling.
-    if matches!(value, AbiType::UnsizedSlice(_)) {
+    if matches!(value, IdlType::UnsizedSlice(_)) {
         text.write_str("[")?;
     } else {
         text.write_str(prefix)?;
@@ -153,7 +153,7 @@ mod spelling_tests {
             let crate::DeclarationKind::Struct(record) = &module.declaration("Root").unwrap().kind else {
                 panic!("record")
             };
-            let AbiType::Named(mut name) = record.fields[0].ty.clone() else {
+            let IdlType::Named(mut name) = record.fields[0].ty.clone() else {
                 panic!("application")
             };
             let expected = name.rust_path();

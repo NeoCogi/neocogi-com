@@ -217,7 +217,7 @@ fn field(
     graph: &mut Generation<'_>,
     module: &ResolvedModule,
     ident: Option<Ident>,
-    ty: &AbiType,
+    ty: &IdlType,
     attrs: Vec<syn::Attribute>,
     public: bool,
 ) -> Result<syn::Field, GenerateError> {
@@ -239,18 +239,18 @@ fn attributes(tokens: TokenStream) -> Result<Vec<syn::Attribute>, GenerateError>
 }
 
 /// Maps a recursive field to application ownership; no native wire copying occurs here.
-pub(super) fn owned_type(graph: &mut Generation<'_>, module: &ResolvedModule, ty: &AbiType) -> Result<TokenStream, GenerateError> {
+pub(super) fn owned_type(graph: &mut Generation<'_>, module: &ResolvedModule, ty: &IdlType) -> Result<TokenStream, GenerateError> {
     Ok(match ty {
-        AbiType::Unit => quote! { () },
-        AbiType::Scalar(name) => scalar(name)?,
-        AbiType::String => quote! { self::alloc::string::String },
-        AbiType::ComPtr(_) | AbiType::WeakComPtr(_) | AbiType::WeakComBox(_) => owned_object_type(graph, module, ty)?,
-        AbiType::Named(name) => named_rust_type(graph, module, resolve(graph, module, name)?, false)?,
-        AbiType::Vector(value) => {
+        IdlType::Unit => quote! { () },
+        IdlType::Scalar(name) => scalar(name)?,
+        IdlType::String => quote! { self::alloc::string::String },
+        IdlType::ComPtr(_) | IdlType::WeakComPtr(_) | IdlType::WeakComBox(_) => owned_object_type(graph, module, ty)?,
+        IdlType::Named(name) => named_rust_type(graph, module, resolve(graph, module, name)?, false)?,
+        IdlType::Vector(value) => {
             let value = owned_type(graph, module, value)?;
             quote! { self::alloc::vec::Vec<#value> }
         }
-        AbiType::Array { element, len } => {
+        IdlType::Array { element, len } => {
             let value = owned_type(graph, module, element)?;
             let len = *len as usize;
             quote! { [#value; #len] }

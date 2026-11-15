@@ -17,7 +17,7 @@ use syn::{
 };
 
 use crate::{
-    PersistencePolicy, AbiType, BitEnum, BitFlag, Declaration, DeclarationKind, Diagnostic, Enum, EnumNames, EnumRepr, EnumVariant, ExternalModule, Field,
+    PersistencePolicy, IdlType, BitEnum, BitFlag, Declaration, DeclarationKind, Diagnostic, Enum, EnumNames, EnumRepr, EnumVariant, ExternalModule, Field,
     Import, Interface, Method, Module, ModuleName, ModulePathError, NamedType, Parameter, Receiver, SourceFile, SourceSpan, Struct, Threading, VariantFields,
 };
 
@@ -775,20 +775,20 @@ fn attach_named_source(name: &mut NamedType, source: &SourceFile) {
 }
 
 /// Attaches a source file to every named path nested in one ABI type.
-fn attach_type_source(ty: &mut AbiType, source: &SourceFile) {
+fn attach_type_source(ty: &mut IdlType, source: &SourceFile) {
     match ty {
-        AbiType::Named(name) => attach_named_source(name, source),
-        AbiType::ComPtr(value)
-        | AbiType::WeakComPtr(value)
-        | AbiType::ComBox(value)
-        | AbiType::WeakComBox(value)
-        | AbiType::Borrowed(value)
-        | AbiType::Vector(value)
-        | AbiType::UnsizedSlice(value)
-        | AbiType::Slice(value)
-        | AbiType::OutputSlice(value)
-        | AbiType::Array { element: value, .. } => attach_type_source(value, source),
-        AbiType::Unit | AbiType::Scalar(_) | AbiType::String => {}
+        IdlType::Named(name) => attach_named_source(name, source),
+        IdlType::ComPtr(value)
+        | IdlType::WeakComPtr(value)
+        | IdlType::ComBox(value)
+        | IdlType::WeakComBox(value)
+        | IdlType::Borrowed(value)
+        | IdlType::Vector(value)
+        | IdlType::UnsizedSlice(value)
+        | IdlType::Slice(value)
+        | IdlType::OutputSlice(value)
+        | IdlType::Array { element: value, .. } => attach_type_source(value, source),
+        IdlType::Unit | IdlType::Scalar(_) | IdlType::String => {}
     }
 }
 

@@ -3,7 +3,7 @@
 //! Prelude names are ordinary declarations after lexical lookup. The bundled
 //! source participates in specialization and fingerprints just like a dependency;
 //! no Option-specific rule exists in value conversion or metadata generation.
-use crate::{AbiType, ExternalModule, Import, Module, ModuleGraphError, ResolutionError, SourceSpan};
+use crate::{IdlType, ExternalModule, Import, Module, ModuleGraphError, ResolutionError, SourceSpan};
 
 #[cfg(test)]
 mod tests;
@@ -80,9 +80,9 @@ pub(crate) fn attach(mut modules: Vec<Module>) -> Result<Vec<Module>, ModuleGrap
 }
 
 /// Searches recursive type arguments without treating a local name as a keyword.
-fn references(ty: &AbiType, name: &str, shadowed: bool, prelude: &mut Option<SourceSpan>, dependency: &mut Option<SourceSpan>) {
+fn references(ty: &IdlType, name: &str, shadowed: bool, prelude: &mut Option<SourceSpan>, dependency: &mut Option<SourceSpan>) {
     match ty {
-        AbiType::Named(value) => {
+        IdlType::Named(value) => {
             if value.segments.as_slice() == [name] && !shadowed {
                 prelude.get_or_insert_with(|| value.span.clone());
             } else if value.segments.len() == 3 && value.segments[..2] == ["neocogi", "lang"] {
@@ -92,16 +92,16 @@ fn references(ty: &AbiType, name: &str, shadowed: bool, prelude: &mut Option<Sou
                 references(argument, name, shadowed, prelude, dependency);
             }
         }
-        AbiType::ComPtr(value)
-        | AbiType::WeakComPtr(value)
-        | AbiType::ComBox(value)
-        | AbiType::WeakComBox(value)
-        | AbiType::Borrowed(value)
-        | AbiType::Vector(value)
-        | AbiType::UnsizedSlice(value)
-        | AbiType::Slice(value)
-        | AbiType::OutputSlice(value)
-        | AbiType::Array { element: value, .. } => references(value, name, shadowed, prelude, dependency),
-        AbiType::Unit | AbiType::Scalar(_) | AbiType::String => {}
+        IdlType::ComPtr(value)
+        | IdlType::WeakComPtr(value)
+        | IdlType::ComBox(value)
+        | IdlType::WeakComBox(value)
+        | IdlType::Borrowed(value)
+        | IdlType::Vector(value)
+        | IdlType::UnsizedSlice(value)
+        | IdlType::Slice(value)
+        | IdlType::OutputSlice(value)
+        | IdlType::Array { element: value, .. } => references(value, name, shadowed, prelude, dependency),
+        IdlType::Unit | IdlType::Scalar(_) | IdlType::String => {}
     }
 }

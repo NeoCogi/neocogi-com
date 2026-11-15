@@ -14,7 +14,7 @@ use budget::{Budget, Descent, Limits};
 #[cfg(test)]
 mod tests;
 use neocogi_com_core::{NcGuid, guid_from_name, guid_from_qualified_name};
-use crate::{AbiType, Declaration, DeclarationKind, Diagnostic, ExternalModule, Module, NamedType, ResolutionError, SourceSpan, Specialization, VariantFields};
+use crate::{IdlType, Declaration, DeclarationKind, Diagnostic, ExternalModule, Module, NamedType, ResolutionError, SourceSpan, Specialization, VariantFields};
 
 /// Expands one admitted batch with one private compiler allowance.
 pub(crate) fn expand(modules: Vec<Module>, limits: Limits) -> Result<Vec<Module>, ResolutionError> {
@@ -100,7 +100,7 @@ impl Expansion {
     fn lower_type(
         &mut self,
         target: usize,
-        mut ty: &mut AbiType,
+        mut ty: &mut IdlType,
         depth: usize,
         mut at: Descent,
         generated: bool,
@@ -111,7 +111,7 @@ impl Expansion {
                 self.budget.enter(at, span)?;
             }
             match ty {
-                AbiType::Named(name) => {
+                IdlType::Named(name) => {
                     if !name.arguments.is_empty() {
                         let owned = name.take();
                         *name = self.instantiate(target, owned, depth + 1, at.child())?;
@@ -121,20 +121,20 @@ impl Expansion {
                     }
                     return Ok(());
                 }
-                AbiType::ComPtr(child)
-                | AbiType::WeakComPtr(child)
-                | AbiType::ComBox(child)
-                | AbiType::WeakComBox(child)
-                | AbiType::Borrowed(child)
-                | AbiType::Vector(child)
-                | AbiType::UnsizedSlice(child)
-                | AbiType::Slice(child)
-                | AbiType::OutputSlice(child)
-                | AbiType::Array { element: child, .. } => {
+                IdlType::ComPtr(child)
+                | IdlType::WeakComPtr(child)
+                | IdlType::ComBox(child)
+                | IdlType::WeakComBox(child)
+                | IdlType::Borrowed(child)
+                | IdlType::Vector(child)
+                | IdlType::UnsizedSlice(child)
+                | IdlType::Slice(child)
+                | IdlType::OutputSlice(child)
+                | IdlType::Array { element: child, .. } => {
                     ty = child;
                     at = at.child();
                 }
-                AbiType::Unit | AbiType::Scalar(_) | AbiType::String => return Ok(()),
+                IdlType::Unit | IdlType::Scalar(_) | IdlType::String => return Ok(()),
             }
         }
     }
@@ -251,10 +251,10 @@ impl Expansion {
 
     /// Retains an argument's canonical expression together with its actual local
     /// projection. Phantom arguments need this provenance just as stored fields do.
-    fn project_argument(&mut self, target: usize, ty: &mut AbiType, depth: usize, at: Descent, span: &SourceSpan) -> Result<(), ResolutionError> {
+    fn project_argument(&mut self, target: usize, ty: &mut IdlType, depth: usize, at: Descent, span: &SourceSpan) -> Result<(), ResolutionError> {
         self.budget.enter(at, span)?;
         match ty {
-            AbiType::Named(name) => {
+            IdlType::Named(name) => {
                 if matches!(name.binding, Binding::Application { .. }) {
                     let request = self.budget.copy_named(name, at.child(), span)?;
                     let closed = self.instantiate(target, request, depth + 1, at.child())?;
@@ -271,49 +271,49 @@ impl Expansion {
                     self.project_argument(target, argument, depth, at.child(), span)?;
                 }
             }
-            AbiType::ComPtr(value)
-            | AbiType::WeakComPtr(value)
-            | AbiType::ComBox(value)
-            | AbiType::WeakComBox(value)
-            | AbiType::Borrowed(value)
-            | AbiType::Vector(value)
-            | AbiType::UnsizedSlice(value)
-            | AbiType::Slice(value)
-            | AbiType::OutputSlice(value)
-            | AbiType::Array { element: value, .. } => self.project_argument(target, value, depth, at.child(), span)?,
-            AbiType::Unit | AbiType::Scalar(_) | AbiType::String => {}
+            IdlType::ComPtr(value)
+            | IdlType::WeakComPtr(value)
+            | IdlType::ComBox(value)
+            | IdlType::WeakComBox(value)
+            | IdlType::Borrowed(value)
+            | IdlType::Vector(value)
+            | IdlType::UnsizedSlice(value)
+            | IdlType::Slice(value)
+            | IdlType::OutputSlice(value)
+            | IdlType::Array { element: value, .. } => self.project_argument(target, value, depth, at.child(), span)?,
+            IdlType::Unit | IdlType::Scalar(_) | IdlType::String => {}
         }
         Ok(())
     }
 
     /// Hashes semantic type identities; import spelling and the consumer module are excluded.
-    fn type_identity(&self, ty: &AbiType) -> Result<NcGuid, ResolutionError> {
+    fn type_identity(&self, ty: &IdlType) -> Result<NcGuid, ResolutionError> {
         let mut bytes = Vec::new();
         match ty {
-            AbiType::Named(name) => return self.named_identity(name, &name.arguments),
-            AbiType::ComPtr(value)
-            | AbiType::WeakComPtr(value)
-            | AbiType::ComBox(value)
-            | AbiType::WeakComBox(value)
-            | AbiType::Borrowed(value)
-            | AbiType::Vector(value)
-            | AbiType::UnsizedSlice(value)
-            | AbiType::Slice(value)
-            | AbiType::OutputSlice(value)
-            | AbiType::Array { element: value, .. } => {
+            IdlType::Named(name) => return self.named_identity(name, &name.arguments),
+            IdlType::ComPtr(value)
+            | IdlType::WeakComPtr(value)
+            | IdlType::ComBox(value)
+            | IdlType::WeakComBox(value)
+            | IdlType::Borrowed(value)
+            | IdlType::Vector(value)
+            | IdlType::UnsizedSlice(value)
+            | IdlType::Slice(value)
+            | IdlType::OutputSlice(value)
+            | IdlType::Array { element: value, .. } => {
                 bytes.extend_from_slice(match ty {
-                    AbiType::ComPtr(_) => b"com_ptr",
-                    AbiType::WeakComPtr(_) => b"weak_com_ptr",
-                    AbiType::ComBox(_) => b"com_box",
-                    AbiType::WeakComBox(_) => b"weak_com_box",
-                    AbiType::Borrowed(_) => b"borrow",
-                    AbiType::Vector(_) => b"vector",
-                    AbiType::UnsizedSlice(_) => b"unsized_slice",
-                    AbiType::Slice(_) => b"slice",
-                    AbiType::OutputSlice(_) => b"output",
+                    IdlType::ComPtr(_) => b"com_ptr",
+                    IdlType::WeakComPtr(_) => b"weak_com_ptr",
+                    IdlType::ComBox(_) => b"com_box",
+                    IdlType::WeakComBox(_) => b"weak_com_box",
+                    IdlType::Borrowed(_) => b"borrow",
+                    IdlType::Vector(_) => b"vector",
+                    IdlType::UnsizedSlice(_) => b"unsized_slice",
+                    IdlType::Slice(_) => b"slice",
+                    IdlType::OutputSlice(_) => b"output",
                     _ => b"array",
                 });
-                if let AbiType::Array { len, .. } = ty {
+                if let IdlType::Array { len, .. } = ty {
                     bytes.extend_from_slice(&len.to_be_bytes());
                 }
                 bytes.extend_from_slice(&self.type_identity(value)?.to_uuid_bytes());
@@ -323,7 +323,7 @@ impl Expansion {
         Ok(guid_from_name(guid_from_qualified_name("neocogi.idl.closed-type:v1"), &bytes))
     }
     /// Legacy identity encoding over a borrowed template and argument slice.
-    fn named_identity(&self, name: &NamedType, arguments: &[AbiType]) -> Result<NcGuid, ResolutionError> {
+    fn named_identity(&self, name: &NamedType, arguments: &[IdlType]) -> Result<NcGuid, ResolutionError> {
         let mut bytes = Vec::new();
         if let Some(identity) = crate::resolve::builtin_object(name) {
             return Ok(identity.iid);
@@ -364,8 +364,8 @@ fn normalize_declaration(declaration: &mut Declaration) -> Result<(), Resolution
 
 /// Substitutes each occurrence through the same fallible copy boundary.
 fn substitute_type(
-    ty: &mut AbiType,
-    substitutions: &[AbiType],
+    ty: &mut IdlType,
+    substitutions: &[IdlType],
     mut budget: Option<&mut Budget>,
     at: Descent,
     span: Option<&SourceSpan>,
@@ -374,7 +374,7 @@ fn substitute_type(
         budget.enter(at, span.expect("generated request"))?;
     }
     match ty {
-        AbiType::Named(name) => {
+        IdlType::Named(name) => {
             if let Binding::Parameter { position } = name.binding {
                 if let Some(value) = substitutions.get(position as usize) {
                     *ty = budget
@@ -388,25 +388,25 @@ fn substitute_type(
                 substitute_type(argument, substitutions, budget.as_deref_mut(), at.child(), span)?;
             }
         }
-        AbiType::ComPtr(child)
-        | AbiType::WeakComPtr(child)
-        | AbiType::ComBox(child)
-        | AbiType::WeakComBox(child)
-        | AbiType::Borrowed(child)
-        | AbiType::Vector(child)
-        | AbiType::UnsizedSlice(child)
-        | AbiType::Slice(child)
-        | AbiType::OutputSlice(child)
-        | AbiType::Array { element: child, .. } => substitute_type(child, substitutions, budget, at.child(), span)?,
-        AbiType::Unit | AbiType::Scalar(_) | AbiType::String => {}
+        IdlType::ComPtr(child)
+        | IdlType::WeakComPtr(child)
+        | IdlType::ComBox(child)
+        | IdlType::WeakComBox(child)
+        | IdlType::Borrowed(child)
+        | IdlType::Vector(child)
+        | IdlType::UnsizedSlice(child)
+        | IdlType::Slice(child)
+        | IdlType::OutputSlice(child)
+        | IdlType::Array { element: child, .. } => substitute_type(child, substitutions, budget, at.child(), span)?,
+        IdlType::Unit | IdlType::Scalar(_) | IdlType::String => {}
     }
     // Move the existing child: normalization does not need a second owned copy.
-    if matches!(ty, AbiType::Borrowed(child) if matches!(child.as_ref(), AbiType::UnsizedSlice(_))) {
-        let AbiType::Borrowed(child) = std::mem::replace(ty, AbiType::Unit) else {
+    if matches!(ty, IdlType::Borrowed(child) if matches!(child.as_ref(), IdlType::UnsizedSlice(_))) {
+        let IdlType::Borrowed(child) = std::mem::replace(ty, IdlType::Unit) else {
             unreachable!()
         };
-        let AbiType::UnsizedSlice(element) = *child else { unreachable!() };
-        *ty = AbiType::Slice(element);
+        let IdlType::UnsizedSlice(element) = *child else { unreachable!() };
+        *ty = IdlType::Slice(element);
     }
     Ok(())
 }
@@ -414,7 +414,7 @@ fn substitute_type(
 /// Fields and named interface bases use the same positional substitution owner.
 fn substitute_declaration(
     declaration: &mut Declaration,
-    substitutions: &[AbiType],
+    substitutions: &[IdlType],
     budget: &mut Budget,
     at: Descent,
     span: &SourceSpan,
@@ -428,7 +428,7 @@ fn is_template(declaration: &Declaration) -> bool {
 }
 
 /// Visits each type root once; recursive type structure belongs to the supplied operation.
-pub(crate) fn visit_types(declaration: &mut Declaration, visit: &mut impl FnMut(&mut AbiType) -> Result<(), ResolutionError>) -> Result<(), ResolutionError> {
+pub(crate) fn visit_types(declaration: &mut Declaration, visit: &mut impl FnMut(&mut IdlType) -> Result<(), ResolutionError>) -> Result<(), ResolutionError> {
     match &mut declaration.kind {
         DeclarationKind::Struct(record) => {
             for field in &mut record.fields {
@@ -469,14 +469,14 @@ pub(crate) fn visit_types(declaration: &mut Declaration, visit: &mut impl FnMut(
 }
 
 /// Preserves the named-only constraint on interface projections.
-fn visit_named(name: &mut NamedType, visit: &mut impl FnMut(&mut AbiType) -> Result<(), ResolutionError>) -> Result<(), ResolutionError> {
+fn visit_named(name: &mut NamedType, visit: &mut impl FnMut(&mut IdlType) -> Result<(), ResolutionError>) -> Result<(), ResolutionError> {
     // Only source metadata is retained for the named-only constraint error;
     // generated declaration admission reserves these two visitor-span copies.
     let span = name.span.clone();
-    let mut ty = AbiType::Named(name.take());
+    let mut ty = IdlType::Named(name.take());
     let result = visit(&mut ty);
     match ty {
-        AbiType::Named(value) => {
+        IdlType::Named(value) => {
             *name = value;
             result
         }
@@ -499,33 +499,33 @@ pub(crate) fn signature(graph: &crate::ResolvedModules, specialization: &Special
 }
 
 /// Recursively fingerprints the concrete ABI arguments and their declaring modules.
-fn type_signature(graph: &crate::ResolvedModules, ty: &AbiType) -> Result<[u8; 32], ResolutionError> {
+fn type_signature(graph: &crate::ResolvedModules, ty: &IdlType) -> Result<[u8; 32], ResolutionError> {
     let mut bytes = Vec::from(b"neocogi-idl:specialized-abi:v1\0".as_slice());
     match ty {
-        AbiType::Named(name) => return named_signature(graph, name, &name.arguments),
-        AbiType::ComPtr(value)
-        | AbiType::WeakComPtr(value)
-        | AbiType::ComBox(value)
-        | AbiType::WeakComBox(value)
-        | AbiType::Borrowed(value)
-        | AbiType::Vector(value)
-        | AbiType::UnsizedSlice(value)
-        | AbiType::Slice(value)
-        | AbiType::OutputSlice(value)
-        | AbiType::Array { element: value, .. } => {
+        IdlType::Named(name) => return named_signature(graph, name, &name.arguments),
+        IdlType::ComPtr(value)
+        | IdlType::WeakComPtr(value)
+        | IdlType::ComBox(value)
+        | IdlType::WeakComBox(value)
+        | IdlType::Borrowed(value)
+        | IdlType::Vector(value)
+        | IdlType::UnsizedSlice(value)
+        | IdlType::Slice(value)
+        | IdlType::OutputSlice(value)
+        | IdlType::Array { element: value, .. } => {
             bytes.extend_from_slice(match ty {
-                AbiType::ComPtr(_) => b"com_ptr",
-                AbiType::WeakComPtr(_) => b"weak_com_ptr",
-                AbiType::ComBox(_) => b"com_box",
-                AbiType::WeakComBox(_) => b"weak_com_box",
-                AbiType::Borrowed(_) => b"borrow",
-                AbiType::Vector(_) => b"vector",
-                AbiType::UnsizedSlice(_) => b"unsized_slice",
-                AbiType::Slice(_) => b"slice",
-                AbiType::OutputSlice(_) => b"output",
+                IdlType::ComPtr(_) => b"com_ptr",
+                IdlType::WeakComPtr(_) => b"weak_com_ptr",
+                IdlType::ComBox(_) => b"com_box",
+                IdlType::WeakComBox(_) => b"weak_com_box",
+                IdlType::Borrowed(_) => b"borrow",
+                IdlType::Vector(_) => b"vector",
+                IdlType::UnsizedSlice(_) => b"unsized_slice",
+                IdlType::Slice(_) => b"slice",
+                IdlType::OutputSlice(_) => b"output",
                 _ => b"array",
             });
-            if let AbiType::Array { len, .. } = ty {
+            if let IdlType::Array { len, .. } = ty {
                 bytes.extend_from_slice(&len.to_be_bytes());
             }
             bytes.extend_from_slice(&type_signature(graph, value)?);
@@ -536,7 +536,7 @@ fn type_signature(graph: &crate::ResolvedModules, ty: &AbiType) -> Result<[u8; 3
 }
 
 /// Legacy signature bytes from borrowed bound arguments; no temporary AST.
-fn named_signature(graph: &crate::ResolvedModules, name: &NamedType, arguments: &[AbiType]) -> Result<[u8; 32], ResolutionError> {
+fn named_signature(graph: &crate::ResolvedModules, name: &NamedType, arguments: &[IdlType]) -> Result<[u8; 32], ResolutionError> {
     let mut bytes = Vec::from(b"neocogi-idl:specialized-abi:v1\0".as_slice());
     if let Some(identity) = crate::resolve::builtin_object(name) {
         // SAFETY: built-in interface signatures refer to permanent core constants.

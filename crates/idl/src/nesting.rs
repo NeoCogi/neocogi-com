@@ -1,6 +1,6 @@
 //! Admission of inline syntax, separate from graph traversal and runtime budgets.
 use proc_macro2::{TokenStream, TokenTree};
-use crate::AbiType;
+use crate::IdlType;
 
 /// Maximum normalized inline type height, counting a leaf as one node.
 /// Named declaration edges stop at their reference; siblings never add height.
@@ -38,20 +38,20 @@ pub(crate) fn admit_tokens(tokens: &TokenStream) -> syn::Result<()> {
 
 /// Measures an already admitted inline tree without following nominal definitions.
 /// This shared definition also admits prospective substitution destinations.
-pub(crate) fn type_height(ty: &AbiType) -> usize {
+pub(crate) fn type_height(ty: &IdlType) -> usize {
     match ty {
-        AbiType::Named(name) => 1 + name.arguments.iter().map(type_height).max().unwrap_or(0),
-        AbiType::ComPtr(child)
-        | AbiType::WeakComPtr(child)
-        | AbiType::ComBox(child)
-        | AbiType::WeakComBox(child)
-        | AbiType::Borrowed(child)
-        | AbiType::Vector(child)
-        | AbiType::UnsizedSlice(child)
-        | AbiType::Slice(child)
-        | AbiType::OutputSlice(child)
-        | AbiType::Array { element: child, .. } => 1 + type_height(child),
-        AbiType::Unit | AbiType::Scalar(_) | AbiType::String => 1,
+        IdlType::Named(name) => 1 + name.arguments.iter().map(type_height).max().unwrap_or(0),
+        IdlType::ComPtr(child)
+        | IdlType::WeakComPtr(child)
+        | IdlType::ComBox(child)
+        | IdlType::WeakComBox(child)
+        | IdlType::Borrowed(child)
+        | IdlType::Vector(child)
+        | IdlType::UnsizedSlice(child)
+        | IdlType::Slice(child)
+        | IdlType::OutputSlice(child)
+        | IdlType::Array { element: child, .. } => 1 + type_height(child),
+        IdlType::Unit | IdlType::Scalar(_) | IdlType::String => 1,
     }
 }
 

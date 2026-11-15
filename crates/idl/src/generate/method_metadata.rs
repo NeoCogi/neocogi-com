@@ -55,10 +55,10 @@ fn collect(
 }
 
 /// Retains call-only ownership instead of presenting borrowed/transferred values as data.
-fn call_type(graph: &Generation<'_>, module: &ResolvedModule, ty: &AbiType) -> Result<TokenStream, GenerateError> {
+fn call_type(graph: &Generation<'_>, module: &ResolvedModule, ty: &IdlType) -> Result<TokenStream, GenerateError> {
     let (kind, value) = match ty {
-        AbiType::ComBox(target) => {
-            let AbiType::Named(name) = target.as_ref() else {
+        IdlType::ComBox(target) => {
+            let IdlType::Named(name) = target.as_ref() else {
                 return Err(GenerateError::new("exclusive method target is not an interface"));
             };
             let name = match builtin_object_type(name) {
@@ -68,9 +68,9 @@ fn call_type(graph: &Generation<'_>, module: &ResolvedModule, ty: &AbiType) -> R
             let name = Literal::string(&name);
             return Ok(quote! { ::neocogi_com::idl_metadata::MethodType::ExclusiveObject(#name) });
         }
-        AbiType::Borrowed(value) => ("Borrowed", value.as_ref()),
-        AbiType::Slice(value) | AbiType::UnsizedSlice(value) => ("InputBuffer", value.as_ref()),
-        AbiType::OutputSlice(value) => ("OutputBuffer", value.as_ref()),
+        IdlType::Borrowed(value) => ("Borrowed", value.as_ref()),
+        IdlType::Slice(value) | IdlType::UnsizedSlice(value) => ("InputBuffer", value.as_ref()),
+        IdlType::OutputSlice(value) => ("OutputBuffer", value.as_ref()),
         _ => ("Value", ty),
     };
     let kind = rust_ident(kind)?;

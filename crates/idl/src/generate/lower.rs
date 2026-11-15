@@ -41,8 +41,8 @@ fn syntax_error(error: syn::Error) -> GenerateError {
 }
 
 /// Selects one exact interface marker and threading proof from its bound target.
-pub(super) fn object(graph: &mut Generation<'_>, module: &ResolvedModule, target: &AbiType) -> Result<(syn::Type, Option<Box<syn::Type>>), GenerateError> {
-    let AbiType::Named(name) = target else {
+pub(super) fn object(graph: &mut Generation<'_>, module: &ResolvedModule, target: &IdlType) -> Result<(syn::Type, Option<Box<syn::Type>>), GenerateError> {
+    let IdlType::Named(name) = target else {
         return Err(GenerateError::new("resolved object target is not named"));
     };
     if let Some(abi) = builtin_object_type(name) {
@@ -79,14 +79,14 @@ fn buffer(element_ty: syn::Type, output: bool) -> (syn::Type, syn::Type, AbiArgK
 /// Ownership alternatives are exhaustive over the validated IDL input grammar.
 fn argument(graph: &mut Generation<'_>, module: &ResolvedModule, parameter: &Parameter) -> Result<AbiArg, GenerateError> {
     let (rust_ty, abi_ty, kind) = match &parameter.ty {
-        AbiType::Scalar(_) | AbiType::Named(_) | AbiType::Array { .. } => {
+        IdlType::Scalar(_) | IdlType::Named(_) | IdlType::Array { .. } => {
             let ty = rust_type(value_type(graph, module, &parameter.ty)?)?;
             (ty.clone(), syn::parse_quote!(<#ty as ::neocogi_com::ComValue>::Wire), AbiArgKind::Plain)
         }
-        AbiType::Slice(element) => buffer(rust_type(value_type(graph, module, element)?)?, false),
-        AbiType::OutputSlice(element) => buffer(rust_type(value_type(graph, module, element)?)?, true),
-        AbiType::Borrowed(target) => {
-            let AbiType::Named(name) = target.as_ref() else {
+        IdlType::Slice(element) => buffer(rust_type(value_type(graph, module, element)?)?, false),
+        IdlType::OutputSlice(element) => buffer(rust_type(value_type(graph, module, element)?)?, true),
+        IdlType::Borrowed(target) => {
+            let IdlType::Named(name) = target.as_ref() else {
                 return Err(GenerateError::new("resolved borrow is neither value nor interface"));
             };
             if name.is_str() {
@@ -112,7 +112,7 @@ fn argument(graph: &mut Generation<'_>, module: &ResolvedModule, parameter: &Par
                 )
             }
         }
-        AbiType::ComBox(target) => {
+        IdlType::ComBox(target) => {
             let (interface, mode_ty) = object(graph, module, target)?;
             let mode = mode_ty.as_ref().map(|mode| quote! { , #mode });
             (
@@ -124,13 +124,13 @@ fn argument(graph: &mut Generation<'_>, module: &ResolvedModule, parameter: &Par
                 },
             )
         }
-        AbiType::ComPtr(_)
-        | AbiType::WeakComPtr(_)
-        | AbiType::WeakComBox(_)
-        | AbiType::Unit
-        | AbiType::String
-        | AbiType::Vector(_)
-        | AbiType::UnsizedSlice(_) => {
+        IdlType::ComPtr(_)
+        | IdlType::WeakComPtr(_)
+        | IdlType::WeakComBox(_)
+        | IdlType::Unit
+        | IdlType::String
+        | IdlType::Vector(_)
+        | IdlType::UnsizedSlice(_) => {
             return Err(GenerateError::new("invalid input survived IDL validation"));
         }
     };
@@ -146,8 +146,8 @@ fn argument(graph: &mut Generation<'_>, module: &ResolvedModule, parameter: &Par
 }
 
 /// Return ownership is explicit in the source graph, including both weak families.
-fn result(graph: &mut Generation<'_>, module: &ResolvedModule, output: &AbiType) -> Result<AbiReturn, GenerateError> {
-    if matches!(output, AbiType::Unit) {
+fn result(graph: &mut Generation<'_>, module: &ResolvedModule, output: &IdlType) -> Result<AbiReturn, GenerateError> {
+    if matches!(output, IdlType::Unit) {
         return Ok(AbiReturn {
             rust_ty: syn::parse_quote!(()),
             abi_ty: syn::parse_quote!(()),
@@ -155,10 +155,10 @@ fn result(graph: &mut Generation<'_>, module: &ResolvedModule, output: &AbiType)
         });
     }
     let ownership = match output {
-        AbiType::ComPtr(target) => Some((target, InterfaceOwnership::Shared)),
-        AbiType::ComBox(target) => Some((target, InterfaceOwnership::Exclusive)),
-        AbiType::WeakComBox(target) => Some((target, InterfaceOwnership::WeakExclusive)),
-        AbiType::WeakComPtr(target) => Some((target, InterfaceOwnership::WeakShared)),
+        IdlType::ComPtr(target) => Some((target, InterfaceOwnership::Shared)),
+        IdlType::ComBox(target) => Some((target, InterfaceOwnership::Exclusive)),
+        IdlType::WeakComBox(target) => Some((target, InterfaceOwnership::WeakExclusive)),
+        IdlType::WeakComPtr(target) => Some((target, InterfaceOwnership::WeakShared)),
         _ => None,
     };
     if let Some((target, ownership)) = ownership {

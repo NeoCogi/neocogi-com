@@ -118,8 +118,8 @@ pub(crate) enum Constructor {
 }
 
 /// Reads already-bound meaning without another lexical lookup or UUID reduction.
-pub(crate) fn semantic_origin(ty: &crate::AbiType) -> Result<SemanticOrigin, crate::ResolutionError> {
-    use crate::AbiType as T;
+pub(crate) fn semantic_origin(ty: &crate::IdlType) -> Result<SemanticOrigin, crate::ResolutionError> {
+    use crate::IdlType as T;
     use SemanticOrigin as O;
     let constructor = |kind, len, child| Ok(O::Constructed(kind, len, Box::new(semantic_origin(child)?)));
     match ty {
@@ -140,10 +140,10 @@ pub(crate) fn semantic_origin(ty: &crate::AbiType) -> Result<SemanticOrigin, cra
     }
 }
 
-/// Reads a borrowed application without reconstructing an owned AbiType.
+/// Reads a borrowed application without reconstructing an owned IdlType.
 /// Expansion preflights its output; later admission reads only bounded retained
 /// expressions and retains one exact origin per admitted declaration.
-pub(crate) fn semantic_origin_named(name: &crate::NamedType, arguments: &[crate::AbiType]) -> Result<SemanticOrigin, crate::ResolutionError> {
+pub(crate) fn semantic_origin_named(name: &crate::NamedType, arguments: &[crate::IdlType]) -> Result<SemanticOrigin, crate::ResolutionError> {
     use SemanticOrigin as O;
     match &name.binding {
         Binding::Intrinsic(value) => Ok(O::Intrinsic(*value)),

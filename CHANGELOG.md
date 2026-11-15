@@ -6,6 +6,11 @@ Historical draft numbers do not define additional supported COM baselines.
 
 ## Unreleased
 
+- Rename the source-level IDL model enum from `AbiType` to `IdlType` across
+  parsing, resolution, specialization and generation. The separate core
+  `AbiType` trait remains unchanged. IDL spelling, canonical encoding and
+  interface identities/signatures retain their existing contracts.
+
 - Add the optional `neocogi-com-host-dylib` native shim, exporting
   `nc_get_host_api_v2` to lend the host rlib's canonical C service graph.
   Applications choose one static or dynamic host owner; providers and nested

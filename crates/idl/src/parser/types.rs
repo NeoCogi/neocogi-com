@@ -4,18 +4,18 @@ use super::*;
 /// One admitted expression and its construction-time normalized height.
 /// The height is temporary parser evidence, never a second retained type model.
 struct Value {
-    ty: AbiType,
+    ty: IdlType,
     height: usize,
 }
 impl Value {
     /// Checks the prospective parent before installing any recursive owned node.
-    fn new(ty: AbiType, height: usize, span: Span) -> syn::Result<Self> {
+    fn new(ty: IdlType, height: usize, span: Span) -> syn::Result<Self> {
         check_height(height, span)?;
         debug_assert_eq!(crate::nesting::type_height(&ty), height);
         Ok(Self { ty, height })
     }
     /// Installs one unary constructor after its resulting height is admitted.
-    fn wrap(self, span: Span, make: impl FnOnce(Box<AbiType>) -> AbiType) -> syn::Result<Self> {
+    fn wrap(self, span: Span, make: impl FnOnce(Box<IdlType>) -> IdlType) -> syn::Result<Self> {
         let height = self.height + 1;
         check_height(height, span)?;
         Ok(Self { ty: make(Box::new(self.ty)), height })
@@ -36,7 +36,7 @@ fn check_height(height: usize, span: Span) -> syn::Result<()> {
     }
 }
 /// Reads one bounded normalized type at a public grammar root.
-pub(super) fn abi(input: ParseStream<'_>) -> syn::Result<AbiType> {
+pub(super) fn abi(input: ParseStream<'_>) -> syn::Result<IdlType> {
     Ok(value(input, 0)?.ty)
 }
 
@@ -86,9 +86,9 @@ fn value(input: ParseStream<'_>, descent: usize) -> syn::Result<Value> {
         let child = value(input, descent + 1)?;
         let height = child.height;
         return match (mutable, child.ty) {
-            (false, AbiType::UnsizedSlice(element)) => Value::new(AbiType::Slice(element), height, span),
-            (true, AbiType::UnsizedSlice(element)) => Value::new(AbiType::OutputSlice(element), height, span),
-            (false, ty) => Value { ty, height }.wrap(span, AbiType::Borrowed),
+            (false, IdlType::UnsizedSlice(element)) => Value::new(IdlType::Slice(element), height, span),
+            (true, IdlType::UnsizedSlice(element)) => Value::new(IdlType::OutputSlice(element), height, span),
+            (false, ty) => Value { ty, height }.wrap(span, IdlType::Borrowed),
             (true, _) => Err(syn::Error::new(span, "IDL mutable borrows must use `&mut [T]` or `&mut Slice<T>`")),
         };
     }
@@ -98,7 +98,7 @@ fn value(input: ParseStream<'_>, descent: usize) -> syn::Result<Value> {
         if !body.is_empty() {
             return Err(body.error("unsupported IDL ABI type"));
         }
-        return Value::new(AbiType::Unit, 1, span);
+        return Value::new(IdlType::Unit, 1, span);
     }
     if input.peek(syn::token::Bracket) {
         let body;
@@ -107,9 +107,9 @@ fn value(input: ParseStream<'_>, descent: usize) -> syn::Result<Value> {
         let result = if body.peek(Token![;]) {
             body.parse::<Token![;]>()?;
             let len = length(&body)?;
-            child.wrap(span, |element| AbiType::Array { element, len })?
+            child.wrap(span, |element| IdlType::Array { element, len })?
         } else {
-            child.wrap(span, AbiType::UnsizedSlice)?
+            child.wrap(span, IdlType::UnsizedSlice)?
         };
         if !body.is_empty() {
             return Err(body.error("unsupported IDL array syntax"));
@@ -126,7 +126,7 @@ fn value(input: ParseStream<'_>, descent: usize) -> syn::Result<Value> {
             if input.peek(Token![<]) {
                 return Err(input.error("scalar IDL types do not accept generic arguments"));
             }
-            return Value::new(if name == "String" { AbiType::String } else { AbiType::Scalar(name.into()) }, 1, path.span);
+            return Value::new(if name == "String" { IdlType::String } else { IdlType::Scalar(name.into()) }, 1, path.span);
         }
         if name == "Result" {
             return Err(syn::Error::new(path.span, "IDL `Result` is valid only as a method return"));
@@ -140,7 +140,7 @@ fn value(input: ParseStream<'_>, descent: usize) -> syn::Result<Value> {
                 input.parse::<Token![,]>()?;
             }
             input.parse::<Token![>]>()?;
-            return child.wrap(path.span, |element| AbiType::Array { element, len });
+            return child.wrap(path.span, |element| IdlType::Array { element, len });
         }
         if matches!(name, "ComPtr" | "WeakComPtr" | "ComBox" | "WeakComBox" | "Vec" | "Slice") {
             input.parse::<Token![<]>()?;
@@ -150,12 +150,12 @@ fn value(input: ParseStream<'_>, descent: usize) -> syn::Result<Value> {
             }
             input.parse::<Token![>]>()?;
             return child.wrap(path.span, |child| match name {
-                "ComPtr" => AbiType::ComPtr(child),
-                "WeakComPtr" => AbiType::WeakComPtr(child),
-                "ComBox" => AbiType::ComBox(child),
-                "WeakComBox" => AbiType::WeakComBox(child),
-                "Vec" => AbiType::Vector(child),
-                "Slice" => AbiType::UnsizedSlice(child),
+                "ComPtr" => IdlType::ComPtr(child),
+                "WeakComPtr" => IdlType::WeakComPtr(child),
+                "ComBox" => IdlType::ComBox(child),
+                "WeakComBox" => IdlType::WeakComBox(child),
+                "Vec" => IdlType::Vector(child),
+                "Slice" => IdlType::UnsizedSlice(child),
                 _ => unreachable!("checked intrinsic"),
             });
         }
@@ -194,7 +194,7 @@ fn named(input: ParseStream<'_>, path: Head, descent: usize) -> syn::Result<Valu
         span = span.join(end.span()).unwrap_or(span);
     }
     Value::new(
-        AbiType::Named(NamedType {
+        IdlType::Named(NamedType {
             binding: crate::binding::Binding::Unbound,
             span: SourceSpan::from_parser(span),
             segments: path.segments,
@@ -216,13 +216,13 @@ pub(super) fn base(input: ParseStream<'_>) -> syn::Result<NamedType> {
         return Ok(value);
     }
     let path = head(input)?;
-    let Value { ty: AbiType::Named(value), .. } = named(input, path, 0)? else {
+    let Value { ty: IdlType::Named(value), .. } = named(input, path, 0)? else {
         unreachable!()
     };
     Ok(value)
 }
 /// The Result wrapper is fixed method framing, separate from its successful type.
-pub(super) fn result(input: ParseStream<'_>) -> syn::Result<AbiType> {
+pub(super) fn result(input: ParseStream<'_>) -> syn::Result<IdlType> {
     let path = head(input)?;
     if path.segments != ["Result"] {
         return Err(syn::Error::new(path.span, "IDL methods must return `Result<T>`"));
