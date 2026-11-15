@@ -26,6 +26,7 @@ pub struct FactoryRegistry {
 
 impl FactoryRegistry {
     /// Creates an empty context in the admitted host, retaining its table for Drop.
+    /// No serialization provider is required or registered by this operation.
     pub fn new(runtime: &Runtime) -> Result<Self, NcStatus> {
         let api = runtime.persistence;
         let mut context = ptr::null_mut();
@@ -47,11 +48,15 @@ impl FactoryRegistry {
     }
 
     /// Restores a complete owned tree using the default finite resource policy.
+    /// Requires an explicitly supplied `nc.serialization` provider offering `ncb`.
+    /// If missing, returns `NC_E_NOT_FOUND`; the context remains usable for retry.
     pub fn restore(&self, bytes: &[u8]) -> Result<ComPtr<IUnknown>, NcStatus> {
         self.restore_with_limits(bytes, Limits::default())
     }
 
     /// Validates every recipe and state before invoking any construction callback.
+    /// Acquires named NCB before recipe callbacks. Provider acquisition/selection
+    /// errors propagate without invoking recipes or invalidating this context.
     pub fn restore_with_limits(&self, bytes: &[u8], limits: Limits) -> Result<ComPtr<IUnknown>, NcStatus> {
         let mut root = crate::ComRaw::null();
         // SAFETY: The context, input slice and output slot all live through the
@@ -78,12 +83,16 @@ impl Drop for FactoryRegistry {
 /// Captures a shared opt-in object tree with the default limits.
 /// A borrowed exclusive root returns `NC_E_INVALID_ARG`; its sole owner is
 /// preserved. Supporting exclusive trees requires a separate observation protocol.
+/// Requires an explicitly supplied `nc.serialization` provider offering `ncb`;
+/// provider absence returns `NC_E_NOT_FOUND`, without implicit loading/fallback.
 pub fn snapshot(runtime: &Runtime, object: ComRef<'_, IUnknown>) -> Result<Vec<u8>, NcStatus> {
     snapshot_with_limits(runtime, object, Limits::default())
 }
 
 /// Returns caller-owned document bytes after one successful shared-tree traversal.
 /// Non-shareable roots fail before persistence getters or byte delivery run.
+/// Ownership/capture-budget checks precede named-NCB selection. Provider
+/// acquisition/selection errors propagate and publish no document bytes.
 pub fn snapshot_with_limits(runtime: &Runtime, object: ComRef<'_, IUnknown>, limits: Limits) -> Result<Vec<u8>, NcStatus> {
     let api = runtime.persistence;
     let mut destination = SnapshotDestination {

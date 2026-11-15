@@ -237,8 +237,12 @@ additional `value` scope. These rules keep encoder and decoder budgets symmetric
 Application value formatting and live object reconstruction remain separate.
 `IPersistable` exports provider-owned state bytes and children; the recipe's
 factory owns those bytes' schema and interpretation. The existing runtime
-snapshot envelope remains NCB v1 by default. The format interfaces add no global
-registry, filesystem access, loader policy or automatic object-memory capture.
+snapshot envelope is fixed to NCB v1. The application explicitly supplies
+`nc.serialization` in the host's plugin catalog; persistence selects named `ncb`
+regardless of that provider's default format. A missing provider fails with
+`NC_E_NOT_FOUND`, with no implicit registration, loading or codec fallback.
+The format interfaces themselves add no global registry, filesystem access,
+loader policy or automatic object-memory capture.
 
 Discovery uses ABI v2 for `0.3.0-alpha.1`. These interfaces are documented in the
 [ABI v2 specification](../abi-v2.md); NCB persistence retains format version 1.

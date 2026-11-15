@@ -42,6 +42,21 @@ pub struct NcPersistenceLimitsV2 {
 pub type NcPersistenceWriteBytesV2 = unsafe extern "C" fn(user_data: *mut c_void, bytes: *const u8, len: usize) -> NcStatus;
 
 /// Size-prefixed persistence table admitted through the host API description.
+///
+/// Table admission establishes callable ABI v2/core-generation-19 operations,
+/// not serialization-provider availability. The application must explicitly
+/// register or load `nc.serialization` in this host's catalog before snapshot
+/// or restore. Each operation acquires its root and requests named `ncb`;
+/// the provider's default format is irrelevant. No codec is registered or loaded
+/// implicitly, and no embedded codec is used as a fallback.
+///
+/// A missing provider returns [`crate::NC_E_NOT_FOUND`]. Root acquisition and
+/// named-format selection errors propagate; encoding/decoding errors after
+/// selection map to [`crate::NC_E_INVALID_ARG`]. Neither provider absence nor a
+/// failed selection poisons a context: once the cause is resolved, the caller
+/// may retry with the same live context. This does not authorize replacing a
+/// registered plugin descriptor. NCB-v1 bytes and the table layout do
+/// not depend on how the application supplies that provider.
 #[repr(C)]
 pub struct NcPersistenceApiV2 {
     /// Available table bytes, including this prefix.
@@ -50,15 +65,19 @@ pub struct NcPersistenceApiV2 {
     pub core_abi_version: u32,
     /// Creates one empty, thread-local context; `out` must be writable.
     /// Failure clears the output. Successful ownership ends at `destroy_context`.
+    /// Does not require or register a serialization provider.
     pub create_context: unsafe extern "C" fn(out: *mut *mut NcPersistenceContext) -> NcStatus,
     /// Releases every retained factory and frees the context in its own runtime.
     /// Null is accepted; non-null must be exclusively owned with no active calls.
     pub destroy_context: unsafe extern "C" fn(context: *mut NcPersistenceContext),
     /// Registers a live borrowed factory, retaining one reference on success.
     /// Requires exclusive context access; duplicate IDs leave the map unchanged.
+    /// Does not require or register a serialization provider.
     pub register_factory: unsafe extern "C" fn(context: *mut NcPersistenceContext, id: NcGuid, factory: crate::ComRaw<IPersistenceFactoryAbi>) -> NcStatus,
     /// Captures a live borrowed object and emits one complete document.
     /// The callback and its data must remain valid until this synchronous call ends.
+    /// Argument, ownership, capability and capture-budget checks precede codec
+    /// selection. Provider/selection failure never calls the byte callback.
     pub snapshot: unsafe extern "C" fn(
         object: crate::ComRaw<IUnknown>,
         limits: NcPersistenceLimitsV2,
@@ -68,6 +87,8 @@ pub struct NcPersistenceApiV2 {
     /// Restores a complete tree using a shared borrow of a live context.
     /// `bytes` must be readable for `len` bytes (null is valid only for zero).
     /// `out` must be writable and receives one owned reference only on success.
+    /// Clears `out` and checks arguments/input-byte bounds before selecting NCB.
+    /// Provider/selection failure runs no recipe validation or construction.
     pub restore: unsafe extern "C" fn(
         context: *const NcPersistenceContext,
         bytes: *const u8,

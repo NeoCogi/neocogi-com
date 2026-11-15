@@ -1008,6 +1008,32 @@ populate or replace the global plugin catalog. Mutation/destruction requires
 exclusive access; restore takes a shared borrow. `NcPersistenceLimitsV2` carries
 binary and object-tree budgets explicitly.
 
+Table presence and successful host admission guarantee callable operations,
+not an available serialization provider. Host initialization, empty context
+creation and recipe registration do not require a codec or populate the catalog.
+The final application must explicitly register `nc.serialization` or load its
+library before snapshot/restore. Each operation acquires that provider through
+this host's own catalog and selects named `ncb`; `default_format()` is never used,
+even when the provider defaults to JSON. There is no implicit registration,
+loading or embedded fallback. The provider root and selected format remain
+retained through the operation; callbacks run outside catalog locks.
+
+A missing provider returns `NC_E_NOT_FOUND`; root-acquisition and named-format
+selection errors propagate unchanged. Argument admission precedes selection:
+restore clears its output and checks the input-byte bound first, while snapshot
+completes ownership, capability, cycle and capture-budget checks first. Selection
+failure emits no snapshot callback and runs no restore recipe callbacks. After
+selection, encoding/decoding errors retain their `NC_E_INVALID_ARG` mapping.
+Supplying a provider later permits retry using the same live context.
+
+This explicit application dependency changes deployment requirements from COM
+`0.2.0`, whose host embedded NCB. It does not change ABI family 2, core generation
+19, interface signatures, table layouts, calling/ownership rules, IDL encoding
+v14 or NCB-v1 bytes. Keep these ABI contracts at v2; package version changes do
+not themselves require ABI v3. An incompatible change to a frozen layout,
+callback or guaranteed calling/ownership behavior must advance its applicable
+compatibility authority before old callers can invoke it.
+
 Capture calls `NcPersistenceWriteBytesV2` exactly once on success with the complete
 borrowed document; failure never calls it. The callback may copy bytes, must not
 unwind, and cannot retain the pointer. Temporary storage is destroyed in the

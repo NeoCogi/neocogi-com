@@ -69,9 +69,15 @@ state or persistence-context mutation through shared access.
 Persistence is implemented in `neocogi-com-host` and called through
 `NcPersistenceApiV2`, supplied in the admitted host API description. Enable the
 facade's `runtime` feature for callers. All final hosts link the implementation
-rlib and pass access to registry creation and capture. The ABI-v2
-tables change in place; rebuild the host and providers together. Providers only implementing the contracts need neither
-feature. The built-in contracts remain available without allocation; portable
+rlib and pass access to registry creation and capture. ABI v2/core generation 19
+freezes the current table layouts and calling/ownership contract; the explicit
+codec requirement adds no table field, callback, interface signature or NCB-v1
+wire change. COM `0.2.0` embedded the codec; applications upgrading must now
+supply the provider explicitly. Package versions and application deployment
+requirements are separate from the ABI family. Incompatible changes to frozen
+contracts require advancing the applicable compatibility authority, not editing
+them in place. Providers only implementing the contracts need neither runtime
+nor host linkage. The built-in contracts remain available without allocation; portable
 `ObjectRecord` authoring requires `alloc` but no linked runtime.
 
 `FactoryRegistry` is an owning, non-Clone, thread-local handle. Its runtime
@@ -128,6 +134,11 @@ including restore's input-byte budget and cleared output. Snapshot completes its
 ownership, capability, cycle and capture-budget checks before selection. Restore
 selects and decodes before any recipe callback. Encoding/decoding errors after
 selection retain their existing `NC_E_INVALID_ARG` mapping and cleanup semantics.
+Provider absence or selection failure does not invalidate a context or remove
+its registered recipes. Register/load a missing provider, or resolve a transient
+selection failure, then retry on the same live context. This does not permit
+replacing an already registered descriptor. Context creation and recipe
+registration never require codec availability.
 
 ## Rust access
 

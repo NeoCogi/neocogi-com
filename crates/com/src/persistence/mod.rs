@@ -7,6 +7,12 @@
 //! With `runtime`, `FactoryRegistry` and `snapshot` use caller-supplied `Runtime`
 //! access to the host owner. Every registry retains its creation table through
 //! Drop; contracts need no runtime feature or implementation dependency.
+//!
+//! Snapshot and restore require the application to explicitly register or load
+//! `nc.serialization` in the supplied host. The host requests named `ncb`, not
+//! the provider's default format. A missing provider returns `NC_E_NOT_FOUND`;
+//! there is no implicit codec fallback. Creating a registry and registering its
+//! recipes remain independent of codec availability.
 
 pub use neocogi_com_core::persistence::*;
 #[rustfmt::skip]

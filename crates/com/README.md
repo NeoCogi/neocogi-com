@@ -309,7 +309,17 @@ linkage modes with ordinary Cargo.
 `neocogi_com::persistence` exposes the built-in `IPersistable`,
 `IPersistenceFactory`, and `IObjectChildren` contracts. Providers implement these
 without enabling a runtime. `ObjectRecord` and `Limits` require only `alloc`.
-With `runtime`, hosts can capture and reconstruct explicit initialization trees:
+With `runtime`, hosts can capture and reconstruct explicit initialization trees.
+
+The application must first supply `nc.serialization` in the same host's catalog.
+For a static application, enable the serialization crate's `plugin` feature and
+explicitly register `neocogi_com_serialization::plugin_descriptor()`; for a
+dynamic application, load `neocogi-com-serialization-dylib`. Persistence selects
+named `ncb`, even if the provider defaults to JSON. The host supplies no implicit
+registration or codec fallback. Missing providers return `NC_E_NOT_FOUND`;
+empty registry creation and recipe registration remain available without one.
+
+Once the application has supplied the provider:
 
 ```rust,ignore
 use neocogi_com::persistence::{FactoryRegistry, snapshot};
@@ -324,6 +334,9 @@ Each persistence registry is thread-local and independently owned. Its factories
 remain retained until that registry is dropped; registration requires mutable access.
 The same supplied host allocates, operates on and destroys each context. The
 NCB-v1 document format and provider interface identities remain unchanged.
+After provider/format-selection failure, the context remains usable. Once the
+cause is resolved, retry without recreating or registering its recipes again;
+the catalog's rules against replacing registered descriptors still apply.
 See [persistence semantics and ownership](https://github.com/NeoCogi/neocogi-com/blob/v0.3.0-alpha.1/crates/host/PERSISTENCE.md).
 
 ## Features and scope

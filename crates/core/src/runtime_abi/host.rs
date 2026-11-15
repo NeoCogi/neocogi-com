@@ -35,6 +35,8 @@ pub struct NcHostApiV2 {
     /// Required immutable diagnostics operation table in the same host.
     pub debug: *const NcDebugApiV2,
     /// Required immutable caller-owned persistence operation table in that host.
+    /// Its presence does not guarantee a serialization provider; see
+    /// [`NcPersistenceApiV2`] for the application's explicit registration duty.
     pub persistence: *const NcPersistenceApiV2,
 }
 

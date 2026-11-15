@@ -4,6 +4,15 @@ The current contract uses [ABI v2, core generation 19](docs/abi-v2.md). Entries 
 its development; later entries can supersede older implementation details.
 Historical draft numbers do not define additional supported COM baselines.
 
+## Unreleased
+
+- Make the explicit serialization-provider requirement normative in the ABI-v2
+  specification, raw persistence table docs and Rust client entry points. Keep
+  ABI family 2/core generation 19 and NCB v1; codec availability is an application
+  deployment requirement, not a table-admission guarantee. Remove stale guidance
+  suggesting frozen ABI-v2 tables can change in place. Provider absence/selection
+  failure leaves contexts and registered recipes usable for retry.
+
 ## 0.3.0-alpha.1 — 2026-11-14
 
 - Remove the host's runtime dependency on the serialization implementation.
