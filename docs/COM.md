@@ -34,7 +34,9 @@ boundaries, and [the current ABI specification](abi-v2.md) for the binary model.
 ## Hosts, callers and providers
 
 A **host** is the final native executable or browser/Wasm assembly that selects
-and initializes one `neocogi-com-host` implementation. It owns the plugin catalog,
+and initializes one `neocogi-com-host` implementation. Native applications can
+link it directly or load the optional `neocogi-com-host-dylib` shim; Wasm hosts
+select the rlib. It owns the plugin catalog,
 loading policy and host services. The Rust library is `neocogi_com_host`, built as
 an ordinary rlib; linking it into the final assembly supplies the implementation.
 
@@ -85,6 +87,22 @@ The shared SDK remains usable with reduced features; all defaults disabled retai
 its `no_std` interface/ownership surface. The host implementation requires `std`.
 The package names are `neocogi-com` and `neocogi-com-host`; their ordinary Rust
 paths are `neocogi_com` and `neocogi_com_host`, respectively.
+
+### Optional shared host deployment
+
+The unreleased `0.4.0-wip` source adds `neocogi-com-host-dylib`, a thin native
+`cdylib` over the same host rlib. A dynamic application depends on the SDK with
+`runtime`, calls unsafe `Runtime::load_host_library(path)` with an explicit
+trusted image, and passes the resulting handle to its providers. It does not
+link a second host implementation. The native bootstrap returns the existing
+C tables, and the SDK pins the image for process lifetime.
+
+Choose one static or dynamic owner. Nested factory acquisition forwards that
+owner's tables again; no plugin initializes its own catalog. Host bootstrap
+returns typed startup errors without a fallback. The default `#[com_main]`
+remains static startup; dynamic applications use an ordinary `main` or configure
+an explicit initializer path. See the [shim guide](../crates/host-dylib/README.md)
+and [bootstrap contract](abi-v2.md#optional-native-host-bootstrap).
 
 ### Startup and calls
 
@@ -390,8 +408,9 @@ and the separate Miri/sanitizer checks. One unpublished Rust
 CI invokes the same Cargo commands. An ordinary
 `cargo build -p neocogi-com-host` produces its ordinary host rlib.
 `#[com_main]` initializes that implementation; dynamic and static providers share
-its registry through supplied C service tables. No runtime DSO or native bridge
-is deployed. See the [native guide](guides/COM_NATIVE.md) for shared-provider and
+its registry through supplied C service tables. The optional native host shim
+contains that same implementation. Both deployment routes use its existing
+C service tables. See the [native guide](guides/COM_NATIVE.md) for shared-provider and
 monolithic builds.
 
 ## Checking the documentation

@@ -1,0 +1,17 @@
+[package]
+name = "neocogi-com-host-dylib"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+readme = "README.md"
+description = "Native C bootstrap shim for the NeoCogi host runtime"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+neocogi-com-core.workspace = true
+neocogi-com-host.workspace = true

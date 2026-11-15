@@ -1,0 +1,20 @@
+[package]
+name = "shared-host-b"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.85"
+publish = false
+build = "../build.rs"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+neocogi-com.workspace = true
+
+[features]
+dynamic-plugin = []
+default = ["dynamic-plugin"]
+
+[build-dependencies]
+neocogi-idl.workspace = true

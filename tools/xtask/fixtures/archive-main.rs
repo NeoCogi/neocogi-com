@@ -11,13 +11,30 @@ impl Counter for Value {
 fn acquire(_runtime: neocogi_com::Runtime) -> Result<neocogi_com::ComPtr<CounterAbi>, NcStatus> {
     Value::from_value(Value).query()
 }
-#[neocogi_com::com_main]
-/// Register and execute a real COM call with only extracted SDK dependencies.
-fn main(runtime: neocogi_com::Runtime) {
+/// Select exactly one linked or native host from extracted SDK dependencies.
+fn host_runtime() -> neocogi_com::Runtime {
+    #[cfg(feature = "static-host")]
+    { neocogi_com_host::initialize_runtime() }
+    #[cfg(not(feature = "static-host"))]
+    {
+        let path = std::env::args_os().nth(1).expect("explicit packaged host image");
+        // SAFETY: the driver built this exact SDK shim from extracted siblings;
+        // the SDK pins its complete immutable C graph for process lifetime.
+        unsafe { neocogi_com::Runtime::load_host_library(path) }.unwrap()
+    }
+}
+
+/// Register and execute real COM calls under either selected host composition.
+fn main() {
+    let runtime = host_runtime();
+    assert_eq!(runtime.plugins().unwrap().len(), 0);
     // SAFETY: this extracted-only consumer links its complete provider graph.
     unsafe { runtime.register_plugin_descriptor(plugin_descriptor()) }.unwrap();
     let counter = runtime.acquire_plugin_root::<CounterAbi>(plugin_descriptor().plugin_id).unwrap();
     assert_eq!(counter.read(), Ok(42));
     assert_eq!(neocogi_com::NC_COM_RUNTIME_ABI_VERSION, 2);
     assert_eq!(neocogi_com::NC_PLUGIN_DESCRIPTOR_ABI_VERSION, 2);
+    assert_eq!(host_runtime().plugins().unwrap().len(), 1);
+    assert_eq!(counter.read(), Ok(42));
+    println!("archive host: value=42; plugins=1");
 }

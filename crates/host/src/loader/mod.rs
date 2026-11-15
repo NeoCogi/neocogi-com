@@ -39,6 +39,10 @@ pub(crate) struct PinnedLibrary {
 
 impl PinnedLibrary {
     /// Opens one trusted path and classifies platform failures.
+    ///
+    /// # Safety
+    /// The selected image is trusted code whose loader initializers do not
+    /// start nested COM loads. Opened code remains pinned for process lifetime.
     unsafe fn open(path: &Path) -> Result<Self, PluginLoadError> {
         // Both live loading and inspection pin every successfully opened mapping;
         // only live loading additionally publishes a plugin record.

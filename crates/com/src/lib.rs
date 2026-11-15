@@ -134,7 +134,7 @@ mod tests;
 pub use neocogi_com_core::lifetime;
 pub use neocogi_com_core::{ComBox, WeakComBox};
 pub use neocogi_com_core::{NcCopyFromBufferOffset, WeakComPtr, NcWeakRaw};
-pub use neocogi_com_core::{NcHostApiV2, validate_host_api};
+pub use neocogi_com_core::{NC_GET_HOST_API_SYMBOL, NcGetHostApi, NcHostApiV2, validate_host_api};
 #[cfg(feature = "alloc")]
 pub use data::{INcBytesComPtrExt, INcStringComPtrExt, NC_COM_DEFAULT_OWNED_COPY_MAX_BYTES, NcBytes, NcString};
 #[cfg(feature = "macros")]
@@ -173,8 +173,8 @@ pub use local::{LocalBox, WeakLocalBox, LocalCom, WeakLocalCom, LocalMut, LocalR
 pub use neocogi_com_core::__ComSupportsInterfaceThreading;
 #[cfg(feature = "runtime")]
 pub use runtime::{
-    Debug, DebugMessenger, NC_COM_RUNTIME_MAX_ENUMERATION_ITEMS, NC_COM_RUNTIME_MAX_ENUMERATION_RETRIES, NC_COM_RUNTIME_MAX_INSPECTION_TEXT_BYTES, FactoryInfo,
-    PluginInfo, PluginOrigin,
+    Debug, DebugMessenger, HostLoadError, HostLoadErrorKind, NC_COM_RUNTIME_MAX_ENUMERATION_ITEMS, NC_COM_RUNTIME_MAX_ENUMERATION_RETRIES,
+    NC_COM_RUNTIME_MAX_INSPECTION_TEXT_BYTES, FactoryInfo, PluginInfo, PluginOrigin,
 };
 
 #[doc(hidden)]

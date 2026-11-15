@@ -24,9 +24,10 @@
 //! service records. The SDK's normal dependencies do not select this host.
 //!
 //! The Cargo package is `neocogi-com-host`; the Rust target is `neocogi_com_host`.
-//! Native and browser hosts link this implementation once and lend its immutable
-//! C service tables to providers. No runtime DSO is deployed. Pure ABI records remain
-//! in `neocogi-com-core`; importing them creates no runtime state.
+//! Native applications select this rlib directly or load the thin host-dylib shim
+//! containing it. Browser hosts select the rlib. The chosen owner lends immutable
+//! C tables to every provider; plugins never select another implementation.
+//! Pure ABI records remain in core; importing them creates no runtime state.
 //! Persistence acquires named NCB from the application's explicitly registered
 //! `nc.serialization` provider; this implementation embeds no codec or fallback.
 
@@ -48,7 +49,7 @@ pub use loader::{
     FactoryInspection, PluginDependencyPlanError, PluginInspection, PluginLoadError, PluginLoadErrorKind, inspect_plugin_library, plan_plugin_load_order,
 };
 
-/// Initializes this host and returns admitted, copyable service access.
+/// Initializes this linked host image and returns admitted, copyable service access.
 ///
 /// The host owns the immutable tables, callback code and synchronized state for
 /// the process/Wasm-instance lifetime. Repeated calls select that same owner,

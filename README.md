@@ -31,6 +31,11 @@ Linux, macOS and Windows. It requires Rust 1.85 or newer and a native linker.
 | `neocogi-com-host` | Host-owned runtime and native plugin loader (`neocogi_com_host` rlib) |
 | `neocogi-inspect` | Plugin metadata inspection, checks, plans, and comparisons |
 
+Development on `0.4.0-wip` additionally includes
+[`neocogi-com-host-dylib`](crates/host-dylib/README.md), an optional native host
+bootstrap shim. It is unreleased. Applications choose one static or dynamic host
+owner and supply that owner's runtime access to every plugin.
+
 A **host** is the final application that owns one runtime implementation. An
 **interface caller** calls a COM interface; a **provider** implements one. These
 roles can overlap: hosts can implement callbacks, and plugins can call other
@@ -73,7 +78,7 @@ cargo xtask msrv
 cargo xtask packages
 ```
 
-The package check builds the eight actual crate archives, extracts them into an
+The package check builds the nine current source-package archives, extracts them into an
 isolated temporary workspace, runs their shipped tests on Rust 1.85, and executes
 a downstream consumer using only those extracted packages. Install that compiler with
 `rustup toolchain install 1.85.0 --profile minimal`. The package check uses cached

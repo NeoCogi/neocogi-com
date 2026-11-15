@@ -13,7 +13,7 @@ Maintainers publish using the dedicated [release procedure](../../docs/guides/RE
 | `cargo xtask quality` | Formatting, strict Clippy, allocation modes, ABI snippets, Markdown links and strict rustdoc |
 | `cargo xtask markdown` | Local Markdown files and heading anchors; external links are not fetched |
 | `cargo xtask msrv` | Rust 1.85 checks, library tests, exact semantic integration cases and feature boundaries |
-| `cargo xtask packages` | Eight archives, shipped tests/docs, downstream COM, and the independent host/plugin tutorial on Rust 1.85 |
+| `cargo xtask packages` | Nine archives, shipped tests/docs, static/shared host consumers, downstream COM, and the independent host/plugin tutorial on Rust 1.85 |
 | `cargo xtask abi-32` | Core and native-C tests for `NC_COM_32_BIT_TARGET`, defaulting to `i686-unknown-linux-gnu` |
 | `cargo xtask compatibility --suite linked` | Native C/ABI checks, relocated host-owned test executables and independent providers |
 | `cargo xtask compatibility --suite cross-version` | Stable host/nightly providers and the reverse direction |
@@ -121,3 +121,8 @@ write `failed`, retaining completed cases. An interruption leaves `running`,
 which is never success. Exit status is authoritative even if output contains a
 success marker. Missing components, artifacts, cases and unsupported native
 execution fail rather than silently skipping work.
+
+The archive gate also builds the actual host shim on Rust 1.85 and runs the
+archive consumer with its static-host feature disabled. Its resolved dependency
+graph must contain no host implementation. Repeated bootstrap, registration and
+real COM calls must observe the same catalog through the extracted native image.

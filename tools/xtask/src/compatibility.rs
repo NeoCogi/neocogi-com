@@ -682,6 +682,7 @@ fn safety(runner: &Runner) -> Result<Value> {
                 vec![
                     "tests::metadata_identity_query_checks_and_releases_a_concrete_projection",
                     "object::tests::guard_release_does_not_keep_a_protected_value_reference",
+                    "runtime::bootstrap::tests::bootstrap_preserves_errors_and_validates_only_successful_outputs",
                 ],
             ),
         ];

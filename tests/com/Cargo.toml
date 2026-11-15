@@ -190,3 +190,8 @@ required-features = ["macros", "std"]
 name = "serialization_plugin"
 path = "integration-tests/serialization_plugin.rs"
 required-features = ["runtime", "macros", "std"]
+
+[[test]]
+name = "shared_host"
+path = "integration-tests/shared_host.rs"
+required-features = ["runtime"]

@@ -1,0 +1,5 @@
+/// Root service whose nested acquisition must use the application's same host.
+interface ICounter {
+    /// Reads a value produced through a real separately compiled COM call.
+    fn value(&self) -> Result<u32>;
+}

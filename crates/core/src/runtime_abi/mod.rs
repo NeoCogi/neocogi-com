@@ -19,7 +19,7 @@ pub use debug::{
 };
 pub use plugin::{NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS, NcFactoryInfoV2, NcInspectPluginDescriptorCallbackV2, NcPluginInfoV2};
 pub use runtime::NcRuntimeApiV2;
-pub use host::{NcHostApiV2, validate_host_api};
+pub use host::{NC_GET_HOST_API_SYMBOL, NcGetHostApi, NcHostApiV2, validate_host_api};
 
 /// Supplied host-service family for ABI v2.
 ///

@@ -29,10 +29,12 @@ already-computed identities and signatures.
 
 COM responsibilities have concrete owners: `core` supplies ABI and value support;
 `idl` owns parsing through Cargo integration, including its shared `codegen` module;
-`macros` supplies thin Rust implementation/persistence entrypoints; `api` supplies
-object helpers, static IDL metadata and runtime clients; `runtime` owns loading, the plugin catalog
-and persistence execution. The final executable links its runtime implementation
-and initializes it through `#[com_main]`. Plugins receive access to that one global
+`macros` supplies thin Rust implementation/persistence entrypoints; `com` supplies
+object helpers, static IDL metadata and runtime clients; `host` owns loading, the
+plugin catalog and persistence execution. The application selects that host once,
+linked directly through `#[com_main]` or loaded from the thin `host-dylib` shim
+through explicit SDK C bootstrap. The SDK shares native loading code but owns no
+registry; the chosen host image retains all mutable runtime state. Plugins receive access to that one global
 registry through their acquisition call. Contracts and facade helpers compile into
 their consumers. Ordinary Cargo builds the host runtime and provider libraries;
 [the native guide](../guides/COM_NATIVE.md) explains static and dynamic linking.

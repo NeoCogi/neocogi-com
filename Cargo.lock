@@ -236,6 +236,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "neocogi-com-host-dylib"
+version = "0.3.0"
+dependencies = [
+ "neocogi-com-core",
+ "neocogi-com-host",
+]
+
+[[package]]
 name = "neocogi-com-macros"
 version = "0.3.0"
 dependencies = [

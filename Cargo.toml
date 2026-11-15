@@ -9,6 +9,7 @@ members = [
     "crates/idl",
     "crates/macros",
     "crates/host",
+    "crates/host-dylib",
     "crates/com",
     "crates/serialization",
     "crates/serialization-dylib",

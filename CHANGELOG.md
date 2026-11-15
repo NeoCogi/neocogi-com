@@ -6,6 +6,21 @@ Historical draft numbers do not define additional supported COM baselines.
 
 ## Unreleased
 
+- Add the optional `neocogi-com-host-dylib` native shim, exporting
+  `nc_get_host_api_v2` to lend the host rlib's canonical C service graph.
+  Applications choose one static or dynamic host owner; providers and nested
+  acquisitions receive the same supplied runtime and never initialize a catalog.
+- Add unsafe SDK `Runtime::load_host_library` with explicit filesystem paths,
+  process-pinned images, existing host-table admission and typed startup errors.
+  Share the existing Unix/Windows loader without selecting a host implementation
+  in the SDK. No fallback registry or unload path is introduced. ABI v2/core
+  generation 19, existing C layouts and plugin bootstrap are unchanged.
+- Native regressions build an independent application without a host dependency,
+  two separately generated provider libraries and malformed bootstrap images.
+  Exercise repeated bootstrap, nested A-to-B acquisition, registry visibility,
+  retained calls, cross-thread runtime access and equivalent static deployment.
+  Add the shim to archive qualification and shared-host parity to native CI.
+
 - Rename the hidden Rust provider-table entry from `__ComProjection<T>` to
   `ComInterfaceTableEntry<T>`. Generated providers now expose `INTERFACE_TABLE`
   instead of `PROJECTIONS`, composed with `__nc_interface_table` and reduced to

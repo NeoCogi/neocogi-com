@@ -15,7 +15,7 @@ use crate::{
     process::{Result, Runner, sources},
 };
 
-/// SDK selectors are derived from the same eight-package inventory as archive checks.
+/// SDK selectors are derived from the same distributable package inventory as archive checks.
 fn selectors(tests: bool, tooling: bool) -> Vec<OsString> {
     let mut args = Vec::new();
     for (name, _) in PUBLISHED {

@@ -19,6 +19,7 @@ pub(crate) const PUBLISHED: &[(&str, &str)] = &[
     ("neocogi-com-serialization", "crates/serialization"),
     ("neocogi-com-serialization-dylib", "crates/serialization-dylib"),
     ("neocogi-com-host", "crates/host"),
+    ("neocogi-com-host-dylib", "crates/host-dylib"),
     ("neocogi-inspect", "tools/neocogi-inspect"),
 ];
 /// Validate and extract this package's single archive prefix without an external tar.
@@ -108,7 +109,7 @@ fn consumers(repository: &Path, root: &Path, version: &str) -> Result<()> {
     fs::write(
         consumer.join("Cargo.toml"),
         format!(
-            "[package]\nname='archive-consumer'\nversion='0.0.0'\nedition='2024'\nlinks='nc_contract_70726f6f662e61726368697665'\n[dependencies]\nneocogi-com={{version='={version}',features=['runtime']}}\nneocogi-com-host='={version}'\n[build-dependencies]\nneocogi-idl='={version}'\n"
+            "[package]\nname='archive-consumer'\nversion='0.0.0'\nedition='2024'\nlinks='nc_contract_70726f6f662e61726368697665'\n[dependencies]\nneocogi-com={{version='={version}',features=['runtime']}}\nneocogi-com-host={{version='={version}',optional=true}}\n[features]\ndefault=['static-host']\nstatic-host=['dep:neocogi-com-host']\n[build-dependencies]\nneocogi-idl='={version}'\n"
         ),
     )?;
     fs::write(consumer.join("build.rs"), include_str!("../fixtures/archive-build.rs"))?;
@@ -288,6 +289,42 @@ pub(crate) fn run(runner: &Runner) -> Result<()> {
         verification.cargo("1.85.0", &["build", "--manifest-path", &runtime])?;
         crate::process::require_file(&verification.target_dir().join("debug/libneocogi_com_host.rlib"))?;
         verification.cargo("1.85.0", &["run", "--manifest-path", "consumer/Cargo.toml"])?;
+        let shim = root.join(format!("neocogi-com-host-dylib-{version}/Cargo.toml"));
+        let built = verification.cargo(
+            "1.85.0",
+            &["build", "--manifest-path", shim.to_str().ok_or("non-UTF8 shim path")?, "--message-format=json"],
+        )?;
+        let library = native_artifact(&built, &shim, "neocogi_com_host_dylib", NativeOutput::Library)?;
+        let tree = verification.cargo(
+            "1.85.0",
+            &[
+                "tree",
+                "--manifest-path",
+                "consumer/Cargo.toml",
+                "--no-default-features",
+                "--edges",
+                "normal,build",
+                "--prefix",
+                "none",
+            ],
+        )?;
+        if tree.contains("neocogi-com-host") {
+            return Err("dynamic archive consumer embeds a static host implementation".into());
+        }
+        let output = verification.cargo(
+            "1.85.0",
+            &[
+                "run",
+                "--manifest-path",
+                "consumer/Cargo.toml",
+                "--no-default-features",
+                "--",
+                library.to_str().ok_or("non-UTF8 native shim path")?,
+            ],
+        )?;
+        if output.trim() != "archive host: value=42; plugins=1" {
+            return Err(format!("dynamic archive host did not complete its C calls: {output}").into());
+        }
         let facade = format!("neocogi-com-{version}/Cargo.toml");
         for options in [
             vec!["check", "--manifest-path", &facade, "--no-default-features"],

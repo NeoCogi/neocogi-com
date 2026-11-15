@@ -7,11 +7,15 @@ separate release actions; preparation and local dry-runs upload nothing.
 ## Prepare the source before choosing a version
 
 Finish implementation, documentation, examples and compatibility changes first.
-Keep the eight SDK packages on one version and their internal dependency requirements
+Keep the nine SDK packages on one version and their internal dependency requirements
 exact. The authoritative package inventory is `PUBLISHED` in
 [packages.rs](../../tools/xtask/src/packages.rs).
 
-Check all eight names and the intended version on crates.io. A name available
+The ninth package, `neocogi-com-host-dylib`, is new and unreleased on
+`0.4.0-wip`; the published `0.3.0` cohort below still consists of eight packages.
+Preparing this branch does not change the published version or release tag.
+
+Check all nine names and the intended version on crates.io. A name available
 during preparation can be claimed before publication; check again at release.
 For the first upload, use a crates.io account with a verified email and a token
 authorized to publish these names. Configure it interactively with `cargo login`;
@@ -130,10 +134,10 @@ not waive ordinary verification or interpret that offline error as proof of
 malformed source. The offline archive gate independently builds and tests its
 extracted contents.
 
-Save full logs and all eight `.crate` files from `target/package` outside Cargo
+Save full logs and all nine `.crate` files from `target/package` outside Cargo
 targets, together with their SHA-256 hashes and the candidate commit ID. On Linux
 use `sha256sum`, on macOS `shasum -a 256`, or PowerShell `Get-FileHash`. Check the
-eight expected versions and `.cargo_vcs_info.json` provenance. Preserve this record
+nine expected versions and `.cargo_vcs_info.json` provenance. Preserve this record
 through `cargo clean`. If code, docs, versions or dependencies change, commit a
 new candidate and rerun affected checks; refresh packaging/provenance evidence.
 
@@ -147,7 +151,7 @@ Do not publish any package until every required CI job passes for this exact
 tagged commit; a previous alpha's result or a different master revision does not
 satisfy the gate.
 
-Publish only the eight public packages, in dependency order:
+Publish only the nine public packages, in dependency order:
 
 ```sh
 cargo publish --locked --registry crates-io -p neocogi-com-core
@@ -157,6 +161,7 @@ cargo publish --locked --registry crates-io -p neocogi-com
 cargo publish --locked --registry crates-io -p neocogi-com-serialization
 cargo publish --locked --registry crates-io -p neocogi-com-serialization-dylib
 cargo publish --locked --registry crates-io -p neocogi-com-host
+cargo publish --locked --registry crates-io -p neocogi-com-host-dylib
 cargo publish --locked --registry crates-io -p neocogi-inspect
 ```
 
@@ -169,7 +174,7 @@ uploaded content matches. Never silently skip a mismatch or attempt to overwrite
 an existing version. Changed public content requires a new coordinated version,
 with an explicit follow-up/yank decision for unusable earlier versions.
 
-After all eight packages are published and verified, record the registry archive
+After all nine packages are published and verified, record the registry archive
 hashes and provenance alongside the already pushed source tag. Check that all
 rendered release documentation links resolve to that tag and its intended files.
 A partial or failed publication must be reported separately from the source tag;

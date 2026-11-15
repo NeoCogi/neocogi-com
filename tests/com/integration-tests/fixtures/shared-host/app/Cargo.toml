@@ -1,0 +1,18 @@
+[package]
+name = "shared-host-app"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.85"
+publish = false
+build = "../build.rs"
+
+[dependencies]
+neocogi-com.workspace = true
+
+neocogi-com-host = { workspace = true, optional = true }
+
+[features]
+static-host = ["dep:neocogi-com-host"]
+
+[build-dependencies]
+neocogi-idl.workspace = true

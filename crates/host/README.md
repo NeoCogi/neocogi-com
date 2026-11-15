@@ -19,14 +19,23 @@ This package depends on the SDK with defaults disabled and `std` enabled for
 shared ownership, persistence contracts and codecs, plus core for raw service
 tables and validation. The SDK has no dependency back to the host; host-dependent
 integration tests live in the unpublished `tests/com` package.
-Providers link the SDK and receive host access during bootstrap; the final host
-links this package once. Host-side inspection tools can reuse its loader and
+Providers link the SDK and receive host access during bootstrap. The final
+application selects this implementation once, either linked directly or inside
+the optional `neocogi-com-host-dylib` native shim. Host-side inspection tools can reuse its loader and
 metadata utilities without initializing the plugin catalog.
 
 See [the role and dependency guide](https://github.com/NeoCogi/neocogi-com/blob/v0.3.0/docs/COM.md#hosts-callers-and-providers)
 for the complete graph and startup/call sequence.
 
-A dynamic library exports `nc_get_plugin_descriptor_v2`, lending an
+For dynamic host deployment, the application loads the host shim with the SDK's
+unsafe `Runtime::load_host_library(path)`. The C bootstrap returns the existing
+`NcHostApiV2`; the SDK pins the image before adopting its tables. Host bootstrap
+errors return typed startup diagnostics and create no fallback registry. Plugin
+loading retains its separate mandatory/fatal policy below. Select one owner;
+initializing both static and dynamic implementations can create two registries.
+The host shim is not a plugin and exports `nc_get_host_api_v2` instead.
+
+A provider dynamic library exports `nc_get_plugin_descriptor_v2`, lending an
 immutable descriptor with plugin metadata, hard dependencies, full root factory
 IID/signature, threading, and bootstrap. Registration validates the metadata and
 publishes one plugin atomically. Dependencies must already be registered;

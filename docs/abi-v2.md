@@ -59,7 +59,8 @@ contents it retains.
 
 This is a component ABI with its own registry and lifetime protocol; it supplies
 no Windows COM activation, apartments or operating-system marshalling. The one
-global native plugin registry belongs to the executable-owned `neocogi_com_host`. Object storage and
+global native plugin registry belongs to the application-selected `neocogi_com_host`
+owner, linked directly or hosted in one native runtime image. Object storage and
 caller-owned persistence contexts retain their separate responsibilities.
 
 
@@ -675,16 +676,19 @@ native loads report `OpenLibrary` without broadening the search.
 ### One host, supplied access
 
 One authority owns plugin GUIDs, dependency validation, registration order, first
-provenance and pinned native code. The executable links `neocogi-com-host`
-(the Rust library `neocogi_com_host`). Its normal `#[com_main]` entry initializes that
-implementation once and passes a copyable `Runtime` to application code.
+provenance and pinned native code. The application selects `neocogi-com-host`
+(the Rust library `neocogi_com_host`) once: either link the rlib directly or load
+the native `neocogi-com-host-dylib` shim containing that same implementation.
+Ordinary static `#[com_main]` initializes the linked owner and passes a copyable
+`Runtime` to application code. A dynamic application explicitly loads its selected
+host with unsafe `Runtime::load_host_library(path)` before any provider acquisition.
 
 Every provider bootstrap receives access to those same immutable host tables.
 A context-free callback in a table executes in the host and reaches its private
-singleton. A nested acquisition from plugin A to B forwards the canonical host
-bundle again. Handles own no registry and select no implementation; reusable
-libraries take a handle from their caller. There is no global/default facade,
-per-plugin cache, fallback, runtime DSO or named service getter.
+singleton in the selected host image. A nested acquisition from plugin A to B
+forwards that canonical host bundle again. Handles own no registry and select no
+implementation; reusable libraries take a handle from their caller. There is no
+global/default facade, per-plugin cache or fallback host discovery.
 
 The supported application has one ordinary startup. Additional independent
 initialization requires an explicit path outside that composition; mere linkage
@@ -693,6 +697,39 @@ is part of the contract. Separate processes/Wasm instances have separate owners.
 
 Plugin operations use one table; diagnostics and persistence keep independent
 tables because their callback and caller-owned context lifecycles differ.
+
+### Optional native host bootstrap
+
+The unreleased `0.4.0-wip` addition exports `nc_get_host_api_v2` from the host
+shim, typed as `NcGetHostApi` and named by `NC_GET_HOST_API_SYMBOL`:
+
+```text
+unsafe extern "C" fn(output: *mut *const NcHostApiV2) -> NcStatus
+```
+
+Null output returns `NC_E_POINTER`. A writable slot is cleared on failure;
+success returns `NC_OK` and one nonnull immutable canonical host description.
+Repeated bootstrap selects the same owner in that image and invokes no provider.
+The existing record/table layouts, signatures and ABI v2/core generation 19 are
+unchanged. This export adds application bootstrap, not a plugin descriptor.
+
+The SDK loader qualifies an explicit filesystem path, pins every successfully
+opened image and resolves the versioned bootstrap. It returns typed
+`HostLoadError` diagnostics for native open, symbol, entrypoint and admission
+failures, with the original caller path and exact COM status where applicable.
+It reads no returned graph on entrypoint failure; successful outputs pass the
+existing prefix-first host admission before `Runtime` references are formed.
+The unsafe caller still supplies trusted code and readable, coherent backing;
+validation cannot authenticate arbitrary pointers or lifetime promises.
+
+There is no automatic retry with another host. Pins survive wrapper drop and
+post-open failure because table references and callbacks require process-lived
+code. The application must select one static owner or one runtime image;
+separate loaded copies or an explicitly initialized static implementation may
+own independent registries. Providers receive access and do not bootstrap a host.
+Native plugin loading retains its separate mandatory/fatal policy. Static/Wasm
+composition continues using the rlib and ordinary host startup.
+
 
 ## Provider descriptor and registered information
 
@@ -800,7 +837,8 @@ allocation; a static outer description alone proves no child lifetime. This is
 part of the current core-generation contract; discovery family and interface
 identities remain separate.
 
-The supplied record replaces named runtime symbols. All three tables are required:
+Operations use the supplied record in both deployment modes. The optional named
+bootstrap only returns that record; all three service tables remain required:
 `NcRuntimeApiV2` for plugin operations, `NcDebugApiV2` for diagnostics, and
 `NcPersistenceApiV2` for caller-owned persistence contexts. The safe handle stores
 private references only after size/version checks and under the unsafe caller's
