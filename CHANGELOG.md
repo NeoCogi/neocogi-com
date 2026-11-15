@@ -12,6 +12,11 @@ Historical draft numbers do not define additional supported COM baselines.
   deployment requirement, not a table-admission guarantee. Remove stale guidance
   suggesting frozen ABI-v2 tables can change in place. Provider absence/selection
   failure leaves contexts and registered recipes usable for retry.
+- Exercise absence, explicit registration and recovery through the real C table
+  using one context and generated COM factories. Assert no failed-call delivery,
+  cleared restore output, exact NCB bytes and retained factory/capability owners.
+  Clarify that codec owners cover codec/restore callbacks, while snapshot byte
+  delivery uses an independent host-owned document after those owners are released.
 
 ## 0.3.0-alpha.1 — 2026-11-14
 

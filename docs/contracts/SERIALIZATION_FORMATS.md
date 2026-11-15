@@ -12,8 +12,10 @@ is linked merely to use a codec. Host persistence acquires the named `ncb` forma
 from `nc.serialization` in its own catalog. The application explicitly registers
 the static descriptor or loads the dylib; the host embeds no implementation and
 never selects a default, registers or loads an implicit fallback. Root and format
-capabilities stay retained for the operation and callbacks run outside catalog
-locks. Missing providers return `NC_E_NOT_FOUND`; selection failures propagate.
+capabilities stay retained through codec use and restoration's recipe callbacks.
+Snapshot delivery uses completed host-owned bytes after those capabilities are
+released. Callbacks run outside catalog locks. Missing providers return
+`NC_E_NOT_FOUND`; selection failures propagate.
 
 This supersedes the 0.1.0 constraint that value traits accept concrete NCB cursors.
 The retired generic Rust serializer/access traits are not restored. The new

@@ -43,8 +43,9 @@ pub type NcPersistenceWriteBytesV2 = unsafe extern "C" fn(user_data: *mut c_void
 
 /// Size-prefixed persistence table admitted through the host API description.
 ///
-/// Table admission establishes callable ABI v2/core-generation-19 operations,
-/// not serialization-provider availability. The application must explicitly
+/// Table admission establishes ABI v2/core-generation-19 compatibility,
+/// not serialization-provider availability. Callers still owe the host API's
+/// backing and lifetime guarantees. The application must explicitly
 /// register or load `nc.serialization` in this host's catalog before snapshot
 /// or restore. Each operation acquires its root and requests named `ncb`;
 /// the provider's default format is irrelevant. No codec is registered or loaded

@@ -58,10 +58,13 @@ remain provider-independent. The host has no runtime dependency on a codec
 implementation, implicit registration, loader policy, format registry or fallback.
 
 Each operation acquires `ISerializationPluginAbi` through this host's own admitted
-runtime tables and requests `format("ncb")`, never `default_format()`. A provider
-whose default is JSON must still supply named NCB. The root and selected format
-factory are retained for the operation, including restoration preflight and
-construction; each document uses an independent exclusive session. Catalog locks
+runtime tables and requests `format("ncb")`, never `default_format()`. The shipped
+provider defaults to NCB; even an external provider with a different default
+cannot redirect persistence away from named NCB. The root and selected format
+factory are retained through codec use, including restoration preflight and
+construction. Snapshot encoding returns independent host-owned bytes, releasing
+the codec objects before the raw adapter calls the byte sink. Each document uses
+an independent exclusive session. Catalog locks
 are released before bootstrap, selection, session and recipe callbacks. Existing
 thread-local context and reentrancy rules still apply; this adds no global codec
 state or persistence-context mutation through shared access.

@@ -1008,15 +1008,20 @@ populate or replace the global plugin catalog. Mutation/destruction requires
 exclusive access; restore takes a shared borrow. `NcPersistenceLimitsV2` carries
 binary and object-tree budgets explicitly.
 
-Table presence and successful host admission guarantee callable operations,
-not an available serialization provider. Host initialization, empty context
-creation and recipe registration do not require a codec or populate the catalog.
+Table presence and successful host admission establish supported operation
+layouts, not an available serialization provider. The caller still owes the
+host API's complete backing and lifetime guarantees. Host initialization, empty
+context creation and recipe registration do not require a codec or populate the catalog.
 The final application must explicitly register `nc.serialization` or load its
 library before snapshot/restore. Each operation acquires that provider through
 this host's own catalog and selects named `ncb`; `default_format()` is never used,
-even when the provider defaults to JSON. There is no implicit registration,
-loading or embedded fallback. The provider root and selected format remain
-retained through the operation; callbacks run outside catalog locks.
+even when an external provider defaults to JSON. The shipped serialization
+provider still defaults to NCB; JSON-default tests challenge persistence's
+independence from default selection. There is no implicit registration, loading
+or embedded fallback. The provider root and selected format remain retained
+through codec use and restoration's recipe callbacks. Snapshot encoding produces
+an independent host-owned byte vector; its later delivery callback does not
+retain the codec objects. Provider and delivery callbacks run outside catalog locks.
 
 A missing provider returns `NC_E_NOT_FOUND`; root-acquisition and named-format
 selection errors propagate unchanged. Argument admission precedes selection:

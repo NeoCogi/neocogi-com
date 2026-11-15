@@ -242,6 +242,114 @@ fn missing_provider_preserves_error_precedence() {
     assert!(runtime.plugins().unwrap().is_empty(), "persistence must never seed the catalog");
 }
 
+/// Caller-owned observation of actual byte delivery across the persistence ABI.
+#[derive(Default)]
+struct SnapshotReceipt {
+    /// Successful deliveries; the host must call exactly once for a complete document.
+    calls: usize,
+    /// Copied bytes, independent of the runtime's temporary output allocation.
+    bytes: Vec<u8>,
+}
+
+/// Copies one complete document while the raw ABI lends its storage.
+///
+/// # Safety
+/// `data` exclusively borrows a live SnapshotReceipt until this callback returns.
+/// Nonempty `bytes` is readable for `len` bytes and does not overlap that receipt.
+unsafe extern "C" fn receive_snapshot(data: *mut core::ffi::c_void, bytes: *const u8, len: usize) -> NcStatus {
+    if data.is_null() || (len != 0 && bytes.is_null()) {
+        return neocogi_com::NC_E_POINTER;
+    }
+    // SAFETY: The test lends this exact receipt exclusively for the synchronous call.
+    let receipt = unsafe { &mut *data.cast::<SnapshotReceipt>() };
+    if receipt.calls != 0 {
+        return neocogi_com::NC_E_INVALID_ARG;
+    }
+    let bytes = match len {
+        0 => &[],
+        // SAFETY: The runtime keeps its complete document alive through delivery.
+        _ => unsafe { core::slice::from_raw_parts(bytes, len) },
+    };
+    receipt.bytes.extend_from_slice(bytes);
+    receipt.calls += 1;
+    neocogi_com::NC_OK
+}
+
+/// ABI admission and recipe registration do not require a codec. Supplying one
+/// after failed calls recovers the same context without replacing its recipes.
+#[test]
+fn provider_registration_recovers_existing_context_through_abi_v2() {
+    if isolated("provider_registration_recovers_existing_context_through_abi_v2") {
+        return;
+    }
+    let host = crate::initialize_process();
+    // SAFETY: This host lends its complete immutable process-lived service graph.
+    assert_eq!(unsafe { neocogi_com::validate_host_api(host) }, neocogi_com::NC_OK);
+    // SAFETY: The admitted persistence table remains mapped for the entire test.
+    let api = unsafe { &*host.persistence };
+    let runtime = crate::initialize_runtime();
+    let value: ComPtr<IUnknown> = Value::from_value(Value).query().unwrap();
+    let factory: ComPtr<IPersistenceFactoryAbi> = Factory::from_value(Factory).query().unwrap();
+    let expected = bytes();
+    let limits = Limits::default().into();
+    let mut context = core::ptr::null_mut();
+    // SAFETY: Valid output storage and a live borrowed factory are supplied on
+    // this one thread; registration exclusively borrows the new context.
+    unsafe {
+        assert_eq!((api.create_context)(&mut context), neocogi_com::NC_OK);
+        assert!(!context.is_null());
+        assert_eq!((api.register_factory)(context, KIND, factory.as_raw()), neocogi_com::NC_OK);
+    }
+    drop(factory); // Only the context's retained factory can service the later retry.
+    let mut receipt = SnapshotReceipt::default();
+    // A live borrowed pair is a valid output sentinel; failure must clear both
+    // words without consuming this owner's separate reference.
+    let mut root = value.as_raw();
+    // SAFETY: Owners, context, input bytes, output and receipt remain live for
+    // each synchronous call; inputs do not overlap either writable output.
+    unsafe {
+        assert_eq!(
+            (api.snapshot)(value.as_raw(), limits, Some(receive_snapshot), core::ptr::from_mut(&mut receipt).cast()),
+            neocogi_com::NC_E_NOT_FOUND
+        );
+        assert_eq!(
+            (api.restore)(context, expected.as_ptr(), expected.len(), limits, &mut root),
+            neocogi_com::NC_E_NOT_FOUND
+        );
+    }
+    assert!(root.object.is_null() && root.vtable.is_null());
+    assert_eq!(receipt.calls, 0);
+    assert!(receipt.bytes.is_empty());
+    assert_eq!(VALIDATIONS.load(Ordering::Relaxed), 0);
+    assert!(runtime.plugins().unwrap().is_empty(), "failed persistence must not register a fallback");
+
+    // SAFETY: The descriptor and all provider callbacks are linked process statics.
+    unsafe { runtime.register_plugin_descriptor(plugin_descriptor()) }.unwrap();
+    // SAFETY: The same live context still owns its recipe; value, receipt and
+    // output storage satisfy the unchanged synchronous C calling contract.
+    unsafe {
+        assert_eq!(
+            (api.snapshot)(value.as_raw(), limits, Some(receive_snapshot), core::ptr::from_mut(&mut receipt).cast()),
+            neocogi_com::NC_OK
+        );
+        assert_eq!(
+            (api.restore)(context, receipt.bytes.as_ptr(), receipt.bytes.len(), limits, &mut root),
+            neocogi_com::NC_OK
+        );
+        // No call still borrows the unique context, so its retained factory can go.
+        (api.destroy_context)(context);
+    }
+    assert_eq!(receipt.calls, 1);
+    assert_eq!(receipt.bytes, expected, "named NCB retains the complete v1 document");
+    // SAFETY: Successful restore transferred exactly one owned common COM pair.
+    let restored = unsafe { ComPtr::<IUnknown>::__nc_from_raw_owned_checked(root) }.unwrap();
+    assert_eq!(restored.query::<IPersistableAbi>().unwrap().schema_version().unwrap(), 1);
+    assert_eq!(SELECTIONS.load(Ordering::Relaxed), 2);
+    assert_eq!(DEFAULTS.load(Ordering::Relaxed), 0);
+    assert_eq!(VALIDATIONS.load(Ordering::Relaxed), 2);
+    assert_eq!((ROOTS.load(Ordering::Relaxed), FORMATS.load(Ordering::Relaxed)), (0, 0));
+}
+
 /// JSON defaults never change persistence bytes; both directions select named NCB.
 #[test]
 fn named_ncb_retains_capabilities_and_ignores_json_default() {
