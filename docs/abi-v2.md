@@ -1,6 +1,6 @@
 # COM ABI v2 (0.3.0)
 
-This is the ABI contract for the prepared **0.3.0** SDK. Runtime and
+This is the ABI contract for the released **0.3.0** SDK. Runtime and
 plugin descriptor discovery use family **2**, with core generation **19**.
 The released 0.1.0 baseline remains available in the
 [ABI v1 specification at v0.1.0](https://github.com/NeoCogi/neocogi-com/blob/v0.1.0/docs/abi-v1.md). ABI v1
@@ -15,8 +15,9 @@ document describes their calling, ownership, runtime and deployment rules.
 Deploy hosts, plugins and generated bindings from the same SDK release. Within
 a compatible core generation, layouts and callback signatures are frozen.
 Incompatible changes require a fresh applicable generation before interpreting
-full records or invoking callbacks. The 0.3.0 candidate is prepared locally; publication
-and native platform qualification are separate release actions.
+full records or invoking callbacks. The **0.3.0** packages are published on
+crates.io from source tag `v0.3.0`, commit `35db184`. That exact commit passed
+the required Linux, macOS, Windows and Linux safety CI jobs before publication.
 
 Core generation 18 belongs to the released ABI v1 baseline. Earlier experimental
 checkouts also reused generation 1 across incompatible bootstrap signatures.
@@ -998,7 +999,7 @@ requires exactly one complete document. ABI rejections do not enter the provider
 NCB remains format version 1 and preserves existing bytes. Names are available
 for other formats without adding names to NCB. This supersedes the concrete
 NCB-cursor restriction from 0.1.0 and changes the Rust value-trait API. Discovery
-family 2 is selected for the 0.3.0 candidate.
+family 2 is used by the 0.3.0 release.
 
 The reusable serialization rlib owns unconditional/default NCB and an optional custom JSON
 codec. A separate thin dylib shim exports its static plugin descriptor.

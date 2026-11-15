@@ -20,8 +20,8 @@ before subsequent uploads. Add any additional owners deliberately after the firs
 publication. [Trusted publishing](https://crates.io/docs/trusted-publishing) can
 replace stored CI tokens for later releases.
 
-The compatibility rule is separate from Cargo versions. The prepared candidate
-is `0.3.0`, using ABI v2: runtime and descriptor family 2, core generation
+The compatibility rule is separate from Cargo versions. The current published
+release is `0.3.0`, using ABI v2: runtime and descriptor family 2, core generation
 19, and `nc_get_plugin_descriptor_v2`. Deploy hosts, providers and generated
 bindings from one SDK release. ABI v1 libraries are rejected before bootstrap;
 there is no compatibility export. Interface signatures, IDL encoding and NCB
@@ -30,11 +30,19 @@ persistence format have their own authorities in the [ABI contract](../abi-v2.md
 
 Prepare a user-facing changelog entry with features, migration instructions,
 known limits and actual platform results. Keep superseded development entries
-historical. The currently prepared version is a release candidate until uploaded.
+historical. For future releases, a prepared version remains a candidate until
+its publication and registry-user checks are complete.
+
+COM `0.3.0` was published on 2026-11-15 from `v0.3.0` at `35db184` after its
+[required CI jobs passed](https://github.com/NeoCogi/neocogi-com/actions/runs/43675768485).
+All eight registry archives matched the verified candidate's hashes and clean
+Git provenance. Registry-only tutorial builds and real plugin calls passed on
+stable Rust and Rust 1.85; the registry-installed inspector checked both plugins,
+and docs.rs documentation is available for all seven library crates.
 
 ## Persistence migration for 0.3.0
 
-All eight COM packages advance together. The unpublished host-only `0.2.1`
+All eight COM packages were released together. The unpublished host-only `0.2.1`
 candidate is superseded; no host-specific version policy or archive handling
 remains. Applications explicitly register the static serialization descriptor or
 load the serialization dylib before persistence. Missing providers return

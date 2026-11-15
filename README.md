@@ -1,6 +1,6 @@
 # NeoCogi COM
 
-[![Crates.io](https://img.shields.io/crates/v/neocogi-com.svg?include_prereleases)](https://crates.io/crates/neocogi-com)
+[![Crates.io](https://img.shields.io/crates/v/neocogi-com.svg)](https://crates.io/crates/neocogi-com)
 
 NeoCogi COM helps you build Rust applications with plugins compiled separately
 from the application. It provides interface definitions, object ownership,
@@ -10,10 +10,11 @@ protocol.
 This is experimental software. Build the host, plugins and generated interfaces
 with the same SDK release. Loaded plugins stay mapped until the process exits.
 
-The prepared SDK release is **0.3.0**, using [ABI v2](docs/abi-v2.md).
+The current release is **[0.3.0](https://crates.io/crates/neocogi-com/0.3.0)**.
+All eight packages listed below are published on crates.io. The SDK uses
+[ABI v2](docs/abi-v2.md), with core generation 19.
 Persistence applications explicitly supply their selected serialization provider;
 see [host persistence](crates/host/PERSISTENCE.md).
-Package publication and platform qualification are separate steps.
 
 Start with the complete [application and calculator plugin walkthrough](examples/getting-started/README.md).
 It includes every source file, build script and dependency, plus commands for

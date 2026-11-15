@@ -6,7 +6,7 @@ dependencies, descriptor/core ABI versions, and full factory IID/signature and
 threading capability. There are no contract libraries or module graphs to load.
 Opened libraries remain pinned until the short-lived process exits.
 
-Install the matching SDK release after publication:
+Install the released `0.3.0` inspector:
 
 ```sh
 cargo install neocogi-inspect --version '=0.3.0' --locked

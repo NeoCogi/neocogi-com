@@ -22,10 +22,8 @@ source into its own Rust bindings. The host does not link the provider and the
 provider does not select a host implementation. Application version `0.0.0` in
 these manifests is independent of the SDK dependency version.
 
-The manifests select the prepared `0.3.0` SDK, including its versionless
-IDL and ABI v2. Pre-publication checks supply local or extracted SDK patches.
-The registry-only commands below apply after this release is published; see
-[release preparation](../../docs/guides/RELEASING.md).
+The manifests pin the published `0.3.0` SDK, including its versionless IDL and
+ABI v2. The commands below download these packages directly from crates.io.
 
 From the copied directory, build the plugin:
 
@@ -66,7 +64,7 @@ native library can run its initializers. A required plugin that cannot load
 produces a diagnostic and terminates the host; interface method failures such
 as overflow are ordinary returned statuses.
 
-Install the matching inspector after the SDK has been published:
+Install the matching released inspector:
 
 ```sh
 cargo install neocogi-inspect --version '=0.3.0' --locked

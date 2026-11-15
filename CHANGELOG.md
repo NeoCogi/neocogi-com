@@ -6,7 +6,12 @@ Historical draft numbers do not define additional supported COM baselines.
 
 ## Unreleased
 
-## 0.3.0 — 2026-11-14
+## 0.3.0 — 2026-11-15
+
+- Published all eight packages on crates.io from `v0.3.0`, commit `35db184`,
+  after the required native and safety CI jobs passed. Registry archive hashes
+  and Git provenance, docs.rs pages, registry-only stable/Rust 1.85 consumers
+  and the installed inspector were verified.
 
 - Rename the provider-local Rust borrow helpers to `ComReadGuard` and
   `ComWriteGuard`, and their shared allocation bookkeeping to `ComBorrowState`.
@@ -22,8 +27,8 @@ Historical draft numbers do not define additional supported COM baselines.
   persistence; existing `0.2.0` applications must migrate this deployment setup.
 - Align exact internal dependencies, maintained fixture locks, the first-use
   tutorial, installation examples and release-tag links with `0.3.0`.
-  This source release is tagged before registry publication. Uploads remain
-  gated on all required CI jobs passing for the exact tagged commit.
+  The source tag preceded registry publication; uploads completed only after
+  all required CI jobs passed for that exact tagged commit.
 
 - Make the explicit serialization-provider requirement normative in the ABI-v2
   specification, raw persistence table docs and Rust client entry points. Keep
