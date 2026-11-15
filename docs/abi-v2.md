@@ -167,12 +167,12 @@ exclusive call gate and reports conflicting/reentrant access as `NC_E_BUSY`.
 ## Signature storage and absence
 
 ```c
-typedef struct NcAbiSignature {
+typedef struct NcAbiDigest {
     const uint8_t (*digest)[32];
-} NcAbiSignature;
+} NcAbiDigest;
 ```
 
-Rust uses `#[repr(C)] struct NcAbiSignature { digest: *const [u8; 32] }`.
+Rust uses `#[repr(C)] struct NcAbiDigest { digest: *const [u8; 32] }`.
 This is a thin pointer, not a Rust slice pointer. Null explicitly means no
 contract where the enclosing record permits absence. A root factory must have a
 present signature; absence returns `NC_E_INVALID_ARG`. An all-zero digest remains
@@ -199,21 +199,21 @@ equal contracts stored in different libraries.
 The public static constructor makes digest width a compile-time obligation:
 
 ```rust
-use neocogi_com::{NcAbiSignature, NC_COM_CORE_ABI_VERSION};
+use neocogi_com::{NcAbiDigest, NC_COM_CORE_ABI_VERSION};
 assert_eq!(NC_COM_CORE_ABI_VERSION, 19);
 static FIRST: [u8; 32] = [7; 32];
 static SECOND: [u8; 32] = [7; 32];
-let a = NcAbiSignature::from_static(&FIRST);
-let b = NcAbiSignature::from_static(&SECOND);
+let a = NcAbiDigest::from_static(&FIRST);
+let b = NcAbiDigest::from_static(&SECOND);
 assert_eq!(a, b); // Content equality across separate backing declarations.
 assert!(!a.is_empty());
-assert!(NcAbiSignature::EMPTY.is_empty());
+assert!(NcAbiDigest::EMPTY.is_empty());
 ```
 
 ```compile_fail
-use neocogi_com::NcAbiSignature;
+use neocogi_com::NcAbiDigest;
 static WRONG_WIDTH: [u8; 17] = [0; 17];
-let _ = NcAbiSignature::from_static(&WRONG_WIDTH);
+let _ = NcAbiDigest::from_static(&WRONG_WIDTH);
 ```
 
 ## Weak lifetime references
@@ -230,7 +230,7 @@ typedef struct NcWeakRaw { NcWeakControl *control; } NcWeakRaw;
 
 The [common lifetime engine](../crates/core/src/lifetime.rs) defines `NcWeakControl`
 in this field order: `state: AtomicUsize`, `weak: AtomicUsize`, and
-`class: *const NcClassLifetime`. Its immutable class metadata contains provider-local
+`class: *const NcObjectTypeInfo`. Its immutable class metadata contains provider-local
 `destroy_value` and `deallocate` C callbacks followed by the interface-table
 pointer array and its count. Foreign implementations match target atomic
 width/alignment and synchronization; no Rust Arc representation is inspected.
@@ -680,8 +680,8 @@ provenance and pinned native code. The application selects `neocogi-com-host`
 (the Rust library `neocogi_com_host`) once: either link the rlib directly or load
 the native `neocogi-com-host-dylib` shim containing that same implementation.
 Ordinary static `#[com_main]` initializes the linked owner and passes a copyable
-`Runtime` to application code. A dynamic application explicitly loads its selected
-host with unsafe `Runtime::load_host_library(path)` before any provider acquisition.
+`RuntimeHandle` to application code. A dynamic application explicitly loads its selected
+host with unsafe `RuntimeHandle::load_host_library(path)` before any provider acquisition.
 
 Every provider bootstrap receives access to those same immutable host tables.
 A context-free callback in a table executes in the host and reaches its private
@@ -718,7 +718,7 @@ opened image and resolves the versioned bootstrap. It returns typed
 `HostLoadError` diagnostics for native open, symbol, entrypoint and admission
 failures, with the original caller path and exact COM status where applicable.
 It reads no returned graph on entrypoint failure; successful outputs pass the
-existing prefix-first host admission before `Runtime` references are formed.
+existing prefix-first host admission before `RuntimeHandle` references are formed.
 The unsafe caller still supplies trusted code and readable, coherent backing;
 validation cannot authenticate arbitrary pointers or lifetime promises.
 
@@ -748,10 +748,10 @@ The accessor and native export return metadata without registration or acquisiti
 | Generated Rust accessor | `plugin_descriptor()` borrows assembly metadata. |
 | Native getter | `NcGetPluginDescriptor`, exported as `nc_get_plugin_descriptor_v2` by `#[plugin]` under `dynamic-plugin`. |
 | Validation | `validate_plugin_descriptor` checks metadata without acquiring a factory or checking whether providers are registered. |
-| Static registration | `Runtime::register_plugin_descriptor` validates and publishes the descriptor after requiring registered hard providers. |
-| Unregistered library inspection | `Runtime::with_plugin_library_descriptor` lends the validated descriptor to a synchronous visitor. |
+| Static registration | `RuntimeHandle::register_plugin_descriptor` validates and publishes the descriptor after requiring registered hard providers. |
+| Unregistered library inspection | `RuntimeHandle::with_plugin_library_descriptor` lends the validated descriptor to a synchronous visitor. |
 | Registered inspection output | `NcPluginInfoV2` / owned `PluginInfo`, including first registration origin. |
-| Factory acquisition | `Runtime::acquire_plugin_root` checks the exact contract and returns one COM owner. |
+| Factory acquisition | `RuntimeHandle::acquire_plugin_root` checks the exact contract and returns one COM owner. |
 
 The descriptor's `description_abi_version` field matches
 `NC_PLUGIN_DESCRIPTOR_ABI_VERSION`. Its next field, `core_abi_version`, matches
@@ -819,7 +819,7 @@ storage; scalar shape checks are not arbitrary-pointer validation.
 ## Unified C table
 
 The implementation exposes `neocogi_com_host::initialize_runtime()` as its safe
-Rust entry, returning an admitted `Runtime` from its existing singleton without
+Rust entry, returning an admitted `RuntimeHandle` from its existing singleton without
 provider calls. It owns unsafe adoption of the complete static graph; safe
 startup never promotes a raw record returned by an arbitrary module. The separate
 `initialize_process()` lends the immutable C description for ABI bootstrap:
@@ -891,14 +891,14 @@ resource limits, separate from the dynamic-provider limit.
 
 ## Rust application API
 
-Registered metadata is available directly on `Runtime`; no intermediate
+Registered metadata is available directly on `RuntimeHandle`; no intermediate
 `Inspection` or `PluginRegistry` context is needed:
 
 The executable explicitly selects the host implementation in Cargo and uses:
 
 ```rust
 #[neocogi_com::com_main]
-fn main(runtime: neocogi_com::Runtime) {
+fn main(runtime: neocogi_com::RuntimeHandle) {
     for plugin in runtime.plugins().unwrap() {
         println!("{} {}", plugin.qualified_name, plugin.version);
     }
@@ -908,10 +908,10 @@ fn main(runtime: neocogi_com::Runtime) {
 Its manifest enables `neocogi-com`'s `runtime` clients and directly depends on
 `neocogi-com-host`. The handle itself is available without `std` or `runtime`;
 only richer clients require that feature. `com_main` supports safe synchronous
-nongeneric `fn main(runtime: Runtime)`, preserving normal `()`/`ExitCode`/`Result`
+nongeneric `fn main(runtime: RuntimeHandle)`, preserving normal `()`/`ExitCode`/`Result`
 returns, `?`, cfg and lint scopes. Explicit `neocogi_com = path, neocogi_com_host = path`
 arguments support renamed dependencies. It adds no executor.
-The selected path must expose `initialize_runtime() -> Runtime`; safe forwarding
+The selected path must expose `initialize_runtime() -> RuntimeHandle`; safe forwarding
 modules can return existing admitted access. A raw record is a compile-time type
 error. An inconsistent canonical graph is an internal host error at initialization.
 
@@ -943,7 +943,7 @@ stores `acquire: Option<NcAcquirePluginFactory>`; generated bootstrap code adapt
 the implementation's typed construction policy to that fixed supplied-host ABI.
 The raw bootstrap is
 `unsafe extern "C" fn(*const NcHostApiV2, *mut ComRaw<IUnknown>) -> NcStatus`.
-The authored `#[plugin]` function accepts one `Runtime` and returns its existing
+The authored `#[plugin]` function accepts one `RuntimeHandle` and returns its existing
 exact typed `Result<ComPtr<FactoryAbi>, NcStatus>`. Its adapter clears output
 before admitting host access; invalid access enters no provider code and
 transfers no owner. `write_plugin_root` invokes an unboxed `FnOnce` only after
@@ -994,7 +994,7 @@ unloading, path discovery, recursive dependency loading or an independently init
 
 ## Unregistered inspection and errors
 
-`Runtime::with_plugin_library_descriptor(path, visitor)` remains unsafe: the
+`RuntimeHandle::with_plugin_library_descriptor(path, visitor)` remains unsafe: the
 path selects trusted native code, and opening can execute platform loader code.
 It validates a descriptor and invokes the visitor synchronously exactly once,
 without registering the plugin, acquiring a factory or following dependencies.

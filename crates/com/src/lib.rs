@@ -90,7 +90,7 @@
 //! The `runtime` feature adds clients for supplied service tables, not a host.
 //!
 //! The host explicitly links `neocogi-com-host` and initializes its one catalog
-//! through `#[com_main]`. A copyable [`Runtime`] lends access to that host's immutable
+//! through `#[com_main]`. A copyable [`RuntimeHandle`] lends access to that host's immutable
 //! C operation tables. Plugin acquisition and reusable libraries receive it from
 //! their caller; the facade selects no implementation or named-symbol discovery.
 //! Caller-owned persistence registries and UI event queues retain their separate
@@ -119,7 +119,7 @@ mod data;
 pub mod idl_metadata;
 mod object;
 mod runtime_access;
-pub use runtime_access::Runtime;
+pub use runtime_access::RuntimeHandle;
 /// Shared native loading support for host bootstrap and plugin implementation.
 #[cfg(feature = "runtime")]
 #[doc(hidden)]
@@ -155,13 +155,13 @@ pub use neocogi_com_core::{
     NC_DEBUG_TYPE_PLUGIN, NC_DEBUG_TYPE_RUNTIME, NC_DEBUG_TYPE_VALIDATION, NC_DESCRIPTOR_QUALIFIED_NAME_MAX_LEN, NC_DESCRIPTOR_VERSION_MAX_LEN,
     NC_E_ABI_VERSION, NC_E_BUSY, NC_E_CLOSED, NC_E_DROPPED, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG, NC_E_INVALID_TAG, NC_E_LOAD_FAILED, NC_E_NOINTERFACE,
     NC_E_NOT_FOUND, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_PLUGIN_DESCRIPTOR_ABI_VERSION, NC_GET_PLUGIN_DESCRIPTOR_SYMBOL, NC_GUID_NIL, NC_OK,
-    NcAbiSignature, NcAbiPassing, NcAbiPassingDescriptor, NcAbiReceiver, NcAbiThreadingMode, NcAbiType, NcAbiTypeDescriptor, NcAcquirePluginFactory,
-    NcDebugApiV2, NcDebugCallbackV2, NcDebugMessageV2, NcDebugMessengerCreateInfoV2, NcPluginDescriptor, NcGetPluginDescriptor, NcGuid,
-    NcInspectPluginDescriptorCallbackV2, NcInterfaceDescriptor, NcInterfaceId, NcMethodDescriptor, NcMethodParamDescriptor, NcPersistenceApiV2,
-    NcPersistenceContext, NcPersistenceLimitsV2, NcPersistenceWriteBytesV2, NcMethodReturnDescriptor, NcPluginDependencyDescriptor, NcFactoryInfoV2,
-    NcPluginInfoV2, NcQualifiedNameError, NcRuntimeApiV2, NcStaticUtf8, NcStatus, NcUtf8View, NcVersionTextError, ParseGuidError, QUALIFIED_NAME_INC_BYTES,
-    QUALIFIED_NAME_INC_STRING, ThreadLocal, ThreadSafe, ThreadingModel, write_plugin_root, guid_from_qualified_name, raw, return_plugin_descriptor,
-    validate_plugin_descriptor, validate_qualified_name, validate_version_text, validate_rust_path, NcRustPathError, NC_DESCRIPTOR_RUST_PATH_MAX_LEN,
+    NcAbiDigest, NcAbiPassing, NcAbiPassingDescriptor, NcAbiReceiver, NcAbiThreadingMode, NcAbiType, NcAbiTypeDescriptor, NcAcquirePluginFactory, NcDebugApiV2,
+    NcDebugCallbackV2, NcDebugMessageV2, NcDebugMessengerCreateInfoV2, NcPluginDescriptor, NcGetPluginDescriptor, NcGuid, NcInspectPluginDescriptorCallbackV2,
+    NcInterfaceDescriptor, NcInterfaceId, NcMethodDescriptor, NcMethodParamDescriptor, NcPersistenceApiV2, NcPersistenceContext, NcPersistenceLimitsV2,
+    NcPersistenceWriteBytesV2, NcMethodReturnDescriptor, NcPluginDependencyDescriptor, NcFactoryInfoV2, NcPluginInfoV2, NcQualifiedNameError, NcRuntimeApiV2,
+    NcStaticUtf8, NcStatus, NcUtf8View, NcVersionTextError, ParseGuidError, QUALIFIED_NAME_INC_BYTES, QUALIFIED_NAME_INC_STRING, ThreadLocal, ThreadSafe,
+    ThreadingModel, write_plugin_root, guid_from_qualified_name, raw, return_plugin_descriptor, validate_plugin_descriptor, validate_qualified_name,
+    validate_version_text, validate_rust_path, NcRustPathError, NC_DESCRIPTOR_RUST_PATH_MAX_LEN,
 };
 pub use object::{ComBorrowState, ComReadGuard, ComWriteGuard, __ComSharedCall, __ComExclusiveCall, __com_add_ref_count, __com_release_ref_count, ComObject};
 #[cfg(feature = "alloc")]
@@ -173,7 +173,7 @@ pub use local::{LocalBox, WeakLocalBox, LocalCom, WeakLocalCom, LocalMut, LocalR
 pub use neocogi_com_core::__ComSupportsInterfaceThreading;
 #[cfg(feature = "runtime")]
 pub use runtime::{
-    Debug, DebugMessenger, HostLoadError, HostLoadErrorKind, NC_COM_RUNTIME_MAX_ENUMERATION_ITEMS, NC_COM_RUNTIME_MAX_ENUMERATION_RETRIES,
+    RuntimeDiagnostics, DebugMessenger, HostLoadError, HostLoadErrorKind, NC_COM_RUNTIME_MAX_ENUMERATION_ITEMS, NC_COM_RUNTIME_MAX_ENUMERATION_RETRIES,
     NC_COM_RUNTIME_MAX_INSPECTION_TEXT_BYTES, FactoryInfo, PluginInfo, PluginOrigin,
 };
 

@@ -61,7 +61,7 @@ static ROOT: IUnknownVTable = IUnknownVTable {
     downgrade: None,
 };
 /// Class data points to one valid root projection without retaining inspection graphs.
-static CLASS: NcClassLifetime = NcClassLifetime {
+static CLASS: NcObjectTypeInfo = NcObjectTypeInfo {
     destroy_value: destroy,
     deallocate: free,
     interfaces: [&ROOT as *const IUnknownVTable].as_ptr(),
@@ -108,7 +108,7 @@ fn final_strong_drops_value_before_final_weak_frees_storage() {
 #[test]
 fn checked_projection_balances_all_ownership_paths() {
     let (control, observations) = allocation();
-    let wrong = NcInterfaceId::new(crate::IID_IUNKNOWN, crate::NcAbiSignature::from_static(&[0; 32]));
+    let wrong = NcInterfaceId::new(crate::IID_IUNKNOWN, crate::NcAbiDigest::from_static(&[0; 32]));
     unsafe {
         nc_weak_retain(control);
         let mut out = ComRaw { object: control.cast(), vtable: &ROOT };

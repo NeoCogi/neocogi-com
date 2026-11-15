@@ -19,6 +19,6 @@ impl contracts::Calculator for Calculator {
 
 /// Supplies one owned calculator through the fixed plugin bootstrap contract.
 #[neocogi_com::plugin(name = "nc.tutorial.calculator")]
-fn acquire(_runtime: neocogi_com::Runtime) -> Result<neocogi_com::ComPtr<contracts::CalculatorAbi>, neocogi_com::NcStatus> {
+fn acquire(_runtime: neocogi_com::RuntimeHandle) -> Result<neocogi_com::ComPtr<contracts::CalculatorAbi>, neocogi_com::NcStatus> {
     Calculator::from_value(Calculator).query()
 }

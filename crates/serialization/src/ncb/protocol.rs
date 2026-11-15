@@ -702,7 +702,7 @@ fn read_text(value: NcCopyFromBufferOffset<'_, u8>) -> Result<&str, &'static str
 #[cfg(test)]
 mod tests {
     use super::*;
-    use neocogi_com::serialization::{scope::Scoped, ISerializerAbi, ScopedSerializer};
+    use neocogi_com::serialization::{scope::ScopedComProvider, ISerializerAbi, ScopedSerializer};
 
     /// Counting storage exercises real format dispatch without any heap allocation.
     fn writer() -> Encoder<'static> {
@@ -718,8 +718,8 @@ mod tests {
     /// Borrowed scopes cannot acquire ownership or weak references and obey their ABI gate.
     #[test]
     fn scoped_capabilities_reject_retention_and_reentrant_mutation() {
-        let scope = Scoped::new(writer());
-        // SAFETY: generated adapters use exactly this Scoped<Encoder> type.
+        let scope = ScopedComProvider::new(writer());
+        // SAFETY: generated adapters use exactly this ScopedComProvider<Encoder> type.
         let mut interface: neocogi_com::ComRef<'_, ISerializerAbi> = unsafe { scope.interface(&ScopedSerializer::<Encoder<'_>>::VTABLE) };
         assert_eq!(interface.try_add_ref().unwrap_err(), neocogi_com::NC_E_INVALID_ARG);
         assert_eq!(interface.downgrade().unwrap_err(), neocogi_com::NC_E_NOINTERFACE);
@@ -730,7 +730,7 @@ mod tests {
         assert_eq!(status, neocogi_com::NC_E_INVALID_ARG);
         assert!(output.is_null());
         // SAFETY: this scope and the generated table share the exact provider type.
-        let lease = unsafe { Scoped::<Encoder<'_>>::borrow_mut(raw.object) }.unwrap();
+        let lease = unsafe { ScopedComProvider::<Encoder<'_>>::borrow_mut(raw.object) }.unwrap();
         assert_eq!(interface.serialize_u32(7), Err(neocogi_com::NC_E_BUSY));
         drop(lease);
         interface.serialize_u32(7).unwrap();
@@ -740,7 +740,7 @@ mod tests {
     /// ABI validation rejects malformed readable values before entering or poisoning the format.
     #[test]
     fn malformed_bool_wire_is_rejected_before_provider_state_changes() {
-        let scope = Scoped::new(writer());
+        let scope = ScopedComProvider::new(writer());
         // SAFETY: the exact generated table lends this retained scope's state.
         let mut interface: neocogi_com::ComRef<'_, ISerializerAbi> = unsafe { scope.interface(&ScopedSerializer::<Encoder<'_>>::VTABLE) };
         let raw = interface.as_raw();

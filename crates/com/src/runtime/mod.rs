@@ -11,7 +11,7 @@ use std::vec::Vec;
 
 use crate::{
     ComInterface, ComPtr, IUnknown, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG, NC_E_NOT_FOUND, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER,
-    NC_ABI_THREADING_THREAD_LOCAL, NcDebugApiV2, NcPluginDescriptor, NcGuid, NcRuntimeApiV2, NcStatus, NcUtf8View, ThreadingModel, Runtime,
+    NC_ABI_THREADING_THREAD_LOCAL, NcDebugApiV2, NcPluginDescriptor, NcGuid, NcRuntimeApiV2, NcStatus, NcUtf8View, ThreadingModel, RuntimeHandle,
 };
 
 mod bootstrap;
@@ -19,7 +19,7 @@ mod debug;
 mod plugin;
 
 pub use bootstrap::{HostLoadError, HostLoadErrorKind};
-pub use debug::{Debug, DebugMessenger};
+pub use debug::{RuntimeDiagnostics, DebugMessenger};
 pub use plugin::{FactoryInfo, PluginInfo, PluginOrigin};
 
 /// Maximum number of elements copied by one Rust runtime-facade enumeration.
@@ -40,7 +40,7 @@ pub const NC_COM_RUNTIME_MAX_ENUMERATION_RETRIES: usize = 8;
 /// Maximum UTF-8 byte length copied from one runtime inspection view.
 pub const NC_COM_RUNTIME_MAX_INSPECTION_TEXT_BYTES: usize = 1024 * 1024;
 
-impl Runtime {
+impl RuntimeHandle {
     /// Borrows the admitted plugin operations without discovery or callbacks.
     fn runtime_api(&self) -> &'static NcRuntimeApiV2 {
         self.runtime
@@ -52,8 +52,8 @@ impl Runtime {
     }
 
     /// Returns callback-based runtime diagnostics operations.
-    pub fn debug(&self) -> Debug<'_> {
-        Debug::new(self)
+    pub fn debug(&self) -> RuntimeDiagnostics<'_> {
+        RuntimeDiagnostics::new(self)
     }
 
     /// Registers one plugin descriptor without constructing its factory.

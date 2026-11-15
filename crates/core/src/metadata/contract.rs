@@ -18,7 +18,7 @@
 //! the raw record would still need integer storage that permits validation.
 
 use crate::guid::NcGuid;
-use crate::signature::NcAbiSignature;
+use crate::signature::NcAbiDigest;
 
 /// Current core compatibility generation for the ABI v2 SDK.
 ///
@@ -39,18 +39,18 @@ pub struct NcInterfaceId {
     /// Stable interface GUID.
     pub iid: NcGuid,
     /// Canonical interface ABI validation contract.
-    pub abi_signature: NcAbiSignature,
+    pub abi_signature: NcAbiDigest,
 }
 
 impl NcInterfaceId {
     /// Sentinel used when no interface is present.
     pub const NONE: Self = Self {
         iid: NcGuid::nil(),
-        abi_signature: NcAbiSignature::EMPTY,
+        abi_signature: NcAbiDigest::EMPTY,
     };
 
     /// Creates an interface identity from its GUID and ABI signature.
-    pub const fn new(iid: NcGuid, abi_signature: NcAbiSignature) -> Self {
+    pub const fn new(iid: NcGuid, abi_signature: NcAbiDigest) -> Self {
         Self { iid, abi_signature }
     }
 
@@ -99,7 +99,7 @@ pub enum NcAbiType {
     /// [`crate::NcStatus`] value.
     NcStatus,
     /// Declaration-scoped ABI-safe aggregate identity.
-    Aggregate(NcAbiSignature),
+    Aggregate(NcAbiDigest),
     /// COM interface reference or pointer type.
     Interface {
         /// Referenced interface GUID.
@@ -323,7 +323,7 @@ pub struct NcAbiTypeDescriptor {
     /// The IDL tool derives this from the exact module revision and declaration
     /// ID. Application-memory offsets are not published. The generated concrete
     /// wire type and checked field codecs establish the actual foreign layout.
-    pub aggregate_signature: NcAbiSignature,
+    pub aggregate_signature: NcAbiDigest,
     /// Interface identity when `tag == NC_ABI_TYPE_INTERFACE`.
     pub interface: NcInterfaceId,
 }
@@ -348,7 +348,7 @@ impl NcAbiTypeDescriptor {
     pub const fn from_abi_type(ty: NcAbiType) -> Self {
         let mut out = Self {
             tag: NC_ABI_TYPE_VOID,
-            aggregate_signature: NcAbiSignature::EMPTY,
+            aggregate_signature: NcAbiDigest::EMPTY,
             interface: NcInterfaceId::NONE,
         };
         match ty {
@@ -374,7 +374,7 @@ impl NcAbiTypeDescriptor {
             }
             NcAbiType::Interface { iid } => {
                 out.tag = NC_ABI_TYPE_INTERFACE;
-                out.interface = NcInterfaceId::new(iid, NcAbiSignature::EMPTY);
+                out.interface = NcInterfaceId::new(iid, NcAbiDigest::EMPTY);
             }
         }
         out

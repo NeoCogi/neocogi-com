@@ -11,16 +11,18 @@ use core::{
 };
 use crate::{ComInterface, ComRaw, ComRef, IUnknown, NcInterfaceId, NcStatus, NC_E_BUSY, NC_E_INVALID_ARG, NC_E_POINTER};
 
-/// Owns one provider while lending nonretainable COM references to its state.
+/// Owns one scoped provider while lending nonretainable COM references.
+/// Provider storage stays local; every borrowed capability is bounded by this
+/// owner's lifetime and every mutable ABI entry holds a ScopedComWriteGuard.
 /// UnsafeCell is required by foreign aliasing; the busy gate excludes reentrant
 /// mutable calls before any Rust reference to the provider is constructed.
-pub struct Scoped<T> {
+pub struct ScopedComProvider<T> {
     /// Provider storage accessed only under the call gate.
     value: UnsafeCell<T>,
     /// Whether an ABI method currently has exclusive access to the provider.
     busy: Cell<bool>,
 }
-impl<T> Scoped<T> {
+impl<T> ScopedComProvider<T> {
     /// Starts an idle scope, retaining all borrowed data inside T's own lifetime.
     pub fn new(value: T) -> Self {
         Self {
@@ -35,7 +37,7 @@ impl<T> Scoped<T> {
     /// Lends a correctly typed capability without acquiring an ownership token.
     ///
     /// # Safety
-    /// The table's thunks must use this exact Scoped<T> storage, reject retained
+    /// The table's thunks must use this exact ScopedComProvider<T> storage, reject retained
     /// ownership, and guard all provider access with borrow_mut. I's metadata must
     /// describe that table. The Rust borrow keeps both the scope and T alive.
     pub unsafe fn interface<I: ComInterface>(&self, table: &'static I::VTable) -> ComRef<'_, I> {
@@ -48,12 +50,12 @@ impl<T> Scoped<T> {
             .unwrap()
         }
     }
-    /// Acquires one typed lease before touching foreign-addressed provider state.
+    /// Acquires one typed write guard before touching foreign-addressed provider state.
     ///
     /// # Safety
-    /// this must identify a live Scoped<T>, retained for the complete lease. All
+    /// this must identify a live ScopedComProvider<T>, retained for the complete guard. All
     /// other accesses must use the same gate. Calls stay on the lending thread.
-    pub unsafe fn borrow_mut<'a>(this: *mut c_void) -> Result<Lease<'a, T>, NcStatus>
+    pub unsafe fn borrow_mut<'a>(this: *mut c_void) -> Result<ScopedComWriteGuard<'a, T>, NcStatus>
     where
         T: 'a,
     {
@@ -62,30 +64,31 @@ impl<T> Scoped<T> {
         if scope.busy.replace(true) {
             return Err(NC_E_BUSY);
         }
-        Ok(Lease { scope })
+        Ok(ScopedComWriteGuard { scope })
     }
 }
-/// Exclusive provider access; no T reference survives releasing its gate.
-pub struct Lease<'a, T> {
+/// Exclusive write access to a ScopedComProvider while its busy gate is held.
+/// Deref reborrows provider state; no T reference survives releasing the gate.
+pub struct ScopedComWriteGuard<'a, T> {
     /// Retained scope, including its shared reentrancy gate and mutable slot.
-    scope: &'a Scoped<T>,
+    scope: &'a ScopedComProvider<T>,
 }
-impl<T> Deref for Lease<'_, T> {
+impl<T> Deref for ScopedComWriteGuard<'_, T> {
     type Target = T;
-    /// Reborrows initialized state only while this lease holds the gate.
+    /// Reborrows initialized state only while this guard holds the gate.
     fn deref(&self) -> &T {
-        // SAFETY: this lease still holds the sole provider admission.
+        // SAFETY: this guard still holds the sole provider admission.
         unsafe { &*self.scope.value.get() }
     }
 }
-impl<T> DerefMut for Lease<'_, T> {
+impl<T> DerefMut for ScopedComWriteGuard<'_, T> {
     /// The gate proves exclusive access for this reborrow.
     fn deref_mut(&mut self) -> &mut T {
         // SAFETY: the gate excludes every other provider reference.
         unsafe { &mut *self.scope.value.get() }
     }
 }
-impl<T> Drop for Lease<'_, T> {
+impl<T> Drop for ScopedComWriteGuard<'_, T> {
     /// Releases admission after all temporary provider references have ended.
     fn drop(&mut self) {
         self.scope.busy.set(false);

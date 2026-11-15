@@ -4,14 +4,14 @@ extern crate self as shared_host_app;
 pub mod contracts {
     include!(env!("SHARED_HOST_BINDINGS"));
 }
-use neocogi_com::{Runtime, guid_from_qualified_name};
+use neocogi_com::{RuntimeHandle, guid_from_qualified_name};
 
 /// Exercises native bootstrap errors or the complete selected-host composition.
 fn main() {
     let args: Vec<_> = std::env::args_os().collect();
     if args[1] == "error" {
         // SAFETY: test images grant the prefix contract appropriate to their status.
-        let error = unsafe { Runtime::load_host_library(&args[2]) }.unwrap_err();
+        let error = unsafe { RuntimeHandle::load_host_library(&args[2]) }.unwrap_err();
         assert_eq!(error.kind().to_string(), args[3].to_str().unwrap());
         assert_eq!(error.path(), std::path::Path::new(&args[2]));
         match error.kind() {
@@ -33,7 +33,7 @@ fn main() {
     let runtime = neocogi_com_host::initialize_runtime();
     #[cfg(not(feature = "static-host"))]
     // SAFETY: the fixture deploys the actual SDK host shim, retained for process lifetime.
-    let runtime = unsafe { Runtime::load_host_library(&args[2]) }.unwrap();
+    let runtime = unsafe { RuntimeHandle::load_host_library(&args[2]) }.unwrap();
     assert_eq!(runtime.plugins().unwrap().len(), 0);
     // SAFETY: trusted generated providers are mapped and pinned by the selected host.
     unsafe {
@@ -51,7 +51,7 @@ fn main() {
     let again = neocogi_com_host::initialize_runtime();
     #[cfg(not(feature = "static-host"))]
     // SAFETY: reopening the same pinned runtime image retains that image's one owner.
-    let again = unsafe { Runtime::load_host_library(&args[2]) }.unwrap();
+    let again = unsafe { RuntimeHandle::load_host_library(&args[2]) }.unwrap();
     assert_eq!(again.plugins().unwrap().len(), 2);
     assert_eq!(std::thread::spawn(move || again.plugins().unwrap().len()).join().unwrap(), 2);
     drop(root);

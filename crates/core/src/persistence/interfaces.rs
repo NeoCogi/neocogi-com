@@ -218,7 +218,7 @@ const _: () = {
 };
 impl IObjectChildrenAbi {
     ///Canonical validation form of this interface's typed ABI contract.
-    pub const ABI_SIGNATURE: ::neocogi_com::NcAbiSignature = ::neocogi_com::NcAbiSignature::from_static(
+    pub const ABI_SIGNATURE: ::neocogi_com::NcAbiDigest = ::neocogi_com::NcAbiDigest::from_static(
         b")\x06\xFE\xB4\xE2\xA1\xE5\xCE:\xE0Tv\xCCu\x81]\xBC\x80\x90g\x1B\x940\x8A\xD3B\xF1\x83\x1B H\xD9",
     );
     ///Static descriptors for this interface's ABI methods.
@@ -656,7 +656,7 @@ const _: () = {
 };
 impl IPersistableAbi {
     ///Canonical validation form of this interface's typed ABI contract.
-    pub const ABI_SIGNATURE: ::neocogi_com::NcAbiSignature = ::neocogi_com::NcAbiSignature::from_static(
+    pub const ABI_SIGNATURE: ::neocogi_com::NcAbiDigest = ::neocogi_com::NcAbiDigest::from_static(
         b"\xEBB[\xCA/\xB5\x98K@G\x1D$\x13\x18U39\n\x15d\xEE7\xAFt\xB4~\xCF\xF5p%\x1A\x9C",
     );
     ///Static descriptors for this interface's ABI methods.
@@ -1026,7 +1026,7 @@ const _: () = {
 };
 impl IPersistenceFactoryAbi {
     ///Canonical validation form of this interface's typed ABI contract.
-    pub const ABI_SIGNATURE: ::neocogi_com::NcAbiSignature = ::neocogi_com::NcAbiSignature::from_static(
+    pub const ABI_SIGNATURE: ::neocogi_com::NcAbiDigest = ::neocogi_com::NcAbiDigest::from_static(
         b"\xF9P\xB5\xD8B\r\xFBy67~7\x8C\x7F\n\xFD\x1D\x83w\x88T\xD1=k\"\x98r6\xEB\xF2\xA0\0",
     );
     ///Static descriptors for this interface's ABI methods.

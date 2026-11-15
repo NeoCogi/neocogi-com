@@ -178,7 +178,7 @@ fn strong_handles_keep_two_words_and_weak_handles_use_one() {
     assert_eq!(std::mem::size_of::<Option<WeakComPtr<IUnknown>>>(), std::mem::size_of::<usize>());
     assert_eq!(std::mem::size_of::<neocogi_com::NcWeakRaw>(), std::mem::size_of::<usize>());
     assert_eq!(std::mem::size_of::<neocogi_com::lifetime::NcWeakControl>(), 3 * std::mem::size_of::<usize>());
-    assert_eq!(std::mem::size_of::<neocogi_com::lifetime::NcClassLifetime>(), 4 * std::mem::size_of::<usize>());
+    assert_eq!(std::mem::size_of::<neocogi_com::lifetime::NcObjectTypeInfo>(), 4 * std::mem::size_of::<usize>());
 }
 
 /// Providers can decline weak lifetime support without inventing a wrapper lifetime.
@@ -207,7 +207,7 @@ fn weak_promotion_checks_exact_interface_revision() {
     });
     let weak = owner.downgrade().unwrap();
     let raw = weak.as_raw();
-    let wrong = neocogi_com::NcInterfaceId::new(IValueAbi::IID, neocogi_com::NcAbiSignature::from_static(&[0; 32]));
+    let wrong = neocogi_com::NcInterfaceId::new(IValueAbi::IID, neocogi_com::NcAbiDigest::from_static(&[0; 32]));
     let mut out = owner.as_raw();
     // SAFETY: a real live weak allocation and distinct valid records exercise a wrong signature.
     let status = unsafe { neocogi_com::lifetime::nc_weak_upgrade(raw.control, &wrong, &mut out) };
@@ -405,7 +405,7 @@ enum WrongRevision {}
 // SAFETY: this marker describes IValue's physical table with a different revision;
 // only rejection tests use it, and no provider publishes that revision.
 unsafe impl neocogi_com::ComInterface for WrongRevision {
-    const INTERFACE_ID: neocogi_com::NcInterfaceId = neocogi_com::NcInterfaceId::new(IValueAbi::IID, neocogi_com::NcAbiSignature::from_static(&[0; 32]));
+    const INTERFACE_ID: neocogi_com::NcInterfaceId = neocogi_com::NcInterfaceId::new(IValueAbi::IID, neocogi_com::NcAbiDigest::from_static(&[0; 32]));
     type VTable = IValueVTable;
     type Threading = neocogi_com::ThreadLocal;
 }

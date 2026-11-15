@@ -3,7 +3,7 @@
 use neocogi_com_serialization::ncb as binary;
 #[path = "../support/notification_channel.rs"]
 mod notification_channel;
-use neocogi_com::{Runtime, ComPtr, ComRef, IUnknown, NcCopyFromBufferOffset, NcStatus, NC_E_ABI_VERSION, NC_E_INVALID_ARG, guid_from_qualified_name};
+use neocogi_com::{RuntimeHandle, ComPtr, ComRef, IUnknown, NcCopyFromBufferOffset, NcStatus, NC_E_ABI_VERSION, NC_E_INVALID_ARG, guid_from_qualified_name};
 use neocogi_com::persistence::{FactoryRegistry, snapshot};
 use neocogi_com::NcValueRef;
 
@@ -14,7 +14,7 @@ use neocogi_example_com_host::contracts::{ExampleFactoryAbi, ExampleObjectAbi, E
 
 /// Registers the selected plugin, acquires its checked factory, and mutates one object.
 #[neocogi_com::com_main]
-fn main(runtime: Runtime) {
+fn main(runtime: RuntimeHandle) {
     // This example also uses static NCB helpers for typed state. Select that same
     // static serialization implementation explicitly for host persistence.
     // SAFETY: The descriptor and all its code are linked for process lifetime.
@@ -77,14 +77,14 @@ fn main(runtime: Runtime) {
 
 /// Borrows immutable plugin metadata from the rlib retained by this executable.
 #[cfg(feature = "monolith")]
-fn register_plugin(runtime: &Runtime) {
+fn register_plugin(runtime: &RuntimeHandle) {
     // SAFETY: Both the descriptor and its code are linked into this process.
     unsafe { runtime.register_plugin_descriptor(nc_example_com::plugin_descriptor()) }.expect("static plugin registration");
 }
 
 /// Loads the trusted sample plugin supplied as the executable's first argument.
 #[cfg(not(feature = "monolith"))]
-fn register_plugin(runtime: &Runtime) {
+fn register_plugin(runtime: &RuntimeHandle) {
     let path = std::env::args_os().nth(1).expect("usage: neocogi-example-com PATH_TO_PLUGIN");
     // SAFETY: This demonstration accepts its own trusted build artifact. The
     // runtime retains the mapping while any factory or object can reference it.
@@ -94,7 +94,7 @@ fn register_plugin(runtime: &Runtime) {
 /// An optional second native provider proves supplied access reaches one owner.
 /// It is built independently by qualification, never linked into this host.
 #[cfg(not(feature = "monolith"))]
-fn qualify_peer(runtime: &Runtime) {
+fn qualify_peer(runtime: &RuntimeHandle) {
     let Some(path) = std::env::args_os().nth(2) else { return };
     let initial = runtime.plugins().unwrap().len();
     // SAFETY: qualification supplies its own trusted independently compiled DLL.
@@ -124,13 +124,15 @@ fn qualify_peer(runtime: &Runtime) {
 
 /// Static execution has no separately built peer or native loader requirement.
 #[cfg(feature = "monolith")]
-fn qualify_peer(_runtime: &Runtime) {}
+fn qualify_peer(_runtime: &RuntimeHandle) {}
 
 /// Same valid identity in different static storage must conflict with provider A.
 #[cfg(not(feature = "monolith"))]
 mod conflict {
     #[neocogi_com::plugin(name = "nc.examples.factory_plugin_component")]
-    fn acquire(_runtime: neocogi_com::Runtime) -> Result<neocogi_com::ComPtr<neocogi_example_com_host::contracts::ExampleFactoryAbi>, neocogi_com::NcStatus> {
+    fn acquire(
+        _runtime: neocogi_com::RuntimeHandle,
+    ) -> Result<neocogi_com::ComPtr<neocogi_example_com_host::contracts::ExampleFactoryAbi>, neocogi_com::NcStatus> {
         panic!("conflicting metadata must never be acquired")
     }
 }

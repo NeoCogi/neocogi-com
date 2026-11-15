@@ -6,6 +6,16 @@ Historical draft numbers do not define additional supported COM baselines.
 
 ## Unreleased
 
+- Clarify Rust ownership and representation names: `Runtime` becomes
+  `RuntimeHandle`, `NcClassLifetime` becomes `NcObjectTypeInfo`, and
+  `NcAbiSignature` becomes `NcAbiDigest`. Runtime diagnostics use
+  `RuntimeDiagnostics`. Scoped serialization uses `ScopedComProvider` and
+  `ScopedComWriteGuard`; record/sequence cursors use `RecordFieldReader` and
+  `SequenceReader`. Host internals use `PluginRegistry` and `RegisteredPlugin`.
+  Update generated bindings, macros, native C mirrors, examples and consumers
+  together; no old-name aliases remain. Interface schemas, GUIDs, digest bytes,
+  C layouts, NCB wire v1 and ABI v2/core generation 19 are unchanged.
+
 - Rename the source-level IDL model enum from `AbiType` to `IdlType` across
   parsing, resolution, specialization and generation. The separate core
   `AbiType` trait remains unchanged. IDL spelling, canonical encoding and
@@ -15,7 +25,7 @@ Historical draft numbers do not define additional supported COM baselines.
   `nc_get_host_api_v2` to lend the host rlib's canonical C service graph.
   Applications choose one static or dynamic host owner; providers and nested
   acquisitions receive the same supplied runtime and never initialize a catalog.
-- Add unsafe SDK `Runtime::load_host_library` with explicit filesystem paths,
+- Add unsafe SDK `RuntimeHandle::load_host_library` with explicit filesystem paths,
   process-pinned images, existing host-table admission and typed startup errors.
   Share the existing Unix/Windows loader without selecting a host implementation
   in the SDK. No fallback registry or unload path is introduced. ABI v2/core

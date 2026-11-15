@@ -13,7 +13,7 @@
 
 use super::contract::{NcAbiPassingDescriptor, NcAbiTypeDescriptor, NcInterfaceId};
 use crate::guid::NcGuid;
-use crate::signature::NcAbiSignature;
+use crate::signature::NcAbiDigest;
 use crate::status::{NC_E_INVALID_ARG, NC_E_POINTER, NcStatus};
 
 /// C-stable typed ABI descriptor for one method parameter.
@@ -175,7 +175,7 @@ pub struct NcInterfaceDescriptor {
     /// The typed `methods` remain available for checking and diagnostics, while
     /// compatibility compares this generator-owned identity byte-for-byte. The
     /// signature incorporates the exact transitive IDL module revision.
-    pub abi_signature: NcAbiSignature,
+    pub abi_signature: NcAbiDigest,
     /// Explicit generated base contract, or `NONE` for the implicit IUnknown root.
     /// Methods below describe only the slots introduced by this interface.
     pub base: NcInterfaceId,
@@ -261,7 +261,7 @@ pub struct NcPluginDependencyDescriptor {
 mod tests {
     use crate::{NC_ABI_RECEIVER_MUTABLE, NC_ABI_RECEIVER_SHARED, NcAbiReceiver, NcGuid};
     use crate::{
-        NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE, NC_COM_CORE_ABI_VERSION, NcAbiSignature, NcAbiThreadingMode, NcInterfaceDescriptor,
+        NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE, NC_COM_CORE_ABI_VERSION, NcAbiDigest, NcAbiThreadingMode, NcInterfaceDescriptor,
         NcInterfaceId, NcPluginDependencyDescriptor,
     };
 
@@ -276,7 +276,7 @@ mod tests {
         static NONEMPTY_SIGNATURE: [u8; 32] = [1; 32];
 
         assert!(NcInterfaceId::NONE.is_none());
-        assert!(!NcInterfaceId::new(NcGuid::nil(), NcAbiSignature::from_static(&NONEMPTY_SIGNATURE)).is_none());
+        assert!(!NcInterfaceId::new(NcGuid::nil(), NcAbiDigest::from_static(&NONEMPTY_SIGNATURE)).is_none());
     }
 
     #[test]

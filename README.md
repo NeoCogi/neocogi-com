@@ -35,6 +35,8 @@ Development on `0.4.0-wip` additionally includes
 [`neocogi-com-host-dylib`](crates/host-dylib/README.md), an optional native host
 bootstrap shim. It is unreleased. Applications choose one static or dynamic host
 owner and supply that owner's runtime access to every plugin.
+The approved [Rust API renames](docs/COM.md#rust-names-in-040-development) are
+recorded with migration names; ABI v2/core generation 19 remains unchanged.
 
 A **host** is the final application that owns one runtime implementation. An
 **interface caller** calls a COM interface; a **provider** implements one. These

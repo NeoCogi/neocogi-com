@@ -7,7 +7,7 @@
 
 use crate::guid::NcGuid;
 use crate::metadata::NcAbiType;
-use crate::signature::NcAbiSignature;
+use crate::signature::NcAbiDigest;
 use crate::status::NcStatus;
 
 /// Canonical type metadata for copied application values with checked wire codecs.
@@ -97,7 +97,7 @@ const UNIT_SIGNATURE: [u8; 32] = crate::__nc_abi_digest(b"neocogi.unit:v1\0");
 
 // SAFETY: this core-owned intrinsic describes ComValue's checked unit codec.
 unsafe impl AbiType for () {
-    const ABI_TYPE: NcAbiType = NcAbiType::Aggregate(NcAbiSignature::from_static(&UNIT_SIGNATURE));
+    const ABI_TYPE: NcAbiType = NcAbiType::Aggregate(NcAbiDigest::from_static(&UNIT_SIGNATURE));
 }
 // SAFETY: unit is durable Copy data with no pointer or release obligations.
 unsafe impl AbiPlainValue for () {}
@@ -146,7 +146,7 @@ const fn array_signature(element: NcAbiType, len: usize) -> [u8; 32] {
 // application array may contain native enums; calls use ValueArray<T::Wire, N>
 // and validate each element instead of exposing local application layout.
 unsafe impl<T: AbiPlainValue, const N: usize> AbiType for [T; N] {
-    const ABI_TYPE: NcAbiType = NcAbiType::Aggregate(NcAbiSignature::from_static(&array_signature(T::ABI_TYPE, N)));
+    const ABI_TYPE: NcAbiType = NcAbiType::Aggregate(NcAbiDigest::from_static(&array_signature(T::ABI_TYPE, N)));
 }
 // SAFETY: Arrays introduce no resources or lifetime obligations beyond T.
 unsafe impl<T: AbiPlainValue, const N: usize> AbiPlainValue for [T; N] {}
@@ -161,7 +161,7 @@ mod array_tests {
             0x88, 0x89, 0x5e, 0xc8, 0xe3, 0x4f, 0x7f, 0x3c, 0x98, 0x9d, 0x6c, 0x94, 0x0d, 0x69, 0xec, 0x39, 0x51, 0x65, 0x8e, 0x68, 0x94, 0x01, 0xce, 0x5d,
             0xfa, 0x79, 0x6c, 0xd0, 0x6f, 0xfe, 0x08, 0x91,
         ];
-        assert_eq!(<()>::ABI_TYPE, NcAbiType::Aggregate(NcAbiSignature::from_static(&EXPECTED)));
+        assert_eq!(<()>::ABI_TYPE, NcAbiType::Aggregate(NcAbiDigest::from_static(&EXPECTED)));
         assert_ne!(<()>::ABI_TYPE, NcAbiType::Void);
         assert_ne!(<()>::ABI_TYPE, u8::ABI_TYPE);
         assert_ne!(<[(); 0]>::ABI_TYPE, <[u8; 0]>::ABI_TYPE);
@@ -189,7 +189,7 @@ mod array_tests {
             0x34, 0xa4, 0x31, 0xc9, 0xb2, 0xe9, 0xf3, 0x54, 0xf8, 0xce, 0x68, 0x9b, 0xbc, 0xe6, 0xc2, 0x2b, 0xd4, 0x85, 0x69, 0xb4, 0x95, 0xa3, 0x9d, 0x52,
             0xd0, 0xa3, 0x79, 0x94, 0x79, 0x77, 0x5b, 0x80,
         ];
-        assert_eq!(bools, NcAbiType::Aggregate(NcAbiSignature::from_static(&EXPECTED)));
+        assert_eq!(bools, NcAbiType::Aggregate(NcAbiDigest::from_static(&EXPECTED)));
         assert_ne!(bools, <[u8; 3] as AbiType>::ABI_TYPE);
         assert_ne!(bools, <[bool; 4] as AbiType>::ABI_TYPE);
         assert_ne!(<[bool; 4] as AbiType>::ABI_TYPE, <[[bool; 2]; 2] as AbiType>::ABI_TYPE);

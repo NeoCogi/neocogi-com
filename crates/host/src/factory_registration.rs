@@ -8,7 +8,7 @@
 use neocogi_com_core::{NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS, NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE, NC_OK, NcPluginDescriptor, NcStatus};
 use crate::descriptor::ValidatedPluginDescriptor;
 
-use crate::factory_plugin_registry::{FactoryPluginRegistry, PluginOrigin, RegisteredFactoryPlugin};
+use crate::factory_plugin_registry::{PluginRegistry, PluginOrigin, RegisteredPlugin};
 use crate::state::RuntimeState;
 
 /// Validates one descriptor with its actual origin before atomic publication.
@@ -18,10 +18,10 @@ use crate::state::RuntimeState;
 /// `plugin` must be null or point to a complete immutable descriptor whose
 /// strings, signature bytes, dependency table, and code remain live for the
 /// process-wide registration lifetime.
-pub(crate) unsafe fn prepare_factory_plugin(plugin: *const NcPluginDescriptor, origin: PluginOrigin) -> Result<RegisteredFactoryPlugin, NcStatus> {
+pub(crate) unsafe fn prepare_factory_plugin(plugin: *const NcPluginDescriptor, origin: PluginOrigin) -> Result<RegisteredPlugin, NcStatus> {
     // SAFETY: The caller provides the descriptor and every referenced lifetime.
     let descriptor = unsafe { ValidatedPluginDescriptor::new(plugin) }?;
-    Ok(RegisteredFactoryPlugin { descriptor, origin })
+    Ok(RegisteredPlugin { descriptor, origin })
 }
 
 impl RuntimeState {
@@ -41,9 +41,9 @@ impl RuntimeState {
     }
 }
 
-impl FactoryPluginRegistry {
+impl PluginRegistry {
     /// Checks every state-dependent rule before publishing any plugin indexes.
-    pub(crate) fn commit_factory_plugin_registration(&mut self, plugin: RegisteredFactoryPlugin) -> NcStatus {
+    pub(crate) fn commit_factory_plugin_registration(&mut self, plugin: RegisteredPlugin) -> NcStatus {
         if let Err(status) = self.validate_plugin_dependencies(plugin.descriptor.dependencies()) {
             return status;
         }
@@ -69,7 +69,7 @@ impl FactoryPluginRegistry {
 mod tests {
     use core::ptr;
     use neocogi_com_core::{
-        IUnknown, NC_ABI_THREADING_THREAD_LOCAL, NC_COM_CORE_ABI_VERSION, NC_PLUGIN_DESCRIPTOR_ABI_VERSION, NC_E_NOT_FOUND, NcAbiSignature, NcInterfaceId,
+        IUnknown, NC_ABI_THREADING_THREAD_LOCAL, NC_COM_CORE_ABI_VERSION, NC_PLUGIN_DESCRIPTOR_ABI_VERSION, NC_E_NOT_FOUND, NcAbiDigest, NcInterfaceId,
         NcPluginDependencyDescriptor, NcStaticUtf8, guid_from_qualified_name,
     };
     use super::*;
@@ -88,7 +88,7 @@ mod tests {
         plugin_version: NcStaticUtf8::from_static("1.0.0"),
         dependency_count: 0,
         dependencies: ptr::null(),
-        root_factory: NcInterfaceId::new(guid_from_qualified_name("nc.tests.Factory"), NcAbiSignature::from_static(&[5; 32])),
+        root_factory: NcInterfaceId::new(guid_from_qualified_name("nc.tests.Factory"), NcAbiDigest::from_static(&[5; 32])),
         root_factory_threading: NC_ABI_THREADING_THREAD_LOCAL,
         acquire: Some(acquire_stub),
     };
@@ -179,7 +179,7 @@ mod tests {
 
     /// Validates a real descriptor with process-lifetime test metadata, then adds
     /// actual dynamic provenance to isolate catalog accounting from native I/O.
-    fn dynamic_fixture(description: &'static NcPluginDescriptor) -> RegisteredFactoryPlugin {
+    fn dynamic_fixture(description: &'static NcPluginDescriptor) -> RegisteredPlugin {
         // SAFETY: each fixture descriptor references immutable static UTF-8.
         let name = unsafe { description.qualified_name.as_str() }.unwrap();
         // SAFETY: The complete graph is immutable static metadata and code.

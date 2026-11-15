@@ -17,7 +17,7 @@ use crate::{NC_COM_RUNTIME_ABI_VERSION, NcDebugApiV2, NcHostApiV2, NcPersistence
 /// threads: admitted host callbacks support concurrent calls. Caller-owned
 /// persistence contexts retain their separate thread-local/exclusive contract.
 #[derive(Clone, Copy)]
-pub struct Runtime {
+pub struct RuntimeHandle {
     /// Admitted plugin/catalog operations whose callbacks execute in the host.
     pub(crate) runtime: &'static NcRuntimeApiV2,
     /// Diagnostics operations from the same immutable host service graph.
@@ -26,7 +26,7 @@ pub struct Runtime {
     pub(crate) persistence: &'static NcPersistenceApiV2,
 }
 
-impl Runtime {
+impl RuntimeHandle {
     /// Admits the raw host description for host implementation/bootstrap code.
     ///
     /// Prefix checks reject null/short/incompatible tables before complete typed
@@ -73,10 +73,10 @@ impl Runtime {
     }
 }
 
-impl fmt::Debug for Runtime {
+impl fmt::Debug for RuntimeHandle {
     /// Describes admitted layouts without executing host callbacks or discovery.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Runtime")
+        f.debug_struct("RuntimeHandle")
             .field("runtime_abi_version", &self.runtime_abi_version())
             .field("core_abi_version", &self.core_abi_version())
             .field("runtime_table_bytes", &self.runtime.size)

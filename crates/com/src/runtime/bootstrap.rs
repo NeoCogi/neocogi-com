@@ -10,7 +10,7 @@ use std::{
     path::{Path, PathBuf},
     string::{String, ToString},
 };
-use crate::{NC_GET_HOST_API_SYMBOL, NcGetHostApi, NcStatus, Runtime};
+use crate::{NC_GET_HOST_API_SYMBOL, NcGetHostApi, NcStatus, RuntimeHandle};
 use crate::native_library::{DynamicLibrary, OpenLibraryError};
 
 /// Phase that rejected an explicitly selected host runtime image.
@@ -98,7 +98,7 @@ impl fmt::Display for HostLoadError {
 }
 impl std::error::Error for HostLoadError {}
 
-impl Runtime {
+impl RuntimeHandle {
     /// Loads one explicitly selected host runtime image for application startup.
     ///
     /// Resolve this once in the final application instead of linking the static
@@ -114,7 +114,7 @@ impl Runtime {
     /// # Safety
     /// The path selects trusted native code implementing `nc_get_host_api_v2`
     /// with the exact [`NcGetHostApi`] contract. A successful graph satisfies
-    /// [`Runtime::__from_host_api`]'s complete backing, immutability, coherence
+    /// [`RuntimeHandle::__from_host_api`]'s complete backing, immutability, coherence
     /// and callback obligations. Size/version checks cannot establish these.
     /// The application selects one owner; opening another image or initializing
     /// a statically linked implementation can create an independent registry.
@@ -149,7 +149,7 @@ impl Runtime {
 ///
 /// # Safety
 /// `get` and every successful graph obey the process-lived `NcGetHostApi` contract.
-unsafe fn host_from_entry(get: NcGetHostApi, path: &Path) -> Result<Runtime, HostLoadError> {
+unsafe fn host_from_entry(get: NcGetHostApi, path: &Path) -> Result<RuntimeHandle, HostLoadError> {
     let mut host = core::ptr::null();
     // SAFETY: the local output slot is writable for one host pointer.
     let status = unsafe { get(&mut host) };
@@ -158,7 +158,7 @@ unsafe fn host_from_entry(get: NcGetHostApi, path: &Path) -> Result<Runtime, Hos
         return Err(HostLoadError::new(HostLoadErrorKind::Entrypoint, path, Some(status), "host bootstrap failed"));
     }
     // SAFETY: success promises readable prefixes and valid supported graph storage.
-    unsafe { Runtime::__from_host_api(host) }
+    unsafe { RuntimeHandle::__from_host_api(host) }
         .map_err(|status| HostLoadError::new(HostLoadErrorKind::InvalidApi, path, Some(status), "host API admission failed"))
 }
 

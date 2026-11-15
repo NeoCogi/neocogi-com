@@ -66,7 +66,7 @@ impl ExampleFactory for ExampleFactoryImplementation {
 
 /// Acquires one owned root; object construction remains on its typed methods.
 #[neocogi_com::plugin(name = "nc.tests.generated_factory_plugin", version = "1.0.0")]
-fn acquire_root(_runtime: ::neocogi_com::Runtime) -> Result<neocogi_com::ComPtr<example::ExampleFactoryAbi>, neocogi_com::NcStatus> {
+fn acquire_root(_runtime: ::neocogi_com::RuntimeHandle) -> Result<neocogi_com::ComPtr<example::ExampleFactoryAbi>, neocogi_com::NcStatus> {
     ExampleFactoryImplementation::from_value(ExampleFactoryImplementation).query()
 }
 
@@ -183,7 +183,7 @@ mod service_root {
 
     #[neocogi_com::plugin(name = "nc.tests.plugin.service")]
     /// Creates one initialized service with the interface's declared threading.
-    fn acquire(_runtime: ::neocogi_com::Runtime) -> Result<ComPtr<IServiceAbi, ThreadSafe>, NcStatus> {
+    fn acquire(_runtime: ::neocogi_com::RuntimeHandle) -> Result<ComPtr<IServiceAbi, ThreadSafe>, NcStatus> {
         Service::from_value(Service {
             sequence: ACQUIRED.fetch_add(1, Ordering::SeqCst),
         })
@@ -222,7 +222,7 @@ mod failed_root {
 
     #[neocogi_com::plugin(name = "nc.tests.plugin.failure", version = "2.3.4")]
     /// Deliberately misuses a successful status as an error to test normalization.
-    fn acquire(_runtime: ::neocogi_com::Runtime) -> Result<ComPtr<ExampleFactoryAbi>, NcStatus> {
+    fn acquire(_runtime: ::neocogi_com::RuntimeHandle) -> Result<ComPtr<ExampleFactoryAbi>, NcStatus> {
         CALLED.fetch_add(1, Ordering::SeqCst);
         Err(neocogi_com::NC_OK)
     }
@@ -261,7 +261,7 @@ mod failed_root {
 }
 
 /// Initializes this final test executable's selected host and admits its static tables.
-fn host_runtime() -> neocogi_com::Runtime {
+fn host_runtime() -> neocogi_com::RuntimeHandle {
     // SAFETY: the explicit implementation owns its complete process-lived graph.
-    unsafe { neocogi_com::Runtime::__from_host_api(neocogi_com_host::initialize_process()) }.expect("test host API is compatible")
+    unsafe { neocogi_com::RuntimeHandle::__from_host_api(neocogi_com_host::initialize_process()) }.expect("test host API is compatible")
 }

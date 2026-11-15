@@ -5,7 +5,7 @@
 typedef int32_t NcStatus;
 
 typedef struct NcGuid NcGuid;
-typedef struct NcAbiSignature NcAbiSignature;
+typedef struct NcAbiDigest NcAbiDigest;
 typedef struct NcInterfaceId NcInterfaceId;
 typedef struct NcStaticUtf8 NcStaticUtf8;
 typedef struct NcMethodDescriptor NcMethodDescriptor;
@@ -24,15 +24,15 @@ struct NcGuid {
     uint8_t data4[8];
 };
 
-struct NcAbiSignature {
+struct NcAbiDigest {
     /* Null is absence; otherwise one complete immutable SHA-256 digest. */
     const uint8_t (*digest)[32];
 };
-_Static_assert(sizeof(NcAbiSignature) == sizeof(void *), "signature view must be one pointer");
+_Static_assert(sizeof(NcAbiDigest) == sizeof(void *), "signature view must be one pointer");
 
 struct NcInterfaceId {
     NcGuid iid;
-    NcAbiSignature abi_signature;
+    NcAbiDigest abi_signature;
 };
 
 struct NcStaticUtf8 {
@@ -43,7 +43,7 @@ struct NcStaticUtf8 {
 struct NcInterfaceDescriptor {
     NcGuid interface_id;
     NcStaticUtf8 qualified_name;
-    NcAbiSignature abi_signature;
+    NcAbiDigest abi_signature;
     NcInterfaceId base;
     uint32_t method_count;
     const NcMethodDescriptor *methods;

@@ -161,7 +161,7 @@ const _: () = {
                 return ::neocogi_com::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::Scoped::<
+                ::neocogi_com::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -198,7 +198,7 @@ const _: () = {
                 return ::neocogi_com::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::Scoped::<
+                ::neocogi_com::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -235,7 +235,7 @@ const _: () = {
                 return ::neocogi_com::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::Scoped::<
+                ::neocogi_com::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -273,7 +273,7 @@ const _: () = {
                 return ::neocogi_com::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::Scoped::<
+                ::neocogi_com::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -320,7 +320,7 @@ const _: () = {
                 return ::neocogi_com::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::Scoped::<
+                ::neocogi_com::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -367,7 +367,7 @@ const _: () = {
                 return ::neocogi_com::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::Scoped::<
+                ::neocogi_com::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -414,7 +414,7 @@ const _: () = {
                 return ::neocogi_com::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::Scoped::<
+                ::neocogi_com::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -461,7 +461,7 @@ const _: () = {
                 return ::neocogi_com::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::Scoped::<
+                ::neocogi_com::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -508,7 +508,7 @@ const _: () = {
                 return ::neocogi_com::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::Scoped::<
+                ::neocogi_com::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -555,7 +555,7 @@ const _: () = {
                 return ::neocogi_com::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::Scoped::<
+                ::neocogi_com::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -602,7 +602,7 @@ const _: () = {
                 return ::neocogi_com::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::Scoped::<
+                ::neocogi_com::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -649,7 +649,7 @@ const _: () = {
                 return ::neocogi_com::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::Scoped::<
+                ::neocogi_com::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -696,7 +696,7 @@ const _: () = {
                 return ::neocogi_com::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::Scoped::<
+                ::neocogi_com::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -743,7 +743,7 @@ const _: () = {
                 return ::neocogi_com::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::Scoped::<
+                ::neocogi_com::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -790,7 +790,7 @@ const _: () = {
                 return ::neocogi_com::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::Scoped::<
+                ::neocogi_com::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -864,7 +864,7 @@ const _: () = {
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::Scoped::<
+                ::neocogi_com::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -915,7 +915,7 @@ const _: () = {
                 return ::neocogi_com::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::Scoped::<
+                ::neocogi_com::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -969,7 +969,7 @@ const _: () = {
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::Scoped::<
+                ::neocogi_com::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -1032,7 +1032,7 @@ const _: () = {
                 __nc_arg_0_1_values.as_slice(),
             );
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::Scoped::<
+                ::neocogi_com::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -1079,7 +1079,7 @@ const _: () = {
                 return ::neocogi_com::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::Scoped::<
+                ::neocogi_com::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -1117,7 +1117,7 @@ const _: () = {
                 return ::neocogi_com::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::Scoped::<
+                ::neocogi_com::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -1163,7 +1163,7 @@ const _: () = {
                 return ::neocogi_com::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::Scoped::<
+                ::neocogi_com::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -1201,7 +1201,7 @@ const _: () = {
                 return ::neocogi_com::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::Scoped::<
+                ::neocogi_com::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -1247,7 +1247,7 @@ const _: () = {
                 return ::neocogi_com::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::Scoped::<
+                ::neocogi_com::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -1307,7 +1307,7 @@ const _: () = {
                 __nc_arg_1_values.as_slice(),
             );
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::Scoped::<
+                ::neocogi_com::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -1370,7 +1370,7 @@ const _: () = {
                 __nc_arg_0_3_values.as_slice(),
             );
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::Scoped::<
+                ::neocogi_com::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -1408,7 +1408,7 @@ const _: () = {
                 return ::neocogi_com::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::Scoped::<
+                ::neocogi_com::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -1631,7 +1631,7 @@ const _: () = {
                 return ::neocogi_com::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::Scoped::<
+                ::neocogi_com::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -1675,7 +1675,7 @@ const _: () = {
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::Scoped::<
+                ::neocogi_com::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -1720,7 +1720,7 @@ const _: () = {
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::Scoped::<
+                ::neocogi_com::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -1765,7 +1765,7 @@ const _: () = {
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::Scoped::<
+                ::neocogi_com::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -1810,7 +1810,7 @@ const _: () = {
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::Scoped::<
+                ::neocogi_com::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -1855,7 +1855,7 @@ const _: () = {
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::Scoped::<
+                ::neocogi_com::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -1900,7 +1900,7 @@ const _: () = {
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::Scoped::<
+                ::neocogi_com::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -1945,7 +1945,7 @@ const _: () = {
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::Scoped::<
+                ::neocogi_com::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -1990,7 +1990,7 @@ const _: () = {
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::Scoped::<
+                ::neocogi_com::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -2035,7 +2035,7 @@ const _: () = {
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::Scoped::<
+                ::neocogi_com::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -2080,7 +2080,7 @@ const _: () = {
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::Scoped::<
+                ::neocogi_com::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -2125,7 +2125,7 @@ const _: () = {
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::Scoped::<
+                ::neocogi_com::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -2178,7 +2178,7 @@ const _: () = {
                 __nc_arg_0_10_values.as_slice(),
             );
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::Scoped::<
+                ::neocogi_com::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -2223,7 +2223,7 @@ const _: () = {
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::Scoped::<
+                ::neocogi_com::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -2261,7 +2261,7 @@ const _: () = {
                 return ::neocogi_com::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::Scoped::<
+                ::neocogi_com::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -2305,7 +2305,7 @@ const _: () = {
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::Scoped::<
+                ::neocogi_com::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -2358,7 +2358,7 @@ const _: () = {
                 __nc_arg_0_13_values.as_slice(),
             );
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::Scoped::<
+                ::neocogi_com::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -2396,7 +2396,7 @@ const _: () = {
                 return ::neocogi_com::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::Scoped::<
+                ::neocogi_com::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -2440,7 +2440,7 @@ const _: () = {
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::Scoped::<
+                ::neocogi_com::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -2478,7 +2478,7 @@ const _: () = {
                 return ::neocogi_com::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::Scoped::<
+                ::neocogi_com::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -2522,7 +2522,7 @@ const _: () = {
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::Scoped::<
+                ::neocogi_com::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -2560,7 +2560,7 @@ const _: () = {
                 return ::neocogi_com::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::Scoped::<
+                ::neocogi_com::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -2619,7 +2619,7 @@ const _: () = {
                 __nc_arg_1_values.as_slice(),
             );
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::Scoped::<
+                ::neocogi_com::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -2658,7 +2658,7 @@ const _: () = {
                 return ::neocogi_com::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::Scoped::<
+                ::neocogi_com::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -2710,7 +2710,7 @@ const _: () = {
                 __nc_arg_0_17_values.as_slice(),
             );
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::Scoped::<
+                ::neocogi_com::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -2748,7 +2748,7 @@ const _: () = {
                 return ::neocogi_com::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::Scoped::<
+                ::neocogi_com::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {

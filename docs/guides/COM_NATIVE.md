@@ -47,13 +47,13 @@ The application depends on `neocogi-com` with `runtime` enabled and selects this
 image instead of depending on the static `neocogi-com-host` implementation:
 
 ```rust,no_run
-use neocogi_com::Runtime;
+use neocogi_com::RuntimeHandle;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let path = std::env::args_os().nth(1).ok_or("pass the packaged host runtime path")?;
     // SAFETY: deployment supplies the trusted SDK host image. The SDK pins it
     // for process lifetime before adopting its coherent immutable C tables.
-    let runtime = unsafe { Runtime::load_host_library(path) }?;
+    let runtime = unsafe { RuntimeHandle::load_host_library(path) }?;
     // Register/load the application's providers through this same runtime.
     assert_eq!(runtime.core_abi_version(), 19);
     Ok(())

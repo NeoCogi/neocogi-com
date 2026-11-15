@@ -8,7 +8,7 @@ use core::ffi::c_void;
 
 use crate::guid::NcGuid;
 use crate::metadata::{NcInterfaceDescriptor, NcInterfaceId, NcStaticUtf8};
-use crate::signature::NcAbiSignature;
+use crate::signature::NcAbiDigest;
 use crate::status::NcStatus;
 use crate::{ThreadLocal, ThreadSafe, ThreadingModel};
 
@@ -22,12 +22,12 @@ pub const IUNKNOWN_QUALIFIED_NAME: &str = "IUnknown";
 ///
 /// Built-ins have no IDL build script, so this checked-in constant plays the
 /// same role as the byte string emitted by `neocogi` for ordinary contracts.
-static IUNKNOWN_SIGNATURE_BYTES: [u8; NcAbiSignature::SHA256_LEN] = [
+static IUNKNOWN_SIGNATURE_BYTES: [u8; NcAbiDigest::SHA256_LEN] = [
     181, 50, 219, 153, 62, 84, 255, 28, 31, 250, 148, 143, 113, 131, 100, 26, 106, 80, 251, 161, 61, 196, 32, 29, 213, 33, 142, 40, 248, 57, 135, 207,
 ];
 
 /// Canonical ABI validation contract for [`IUnknown`].
-pub const IUNKNOWN_ABI_SIGNATURE: NcAbiSignature = NcAbiSignature::from_static(&IUNKNOWN_SIGNATURE_BYTES);
+pub const IUNKNOWN_ABI_SIGNATURE: NcAbiDigest = NcAbiDigest::from_static(&IUNKNOWN_SIGNATURE_BYTES);
 
 /// Interface identity for [`IUnknown`].
 pub const IUNKNOWN_INTERFACE_ID: NcInterfaceId = NcInterfaceId::new(IID_IUNKNOWN, IUNKNOWN_ABI_SIGNATURE);
@@ -131,7 +131,7 @@ pub unsafe trait ComInterface {
     const IID: NcGuid = Self::INTERFACE_ID.iid;
 
     /// Canonical validation form of this interface's typed ABI contract.
-    const ABI_SIGNATURE: NcAbiSignature = Self::INTERFACE_ID.abi_signature;
+    const ABI_SIGNATURE: NcAbiDigest = Self::INTERFACE_ID.abi_signature;
 
     /// Minimum threading capability required of an implementation.
     type Threading: ThreadingModel;
@@ -164,7 +164,7 @@ unsafe impl ComInterface for IUnknown {
 
 impl IUnknown {
     /// Canonical validation form of this interface's typed ABI contract.
-    pub const ABI_SIGNATURE: NcAbiSignature = IUNKNOWN_ABI_SIGNATURE;
+    pub const ABI_SIGNATURE: NcAbiDigest = IUNKNOWN_ABI_SIGNATURE;
     /// Stable identity for this interface ABI contract.
     pub const INTERFACE_ID: NcInterfaceId = IUNKNOWN_INTERFACE_ID;
     /// Canonical zero-method descriptor for the root COM interface.

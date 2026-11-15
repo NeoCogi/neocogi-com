@@ -13,7 +13,7 @@ mod entry {
 
     #[neocogi_com::com_main]
     /// Ordinary application body receives access and returns unit.
-    pub fn main(runtime: neocogi_com::Runtime) {
+    pub fn main(runtime: neocogi_com::RuntimeHandle) {
         assert_eq!(runtime.runtime_abi_version(), 2);
         assert_eq!(runtime.core_abi_version(), 19);
         super::CALLS.fetch_add(1, super::Ordering::SeqCst);
@@ -24,7 +24,7 @@ mod entry {
 mod result_entry {
     #[neocogi_com::com_main]
     /// No conversion into a framework-specific application error is needed.
-    pub fn main(runtime: neocogi_com::Runtime) -> Result<std::process::ExitCode, &'static str> {
+    pub fn main(runtime: neocogi_com::RuntimeHandle) -> Result<std::process::ExitCode, &'static str> {
         let admitted = Result::<_, &'static str>::Ok(runtime.core_abi_version())?;
         assert_eq!(admitted, neocogi_com::NC_COM_CORE_ABI_VERSION);
         Ok(std::process::ExitCode::SUCCESS)
@@ -35,7 +35,7 @@ mod result_entry {
 mod exit_entry {
     #[neocogi_com::com_main]
     /// Returning an ordinary process code needs no executor or error wrapper.
-    pub fn main(_runtime: neocogi_com::Runtime) -> std::process::ExitCode {
+    pub fn main(_runtime: neocogi_com::RuntimeHandle) -> std::process::ExitCode {
         std::process::ExitCode::SUCCESS
     }
 }
@@ -44,7 +44,7 @@ mod exit_entry {
 mod excluded_entry {
     #[neocogi_com::com_main]
     #[cfg(any())]
-    fn main(_runtime: neocogi_com::Runtime) {
+    fn main(_runtime: neocogi_com::RuntimeHandle) {
         unavailable_application_body();
     }
 }
@@ -74,7 +74,7 @@ mod copied_access {
 
     #[neocogi_com::plugin(name = "nc.tests.host-access-copies")]
     /// Supplies an initialized local owner without discovering an implementation.
-    fn acquire(_runtime: neocogi_com::Runtime) -> Result<neocogi_com::ComPtr<neocogi_com::IUnknown>, neocogi_com::NcStatus> {
+    fn acquire(_runtime: neocogi_com::RuntimeHandle) -> Result<neocogi_com::ComPtr<neocogi_com::IUnknown>, neocogi_com::NcStatus> {
         Ok(Root::from_value(Root))
     }
 
@@ -84,7 +84,7 @@ mod copied_access {
             let record = *neocogi_com_host::initialize_process();
             // SAFETY: only this outer copy is temporary. Its reachable immutable
             // tables/code and synchronized host state all remain process-lived.
-            unsafe { neocogi_com::Runtime::__from_host_api(&record) }.unwrap()
+            unsafe { neocogi_com::RuntimeHandle::__from_host_api(&record) }.unwrap()
         };
         let copy = runtime;
         // Ordinary safe startup and explicit raw-record adoption must reach the

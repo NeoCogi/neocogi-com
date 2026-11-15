@@ -9,11 +9,11 @@ use neocogi_com_core::{
     NcGuid, NcInterfaceId, NcStatus, raw,
 };
 
-use crate::factory_plugin_registry::FactoryPluginRegistry;
+use crate::factory_plugin_registry::PluginRegistry;
 
 /// Resolves one compatible acquisition pointer without entering plugin code.
 pub(crate) fn resolve_factory(
-    registry: &FactoryPluginRegistry,
+    registry: &PluginRegistry,
     plugin_id: NcGuid,
     factory_interface: NcInterfaceId,
     requested_threading: u32,
@@ -109,7 +109,7 @@ mod tests {
     use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
 
     use neocogi_com_core::{
-        IUnknownVTable, NC_ABI_THREADING_THREAD_LOCAL, NC_E_ABI_VERSION, NcAbiSignature, NcPluginDescriptor, NcStaticUtf8, guid_from_qualified_name,
+        IUnknownVTable, NC_ABI_THREADING_THREAD_LOCAL, NC_E_ABI_VERSION, NcAbiDigest, NcPluginDescriptor, NcStaticUtf8, guid_from_qualified_name,
     };
 
     use super::*;
@@ -119,7 +119,7 @@ mod tests {
     /// Stable fake factory interface used by raw acquisition validation.
     const FACTORY_ID: NcGuid = NcGuid::from_fields(1, 2, 3, [4; 8]);
     /// Complete fake interface identity stored in the vtable prefix.
-    const FACTORY_INTERFACE: NcInterfaceId = NcInterfaceId::new(FACTORY_ID, NcAbiSignature::from_static(&[7; 32]));
+    const FACTORY_INTERFACE: NcInterfaceId = NcInterfaceId::new(FACTORY_ID, NcAbiDigest::from_static(&[7; 32]));
     /// Counts factory allocations destroyed by their final Release.
     static FACTORY_DROPS: AtomicUsize = AtomicUsize::new(0);
     /// Serializes fixture counters so the parallel test harness cannot reset peers.
@@ -219,7 +219,7 @@ mod tests {
     fn activates_only_the_exact_factory_interface() {
         let _fixture = FIXTURE_LOCK.lock().unwrap();
         FACTORY_DROPS.store(0, Ordering::SeqCst);
-        let mut registry = FactoryPluginRegistry::new();
+        let mut registry = PluginRegistry::new();
         // SAFETY: DESCRIPTION and all referenced code/buffers are immutable statics.
         registry.insert(unsafe { prepare_factory_plugin(&DESCRIPTION, PluginOrigin::Static) }.unwrap());
         let resolved = resolve_factory(&registry, DESCRIPTION.plugin_id, FACTORY_INTERFACE, NC_ABI_THREADING_THREAD_LOCAL);
@@ -237,7 +237,7 @@ mod tests {
     fn signature_mismatch_is_rejected_before_bootstrap() {
         let _fixture = FIXTURE_LOCK.lock().unwrap();
         FACTORY_ACQUISITIONS.store(0, Ordering::SeqCst);
-        let mut registry = FactoryPluginRegistry::new();
+        let mut registry = PluginRegistry::new();
         // SAFETY: DESCRIPTION and all referenced code/buffers are immutable statics.
         registry.insert(unsafe { prepare_factory_plugin(&DESCRIPTION, PluginOrigin::Static) }.unwrap());
         /// The fixture's exact digest is [7; 32]; differ only at its final byte.
@@ -246,7 +246,7 @@ mod tests {
             bytes[31] = 8;
             bytes
         };
-        for signature in [NcAbiSignature::EMPTY, NcAbiSignature::from_static(&DIFFERENT_LAST_BYTE)] {
+        for signature in [NcAbiDigest::EMPTY, NcAbiDigest::from_static(&DIFFERENT_LAST_BYTE)] {
             let mismatched = NcInterfaceId::new(FACTORY_ID, signature);
             let resolved = resolve_factory(&registry, DESCRIPTION.plugin_id, mismatched, NC_ABI_THREADING_THREAD_LOCAL);
             let mut out = neocogi_com_core::ComRaw {
@@ -268,7 +268,7 @@ mod tests {
 
         let _fixture = FIXTURE_LOCK.lock().unwrap();
         FACTORY_DROPS.store(0, Ordering::SeqCst);
-        let mismatched = NcInterfaceId::new(FACTORY_ID, NcAbiSignature::from_static(&MISMATCHED_SIGNATURE));
+        let mismatched = NcInterfaceId::new(FACTORY_ID, NcAbiDigest::from_static(&MISMATCHED_SIGNATURE));
         let mut out = neocogi_com_core::ComRaw::null();
         // SAFETY: The acquisition function and local output slot satisfy the ABI.
         assert_eq!(unsafe { acquire_factory(Ok(acquire), mismatched, &mut out) }, NC_E_ABI_VERSION);

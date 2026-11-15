@@ -181,7 +181,7 @@ pub unsafe trait ComValue: Sized + 'static {
 /// A named value's compiler-assigned identity, independent of its ownership.
 pub trait ComValueType: ComValue {
     /// Complete resolved IDL revision of this value and its referenced types.
-    const VALUE_SIGNATURE: crate::NcAbiSignature;
+    const VALUE_SIGNATURE: crate::NcAbiDigest;
 }
 
 /// An inline value whose wire has no borrowed storage or transferred ownership.

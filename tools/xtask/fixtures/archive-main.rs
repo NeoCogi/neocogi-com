@@ -8,11 +8,11 @@ impl Counter for Value {
 }
 #[neocogi_com::plugin(name = "proof.archive.provider")]
 /// Acquire the consumer's provider through the generated runtime contract.
-fn acquire(_runtime: neocogi_com::Runtime) -> Result<neocogi_com::ComPtr<CounterAbi>, NcStatus> {
+fn acquire(_runtime: neocogi_com::RuntimeHandle) -> Result<neocogi_com::ComPtr<CounterAbi>, NcStatus> {
     Value::from_value(Value).query()
 }
 /// Select exactly one linked or native host from extracted SDK dependencies.
-fn host_runtime() -> neocogi_com::Runtime {
+fn host_runtime() -> neocogi_com::RuntimeHandle {
     #[cfg(feature = "static-host")]
     { neocogi_com_host::initialize_runtime() }
     #[cfg(not(feature = "static-host"))]
@@ -20,7 +20,7 @@ fn host_runtime() -> neocogi_com::Runtime {
         let path = std::env::args_os().nth(1).expect("explicit packaged host image");
         // SAFETY: the driver built this exact SDK shim from extracted siblings;
         // the SDK pins its complete immutable C graph for process lifetime.
-        unsafe { neocogi_com::Runtime::load_host_library(path) }.unwrap()
+        unsafe { neocogi_com::RuntimeHandle::load_host_library(path) }.unwrap()
     }
 }
 

@@ -7,7 +7,7 @@
 use crate::__alloc::boxed::Box;
 use core::{cell::UnsafeCell, ffi::c_void, mem::MaybeUninit};
 use crate::{ComBox, ComObject, ComPtr, ComRaw, IUnknown, NcStatus, NC_E_POINTER};
-use crate::lifetime::{BoxRead, BoxWrite, NcClassLifetime, NcWeakControl, CANONICAL_UNKNOWN_VTABLE};
+use crate::lifetime::{BoxRead, BoxWrite, NcObjectTypeInfo, NcWeakControl, CANONICAL_UNKNOWN_VTABLE};
 use super::{ComBorrowState, ComReadGuard, ComWriteGuard, __ComExclusiveCall, __ComSharedCall};
 
 /// Hidden typed allocation shared by the two generated ownership families.
@@ -35,7 +35,7 @@ pub type __ComBoxStorage<T> = __ComStorage<T, ()>;
 
 impl<T: ComObject, Access: 'static> __ComStorage<T, Access> {
     /// Only concrete cleanup and compact interface bindings vary by provider.
-    const CLASS: NcClassLifetime = NcClassLifetime {
+    const CLASS: NcObjectTypeInfo = NcObjectTypeInfo {
         destroy_value: Self::destroy_value,
         deallocate: Self::deallocate,
         interfaces: T::VTABLES.as_ptr(),

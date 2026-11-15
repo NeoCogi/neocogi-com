@@ -11,15 +11,17 @@ use std::path::PathBuf;
 use crate::descriptor::ValidatedPluginDescriptor;
 use neocogi_com_core::{NcPluginDependencyDescriptor, NcGuid};
 
-/// Append-only records for the single-root plugin model.
-pub(crate) struct FactoryPluginRegistry {
+/// Append-only plugin records and identity lookup for the selected host owner.
+/// Each plugin exposes one typed root factory; entries are plugins rather than
+/// separately registered classes or factory implementations.
+pub(crate) struct PluginRegistry {
     /// Records in successful registration order.
-    plugins: Vec<RegisteredFactoryPlugin>,
+    plugins: Vec<RegisteredPlugin>,
     /// Plugin identity to ordered-record index.
     plugin_by_id: HashMap<NcGuid, usize>,
 }
 
-impl FactoryPluginRegistry {
+impl PluginRegistry {
     /// Creates an empty plugin registry.
     pub(crate) fn new() -> Self {
         Self {
@@ -42,7 +44,7 @@ impl FactoryPluginRegistry {
     }
 
     /// Looks up one immutable plugin record.
-    pub(crate) fn plugin(&self, plugin_id: NcGuid) -> Option<&RegisteredFactoryPlugin> {
+    pub(crate) fn plugin(&self, plugin_id: NcGuid) -> Option<&RegisteredPlugin> {
         self.plugin_by_id.get(&plugin_id).map(|index| &self.plugins[*index])
     }
 
@@ -52,7 +54,7 @@ impl FactoryPluginRegistry {
     }
 
     /// Iterates immutable records in successful registration order.
-    pub(crate) fn plugins(&self) -> impl ExactSizeIterator<Item = &RegisteredFactoryPlugin> {
+    pub(crate) fn plugins(&self) -> impl ExactSizeIterator<Item = &RegisteredPlugin> {
         self.plugins.iter()
     }
 
@@ -65,7 +67,7 @@ impl FactoryPluginRegistry {
     }
 
     /// Appends one prevalidated record to every index.
-    pub(crate) fn insert(&mut self, plugin: RegisteredFactoryPlugin) {
+    pub(crate) fn insert(&mut self, plugin: RegisteredPlugin) {
         debug_assert!(!self.contains_plugin(plugin.descriptor.id()));
         let index = self.plugins.len();
         self.plugin_by_id.insert(plugin.descriptor.id(), index);
@@ -73,8 +75,8 @@ impl FactoryPluginRegistry {
     }
 }
 
-/// Runtime projection of one validated plugin descriptor.
-pub(crate) struct RegisteredFactoryPlugin {
+/// One validated plugin descriptor and its first registration provenance.
+pub(crate) struct RegisteredPlugin {
     /// One validated process-lived description owns identity and dependency views.
     pub(crate) descriptor: ValidatedPluginDescriptor,
     /// Actual provenance supplied before validation and atomic publication.

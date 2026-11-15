@@ -7,7 +7,7 @@ use core::{
 };
 use std::vec::Vec;
 use neocogi_com_core::{NcPersistenceApiV2, NcPersistenceContext};
-use crate::{ComPtr, ComRef, IUnknown, NcGuid, NcStatus, Runtime, NC_E_INVALID_ARG, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_OK};
+use crate::{ComPtr, ComRef, IUnknown, NcGuid, NcStatus, RuntimeHandle, NC_E_INVALID_ARG, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_OK};
 use super::{IPersistenceFactoryAbi, Limits};
 
 /// An explicitly owned, thread-local set of reconstruction factories.
@@ -27,7 +27,7 @@ pub struct FactoryRegistry {
 impl FactoryRegistry {
     /// Creates an empty context in the admitted host, retaining its table for Drop.
     /// No serialization provider is required or registered by this operation.
-    pub fn new(runtime: &Runtime) -> Result<Self, NcStatus> {
+    pub fn new(runtime: &RuntimeHandle) -> Result<Self, NcStatus> {
         let api = runtime.persistence;
         let mut context = ptr::null_mut();
         // SAFETY: The checked table receives a valid local output slot.
@@ -85,7 +85,7 @@ impl Drop for FactoryRegistry {
 /// preserved. Supporting exclusive trees requires a separate observation protocol.
 /// Requires an explicitly supplied `nc.serialization` provider offering `ncb`;
 /// provider absence returns `NC_E_NOT_FOUND`, without implicit loading/fallback.
-pub fn snapshot(runtime: &Runtime, object: ComRef<'_, IUnknown>) -> Result<Vec<u8>, NcStatus> {
+pub fn snapshot(runtime: &RuntimeHandle, object: ComRef<'_, IUnknown>) -> Result<Vec<u8>, NcStatus> {
     snapshot_with_limits(runtime, object, Limits::default())
 }
 
@@ -93,7 +93,7 @@ pub fn snapshot(runtime: &Runtime, object: ComRef<'_, IUnknown>) -> Result<Vec<u
 /// Non-shareable roots fail before persistence getters or byte delivery run.
 /// Ownership/capture-budget checks precede named-NCB selection. Provider
 /// acquisition/selection errors propagate and publish no document bytes.
-pub fn snapshot_with_limits(runtime: &Runtime, object: ComRef<'_, IUnknown>, limits: Limits) -> Result<Vec<u8>, NcStatus> {
+pub fn snapshot_with_limits(runtime: &RuntimeHandle, object: ComRef<'_, IUnknown>, limits: Limits) -> Result<Vec<u8>, NcStatus> {
     let api = runtime.persistence;
     let mut destination = SnapshotDestination {
         maximum: limits.binary.bytes,

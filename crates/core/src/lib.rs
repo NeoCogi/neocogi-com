@@ -92,7 +92,7 @@ pub use data::{IID_INC_BYTES, IID_INC_STRING, INcBytesAbi, INcBytesVTable, INcSt
 pub use encode::ComSerialize;
 pub use decode::ComDeserialize;
 pub use guid::{NC_COM_GUID_NAMESPACE, NC_GUID_NIL, NcGuid, ParseGuidError, guid_from_name, guid_from_qualified_name};
-pub use signature::NcAbiSignature;
+pub use signature::NcAbiDigest;
 #[cfg(feature = "alloc")]
 pub use metadata::{format_abi_signature, format_method_signature};
 pub use metadata::{

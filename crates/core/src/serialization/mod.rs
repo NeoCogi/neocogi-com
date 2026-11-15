@@ -151,14 +151,14 @@ impl<'a> Deserializer<'a> {
         Ok(count)
     }
     /// Opens a record whose fields may be supplied in a format-specific order.
-    pub fn record<T>(&mut self, maximum: usize, read: impl FnOnce(&mut Fields<'_, 'a>) -> Result<T, NcStatus>) -> Result<T, NcStatus> {
+    pub fn record<T>(&mut self, maximum: usize, read: impl FnOnce(&mut RecordFieldReader<'_, 'a>) -> Result<T, NcStatus>) -> Result<T, NcStatus> {
         let maximum = u32::try_from(maximum).map_err(|_| NC_E_OUT_OF_RANGE)?;
         let count = self.interface.begin_record(maximum)?;
         let count = self.count(count)?;
         if count > maximum as usize {
             return Err(self.error("unknown record fields"));
         }
-        let mut fields = Fields { reader: self, remaining: count };
+        let mut fields = RecordFieldReader { reader: self, remaining: count };
         let value = read(&mut fields)?;
         if fields.remaining != 0 {
             return Err(fields.error("unconsumed record fields"));
@@ -167,10 +167,10 @@ impl<'a> Deserializer<'a> {
         Ok(value)
     }
     /// Opens an ordered, counted collection and requires complete consumption.
-    pub fn sequence<T>(&mut self, read: impl FnOnce(&mut Sequence<'_, 'a>) -> Result<T, NcStatus>) -> Result<T, NcStatus> {
+    pub fn sequence<T>(&mut self, read: impl FnOnce(&mut SequenceReader<'_, 'a>) -> Result<T, NcStatus>) -> Result<T, NcStatus> {
         let count = self.interface.begin_sequence()?;
         let count = self.count(count)?;
-        let mut sequence = Sequence { reader: self, remaining: count };
+        let mut sequence = SequenceReader { reader: self, remaining: count };
         let value = read(&mut sequence)?;
         if sequence.remaining != 0 {
             return Err(sequence.error("unconsumed sequence elements"));
@@ -234,14 +234,15 @@ impl<'a> Deserializer<'a> {
     }
 }
 
-/// One schema-selected record; format providers may look fields up by name.
-pub struct Fields<'a, 's> {
+/// Reads named fields from one schema-selected record through the parent cursor.
+/// This is a call-scoped reader, not an owned collection of fields.
+pub struct RecordFieldReader<'a, 's> {
     /// Parent cursor, exclusively borrowed through field construction.
     reader: &'a mut Deserializer<'s>,
     /// Actual encoded fields not yet acquired; unknown fields cannot disappear.
     remaining: usize,
 }
-impl Fields<'_, '_> {
+impl RecordFieldReader<'_, '_> {
     /// Requests one named field, returning None only for genuine absence.
     pub fn read_field<T: ComDeserialize>(&mut self, name: &str) -> Result<Option<T>, NcStatus> {
         if self.reader.interface.field(text(name))? {
@@ -259,14 +260,15 @@ impl Fields<'_, '_> {
         self.reader.error(message)
     }
 }
-/// One ordered collection with a concrete remaining count, not an erased value tree.
-pub struct Sequence<'a, 's> {
+/// Reads one bounded ordered collection through the borrowed parent cursor.
+/// The remaining count tracks encoded elements, without owning a value tree.
+pub struct SequenceReader<'a, 's> {
     /// Parent cursor borrowed until all elements have been acquired.
     reader: &'a mut Deserializer<'s>,
     /// Elements still present in the bounded source.
     remaining: usize,
 }
-impl Sequence<'_, '_> {
+impl SequenceReader<'_, '_> {
     /// Acquires the next typed element, or None at a genuine collection end.
     pub fn read_next<T: ComDeserialize>(&mut self) -> Result<Option<T>, NcStatus> {
         if self.remaining == 0 {

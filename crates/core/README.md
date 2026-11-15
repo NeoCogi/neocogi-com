@@ -21,7 +21,7 @@ boundaries and does not hash or reconstruct an IDL graph.
 
 Plugin descriptor ABI v2 publishes plugin identity/version, hard dependencies,
 full root-factory IID/signature, threading, and one acquisition bootstrap.
-The safe Rust acquisition function takes the host-supplied `Runtime`; its raw
+The safe Rust acquisition function takes the host-supplied `RuntimeHandle`; its raw
 C adapter takes a host API pointer and a caller-owned factory output slot.
 Successful acquisition transfers one factory owner using the host's one global
 registry; providers initialize no separate runtime.
@@ -120,7 +120,7 @@ These types have different ownership and conversion rules:
 | --- | --- | --- |
 | `NcStaticUtf8` | `unsafe as_str<'a>(self) -> Result<&'a str, NcStatus>` and `unsafe as_bytes<'a>(self) -> Result<&'a [u8], NcStatus>` | Borrows descriptor storage; the caller establishes memory validity and the returned lifetime. `as_str` validates UTF-8. |
 | `NcUtf8View` | Public `data: *const u8`, `len: usize`, and `EMPTY`; no conversion methods | Runtime-owned bytes with an externally specified lifetime. The facade copies inspection text into owned strings. |
-| `NcAbiSignature` | `unsafe as_digest<'a>(self) -> Option<&'a [u8; 32]>` | One nullable pointer to a fixed digest. `from_static` requires a static 32-byte array; `EMPTY` explicitly represents absence. |
+| `NcAbiDigest` | `unsafe as_digest<'a>(self) -> Option<&'a [u8; 32]>` | One nullable pointer to a fixed digest. `from_static` requires a static 32-byte array; `EMPTY` explicitly represents absence. |
 | `NcCopyFromBufferOffset<'a, T>` | `as_slice(&self) -> &'a [T]` | Holds an actual Rust slice. The logical offset does not slice or shift its storage. |
 | `NcOutputWriter<'a, T>` | `push`, `extend_from_slice`, `forward` | Provider writes fresh copied wire slots and never reads old contents. |
 | `NcOutputBuffer<T>` / `NcOutput<'a, T>` | `output(offset, capacity)`; published `as_slice()` | Caller owns reusable result storage; only the successful initialized prefix is observable. |

@@ -76,9 +76,9 @@ fn encode<'a, T: ComSerialize + ?Sized>(value: &T, limits: Limits, output: Outpu
         phase: Phase::Active,
     };
     encoder.write(MAGIC)?;
-    let scoped = neocogi_com::serialization::scope::Scoped::new(encoder);
+    let scoped = neocogi_com::serialization::scope::ScopedComProvider::new(encoder);
     let result = {
-        // SAFETY: this generated table guards exactly Scoped<Encoder> and rejects ownership.
+        // SAFETY: this generated table guards exactly ScopedComProvider<Encoder> and rejects ownership.
         let interface = unsafe { scoped.interface(&neocogi_com::serialization::ScopedSerializer::<Encoder<'_>>::VTABLE) };
         neocogi_com::serialization::Serializer::new(interface).serialize(value)
     };
@@ -93,7 +93,7 @@ pub fn from_slice<T: ComDeserialize>(bytes: &[u8]) -> Result<T, Error> {
 /// Decodes under explicit byte, collection, depth, and total-value limits.
 pub fn from_slice_with_limits<T: ComDeserialize>(bytes: &[u8], limits: Limits) -> Result<T, Error> {
     let decoder = Decoder::borrowed(bytes, limits)?;
-    let scoped = neocogi_com::serialization::scope::Scoped::new(decoder);
+    let scoped = neocogi_com::serialization::scope::ScopedComProvider::new(decoder);
     let result = {
         // SAFETY: the table and the borrowed state have this scope's exact provider type.
         let interface = unsafe { scoped.interface(&neocogi_com::serialization::ScopedDeserializer::<Decoder<'_>>::VTABLE) };

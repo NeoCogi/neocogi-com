@@ -94,7 +94,7 @@ fn typed_interface_and_value_names_keep_their_supplied_identifier_spans() {
         &enumeration.ident,
         &enumeration.vis,
         &cases,
-        quote! { ::neocogi_com::NcAbiSignature::from_static(&[3;32]) },
+        quote! { ::neocogi_com::NcAbiDigest::from_static(&[3;32]) },
         true,
         false,
         &syn::parse_quote!(::neocogi_com),

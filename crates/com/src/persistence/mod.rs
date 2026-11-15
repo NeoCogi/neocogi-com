@@ -4,7 +4,7 @@
 //! The core owns their ABI identities; this module supplies the object thunks
 //! used by `com_object` without introducing a dependency back into the facade.
 //!
-//! With `runtime`, `FactoryRegistry` and `snapshot` use caller-supplied `Runtime`
+//! With `runtime`, `FactoryRegistry` and `snapshot` use caller-supplied `RuntimeHandle`
 //! access to the host owner. Every registry retains its creation table through
 //! Drop; contracts need no runtime feature or implementation dependency.
 //!

@@ -75,12 +75,12 @@ implementation's storage and lifetime; the acquisition function owns initializat
 struct UiFactoryObject;
 
 #[neocogi_com::plugin(name = "example.ui")]
-fn acquire_root(_runtime: neocogi_com::Runtime) -> Result<neocogi_com::ComPtr<my_contracts::UiFactoryAbi>, neocogi_com::NcStatus> {
+fn acquire_root(_runtime: neocogi_com::RuntimeHandle) -> Result<neocogi_com::ComPtr<my_contracts::UiFactoryAbi>, neocogi_com::NcStatus> {
     UiFactoryObject::from_value(UiFactoryObject).query()
 }
 ```
 
-`#[plugin]` requires a safe Rust function taking one host-supplied `Runtime`
+`#[plugin]` requires a safe Rust function taking one host-supplied `RuntimeHandle`
 argument, with an explicit `Result<ComPtr<InterfaceAbi>, NcStatus>` return.
 Its generated C adapter accepts the host API pointer and a factory output slot;
 the provider uses the host's registry rather than initializing another runtime.

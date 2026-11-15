@@ -69,7 +69,7 @@ pub fn com_object(attr: TokenStream, item: TokenStream) -> TokenStream {
 }
 
 /// Describes one plugin using a safe typed acquisition function.
-/// The function takes one supplied `Runtime` argument and explicitly returns
+/// The function takes one supplied `RuntimeHandle` argument and explicitly returns
 /// `Result<ComPtr<InterfaceAbi>, NcStatus>`. Its return interface supplies the
 /// root identity, ABI signature and threading. `name` derives the plugin ID;
 /// optional `version` defaults to the Cargo package version. Explicit
@@ -90,11 +90,11 @@ pub fn plugin(attr: TokenStream, item: TokenStream) -> TokenStream {
     }
 }
 
-/// Initializes the selected host implementation and supplies `Runtime` to main.
+/// Initializes the selected host implementation and supplies `RuntimeHandle` to main.
 ///
-/// Apply to a safe synchronous `fn main(runtime: Runtime)` with the ordinary
+/// Apply to a safe synchronous `fn main(runtime: RuntimeHandle)` with the ordinary
 /// Rust return type (`()`, `ExitCode` or a supported `Result`). The generated
-/// entry calls `initialize_runtime() -> Runtime` on the explicit
+/// entry calls `initialize_runtime() -> RuntimeHandle` on the explicit
 /// `neocogi_com_host` dependency; facade features never select
 /// that implementation. Services survive main's return for scheduled callbacks.
 /// Reusable libraries and plugins receive access rather than using this macro.

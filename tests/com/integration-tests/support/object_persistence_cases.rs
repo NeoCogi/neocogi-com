@@ -445,9 +445,9 @@ fn binary_limits_agree_across_snapshot_and_factory_restore() {
 mod snapshot_identity;
 
 /// Initializes this final test executable's selected host and admits its static tables.
-fn host_runtime() -> neocogi_com::Runtime {
+fn host_runtime() -> neocogi_com::RuntimeHandle {
     // SAFETY: the explicit implementation owns its complete process-lived graph.
-    let runtime = unsafe { neocogi_com::Runtime::__from_host_api(neocogi_com_host::initialize_process()) }.expect("test host API is compatible");
+    let runtime = unsafe { neocogi_com::RuntimeHandle::__from_host_api(neocogi_com_host::initialize_process()) }.expect("test host API is compatible");
     // SAFETY: This standalone composition retains its static provider for process lifetime.
     unsafe { runtime.register_plugin_descriptor(neocogi_com_serialization::plugin_descriptor()) }.unwrap();
     runtime

@@ -117,14 +117,14 @@ pub const fn __nc_object_interface_count(chains: &[&[&NcInterfaceDescriptor]]) -
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{NcAbiSignature, NcGuid, NcInterfaceId, NcStaticUtf8};
+    use crate::{NcAbiDigest, NcGuid, NcInterfaceId, NcStaticUtf8};
 
     /// Builds allocation-free descriptors with independently controlled identity and revision.
     const fn descriptor(id: u32, signature: &'static [u8; 32]) -> NcInterfaceDescriptor {
         NcInterfaceDescriptor {
             interface_id: NcGuid::from_fields(id, 0, 0, [0; 8]),
             qualified_name: NcStaticUtf8::from_static("test.Interface"),
-            abi_signature: NcAbiSignature::from_static(signature),
+            abi_signature: NcAbiDigest::from_static(signature),
             base: NcInterfaceId::NONE,
             method_count: 0,
             methods: core::ptr::null(),

@@ -48,7 +48,7 @@ const BASE: NcPluginDescriptor = NcPluginDescriptor {
     plugin_version: NcStaticUtf8::from_static("2.3.4"),
     dependency_count: 0,
     dependencies: core::ptr::null(),
-    root_factory: NcInterfaceId::new(guid_from_qualified_name("nc.tests.inspection.Factory"), NcAbiSignature::from_static(&SIGNATURE)),
+    root_factory: NcInterfaceId::new(guid_from_qualified_name("nc.tests.inspection.Factory"), NcAbiDigest::from_static(&SIGNATURE)),
     root_factory_threading: NC_ABI_THREADING_THREAD_LOCAL,
     acquire: Some(acquire),
 };
@@ -63,7 +63,7 @@ pub static CASES: [NcPluginDescriptor; 10] = [
         ..BASE
     },
     NcPluginDescriptor {
-        root_factory: NcInterfaceId::new(BASE.root_factory.iid, NcAbiSignature::EMPTY),
+        root_factory: NcInterfaceId::new(BASE.root_factory.iid, NcAbiDigest::EMPTY),
         ..BASE
     },
     NcPluginDescriptor { root_factory_threading: u32::MAX, ..BASE },

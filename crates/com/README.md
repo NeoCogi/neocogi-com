@@ -23,12 +23,12 @@ loading and host services.
 The SDK depends normally on core and optional implementation macros. Its
 `runtime` feature enables clients for supplied host-service tables; it creates no
 host state and adds no implementation dependency. A provider receives a copyable
-`Runtime` during bootstrap and uses that access for any service calls. The host
+`RuntimeHandle` during bootstrap and uses that access for any service calls. The host
 implementation uses the SDK's shared ownership/contracts/codecs with `std`, while
 calling its own raw service implementation stays inside the host package.
 
 On the unreleased `0.4.0-wip` branch, applications can alternatively load the
-native host shim through unsafe `Runtime::load_host_library(path)`, enabled by
+native host shim through unsafe `RuntimeHandle::load_host_library(path)`, enabled by
 `runtime`. The SDK opens an explicit trusted filesystem path, process-pins the
 image and validates its C host tables. It links no host implementation and
 creates no registry. Pass the resulting access to all providers; select one
@@ -223,7 +223,7 @@ impl UiFactory for UiFactoryObject {
 }
 
 #[neocogi_com::plugin(name = "my.ui")]
-fn acquire_root(_runtime: neocogi_com::Runtime) -> Result<neocogi_com::ComPtr<my_contracts::UiFactoryAbi>, neocogi_com::NcStatus> {
+fn acquire_root(_runtime: neocogi_com::RuntimeHandle) -> Result<neocogi_com::ComPtr<my_contracts::UiFactoryAbi>, neocogi_com::NcStatus> {
     UiFactoryObject::from_value(UiFactoryObject).query()
 }
 ```
@@ -267,9 +267,9 @@ failures diagnose and abort the entire application.
 `load_plugin_library` returns the registered plugin GUID on success;
 there is no recoverable `try_load_plugin_library` operation. Batch loading
 uses the same policy for each library. Loaded libraries remain mapped until
-process exit. `Runtime::plugin_info(plugin_id)` returns the plugin's identity,
+process exit. `RuntimeHandle::plugin_info(plugin_id)` returns the plugin's identity,
 release version, static/dynamic origin, single `FactoryInfo` and hard dependency
-GUIDs. `Runtime::plugins()` returns these complete owned records in registration
+GUIDs. `RuntimeHandle::plugins()` returns these complete owned records in registration
 order, without separate factory or dependency queries. Repeated provider loads reuse the
 first registration and origin; conflicting providers are rejected. See
 [runtime ABI v2](https://github.com/NeoCogi/neocogi-com/blob/v0.3.0/docs/abi-v2.md#runtime-and-global-registry).
@@ -359,7 +359,7 @@ See [persistence semantics and ownership](https://github.com/NeoCogi/neocogi-com
 
 The final native/browser executable directly depends on `neocogi-com-host`
 and initializes it through `#[neocogi_com::com_main]`. The facade has no
-implementation dependency. Reusable helpers accept `Runtime`; plugin acquisition
+implementation dependency. Reusable helpers accept `RuntimeHandle`; plugin acquisition
 receives it from the host. Tests may explicitly initialize their selected owner.
 `neocogi_com_host::initialize_runtime()` returns the admitted handle safely;
 the selected host owns proof of its service tables' backing and lifetime.

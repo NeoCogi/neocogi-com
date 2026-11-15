@@ -79,7 +79,7 @@ fn native_shim_supplies_formats_and_failure_details() {
 
 /// Exercises host persistence with the actual independently built deployment DLL.
 /// This process never registers a static serialization descriptor.
-fn persistence_round_trip(runtime: &neocogi_com::Runtime) {
+fn persistence_round_trip(runtime: &neocogi_com::RuntimeHandle) {
     use neocogi_com::persistence::{FactoryRegistry, IPersistableAbi, ObjectRecord, snapshot};
     let value = Persistent::from_value(Persistent);
     let bytes = snapshot(runtime, value.as_com_ref()).unwrap();

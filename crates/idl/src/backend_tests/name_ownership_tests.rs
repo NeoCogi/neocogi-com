@@ -296,7 +296,7 @@ fn plugin_implementation_items_have_private_lexical_ownership() {
                     #[neocogi_com::com_object(interfaces(IRoot))] struct Root;
                     impl IRoot for Root {{ fn value(&self) -> Result<u32, neocogi_com::NcStatus> {{ Ok(73) }} }}
                     #[neocogi_com::plugin(name = "test.naming.Plugin", plugin_id({identifier}), version = "1.2.3", dependencies = [NC_COM_PLUGIN_DEPENDENCIES])]
-                    fn __nc_acquire_plugin_root(_runtime: ::neocogi_com::Runtime) -> Result<neocogi_com::ComPtr<IRootAbi>, neocogi_com::NcStatus> {{ {acquisition} }}
+                    fn __nc_acquire_plugin_root(_runtime: ::neocogi_com::RuntimeHandle) -> Result<neocogi_com::ComPtr<IRootAbi>, neocogi_com::NcStatus> {{ {acquisition} }}
                 "#
                 );
                 let declarations = source_items(&declarations, expand);

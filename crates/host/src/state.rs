@@ -8,7 +8,7 @@
 use std::sync::{OnceLock, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 use crate::debug::DebugState;
-use crate::factory_plugin_registry::FactoryPluginRegistry;
+use crate::factory_plugin_registry::PluginRegistry;
 
 /// Catalog retained by the selected host implementation after initialization.
 static STATE: OnceLock<RuntimeState> = OnceLock::new();
@@ -16,7 +16,7 @@ static STATE: OnceLock<RuntimeState> = OnceLock::new();
 /// Process-global owner of all mutable runtime state.
 pub(crate) struct RuntimeState {
     /// Atomically published plugin descriptors, dependencies and provenance.
-    catalog: RwLock<FactoryPluginRegistry>,
+    catalog: RwLock<PluginRegistry>,
     /// Owns callback registrations independently of registry locks.
     debug: DebugState,
 }
@@ -35,18 +35,18 @@ impl RuntimeState {
     /// behavior without sharing process-global registrations.
     pub(crate) fn new() -> Self {
         Self {
-            catalog: RwLock::new(FactoryPluginRegistry::new()),
+            catalog: RwLock::new(PluginRegistry::new()),
             debug: DebugState::new(),
         }
     }
 
     /// Acquires a coherent read snapshot of the complete runtime catalog.
-    pub(crate) fn read_catalog(&self) -> RwLockReadGuard<'_, FactoryPluginRegistry> {
+    pub(crate) fn read_catalog(&self) -> RwLockReadGuard<'_, PluginRegistry> {
         self.catalog.read().unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 
     /// Acquires exclusive publication access to the complete runtime catalog.
-    pub(crate) fn write_catalog(&self) -> RwLockWriteGuard<'_, FactoryPluginRegistry> {
+    pub(crate) fn write_catalog(&self) -> RwLockWriteGuard<'_, PluginRegistry> {
         self.catalog.write().unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 

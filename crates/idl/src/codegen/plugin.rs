@@ -136,7 +136,7 @@ pub fn expand_plugin(args: PluginArgs, input: ItemFn) -> Result<proc_macro2::Tok
     {
         return Err(syn::Error::new_spanned(
             signature,
-            "plugin acquisition must be a safe, non-generic Rust function taking one Runtime argument",
+            "plugin acquisition must be a safe, non-generic Rust function taking one RuntimeHandle argument",
         ));
     }
     let ReturnType::Type(_, output) = &signature.output else {
@@ -221,7 +221,7 @@ pub fn expand_plugin(args: PluginArgs, input: ItemFn) -> Result<proc_macro2::Tok
             // exact interface and threading used by the descriptor above.
             unsafe {
                 #nc::write_plugin_root::<#interface>(#output, || {
-                    let #host = #nc::Runtime::__from_host_api(#host)?;
+                    let #host = #nc::RuntimeHandle::__from_host_api(#host)?;
                     #acquire(#host)
                 })
             }
@@ -295,15 +295,15 @@ mod signature_tests {
     fn rejects_non_bootstrap_function_shapes() {
         for source in [
             "fn root() -> Result<ComPtr<I>, NcStatus> { todo!() }",
-            "unsafe fn root(runtime: Runtime) -> Result<ComPtr<I>, NcStatus> { todo!() }",
-            "async fn root(runtime: Runtime) -> Result<ComPtr<I>, NcStatus> { todo!() }",
-            "extern \"C\" fn root(runtime: Runtime) -> Result<ComPtr<I>, NcStatus> { todo!() }",
-            "fn root<T>(runtime: Runtime) -> Result<ComPtr<I>, NcStatus> { todo!() }",
-            "fn root(runtime: Runtime) -> Result<ComBox<I>, NcStatus> { todo!() }",
-            "fn root(runtime: Runtime) -> AliasedResult { todo!() }",
-            "fn root(runtime: Runtime) {}",
-            "fn root(a: Runtime, b: Runtime) -> Result<ComPtr<I>, NcStatus> { todo!() }",
-            "fn root(runtime: Runtime) -> Result<ComPtr<I>, NcStatus> where Runtime: Copy { todo!() }",
+            "unsafe fn root(runtime: RuntimeHandle) -> Result<ComPtr<I>, NcStatus> { todo!() }",
+            "async fn root(runtime: RuntimeHandle) -> Result<ComPtr<I>, NcStatus> { todo!() }",
+            "extern \"C\" fn root(runtime: RuntimeHandle) -> Result<ComPtr<I>, NcStatus> { todo!() }",
+            "fn root<T>(runtime: RuntimeHandle) -> Result<ComPtr<I>, NcStatus> { todo!() }",
+            "fn root(runtime: RuntimeHandle) -> Result<ComBox<I>, NcStatus> { todo!() }",
+            "fn root(runtime: RuntimeHandle) -> AliasedResult { todo!() }",
+            "fn root(runtime: RuntimeHandle) {}",
+            "fn root(a: RuntimeHandle, b: RuntimeHandle) -> Result<ComPtr<I>, NcStatus> { todo!() }",
+            "fn root(runtime: RuntimeHandle) -> Result<ComPtr<I>, NcStatus> where RuntimeHandle: Copy { todo!() }",
         ] {
             let args = syn::parse_str("name = \"nc.test.invalid\"").unwrap();
             let function = syn::parse_str(source).unwrap();

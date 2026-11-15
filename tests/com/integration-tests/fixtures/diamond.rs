@@ -167,7 +167,7 @@ fn all_projection_pairs_share_addresses_state_and_lifetime() {
                 release(target);
             }
             // Failure must transfer no reference and must clear its output.
-            let incompatible = NcInterfaceId::new(IA0Abi::IID, neocogi_com::NcAbiSignature::from_static(b"99999999999999999999999999999999"));
+            let incompatible = NcInterfaceId::new(IA0Abi::IID, neocogi_com::NcAbiDigest::from_static(b"99999999999999999999999999999999"));
             assert_eq!(query(source, &incompatible), Err(NC_E_ABI_VERSION));
             let absent = NcInterfaceId::new(neocogi_com::guid_from_qualified_name("test.diamond.Absent:v1"), IA0Abi::ABI_SIGNATURE);
             assert_eq!(query(source, &absent), Err(NC_E_NOINTERFACE));

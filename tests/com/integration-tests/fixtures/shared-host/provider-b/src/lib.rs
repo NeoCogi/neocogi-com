@@ -4,7 +4,7 @@ extern crate self as shared_host_b;
 pub mod contracts {
     include!(env!("SHARED_HOST_BINDINGS"));
 }
-use neocogi_com::{ComPtr, NcStatus, Runtime, com_object, guid_from_qualified_name};
+use neocogi_com::{ComPtr, NcStatus, RuntimeHandle, com_object, guid_from_qualified_name};
 #[com_object(contracts::ICounter)]
 /// Private leaf implementation remains in this provider image.
 struct Leaf;
@@ -16,7 +16,7 @@ impl contracts::ICounter for Leaf {
 }
 /// Bootstrap must see A's registration through the original host's catalog.
 #[neocogi_com::plugin(name = "nc.tests.shared_host.b", version = "1.0.0")]
-fn acquire(runtime: Runtime) -> Result<ComPtr<contracts::ICounterAbi>, NcStatus> {
+fn acquire(runtime: RuntimeHandle) -> Result<ComPtr<contracts::ICounterAbi>, NcStatus> {
     if runtime.plugin_info(guid_from_qualified_name("nc.tests.shared_host.a"))?.is_none() {
         return Err(neocogi_com::NC_E_NOT_FOUND);
     }

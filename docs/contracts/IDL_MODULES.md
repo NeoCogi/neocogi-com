@@ -1046,12 +1046,12 @@ after allocation and before the factory returns. Unit objects also require
 explicit initialized values. Open generic IDL interfaces have no callable ABI;
 a generated closed specialization can be used exactly like any other interface.
 
-A plugin defines a typed acquisition function taking the host-supplied `Runtime`
+A plugin defines a typed acquisition function taking the host-supplied `RuntimeHandle`
 in its implementation crate:
 
 ```rust,ignore
 #[neocogi_com::plugin(name = "example.plugin")]
-fn acquire_root(_runtime: neocogi_com::Runtime) -> Result<neocogi_com::ComPtr<api::IRootAbi>, neocogi_com::NcStatus> {
+fn acquire_root(_runtime: neocogi_com::RuntimeHandle) -> Result<neocogi_com::ComPtr<api::IRootAbi>, neocogi_com::NcStatus> {
     Root::from_value(Root::new()).query()
 }
 ```

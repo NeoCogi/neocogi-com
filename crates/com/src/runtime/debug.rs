@@ -6,18 +6,18 @@
 
 use crate::{NC_E_INVALID_ARG, NcDebugApiV2, NcDebugMessengerCreateInfoV2, NcStatus};
 
-use super::{Runtime, status_to_result};
+use super::{RuntimeHandle, status_to_result};
 
 /// Callback-based runtime diagnostics.
 #[derive(Clone, Copy, Debug)]
-pub struct Debug<'runtime> {
+pub struct RuntimeDiagnostics<'runtime> {
     /// Supplied access to the already admitted debug ABI table.
-    runtime: &'runtime Runtime,
+    runtime: &'runtime RuntimeHandle,
 }
 
-impl<'runtime> Debug<'runtime> {
+impl<'runtime> RuntimeDiagnostics<'runtime> {
     /// Creates a debug context borrowing the supplied host access.
-    pub(super) const fn new(runtime: &'runtime Runtime) -> Self {
+    pub(super) const fn new(runtime: &'runtime RuntimeHandle) -> Self {
         Self { runtime }
     }
 

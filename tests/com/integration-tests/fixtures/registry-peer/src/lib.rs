@@ -2,7 +2,7 @@
 extern crate self as nc_registry_peer;
 mod contracts { include!(env!("IDL_EXAMPLE_BINDINGS")); }
 
-use neocogi_com::{ComPtr, NcStatus, Runtime, guid_from_qualified_name};
+use neocogi_com::{ComPtr, NcStatus, RuntimeHandle, guid_from_qualified_name};
 use contracts::ExampleFactoryAbi;
 
 /// Required provider A is admitted by the host before publishing this peer.
@@ -11,7 +11,7 @@ const SAMPLE: neocogi_com::NcGuid = guid_from_qualified_name("nc.examples.factor
 /// Acquiring B publishes a marker in the supplied host and acquires A through
 /// that same access. Returning A's owned root also exercises cross-DSO transfer.
 #[neocogi_com::plugin(name = "nc.tests.registry-peer", dependencies = [SAMPLE])]
-fn acquire(runtime: Runtime) -> Result<ComPtr<ExampleFactoryAbi>, NcStatus> {
+fn acquire(runtime: RuntimeHandle) -> Result<ComPtr<ExampleFactoryAbi>, NcStatus> {
     let before = runtime.plugins()?.len();
     let new_marker = usize::from(runtime.plugin_info(MARKER.plugin_id)?.is_none());
     // SAFETY: the host has pinned this DLL before calling its bootstrap. The

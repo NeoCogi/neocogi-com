@@ -16,7 +16,7 @@ use crate::{
     NC_ABI_PASSING_BORROWED_VALUE, NC_ABI_PASSING_VALUE, NC_ABI_PASSING_VOID, NC_ABI_RECEIVER_MUTABLE, NC_ABI_RECEIVER_SHARED, NC_ABI_THREADING_THREAD_LOCAL,
     NC_ABI_THREADING_THREAD_SAFE, NC_ABI_TYPE_AGGREGATE, NC_ABI_TYPE_BOOL, NC_ABI_TYPE_F32, NC_ABI_TYPE_F64, NC_ABI_TYPE_I8, NC_ABI_TYPE_I16, NC_ABI_TYPE_I32,
     NC_ABI_TYPE_I64, NC_ABI_TYPE_INTERFACE, NC_ABI_TYPE_ISIZE, NC_ABI_TYPE_NC_GUID, NC_ABI_TYPE_NC_STATUS, NC_ABI_TYPE_U8, NC_ABI_TYPE_U16, NC_ABI_TYPE_U32,
-    NC_ABI_TYPE_U64, NC_ABI_TYPE_USIZE, NC_ABI_TYPE_VOID, NC_E_INVALID_ARG, NcAbiSignature, NcAbiPassingDescriptor, NcAbiTypeDescriptor, NcMethodDescriptor,
+    NC_ABI_TYPE_U64, NC_ABI_TYPE_USIZE, NC_ABI_TYPE_VOID, NC_E_INVALID_ARG, NcAbiDigest, NcAbiPassingDescriptor, NcAbiTypeDescriptor, NcMethodDescriptor,
     NcMethodParamDescriptor, NcMethodReturnDescriptor, NcStatus,
 };
 
@@ -26,14 +26,14 @@ use alloc::string::String;
 ///
 /// SHA-256 signatures use a stable algorithm prefix followed by lowercase
 /// hexadecimal bytes. The returned string is diagnostic; compatibility compares
-/// the raw [`NcAbiSignature`] bytes.
+/// the raw [`NcAbiDigest`] bytes.
 ///
 /// # Safety
 ///
 /// `signature` must be empty or reference readable immutable bytes for this
 /// call. Generated signatures and validated descriptors from pinned components
 /// satisfy that contract.
-pub unsafe fn format_abi_signature(signature: NcAbiSignature) -> String {
+pub unsafe fn format_abi_signature(signature: NcAbiDigest) -> String {
     let mut out = String::new();
     // SAFETY: The caller establishes the signature view's storage contract.
     unsafe { write_signature(&mut out, signature) };
@@ -271,7 +271,7 @@ fn validate_interface_type(ty: &NcAbiTypeDescriptor) -> Result<(), NcStatus> {
 }
 
 /// Appends one readable representation of a validated ABI signature.
-unsafe fn write_signature(out: &mut String, signature: NcAbiSignature) {
+unsafe fn write_signature(out: &mut String, signature: NcAbiDigest) {
     // SAFETY: Both public unsafe formatters require their callers to keep
     // every reachable signature readable and immutable throughout formatting.
     let Some(bytes) = (unsafe { signature.as_digest() }) else {

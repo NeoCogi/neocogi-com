@@ -2,7 +2,7 @@
 #![cfg(feature = "alloc")]
 use std::cell::Cell;
 use neocogi_com::{ComDeserialize, ComSerialize, NcStatus, NC_E_INVALID_ARG};
-use neocogi_com::serialization::{Deserializer, ScopedDeserializer, scope::Scoped};
+use neocogi_com::serialization::{Deserializer, ScopedDeserializer, scope::ScopedComProvider};
 use neocogi_com_serialization::ncb;
 #[path = "support/array_source.rs"]
 mod array_source;
@@ -48,7 +48,7 @@ struct Output {
 
 /// Calls a real scoped COM vtable, then recovers its observations after borrowing.
 fn decode<T: ComDeserialize>(bytes: Vec<u8>, stage: Stage) -> (Result<T, NcStatus>, FaultSource) {
-    let scoped = Scoped::new(FaultSource::new(bytes, stage));
+    let scoped = ScopedComProvider::new(FaultSource::new(bytes, stage));
     let result = {
         // SAFETY: the generated scoped table matches this exact provider type.
         let interface = unsafe { scoped.interface(&ScopedDeserializer::<FaultSource>::VTABLE) };

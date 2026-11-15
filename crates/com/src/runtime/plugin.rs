@@ -8,7 +8,7 @@ use std::vec::Vec;
 
 use crate::{NC_E_INVALID_ARG, NC_E_NOT_FOUND, NC_E_POINTER, NC_OK, NcPluginDescriptor, NcGuid, NcInterfaceId, NcPluginInfoV2, NcStatus};
 
-use super::{Runtime, read_utf8_view, read_vec, status_to_result};
+use super::{RuntimeHandle, read_utf8_view, read_vec, status_to_result};
 
 /// Owned inspection metadata for one registered plugin.
 ///
@@ -89,7 +89,7 @@ where
     }
 }
 
-impl Runtime {
+impl RuntimeHandle {
     /// Opens a trusted plugin library and visits its validated plugin descriptor.
     ///
     /// This operation does not register the plugin, construct objects, or

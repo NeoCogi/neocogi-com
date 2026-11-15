@@ -384,7 +384,7 @@ pub(crate) fn expand(
             }
         }
         impl #nc::ComValueType for #name {
-            const VALUE_SIGNATURE: #nc::NcAbiSignature = #signature;
+            const VALUE_SIGNATURE: #nc::NcAbiDigest = #signature;
         }
         #inline_impl
         };

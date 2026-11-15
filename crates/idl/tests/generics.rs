@@ -166,7 +166,7 @@ fn closed_generic_calls_cross_generated_module_boundaries() {
         }}
         #[neocogi_com::plugin(name = "proof.closed.generic")]
         /// Closed generic projections are ordinary plugin roots.
-        fn acquire_root(_runtime: ::neocogi_com::Runtime) -> Result<neocogi_com::ComPtr<producer::{contract}Abi>, neocogi_com::NcStatus> {{
+        fn acquire_root(_runtime: ::neocogi_com::RuntimeHandle) -> Result<neocogi_com::ComPtr<producer::{contract}Abi>, neocogi_com::NcStatus> {{
             Counter::from_value(Counter {{ value: 7 }}).query()
         }}
         #[test]

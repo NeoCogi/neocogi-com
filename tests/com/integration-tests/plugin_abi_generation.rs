@@ -10,14 +10,14 @@ use neocogi_com::{NcStatus, NC_E_ABI_VERSION, NC_E_OUT_OF_RANGE};
 /// A real generated adapter makes entry into authored acquisition observable.
 mod host_admission {
     use std::sync::atomic::{AtomicUsize, Ordering};
-    use neocogi_com::{ComPtr, IUnknown, NcStatus, Runtime, NC_E_CLOSED};
+    use neocogi_com::{ComPtr, IUnknown, NcStatus, RuntimeHandle, NC_E_CLOSED};
 
     /// Counts only calls that pass generated host admission.
     pub static CALLS: AtomicUsize = AtomicUsize::new(0);
 
     /// Fails normally after admission; no synthetic object or retained runtime is needed.
     #[neocogi_com::plugin(name = "nc.tests.v2_host_admission")]
-    fn acquire(_runtime: Runtime) -> Result<ComPtr<IUnknown>, NcStatus> {
+    fn acquire(_runtime: RuntimeHandle) -> Result<ComPtr<IUnknown>, NcStatus> {
         CALLS.fetch_add(1, Ordering::SeqCst);
         Err(NC_E_CLOSED)
     }
@@ -198,7 +198,7 @@ fn generation_child() {
         return;
     }
     // SAFETY: This executable explicitly owns the immutable process host graph.
-    let runtime = unsafe { neocogi_com::Runtime::__from_host_api(neocogi_com_host::initialize_process()) }.unwrap();
+    let runtime = unsafe { neocogi_com::RuntimeHandle::__from_host_api(neocogi_com_host::initialize_process()) }.unwrap();
     // SAFETY: Parent supplies its own trusted native fixture. Old metadata is
     // admitted only by its prefix; current metadata has complete static backing.
     let id = unsafe { runtime.load_plugin_library(path) };

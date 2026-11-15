@@ -10,13 +10,16 @@ use core::{
 };
 use crate::{ComRaw, IUnknown, IUnknownVTable, NcInterfaceId, NcStatus, NC_E_DROPPED, NC_E_POINTER, NC_E_INVALID_ARG, NC_OK};
 
-/// Concrete-class facts used by the common lifetime operations.
+/// Immutable per-implementation destruction callbacks and interface tables.
+///
+/// This is object type information shared by allocations of one implementation;
+/// it owns no object value and registers no class or runtime type.
 ///
 /// The descriptor and its interface tables are immutable and must remain loaded
 /// until the final weak owner releases every referencing allocation. Neither
 /// callback may unwind. Both receive the allocation's header at offset zero.
 #[repr(C)]
-pub struct NcClassLifetime {
+pub struct NcObjectTypeInfo {
     /// Destroys only the initialized Rust/foreign value, exactly once. The header
     /// and allocation remain valid throughout this call, including reentrant
     /// release of weak fields. Strong promotion has already become impossible.
@@ -30,7 +33,7 @@ pub struct NcClassLifetime {
     pub interface_count: usize,
 }
 // SAFETY: immutable metadata carries no permission to access any object value.
-unsafe impl Sync for NcClassLifetime {}
+unsafe impl Sync for NcObjectTypeInfo {}
 
 /// Common C-shaped allocation header; the concrete value follows at its own alignment.
 ///
@@ -47,12 +50,12 @@ pub struct NcWeakControl {
     /// Explicit weak owners plus the implicit owner retained through value destruction.
     weak: AtomicUsize,
     /// Provider-owned class metadata, stable through the final weak release.
-    class: *const NcClassLifetime,
+    class: *const NcObjectTypeInfo,
 }
 impl NcWeakControl {
     /// Starts a fully initialized allocation with one strong and one implicit weak owner.
     /// The caller must initialize the complete concrete value before publishing it.
-    pub const fn new(class: &'static NcClassLifetime) -> Self {
+    pub const fn new(class: &'static NcObjectTypeInfo) -> Self {
         Self {
             state: AtomicUsize::new(1),
             weak: AtomicUsize::new(1),
@@ -319,7 +322,7 @@ const BOX_BORROWS: usize = BOX_WRITER | BOX_READERS;
 impl NcWeakControl {
     /// Constructs an exclusive owner with the same stable C header as shared COM.
     /// Publication must happen only after the provider has initialized its value.
-    pub const fn boxed(class: &'static NcClassLifetime) -> Self {
+    pub const fn boxed(class: &'static NcObjectTypeInfo) -> Self {
         Self {
             state: AtomicUsize::new(BOXED | BOX_OWNER),
             weak: AtomicUsize::new(1),

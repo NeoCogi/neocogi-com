@@ -7,7 +7,7 @@ use std::{
     alloc::{GlobalAlloc, Layout, System},
     sync::atomic::{AtomicBool, AtomicUsize, Ordering},
 };
-use neocogi_com::{ComPtr, Runtime, guid_from_qualified_name};
+use neocogi_com::{ComPtr, RuntimeHandle, guid_from_qualified_name};
 use neocogi_com::NcValueRef;
 use neocogi_example_com_host::contracts::{ExampleFactoryAbi, ExampleObjectAbi, Extent};
 
@@ -81,7 +81,7 @@ fn deliver(object: &mut ComPtr<ExampleObjectAbi>, messages: &std::sync::mpsc::Re
 
 /// Measures concrete receiver construction and repeated typed ABI delivery separately.
 #[neocogi_com::com_main]
-fn main(runtime: Runtime) {
+fn main(runtime: RuntimeHandle) {
     // A valid collection count followed by no elements must not reserve 64 MiB
     // for 65,536 records of 1,024 bytes each before detecting truncated input.
     count(|| {

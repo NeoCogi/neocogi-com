@@ -20,7 +20,7 @@ use core::hash::{Hash, Hasher};
 /// must compare contents because independent providers have different addresses.
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
-pub struct NcAbiSignature {
+pub struct NcAbiDigest {
     /// Null means absence, never unchecked compatibility or an all-zero digest.
     /// Non-null points to one initialized immutable array for the view's lifetime.
     digest: *const [u8; Self::SHA256_LEN],
@@ -28,11 +28,11 @@ pub struct NcAbiSignature {
 
 // SAFETY: Public safe construction uses immutable static storage; moving a view
 // cannot invalidate it. Private call-scoped views must remain inside their query.
-unsafe impl Send for NcAbiSignature {}
+unsafe impl Send for NcAbiDigest {}
 // SAFETY: Sharing immutable signature bytes cannot introduce concurrent mutation.
-unsafe impl Sync for NcAbiSignature {}
+unsafe impl Sync for NcAbiDigest {}
 
-impl NcAbiSignature {
+impl NcAbiDigest {
     /// Exact width of every present ABI digest; no alternate encoding is supported.
     pub const SHA256_LEN: usize = 32;
 
@@ -42,14 +42,14 @@ impl NcAbiSignature {
     /// Borrows a complete static digest. Incorrect widths fail type checking.
     ///
     /// ```compile_fail
-    /// use neocogi_com_core::NcAbiSignature;
-    /// let _ = NcAbiSignature::from_static(&[0; 17]);
+    /// use neocogi_com_core::NcAbiDigest;
+    /// let _ = NcAbiDigest::from_static(&[0; 17]);
     /// ```
     ///
     /// Absence is explicit rather than an empty slice accepted by this constructor:
     /// ```compile_fail
-    /// use neocogi_com_core::NcAbiSignature;
-    /// let _ = NcAbiSignature::from_static(&[]);
+    /// use neocogi_com_core::NcAbiDigest;
+    /// let _ = NcAbiDigest::from_static(&[]);
     /// ```
     pub const fn from_static(bytes: &'static [u8; Self::SHA256_LEN]) -> Self {
         Self { digest: bytes }
@@ -113,14 +113,14 @@ impl NcAbiSignature {
         }
     }
 }
-impl PartialEq for NcAbiSignature {
+impl PartialEq for NcAbiDigest {
     /// Independent components may publish equal bytes at different addresses.
     fn eq(&self, other: &Self) -> bool {
         Self::__const_eq(*self, *other)
     }
 }
-impl Eq for NcAbiSignature {}
-impl Hash for NcAbiSignature {
+impl Eq for NcAbiDigest {}
+impl Hash for NcAbiDigest {
     /// Hashes presence and complete contents, consistently with bytewise equality.
     fn hash<H: Hasher>(&self, state: &mut H) {
         // SAFETY: Producers establish immutable readable storage for every live view.
@@ -133,7 +133,7 @@ mod tests {
     use super::*;
 
     /// Hashes the complete logical view, using no provider-address information.
-    fn content_hash(signature: NcAbiSignature) -> u64 {
+    fn content_hash(signature: NcAbiDigest) -> u64 {
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
         signature.hash(&mut hasher);
         hasher.finish()
@@ -145,8 +145,8 @@ mod tests {
         let left = [0x5a; 32];
         let right = [0x5a; 32];
         assert_ne!(left.as_ptr(), right.as_ptr());
-        let left = NcAbiSignature::from_borrowed(&left);
-        let right = NcAbiSignature::from_borrowed(&right);
+        let left = NcAbiDigest::from_borrowed(&left);
+        let right = NcAbiDigest::from_borrowed(&right);
         assert_eq!(left, right);
         assert_eq!(content_hash(left), content_hash(right));
         assert!(left.__const_eq(right));
@@ -155,11 +155,11 @@ mod tests {
     /// No byte, including the final byte, is omitted from exact comparison.
     #[test]
     fn every_digest_byte_participates_in_equality() {
-        let expected = NcAbiSignature::from_static(&[0x5a; 32]);
+        let expected = NcAbiDigest::from_static(&[0x5a; 32]);
         for index in 0..32 {
             let mut bytes = [0x5a; 32];
             bytes[index] ^= 1;
-            let changed = NcAbiSignature::from_borrowed(&bytes);
+            let changed = NcAbiDigest::from_borrowed(&bytes);
             assert_ne!(expected, changed, "byte {index}");
             assert!(!expected.__const_eq(changed));
         }
@@ -168,15 +168,15 @@ mod tests {
     /// Absence differs from every present digest, including all-zero bytes.
     #[test]
     fn absence_and_zero_digest_are_distinct() {
-        let zero = NcAbiSignature::from_static(&[0; 32]);
-        assert!(NcAbiSignature::EMPTY.is_empty());
+        let zero = NcAbiDigest::from_static(&[0; 32]);
+        assert!(NcAbiDigest::EMPTY.is_empty());
         assert!(!zero.is_empty());
-        assert_ne!(NcAbiSignature::EMPTY, zero);
-        assert_ne!(content_hash(NcAbiSignature::EMPTY), content_hash(zero));
-        assert_eq!(NcAbiSignature::EMPTY, NcAbiSignature::EMPTY);
+        assert_ne!(NcAbiDigest::EMPTY, zero);
+        assert_ne!(content_hash(NcAbiDigest::EMPTY), content_hash(zero));
+        assert_eq!(NcAbiDigest::EMPTY, NcAbiDigest::EMPTY);
         // SAFETY: Both views are absent or refer to immutable static arrays.
         unsafe {
-            assert_eq!(NcAbiSignature::EMPTY.as_digest(), None);
+            assert_eq!(NcAbiDigest::EMPTY.as_digest(), None);
             assert_eq!(zero.as_digest(), Some(&[0; 32]));
         }
     }
@@ -184,8 +184,8 @@ mod tests {
     /// The signature view is thin on every pointer width supported by the core.
     #[test]
     fn fixed_digest_view_uses_one_pointer() {
-        assert_eq!(core::mem::size_of::<NcAbiSignature>(), core::mem::size_of::<*const u8>());
-        assert_eq!(core::mem::align_of::<NcAbiSignature>(), core::mem::align_of::<*const u8>());
+        assert_eq!(core::mem::size_of::<NcAbiDigest>(), core::mem::size_of::<*const u8>());
+        assert_eq!(core::mem::align_of::<NcAbiDigest>(), core::mem::align_of::<*const u8>());
         assert_eq!(core::mem::size_of::<crate::NcInterfaceId>(), 16 + core::mem::size_of::<*const u8>());
     }
 }

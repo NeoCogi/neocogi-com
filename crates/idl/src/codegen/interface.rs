@@ -494,7 +494,7 @@ fn expand_parts(plan: InterfacePlan, dispatch: ProviderDispatch) -> Result<Inter
             },
         };
         let borrow = match dispatch {
-            ProviderDispatch::Scoped => quote! { #nc::serialization::scope::Scoped::<#provider>::borrow_mut(#object_ident) },
+            ProviderDispatch::Scoped => quote! { #nc::serialization::scope::ScopedComProvider::<#provider>::borrow_mut(#object_ident) },
             ProviderDispatch::Owned => match method.receiver {
             AbiReceiver::Shared => quote! {
                 <#provider as #nc::ComObject>::borrow_abi_ref(#object_ident)
@@ -694,8 +694,8 @@ fn expand_parts(plan: InterfacePlan, dispatch: ProviderDispatch) -> Result<Inter
 
         impl #abi_ident {
             #[doc = "Canonical validation form of this interface's typed ABI contract."]
-            pub const ABI_SIGNATURE: #nc::NcAbiSignature =
-                #nc::NcAbiSignature::from_static(#assigned_signature);
+            pub const ABI_SIGNATURE: #nc::NcAbiDigest =
+                #nc::NcAbiDigest::from_static(#assigned_signature);
 
             #[doc = "Static descriptors for this interface's ABI methods."]
             pub const METHOD_DESCRIPTORS: [#nc::NcMethodDescriptor; #method_count_usize] = [

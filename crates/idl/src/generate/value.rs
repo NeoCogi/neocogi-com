@@ -61,7 +61,7 @@ pub(super) fn generate_scalar(graph: &Generation<'_>, declaration: &Declaration,
         repr: syn::parse_quote!(#repr),
         members,
         domain,
-        signature: quote! { ::neocogi_com::NcAbiSignature::from_static(#signature) },
+        signature: quote! { ::neocogi_com::NcAbiDigest::from_static(#signature) },
         persistence: graph.graph.values.definitions[&identity.qualified_name].persistence == crate::Persistence::Supported,
     };
     format_rust(crate::codegen::emit_scalar(&plan, &syn::parse_quote!(::neocogi_com)))
@@ -144,7 +144,7 @@ pub(super) fn generate_aggregate(
         &name,
         &syn::parse_quote!(pub),
         &cases,
-        quote! { ::neocogi_com::NcAbiSignature::from_static(#signature) },
+        quote! { ::neocogi_com::NcAbiDigest::from_static(#signature) },
         copied,
         copied && matches!(declaration.kind, DeclarationKind::Struct(_)),
         &nc,

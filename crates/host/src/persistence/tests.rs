@@ -43,7 +43,7 @@ fn isolated(name: &str) -> bool {
 
 /// A registration from plugin code requires the catalog write lock. Completion
 /// proves bootstrap/selection/session/recipe callbacks run outside catalog locks.
-fn reenter_catalog(runtime: neocogi_com::Runtime) {
+fn reenter_catalog(runtime: neocogi_com::RuntimeHandle) {
     // SAFETY: The immutable descriptor and its callbacks are linked into this process.
     unsafe { runtime.register_plugin_descriptor(marker::plugin_descriptor()) }.unwrap();
 }
@@ -53,7 +53,7 @@ mod marker {
     use super::*;
     /// Its factory is never invoked; only registration exercises the catalog lock.
     #[neocogi_com::plugin(name = "nc.tests.host.reentrant-serialization")]
-    fn acquire(_: neocogi_com::Runtime) -> Result<ComPtr<ISerializationPluginAbi>, NcStatus> {
+    fn acquire(_: neocogi_com::RuntimeHandle) -> Result<ComPtr<ISerializationPluginAbi>, NcStatus> {
         Err(neocogi_com::NC_E_BUSY)
     }
 }
@@ -89,7 +89,7 @@ impl ISerializationPlugin for Selection {
 
 /// Selects no other runtime: bootstrap uses the host access supplied to the plugin.
 #[neocogi_com::plugin(name = "nc.serialization")]
-fn acquire(runtime: neocogi_com::Runtime) -> Result<ComPtr<ISerializationPluginAbi>, NcStatus> {
+fn acquire(runtime: neocogi_com::RuntimeHandle) -> Result<ComPtr<ISerializationPluginAbi>, NcStatus> {
     reenter_catalog(runtime);
     ROOTS.fetch_add(1, Ordering::Relaxed);
     Selection::from_value(Selection).query()
@@ -193,7 +193,7 @@ fn bytes() -> Vec<u8> {
 }
 
 /// Creates the caller-owned recipe context without selecting a serialization provider.
-fn registry(runtime: &neocogi_com::Runtime) -> FactoryRegistry {
+fn registry(runtime: &neocogi_com::RuntimeHandle) -> FactoryRegistry {
     let mut registry = FactoryRegistry::new(runtime).unwrap();
     registry.register(KIND, Factory::from_value(Factory).query().unwrap()).unwrap();
     registry

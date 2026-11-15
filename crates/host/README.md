@@ -4,7 +4,7 @@ The runtime owns plugin registration, trusted library loading, checked
 root-factory acquisition, plugin provenance, diagnostics, and the
 implementation of caller-owned persistence contexts. It contains
 no contract-module registry, native contract descriptions, or event seeding.
-Applications use `neocogi_com::Runtime`.
+Applications use `neocogi_com::RuntimeHandle`.
 
 ## Host implementation and shared SDK
 
@@ -12,7 +12,7 @@ A host is the final application that selects this implementation. The package
 name is `neocogi-com-host` and the Rust library path is `neocogi_com_host`.
 Interface callers and providers both use the separate `neocogi-com` SDK: callers
 call interfaces, providers implement them, and either role can occur inside a
-host or plugin. `neocogi_com::Runtime` is supplied access to this implementation's
+host or plugin. `neocogi_com::RuntimeHandle` is supplied access to this implementation's
 service tables; it does not own or initialize another runtime.
 
 This package depends on the SDK with defaults disabled and `std` enabled for
@@ -28,7 +28,7 @@ See [the role and dependency guide](https://github.com/NeoCogi/neocogi-com/blob/
 for the complete graph and startup/call sequence.
 
 For dynamic host deployment, the application loads the host shim with the SDK's
-unsafe `Runtime::load_host_library(path)`. The C bootstrap returns the existing
+unsafe `RuntimeHandle::load_host_library(path)`. The C bootstrap returns the existing
 `NcHostApiV2`; the SDK pins the image before adopting its tables. Host bootstrap
 errors return typed startup diagnostics and create no fallback registry. Plugin
 loading retains its separate mandatory/fatal policy below. Select one owner;
@@ -98,7 +98,7 @@ bootstrap; providers select no implementation. No runtime DSO or native bridge
 is built or deployed. The runtime requires `std`; core and the access handle
 retain reduced-feature support. See the [sample host](https://github.com/NeoCogi/neocogi-com/tree/v0.3.0/examples/com-host).
 
-`initialize_runtime()` returns an admitted `neocogi_com::Runtime` and invokes no
+`initialize_runtime()` returns an admitted `neocogi_com::RuntimeHandle` and invokes no
 plugin. Repeated calls use the same host. The host alone performs unsafe adoption
 of its service graph; `com_main` calls this safe typed constructor, including with
 an explicit dependency/module path. A raw table cannot satisfy that return type.

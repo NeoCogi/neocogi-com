@@ -267,14 +267,14 @@ unsafe fn descriptor_slice<'a, T>(pointer: *const T, count: u32) -> Result<&'a [
 
 #[cfg(test)]
 mod tests {
-    use crate::NcAbiSignature;
+    use crate::NcAbiDigest;
     use core::ptr;
 
     use super::*;
     use crate::NC_ABI_THREADING_THREAD_LOCAL;
 
     /// Exact factory identity shared by the descriptor and acquisition tests.
-    const FACTORY_ID: NcInterfaceId = NcInterfaceId::new(NcGuid::from_fields(6, 7, 8, [9; 8]), NcAbiSignature::from_static(&[5; 32]));
+    const FACTORY_ID: NcInterfaceId = NcInterfaceId::new(NcGuid::from_fields(6, 7, 8, [9; 8]), NcAbiDigest::from_static(&[5; 32]));
 
     /// Satisfies the fixed factory acquisition shape for descriptor validation.
     unsafe extern "C" fn acquire_factory(_host: *const crate::NcHostApiV2, out: *mut crate::ComRaw<IUnknown>) -> NcStatus {
@@ -334,7 +334,7 @@ mod tests {
         // SAFETY: Both fixtures have readable roots and immutable child storage.
         assert_eq!(unsafe { validate_plugin_descriptor(&incompatible) }, NC_E_ABI_VERSION);
         let unsigned = NcPluginDescriptor {
-            root_factory: NcInterfaceId::new(FACTORY_ID.iid, NcAbiSignature::EMPTY),
+            root_factory: NcInterfaceId::new(FACTORY_ID.iid, NcAbiDigest::EMPTY),
             ..VALID_PLUGIN
         };
         assert_eq!(unsafe { validate_plugin_descriptor(&unsigned) }, NC_E_INVALID_ARG);

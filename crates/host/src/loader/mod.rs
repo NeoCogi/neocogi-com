@@ -16,7 +16,7 @@ use std::path::Path;
 
 use neocogi_com_core::{NC_E_POINTER, NC_GET_PLUGIN_DESCRIPTOR_SYMBOL, NcPluginDescriptor, NcGetPluginDescriptor, NcGuid};
 
-use crate::factory_plugin_registry::{PluginOrigin, RegisteredFactoryPlugin};
+use crate::factory_plugin_registry::{PluginOrigin, RegisteredPlugin};
 use crate::descriptor::ValidatedPluginDescriptor;
 use crate::state::RuntimeState;
 
@@ -95,7 +95,7 @@ impl RuntimeState {
         let path = path.as_ref();
         // SAFETY: The selected library promises process-lived immutable metadata and code.
         let descriptor = unsafe { open_plugin_descriptor(path) }?;
-        let plugin = RegisteredFactoryPlugin {
+        let plugin = RegisteredPlugin {
             descriptor,
             origin: PluginOrigin::Dynamic { path: path.to_path_buf() },
         };

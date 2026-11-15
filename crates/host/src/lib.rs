@@ -56,13 +56,13 @@ pub use loader::{
 /// invoke no provider and load no library. Returning a typed handle keeps proof
 /// of the complete service graph here; safe callers need not adopt raw pointers.
 /// A mismatch in this implementation's canonical tables is an internal error.
-pub fn initialize_runtime() -> neocogi_com::Runtime {
+pub fn initialize_runtime() -> neocogi_com::RuntimeHandle {
     let host = initialize_process();
     // SAFETY: this host owns HOST_API and every reachable table and callback as
     // immutable linked statics. RuntimeState is process-lived; shared catalog
     // and debug callbacks synchronize access. Persistence contexts retain their
     // explicit caller-owned, thread-local and exclusive-operation contract.
-    unsafe { neocogi_com::Runtime::__from_host_api(host) }.expect("invalid canonical neocogi-com host API")
+    unsafe { neocogi_com::RuntimeHandle::__from_host_api(host) }.expect("invalid canonical neocogi-com host API")
 }
 
 /// Initializes the selected host implementation and lends its canonical C API.

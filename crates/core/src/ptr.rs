@@ -370,7 +370,7 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> ComPtr<T, M> {
 
     /// Checks a discovered contract with a call-scoped borrowed digest.
     pub fn supports_interface_bytes(&self, iid: crate::NcGuid, signature: &[u8; 32]) -> Result<(), NcStatus> {
-        self.supports_interface_id(&crate::NcInterfaceId::new(iid, crate::NcAbiSignature::from_borrowed(signature)))
+        self.supports_interface_id(&crate::NcInterfaceId::new(iid, crate::NcAbiDigest::from_borrowed(signature)))
     }
     /// Queries and releases a discovered exact contract without inventing a Rust type.
     pub fn supports_interface_id(&self, expected: &crate::NcInterfaceId) -> Result<(), NcStatus> {
@@ -639,7 +639,7 @@ mod tests {
     unsafe impl ComInterface for IProbe {
         const INTERFACE_ID: NcInterfaceId = NcInterfaceId::new(
             crate::NcGuid::from_fields(0x1234_5678, 0x1234, 0x5678, [1, 2, 3, 4, 5, 6, 7, 8]),
-            crate::signature::NcAbiSignature::from_static(&[1u8; 32]),
+            crate::signature::NcAbiDigest::from_static(&[1u8; 32]),
         );
         type Threading = ThreadLocal;
         type VTable = IUnknownVTable;

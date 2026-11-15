@@ -623,11 +623,11 @@ fn native_plugin_provides_format_objects_without_sharing_rust_layouts() {
     fs::write(
         project.path().join("src/lib.rs"),
         r#"
-        use neocogi_com::{ComPtr,NcStatus,Runtime};
+        use neocogi_com::{ComPtr,NcStatus,RuntimeHandle};
         use neocogi_com::serialization::ISerializationFormatAbi;
         use neocogi_com_serialization::ncb::NcbFormat;
         #[neocogi_com::plugin(name="nc.tests.serialization_format",version="0.0.0")]
-        fn acquire(_runtime:Runtime)->Result<ComPtr<ISerializationFormatAbi>,NcStatus>{
+        fn acquire(_runtime:RuntimeHandle)->Result<ComPtr<ISerializationFormatAbi>,NcStatus>{
             NcbFormat::from_value(NcbFormat).query()
         }
     "#,
@@ -660,7 +660,7 @@ fn native_plugin_provides_format_objects_without_sharing_rust_layouts() {
         .find(|path| path.extension().is_some_and(|extension| extension == std::env::consts::DLL_EXTENSION))
         .unwrap();
     // SAFETY: this test executable owns its host implementation for the whole process.
-    let runtime = unsafe { neocogi_com::Runtime::__from_host_api(neocogi_com_host::initialize_process()) }.unwrap();
+    let runtime = unsafe { neocogi_com::RuntimeHandle::__from_host_api(neocogi_com_host::initialize_process()) }.unwrap();
     // SAFETY: the fixture is trusted code just built by this test and stays process-pinned.
     let id = unsafe { runtime.load_plugin_library(artifact) };
     let format = Format::new(runtime.acquire_plugin_root::<ISerializationFormatAbi>(id).unwrap(), Limits::default());
@@ -773,7 +773,7 @@ fn authored_names_omit_rust_raw_identifier_prefixes() {
 #[test]
 fn statically_linked_plugin_acquires_the_common_format_root() {
     // SAFETY: this final executable owns the host tables for its complete lifetime.
-    let runtime = unsafe { neocogi_com::Runtime::__from_host_api(neocogi_com_host::initialize_process()) }.unwrap();
+    let runtime = unsafe { neocogi_com::RuntimeHandle::__from_host_api(neocogi_com_host::initialize_process()) }.unwrap();
     let descriptor = neocogi_com_serialization::plugin_descriptor();
     // SAFETY: the descriptor and all reachable code are linked into this executable.
     unsafe { runtime.register_plugin_descriptor(descriptor) }.unwrap();

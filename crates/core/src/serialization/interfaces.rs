@@ -1621,7 +1621,7 @@ const _: () = {
 };
 impl IDeserializerAbi {
     ///Canonical validation form of this interface's typed ABI contract.
-    pub const ABI_SIGNATURE: ::neocogi_com::NcAbiSignature = ::neocogi_com::NcAbiSignature::from_static(
+    pub const ABI_SIGNATURE: ::neocogi_com::NcAbiDigest = ::neocogi_com::NcAbiDigest::from_static(
         b"\xA0\\\x87\x8D\rW\xB4]z\x90\x0F\x18\x103\xFD \xFE\x846\x08\xA6&\x90\x81\xE8\x05\xC3\xF1\xC1\x8F[\xFB",
     );
     ///Static descriptors for this interface's ABI methods.
@@ -2655,7 +2655,7 @@ const _: () = {
 };
 impl ISerializationDiagnosticsAbi {
     ///Canonical validation form of this interface's typed ABI contract.
-    pub const ABI_SIGNATURE: ::neocogi_com::NcAbiSignature = ::neocogi_com::NcAbiSignature::from_static(
+    pub const ABI_SIGNATURE: ::neocogi_com::NcAbiDigest = ::neocogi_com::NcAbiDigest::from_static(
         b"\x13\x1E\xEF\xE7;\xA1\x9F\xEB\xB1\x9B\xB2'\x81\xE1\xB2\xFAe\x07\xEA\x12\xFCX\xF01\x98\x01\x89H\x1By\xEF\x15",
     );
     ///Static descriptors for this interface's ABI methods.
@@ -3118,7 +3118,7 @@ const _: () = {
 };
 impl ISerializationFormatAbi {
     ///Canonical validation form of this interface's typed ABI contract.
-    pub const ABI_SIGNATURE: ::neocogi_com::NcAbiSignature = ::neocogi_com::NcAbiSignature::from_static(
+    pub const ABI_SIGNATURE: ::neocogi_com::NcAbiDigest = ::neocogi_com::NcAbiDigest::from_static(
         b"Q\x94\x92\xAB> \x82\x10'\xF7\xB2`\x945\xB2\xED:\x9A\xEFf\xBC\xB8o\xE1|b\x8F\xFD\\\xF5\xF2\xAA",
     );
     ///Static descriptors for this interface's ABI methods.
@@ -3462,7 +3462,7 @@ const _: () = {
 };
 impl ISerializationOutputAbi {
     ///Canonical validation form of this interface's typed ABI contract.
-    pub const ABI_SIGNATURE: ::neocogi_com::NcAbiSignature = ::neocogi_com::NcAbiSignature::from_static(
+    pub const ABI_SIGNATURE: ::neocogi_com::NcAbiDigest = ::neocogi_com::NcAbiDigest::from_static(
         b"\xD5\xA2\xA4a\xE0\xAE\xB7\xC2\x90\xCD4Gl\x8F\x0B(\xE6\xEC\xE4\xDD\x0FK\xDC\xD1x[W\xA1h\x9B\xB3j",
     );
     ///Static descriptors for this interface's ABI methods.
@@ -3740,7 +3740,7 @@ const _: () = {
 };
 impl ISerializationPluginAbi {
     ///Canonical validation form of this interface's typed ABI contract.
-    pub const ABI_SIGNATURE: ::neocogi_com::NcAbiSignature = ::neocogi_com::NcAbiSignature::from_static(
+    pub const ABI_SIGNATURE: ::neocogi_com::NcAbiDigest = ::neocogi_com::NcAbiDigest::from_static(
         b"^v3\x01\xBA\xFB;\x9D|\xE5\xAA\x02\x02ih\xA3\xEF\x94\x9Dm5\x17|k\xF7?J\xB5\xC8\"?\x14",
     );
     ///Static descriptors for this interface's ABI methods.
@@ -5313,7 +5313,7 @@ const _: () = {
 };
 impl ISerializerAbi {
     ///Canonical validation form of this interface's typed ABI contract.
-    pub const ABI_SIGNATURE: ::neocogi_com::NcAbiSignature = ::neocogi_com::NcAbiSignature::from_static(
+    pub const ABI_SIGNATURE: ::neocogi_com::NcAbiDigest = ::neocogi_com::NcAbiDigest::from_static(
         b"\xCC\x0C\xBA\xF7\xB68\xE1\xE1\xF3\xFFBEI%\x85\0\xA8\xF9\xDB%\xFD\xF5\xC9\xFD'\x1AQ?\xF1\xBC\xBB\xD9",
     );
     ///Static descriptors for this interface's ABI methods.

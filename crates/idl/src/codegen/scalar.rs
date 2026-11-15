@@ -325,7 +325,7 @@ pub fn emit_scalar(plan: &ScalarPlan, nc: &syn::Path) -> TokenStream {
         // SAFETY: the checked scalar wire is self-contained and has no retained backing.
         unsafe impl #nc::ComInlineValue for #name {}
         impl #nc::ComValueType for #name {
-            const VALUE_SIGNATURE: #nc::NcAbiSignature = #signature;
+            const VALUE_SIGNATURE: #nc::NcAbiDigest = #signature;
         }
         #persistence
         };

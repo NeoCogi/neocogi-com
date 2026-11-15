@@ -34,6 +34,6 @@ pub fn factory() -> ComPtr<ISerializationPluginAbi> {
 
 /// Static registration and native loading share this exact acquisition contract.
 #[neocogi_com::plugin(name = "nc.serialization")]
-fn acquire(_runtime: neocogi_com::Runtime) -> Result<ComPtr<ISerializationPluginAbi>, NcStatus> {
+fn acquire(_runtime: neocogi_com::RuntimeHandle) -> Result<ComPtr<ISerializationPluginAbi>, NcStatus> {
     Ok(factory())
 }

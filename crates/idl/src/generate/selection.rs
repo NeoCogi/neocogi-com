@@ -52,7 +52,7 @@ impl ExternalBindings<'_> {
             quote! {
                 const _: () = {
                     #iid
-                    ::core::assert!(#actual.__const_eq(::neocogi_com::NcAbiSignature::from_static(#signature)), #message);
+                    ::core::assert!(#actual.__const_eq(::neocogi_com::NcAbiDigest::from_static(#signature)), #message);
                 };
             }
         });

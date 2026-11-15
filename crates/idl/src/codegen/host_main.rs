@@ -66,7 +66,7 @@ pub fn expand_com_main(args: MainArgs, input: ItemFn) -> Result<proc_macro2::Tok
     {
         return Err(syn::Error::new_spanned(
             signature,
-            "com_main requires a safe, synchronous, non-generic Rust fn main(runtime: Runtime)",
+            "com_main requires a safe, synchronous, non-generic Rust fn main(runtime: RuntimeHandle)",
         ));
     }
     let nc = runtime_crate_path(args.facade.as_ref());
@@ -87,7 +87,7 @@ pub fn expand_com_main(args: MainArgs, input: ItemFn) -> Result<proc_macro2::Tok
         #vis #entry {
             #imports
             #body
-            let #runtime: #nc::Runtime = #implementation::initialize_runtime();
+            let #runtime: #nc::RuntimeHandle = #implementation::initialize_runtime();
             #authored(#runtime)
         }
     })
@@ -101,15 +101,15 @@ mod tests {
     #[test]
     fn rejects_unsupported_entry_shapes() {
         for source in [
-            "fn other(runtime: Runtime) {}",
+            "fn other(runtime: RuntimeHandle) {}",
             "fn main() {}",
-            "fn main(a: Runtime, b: Runtime) {}",
-            "unsafe fn main(runtime: Runtime) {}",
-            "async fn main(runtime: Runtime) {}",
-            "extern \"C\" fn main(runtime: Runtime) {}",
-            "const fn main(runtime: Runtime) {}",
-            "fn main<T>(runtime: Runtime) {}",
-            "fn main(runtime: Runtime) where Runtime: Copy {}",
+            "fn main(a: RuntimeHandle, b: RuntimeHandle) {}",
+            "unsafe fn main(runtime: RuntimeHandle) {}",
+            "async fn main(runtime: RuntimeHandle) {}",
+            "extern \"C\" fn main(runtime: RuntimeHandle) {}",
+            "const fn main(runtime: RuntimeHandle) {}",
+            "fn main<T>(runtime: RuntimeHandle) {}",
+            "fn main(runtime: RuntimeHandle) where RuntimeHandle: Copy {}",
         ] {
             assert!(expand_com_main(MainArgs::default(), syn::parse_str(source).unwrap()).is_err(), "{source}");
         }

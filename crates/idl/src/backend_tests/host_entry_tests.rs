@@ -44,7 +44,7 @@ fn host_entry_runs_with_normal_printed_and_renamed_dependencies() {
             r#"
             /// Ordinary main remains a function with normal Result/? behavior.
             #[deny(unused_variables)]
-            fn main(runtime: {facade}::Runtime) -> Result<(), &'static str> {{
+            fn main(runtime: {facade}::RuntimeHandle) -> Result<(), &'static str> {{
                 let copied = runtime;
                 let admitted = Result::<_, &'static str>::Ok(copied.core_abi_version())?;
                 assert_eq!(admitted, {facade}::NC_COM_CORE_ABI_VERSION);
@@ -74,7 +74,7 @@ fn host_entry_runs_with_normal_printed_and_renamed_dependencies() {
                 {ambient}
                 static CALLS: ::core::sync::atomic::AtomicUsize = ::core::sync::atomic::AtomicUsize::new(0);
                 mod selected_owner {{
-                    pub fn initialize_runtime() -> {facade}::Runtime {{
+                    pub fn initialize_runtime() -> {facade}::RuntimeHandle {{
                         {implementation}::initialize_runtime()
                     }}
                 }}
@@ -121,7 +121,7 @@ fn host_entry_rejects_safe_modules_returning_unverified_raw_tables() {
                 pub fn {initializer}() -> &'static NcHostApiV2 {{ &HOST }}
             }}
             #[neocogi_com::com_main(neocogi_com_host = safe_local_host)]
-            fn main(_runtime: neocogi_com::Runtime) {{}}
+            fn main(_runtime: neocogi_com::RuntimeHandle) {{}}
         "#
         );
         fs::write(consumer.directory.path().join("src/main.rs"), source).unwrap();
@@ -136,7 +136,7 @@ fn host_entry_rejects_safe_modules_returning_unverified_raw_tables() {
             assert!(diagnostic.contains("E0425") && diagnostic.contains("initialize_runtime"), "{diagnostic}");
         } else {
             assert!(
-                diagnostic.contains("E0308") && diagnostic.contains("Runtime") && diagnostic.contains("NcHostApiV2"),
+                diagnostic.contains("E0308") && diagnostic.contains("RuntimeHandle") && diagnostic.contains("NcHostApiV2"),
                 "{diagnostic}"
             );
         }
@@ -169,7 +169,7 @@ fn plugin_bootstrap_requires_the_actual_supplied_runtime_type() {
     let diagnostic = String::from_utf8_lossy(&output.stderr);
     assert!(!output.status.success(), "an unrelated argument type must not compile");
     assert!(
-        diagnostic.contains("E0308") && diagnostic.contains("Runtime") && diagnostic.contains("u32"),
+        diagnostic.contains("E0308") && diagnostic.contains("RuntimeHandle") && diagnostic.contains("u32"),
         "{diagnostic}"
     );
 }

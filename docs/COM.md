@@ -8,6 +8,30 @@ factory.
 The released [0.3.0 COM contract](abi-v2.md) uses ABI v2 discovery
 and core generation 19. Rebuild hosts, providers and generated bindings together.
 
+## Rust names in 0.4.0 development
+
+The unreleased `0.4.0-wip` source uses these names. Update direct Rust imports
+and regenerate bindings together; the previous names have no compatibility aliases.
+
+| Previous Rust name | Current Rust name |
+| --- | --- |
+| `Runtime` | `RuntimeHandle` |
+| `lifetime::NcClassLifetime` | `lifetime::NcObjectTypeInfo` |
+| `NcAbiSignature` | `NcAbiDigest` |
+| `serialization::scope::Lease<T>` | `serialization::scope::ScopedComWriteGuard<T>` |
+| `serialization::scope::Scoped<T>` | `serialization::scope::ScopedComProvider<T>` |
+| `serialization::Fields` | `serialization::RecordFieldReader` |
+| `serialization::Sequence` | `serialization::SequenceReader` |
+| SDK `Debug` | `RuntimeDiagnostics` |
+| Host-internal `FactoryPluginRegistry` | `PluginRegistry` |
+| Host-internal `RegisteredFactoryPlugin` | `RegisteredPlugin` |
+| `neocogi_idl::AbiType` | `neocogi_idl::IdlType` |
+
+The core `AbiType` trait and Rust's `std::fmt::Debug` trait retain their names.
+The interface schemas, GUIDs, canonical digest bytes and encoding domains are
+unchanged. Existing C records, vtable slots, status values and ownership rules
+retain ABI v2/core generation 19; these are Rust source API changes.
+
 ## Component model
 
 ```text
@@ -56,7 +80,7 @@ These are roles in an interaction, not mutually exclusive kinds of Rust crate.
 
 `neocogi-com` is the **shared SDK**, used by callers and providers. It supplies
 ownership handles, object implementation helpers, codecs, generated-client
-support and optional host-service clients. `neocogi_com::Runtime` is a copyable
+support and optional host-service clients. `neocogi_com::RuntimeHandle` is a copyable
 access handle to the selected host's immutable service tables. Copying it creates
 no registry, loads no implementation and grants no ownership of the host state.
 
@@ -77,7 +101,7 @@ flowchart TD
 | Assembly or package | Dependencies and purpose |
 | --- | --- |
 | Host application | `neocogi-com` with `runtime` and `macros` for service clients and `com_main`, plus `neocogi-com-host` for the selected implementation. Static composition also adds the provider's rlib. |
-| Plugin/provider | `neocogi-com` with the features needed for its objects and values. `macros` exposes `com_object` and `plugin`; `runtime` is needed only when it calls the supplied host-service clients. It receives `Runtime` from bootstrap. |
+| Plugin/provider | `neocogi-com` with the features needed for its objects and values. `macros` exposes `com_object` and `plugin`; `runtime` is needed only when it calls the supplied host-service clients. It receives `RuntimeHandle` from bootstrap. |
 | Ordinary interface caller | `neocogi-com` and its generated contract bindings, with `alloc`/`std` as its values require. Local interface calls do not need the host package or SDK `runtime` feature. |
 | `neocogi-com-host` | `neocogi-com` with `default-features = false, features = ["std"]` for shared ownership, persistence contracts and codecs; `neocogi-com-core` with `std` for raw service tables and validation. These dependencies identify one set of shared ABI types. |
 | `neocogi-com` | `neocogi-com-core`, plus optional `neocogi-com-macros`. It has no host dependency, including when `runtime` is enabled or its unit tests run. Host-dependent integration tests live in the unpublished `tests/com` package. |
@@ -92,7 +116,7 @@ paths are `neocogi_com` and `neocogi_com_host`, respectively.
 
 The unreleased `0.4.0-wip` source adds `neocogi-com-host-dylib`, a thin native
 `cdylib` over the same host rlib. A dynamic application depends on the SDK with
-`runtime`, calls unsafe `Runtime::load_host_library(path)` with an explicit
+`runtime`, calls unsafe `RuntimeHandle::load_host_library(path)` with an explicit
 trusted image, and passes the resulting handle to its providers. It does not
 link a second host implementation. The native bootstrap returns the existing
 C tables, and the SDK pins the image for process lifetime.
@@ -108,15 +132,15 @@ and [bootstrap contract](abi-v2.md#optional-native-host-bootstrap).
 
 1. The final host explicitly depends on `neocogi-com-host` and uses
    `#[neocogi_com::com_main]`. The generated entry calls
-   `neocogi_com_host::initialize_runtime()`, obtains an admitted `Runtime` and
-   passes a `neocogi_com::Runtime` handle to the authored main body. Explicit
+   `neocogi_com_host::initialize_runtime()`, obtains an admitted `RuntimeHandle` and
+   passes a `neocogi_com::RuntimeHandle` to the authored main body. Explicit
    `neocogi_com = path, neocogi_com_host = path` arguments support Cargo aliases.
 2. The host registers a statically linked descriptor or loads an
    application-selected provider library. Registration checks the descriptor and
    dependencies before publishing the plugin in that host's catalog.
 3. The host requests an exact factory interface. Acquisition validates the
    contract and invokes the provider's bootstrap with the same host API bundle.
-   The provider receives its `Runtime` handle and returns one owning root
+   The provider receives its `RuntimeHandle` and returns one owning root
    interface reference.
 4. The caller uses factory methods to create objects and calls their interfaces
    directly through generated clients. Providers can retain supplied runtime
@@ -242,7 +266,7 @@ Use `&mut self` for mutation and keep ordinary state in plain fields.
 ```rust,ignore
 /// Acquires one initialized provider; returns its exact interface projection.
 #[neocogi_com::plugin(name = "example.component", version = "1.0.0")]
-fn acquire_root(_runtime: neocogi_com::Runtime) -> Result<neocogi_com::ComPtr<example_contracts::ExampleFactoryAbi>, neocogi_com::NcStatus> {
+fn acquire_root(_runtime: neocogi_com::RuntimeHandle) -> Result<neocogi_com::ComPtr<example_contracts::ExampleFactoryAbi>, neocogi_com::NcStatus> {
     ExampleFactoryImpl::from_value(ExampleFactoryImpl).query()
 }
 ```
@@ -267,7 +291,7 @@ accepts access supplied by the host entry and uses the declarations above:
 <!-- checked-example: static-host -->
 ```rust,ignore
 /// Executes bootstrap, construction, inherited reads and a mutable COM call.
-fn static_example(runtime: neocogi_com::Runtime) -> Result<(), NcStatus> {
+fn static_example(runtime: neocogi_com::RuntimeHandle) -> Result<(), NcStatus> {
     let descriptor = plugin_descriptor();
     // SAFETY: linked plugin code and macro-generated static metadata remain
     // available for the process lifetime, including every returned COM handle.

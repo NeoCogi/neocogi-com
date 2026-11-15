@@ -6,7 +6,7 @@ COM facade, runs IDL as a build dependency, and receives runtime access from its
 
 ```rust,ignore
 #[neocogi_com::plugin(name = "nc.examples.factory_plugin_component")]
-fn acquire_root(_runtime: neocogi_com::Runtime)
+fn acquire_root(_runtime: neocogi_com::RuntimeHandle)
     -> Result<neocogi_com::ComPtr<crate::contracts::ExampleFactoryAbi>, neocogi_com::NcStatus>
 {
     DynamicExampleFactory::from_value(DynamicExampleFactory).query()

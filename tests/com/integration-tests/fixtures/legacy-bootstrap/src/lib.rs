@@ -30,7 +30,7 @@ impl IObjectChildren for EmptyChildren {
 /// The normal generated adapter validates the supplied current host before here.
 #[cfg(feature = "current")]
 #[neocogi_com::plugin(name = "nc.tests.legacy_bootstrap")]
-fn acquire(_runtime: neocogi_com::Runtime) -> Result<ComPtr<IObjectChildrenAbi>, NcStatus> {
+fn acquire(_runtime: neocogi_com::RuntimeHandle) -> Result<ComPtr<IObjectChildrenAbi>, NcStatus> {
     record_marker(b"current");
     EmptyChildren::from_value(EmptyChildren).query()
 }

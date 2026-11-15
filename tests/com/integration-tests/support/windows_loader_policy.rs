@@ -463,7 +463,7 @@ pub(super) fn child() {
 }
 
 /// Admits only this final executable's process-lived host tables.
-fn runtime() -> neocogi_com::Runtime {
+fn runtime() -> neocogi_com::RuntimeHandle {
     // SAFETY: this explicitly linked implementation owns the complete static graph.
-    unsafe { neocogi_com::Runtime::__from_host_api(neocogi_com_host::initialize_process()) }.unwrap()
+    unsafe { neocogi_com::RuntimeHandle::__from_host_api(neocogi_com_host::initialize_process()) }.unwrap()
 }

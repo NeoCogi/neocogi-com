@@ -77,7 +77,7 @@ fn plugin_source(shadow: &str, explicit_version: bool, expand: bool) -> String {
     let version = explicit_version.then(|| quote! { , version = "4.5.6" });
     let args = quote! { name = "nc.tests.support_resolution" #version };
     let function: syn::ItemFn = syn::parse_quote! {
-        fn acquire(_runtime: neocogi_com::Runtime) -> Result<neocogi_com::ComPtr<IRootAbi>, neocogi_com::NcStatus> {
+        fn acquire(_runtime: neocogi_com::RuntimeHandle) -> Result<neocogi_com::ComPtr<IRootAbi>, neocogi_com::NcStatus> {
             Root::from_value(Root).query()
         }
     };

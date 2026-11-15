@@ -264,7 +264,7 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> WeakComBox<T, M> {
 
     /// Checks discovered catalog metadata without acquiring a shared owner.
     pub fn supports_interface_bytes(&self, iid: crate::NcGuid, signature: &[u8; 32]) -> Result<(), NcStatus> {
-        let expected = crate::NcInterfaceId::new(iid, crate::NcAbiSignature::from_borrowed(signature));
+        let expected = crate::NcInterfaceId::new(iid, crate::NcAbiDigest::from_borrowed(signature));
         // SAFETY: this weak token retains the immutable class table even after
         // the value expires; projection validates the complete interface digest.
         unsafe { box_projection(self.as_raw().object.cast(), &expected) }.map(|_| ())

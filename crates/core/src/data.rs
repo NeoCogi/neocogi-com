@@ -6,7 +6,7 @@
 //! the higher-level `neocogi-com` crate; this core module contains only ABI contracts.
 
 use crate::guid::{NcGuid, guid_from_qualified_name};
-use crate::signature::NcAbiSignature;
+use crate::signature::NcAbiDigest;
 use crate::metadata::{
     NcAbiPassing, NcAbiPassingDescriptor, NcAbiType, NcAbiTypeDescriptor, NcInterfaceDescriptor, NcInterfaceId, NcMethodDescriptor, NcMethodParamDescriptor,
     NcMethodReturnDescriptor, NcStaticUtf8,
@@ -77,13 +77,13 @@ unsafe impl ComInterface for INcBytesAbi {
 ///
 /// This checked-in digest prevents the core crate from hashing during rustc
 /// constant evaluation while retaining an exact identity for the built-in ABI.
-static INC_BYTES_SIGNATURE_BYTES: [u8; NcAbiSignature::SHA256_LEN] = [
+static INC_BYTES_SIGNATURE_BYTES: [u8; NcAbiDigest::SHA256_LEN] = [
     71, 69, 76, 202, 70, 130, 55, 126, 208, 169, 176, 222, 188, 198, 1, 32, 114, 131, 193, 56, 26, 88, 89, 189, 249, 217, 140, 124, 226, 188, 245, 179,
 ];
 
 impl INcBytesAbi {
     /// Canonical validation form of this interface's typed ABI contract.
-    pub const ABI_SIGNATURE: NcAbiSignature = NcAbiSignature::from_static(&INC_BYTES_SIGNATURE_BYTES);
+    pub const ABI_SIGNATURE: NcAbiDigest = NcAbiDigest::from_static(&INC_BYTES_SIGNATURE_BYTES);
 
     #[doc(hidden)]
     pub const LEN_PARAMS: [NcMethodParamDescriptor; 0] = [];
@@ -207,13 +207,13 @@ unsafe impl ComInterface for INcStringAbi {
 ///
 /// This checked-in digest prevents the core crate from hashing during rustc
 /// constant evaluation while retaining an exact identity for the built-in ABI.
-static INC_STRING_SIGNATURE_BYTES: [u8; NcAbiSignature::SHA256_LEN] = [
+static INC_STRING_SIGNATURE_BYTES: [u8; NcAbiDigest::SHA256_LEN] = [
     136, 107, 107, 108, 125, 132, 111, 183, 60, 96, 47, 101, 109, 36, 31, 75, 32, 5, 144, 2, 137, 101, 62, 228, 239, 51, 147, 236, 89, 63, 96, 168,
 ];
 
 impl INcStringAbi {
     /// Canonical validation form of this interface's typed ABI contract.
-    pub const ABI_SIGNATURE: NcAbiSignature = NcAbiSignature::from_static(&INC_STRING_SIGNATURE_BYTES);
+    pub const ABI_SIGNATURE: NcAbiDigest = NcAbiDigest::from_static(&INC_STRING_SIGNATURE_BYTES);
 
     #[doc(hidden)]
     pub const BYTE_LEN_PARAMS: [NcMethodParamDescriptor; 0] = [];

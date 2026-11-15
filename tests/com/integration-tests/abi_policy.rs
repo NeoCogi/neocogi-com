@@ -3,7 +3,7 @@ mod test_contracts {
     include!(concat!(env!("OUT_DIR"), "/test_contracts.rs"));
 }
 use neocogi_com::{
-    ComInterface, ComPtr, IUnknown, NC_ABI_THREADING_THREAD_LOCAL, NC_OK, NcAbiSignature, NcPluginDescriptor, NcStatus, write_plugin_root, com_object,
+    ComInterface, ComPtr, IUnknown, NC_ABI_THREADING_THREAD_LOCAL, NC_OK, NcAbiDigest, NcPluginDescriptor, NcStatus, write_plugin_root, com_object,
     format_abi_signature, format_method_signature, guid_from_qualified_name, validate_plugin_descriptor,
 };
 
@@ -128,7 +128,7 @@ impl ValueFactory for ValueFactoryObject {
 
 /// Acquires one owned root; object construction remains on its typed methods.
 #[neocogi_com::plugin(name = "nc.tests.factory_plugin", version = "1.0.0")]
-fn acquire_root(_runtime: ::neocogi_com::Runtime) -> Result<neocogi_com::ComPtr<ValueFactoryAbi>, neocogi_com::NcStatus> {
+fn acquire_root(_runtime: ::neocogi_com::RuntimeHandle) -> Result<neocogi_com::ComPtr<ValueFactoryAbi>, neocogi_com::NcStatus> {
     ValueFactoryObject::from_value(ValueFactoryObject).query()
 }
 
@@ -182,7 +182,7 @@ fn factory_plugin_metadata_has_no_repeated_root_contract() {
     );
 }
 
-fn signature_text(signature: NcAbiSignature) -> String {
+fn signature_text(signature: NcAbiDigest) -> String {
     // SAFETY: Macro-generated signatures reference immutable static storage in
     // this test component for the duration of the process.
     unsafe { format_abi_signature(signature) }
@@ -242,7 +242,7 @@ fn generated_method_order_and_signatures_are_stable() {
 }
 
 /// Initializes this final test executable's selected host and admits its static tables.
-fn host_runtime() -> neocogi_com::Runtime {
+fn host_runtime() -> neocogi_com::RuntimeHandle {
     // SAFETY: the explicit implementation owns its complete process-lived graph.
-    unsafe { neocogi_com::Runtime::__from_host_api(neocogi_com_host::initialize_process()) }.expect("test host API is compatible")
+    unsafe { neocogi_com::RuntimeHandle::__from_host_api(neocogi_com_host::initialize_process()) }.expect("test host API is compatible")
 }

@@ -41,7 +41,7 @@ pub type NcGetHostApi = unsafe extern "C" fn(output: *mut *const NcHostApiV2) ->
 pub struct NcHostApiV2 {
     /// Available record bytes, including the size/version prefix.
     pub size: usize,
-    /// Runtime table family; must equal [`NC_COM_RUNTIME_ABI_VERSION`].
+    /// RuntimeHandle table family; must equal [`NC_COM_RUNTIME_ABI_VERSION`].
     pub runtime_abi_version: u32,
     /// Core object/descriptor ABI understood by the supplied implementation.
     pub core_abi_version: u32,
