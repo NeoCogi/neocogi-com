@@ -90,10 +90,23 @@ acquisition; exact interface signatures additionally select the callable contrac
 
 Rust constant evaluation merges each parent's already-deduplicated interface
 set, including imported contracts. Repeating an IID with another signature fails
-compilation. Typed `VtblFor<Implementation>::PROJECTIONS` select methods for the
-exact concrete value type. The compiler emits a static vtable-pointer array;
-query scans the exact identities already in those tables. No runtime ancestry
-walk, header array, descriptor graph, or redundant identity table is needed.
+compilation. Typed `VtblFor<Implementation>::INTERFACE_TABLE` constants contain
+`ComInterfaceTableEntry<Implementation>` entries. Each entry pairs an exact
+interface identity with the vtable implementing it for that concrete Rust type.
+The type parameter prevents mixing entries for different allocation contracts;
+entries own no application value or per-object storage.
+
+These hidden Rust helpers compose the interface table at compile time. The
+compiler emits only a static vtable-pointer array for runtime queries, which
+scan the exact identities already in those tables. No runtime ancestry walk,
+header array, descriptor graph, or redundant identity table is needed.
+
+The entry type replaces `__ComProjection<T>`; `INTERFACE_TABLE` replaces the
+generated `PROJECTIONS` constant. The composition/extraction helpers are now
+`__nc_interface_table` and `__nc_interface_vtables`. Regenerate bindings and
+update Rust code that names the previous helpers together. This is a Rust
+source API rename; the C layouts, calling convention, interface signatures,
+ownership behavior and ABI v2/core generation 19 are unchanged.
 
 A successful shared-owner query transfers exactly one reference and returns the same object
 address with the requested table. An absent IID returns `NC_E_NOINTERFACE`; a

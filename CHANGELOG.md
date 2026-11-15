@@ -6,6 +6,15 @@ Historical draft numbers do not define additional supported COM baselines.
 
 ## Unreleased
 
+- Rename the hidden Rust provider-table entry from `__ComProjection<T>` to
+  `ComInterfaceTableEntry<T>`. Generated providers now expose `INTERFACE_TABLE`
+  instead of `PROJECTIONS`, composed with `__nc_interface_table` and reduced to
+  runtime vtable pointers with `__nc_interface_vtables`. Update core/SDK exports,
+  IDL/object generation and checked-in persistence/serialization providers
+  together; remove the old names without aliases. Rust consumers naming these
+  helpers must update and regenerate bindings. ABI v2, core generation 19,
+  interface identities/signatures, C layouts and ownership behavior are unchanged.
+
 ## 0.3.0 — 2026-11-15
 
 - Published all eight packages on crates.io from `v0.3.0`, commit `35db184`,
