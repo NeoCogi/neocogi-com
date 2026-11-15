@@ -6,6 +6,14 @@ Historical draft numbers do not define additional supported COM baselines.
 
 ## Unreleased
 
+- Rename the provider-local Rust borrow helpers to `ComReadGuard` and
+  `ComWriteGuard`, and their shared allocation bookkeeping to `ComBorrowState`.
+  Update generated object implementations, storage recovery and local access
+  together. Remove the old `__ComSharedLease`, `__ComExclusiveLease` and
+  `__ComCallGate` names rather than keeping aliases. The borrow policy,
+  allocation layouts, interface signatures and ABI v2/core generation 19 remain
+  unchanged; Rust consumers naming the helpers must update and regenerate together.
+
 ## 0.3.0 — 2026-11-14
 
 - Promote the coordinated eight-package SDK from `0.3.0-alpha.1` to `0.3.0`.

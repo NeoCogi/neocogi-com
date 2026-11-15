@@ -681,7 +681,7 @@ fn safety(runner: &Runner) -> Result<Value> {
                 words(&["-p", "neocogi-com", "--lib", "--features", "runtime"]),
                 vec![
                     "tests::metadata_identity_query_checks_and_releases_a_concrete_projection",
-                    "object::tests::lease_release_does_not_keep_a_protected_value_reference",
+                    "object::tests::guard_release_does_not_keep_a_protected_value_reference",
                 ],
             ),
         ];

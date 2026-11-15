@@ -164,14 +164,14 @@ pub fn expand_com_object(args: ObjectArgs, input: ItemStruct) -> proc_macro2::To
 
             unsafe fn borrow_abi_ref<'a>(
                 #object_pointer: *mut ::core::ffi::c_void,
-            ) -> ::core::result::Result<#nc::__ComSharedLease<'a, Self, Self::SharedGuard<'a>>, #nc::NcStatus> {
+            ) -> ::core::result::Result<#nc::ComReadGuard<'a, Self, Self::SharedGuard<'a>>, #nc::NcStatus> {
                 // SAFETY: caller retains the exact storage allocated by our constructor.
                 unsafe { <#storage>::borrow_ref(#object_pointer) }
             }
 
             unsafe fn borrow_abi_mut<'a>(
                 #object_pointer: *mut ::core::ffi::c_void,
-            ) -> ::core::result::Result<#nc::__ComExclusiveLease<'a, Self, Self::ExclusiveGuard<'a>>, #nc::NcStatus> {
+            ) -> ::core::result::Result<#nc::ComWriteGuard<'a, Self, Self::ExclusiveGuard<'a>>, #nc::NcStatus> {
                 // SAFETY: the selected storage enforces its one admission/borrow authority.
                 unsafe { <#storage>::borrow_mut(#object_pointer) }
             }

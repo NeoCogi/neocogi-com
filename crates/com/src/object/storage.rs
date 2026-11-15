@@ -8,7 +8,7 @@ use crate::__alloc::boxed::Box;
 use core::{cell::UnsafeCell, ffi::c_void, mem::MaybeUninit};
 use crate::{ComBox, ComObject, ComPtr, ComRaw, IUnknown, NcStatus, NC_E_POINTER};
 use crate::lifetime::{BoxRead, BoxWrite, NcClassLifetime, NcWeakControl, CANONICAL_UNKNOWN_VTABLE};
-use super::{__ComCallGate, __ComExclusiveCall, __ComExclusiveLease, __ComSharedCall, __ComSharedLease};
+use super::{ComBorrowState, ComReadGuard, ComWriteGuard, __ComExclusiveCall, __ComSharedCall};
 
 /// Hidden typed allocation shared by the two generated ownership families.
 ///
@@ -27,7 +27,7 @@ pub struct __ComStorage<T, Access> {
 
 /// Allocation layout for a shared provider with its own Rust borrow gate.
 #[doc(hidden)]
-pub type __ComSharedStorage<T> = __ComStorage<T, __ComCallGate>;
+pub type __ComSharedStorage<T> = __ComStorage<T, ComBorrowState>;
 
 /// Allocation layout for an exclusive provider using common-header admission.
 #[doc(hidden)]
@@ -79,7 +79,7 @@ impl<T: ComObject> __ComSharedStorage<T> {
     /// T's ComObject implementation and every paired table must recover exactly
     /// this storage layout and use its gate. T's threading proof must hold.
     pub unsafe fn into_shared(value: T) -> ComPtr<IUnknown, T::Threading> {
-        let raw = Self::allocate(value, NcWeakControl::new(&Self::CLASS), __ComCallGate::new());
+        let raw = Self::allocate(value, NcWeakControl::new(&Self::CLASS), ComBorrowState::new());
         // SAFETY: allocation initialized one strong reference and its canonical table.
         unsafe { ComPtr::from_raw_owned(raw) }.expect("new shared object is present")
     }
@@ -89,22 +89,22 @@ impl<T: ComObject> __ComSharedStorage<T> {
     /// # Safety
     /// A non-null object must identify this exact initialized storage, retained
     /// by a strong owner for the entire returned lifetime. All T access uses its gate.
-    pub unsafe fn borrow_ref<'a>(object: *mut c_void) -> Result<__ComSharedLease<'a, T, __ComSharedCall<'a>>, NcStatus> {
+    pub unsafe fn borrow_ref<'a>(object: *mut c_void) -> Result<ComReadGuard<'a, T, __ComSharedCall<'a>>, NcStatus> {
         // SAFETY: caller retains matching storage; null is rejected before field access.
         let storage = unsafe { object.cast::<Self>().as_ref() }.ok_or(NC_E_POINTER)?;
-        // SAFETY: the lease acquires the gate before constructing a reference to T.
-        unsafe { __ComSharedLease::acquire(&storage.access, &storage.value) }
+        // SAFETY: the guard acquires the gate before constructing a reference to T.
+        unsafe { ComReadGuard::acquire(&storage.access, &storage.value) }
     }
 
     /// Recovers exclusive access through the shared allocation's call gate.
     ///
     /// # Safety
     /// The same matching-storage and retained-owner obligations as borrow_ref apply.
-    pub unsafe fn borrow_mut<'a>(object: *mut c_void) -> Result<__ComExclusiveLease<'a, T, __ComExclusiveCall<'a>>, NcStatus> {
-        // SAFETY: caller retains matching storage throughout the lease.
+    pub unsafe fn borrow_mut<'a>(object: *mut c_void) -> Result<ComWriteGuard<'a, T, __ComExclusiveCall<'a>>, NcStatus> {
+        // SAFETY: caller retains matching storage throughout the guard.
         let storage = unsafe { object.cast::<Self>().as_ref() }.ok_or(NC_E_POINTER)?;
         // SAFETY: acquisition rejects readers/reentrant writers before creating &mut T.
-        unsafe { __ComExclusiveLease::acquire(&storage.access, &storage.value) }
+        unsafe { ComWriteGuard::acquire(&storage.access, &storage.value) }
     }
 }
 
@@ -125,22 +125,22 @@ impl<T: ComObject> __ComBoxStorage<T> {
     /// # Safety
     /// A non-null object identifies this exact storage, retained for the returned
     /// lifetime. T may already be destroyed; header admission must precede any T reference.
-    pub unsafe fn borrow_ref<'a>(object: *mut c_void) -> Result<__ComSharedLease<'a, T, BoxRead>, NcStatus> {
+    pub unsafe fn borrow_ref<'a>(object: *mut c_void) -> Result<ComReadGuard<'a, T, BoxRead>, NcStatus> {
         // SAFETY: MaybeUninit keeps the retained storage valid even after T dies.
         let storage = unsafe { object.cast::<Self>().as_ref() }.ok_or(NC_E_POINTER)?;
         // SAFETY: acquisition checks owner presence and borrowing before referencing T.
-        unsafe { __ComSharedLease::acquire_box(object.cast(), &storage.value) }
+        unsafe { ComReadGuard::acquire_box(object.cast(), &storage.value) }
     }
 
     /// Admits the unique writer atomically against owner removal and other calls.
     ///
     /// # Safety
     /// The same matching-storage and retained-storage obligations as borrow_ref apply.
-    pub unsafe fn borrow_mut<'a>(object: *mut c_void) -> Result<__ComExclusiveLease<'a, T, BoxWrite>, NcStatus> {
+    pub unsafe fn borrow_mut<'a>(object: *mut c_void) -> Result<ComWriteGuard<'a, T, BoxWrite>, NcStatus> {
         // SAFETY: caller retains the header; no T reference has been constructed.
         let storage = unsafe { object.cast::<Self>().as_ref() }.ok_or(NC_E_POINTER)?;
         // SAFETY: header admission excludes destruction and conflicting borrows.
-        unsafe { __ComExclusiveLease::acquire_box(object.cast(), &storage.value) }
+        unsafe { ComWriteGuard::acquire_box(object.cast(), &storage.value) }
     }
 }
 

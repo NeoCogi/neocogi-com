@@ -6,7 +6,7 @@
 //! interfaces and local access enforce the same Rust aliasing rules.
 
 use core::marker::PhantomData;
-use crate::{ComInterface, ComObject, ComPtr, IUnknown, NcStatus, __ComExclusiveLease, __ComSharedLease};
+use crate::{ComInterface, ComObject, ComPtr, IUnknown, NcStatus, ComReadGuard, ComWriteGuard};
 
 /// An owned COM allocation whose concrete Rust implementation is known locally.
 ///
@@ -43,24 +43,24 @@ pub struct WeakLocalCom<T: ComObject> {
 
 /// Shared local access carrying both the borrow lifetime and COM threading mode.
 pub struct LocalRef<'a, T: ComObject> {
-    /// Holds the same reader lease used by generated interface thunks.
-    lease: __ComSharedLease<'a, T, T::SharedGuard<'a>>,
+    /// Holds the same reader guard used by generated interface thunks.
+    guard: ComReadGuard<'a, T, T::SharedGuard<'a>>,
     /// Prevents even a scoped thread from bypassing a thread-local owner's mode.
     owner: PhantomData<&'a LocalCom<T>>,
 }
 
 impl<T: ComObject> core::ops::Deref for LocalRef<'_, T> {
     type Target = T;
-    /// Exposes state only for the lifetime of this active shared lease.
+    /// Exposes state only for the lifetime of this active shared guard.
     fn deref(&self) -> &T {
-        &self.lease
+        &self.guard
     }
 }
 
 /// Exclusive local access carrying both the borrow lifetime and COM threading mode.
 pub struct LocalMut<'a, T: ComObject> {
-    /// Holds the same writer lease used by generated interface thunks.
-    lease: __ComExclusiveLease<'a, T, T::ExclusiveGuard<'a>>,
+    /// Holds the same writer guard used by generated interface thunks.
+    guard: ComWriteGuard<'a, T, T::ExclusiveGuard<'a>>,
     /// Retains the owner's lifetime and conservative thread-affinity constraints.
     owner: PhantomData<&'a LocalCom<T>>,
 }
@@ -69,14 +69,14 @@ impl<T: ComObject> core::ops::Deref for LocalMut<'_, T> {
     type Target = T;
     /// Observes state while this guard excludes every competing call.
     fn deref(&self) -> &T {
-        &self.lease
+        &self.guard
     }
 }
 
 impl<T: ComObject> core::ops::DerefMut for LocalMut<'_, T> {
     /// Mutates state only while this guard owns the exclusive allocation gate.
     fn deref_mut(&mut self) -> &mut T {
-        &mut self.lease
+        &mut self.guard
     }
 }
 
@@ -117,9 +117,9 @@ impl<T: ComObject> LocalCom<T> {
     pub fn try_borrow(&self) -> Result<LocalRef<'_, T>, NcStatus> {
         // SAFETY: Construction established this exact T allocation, and the
         // returned guard borrows self, retaining its strong owner until release.
-        // The generated lease uses the same gate as every interface projection.
-        let lease = unsafe { T::borrow_abi_ref(self.owner.as_raw().object) }?;
-        Ok(LocalRef { lease, owner: PhantomData })
+        // The generated guard uses the same gate as every interface projection.
+        let guard = unsafe { T::borrow_abi_ref(self.owner.as_raw().object) }?;
+        Ok(LocalRef { guard, owner: PhantomData })
     }
 
     /// Borrows the concrete implementation exclusively against every projection.
@@ -128,10 +128,10 @@ impl<T: ComObject> LocalCom<T> {
     /// Reentry while it is held reports BUSY rather than creating another borrow.
     pub fn try_borrow_mut(&self) -> Result<LocalMut<'_, T>, NcStatus> {
         // SAFETY: The constructor proves T's storage layout, self keeps the
-        // allocation live, and the generated exclusive lease excludes all
+        // allocation live, and the generated exclusive guard excludes all
         // competing local and COM borrows for the returned guard's lifetime.
-        let lease = unsafe { T::borrow_abi_mut(self.owner.as_raw().object) }?;
-        Ok(LocalMut { lease, owner: PhantomData })
+        let guard = unsafe { T::borrow_abi_mut(self.owner.as_raw().object) }?;
+        Ok(LocalMut { guard, owner: PhantomData })
     }
 }
 
@@ -232,13 +232,13 @@ impl<T: ComObject> LocalBox<T> {
             .map_err(|(status, owner)| (status, Self { owner, implementation: PhantomData }))
     }
     /// Observes concrete state under the provider's reader gate.
-    pub fn try_borrow(&self) -> Result<__ComSharedLease<'_, T, T::SharedGuard<'_>>, NcStatus> {
+    pub fn try_borrow(&self) -> Result<ComReadGuard<'_, T, T::SharedGuard<'_>>, NcStatus> {
         // SAFETY: the generated constructor proves T and its storage layout.
-        // The owner retains storage; the generated lease acquires the call gate.
+        // The owner retains storage; the generated guard acquires the call gate.
         unsafe { T::borrow_abi_ref(self.owner.as_raw().object) }
     }
     /// Mutates concrete state without RefCell or an erased payload.
-    pub fn try_borrow_mut(&mut self) -> Result<__ComExclusiveLease<'_, T, T::ExclusiveGuard<'_>>, NcStatus> {
+    pub fn try_borrow_mut(&mut self) -> Result<ComWriteGuard<'_, T, T::ExclusiveGuard<'_>>, NcStatus> {
         // SAFETY: construction proves T; the generated exclusive gate prevents
         // overlap with interface callers as well as concrete local observers.
         unsafe { T::borrow_abi_mut(self.owner.as_raw().object) }

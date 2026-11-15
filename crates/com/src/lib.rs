@@ -159,9 +159,7 @@ pub use neocogi_com_core::{
     QUALIFIED_NAME_INC_STRING, ThreadLocal, ThreadSafe, ThreadingModel, write_plugin_root, guid_from_qualified_name, raw, return_plugin_descriptor,
     validate_plugin_descriptor, validate_qualified_name, validate_version_text, validate_rust_path, NcRustPathError, NC_DESCRIPTOR_RUST_PATH_MAX_LEN,
 };
-pub use object::{
-    __ComCallGate, __ComSharedCall, __ComExclusiveCall, __ComExclusiveLease, __ComSharedLease, __com_add_ref_count, __com_release_ref_count, ComObject,
-};
+pub use object::{ComBorrowState, ComReadGuard, ComWriteGuard, __ComSharedCall, __ComExclusiveCall, __com_add_ref_count, __com_release_ref_count, ComObject};
 #[cfg(feature = "alloc")]
 #[doc(hidden)]
 pub use object::{__ComBoxStorage, __ComSharedStorage, __ComStorage};

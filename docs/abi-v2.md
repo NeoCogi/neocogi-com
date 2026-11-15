@@ -265,18 +265,25 @@ instances of a class and supplies provider-local destruction and allocation rele
 
 Generated exclusive storage places `UnsafeCell<MaybeUninit<T>>` after the header.
 It contains no separate call gate. Generated shared storage retains its separate
-borrow gate because its header word counts strong owners. Both policies produce
-a two-word provider-local lease: a typed `UnsafeCell<MaybeUninit<T>>` slot
-reference and one selected guard. The lease creates `&T`/`&mut T` only for
-short guarded reborrows. It must not store a T reference across admission release:
-passing a reference-bearing lease into a drop function can protect that reference
+`ComBorrowState` because its header word counts strong owners. This one atomic
+state admits shared readers or one exclusive writer across every projection;
+conflicts return `NC_E_BUSY` without waiting for an active call to finish.
+Both policies produce a two-word provider-local `ComReadGuard` or `ComWriteGuard`:
+a typed `UnsafeCell<MaybeUninit<T>>` slot reference and one selected admission
+token. The guard creates `&T`/`&mut T` only for short guarded reborrows. It must
+not store a T reference across admission release:
+passing a reference-bearing guard into a drop function can protect that reference
 until after the guard unlocks. A newly admitted writer or waiting exclusive-owner
 destructor may then access T immediately. Retained slot storage outlives the
-complete lease/drop call; `MaybeUninit` permits T to be destroyed within that
+complete guard/drop call; `MaybeUninit` permits T to be destroyed within that
 interval once its last value loan and admission have ended. Threading capability
 still requires the corresponding T, guard and owner-mode proofs.
 Shared entry requires the caller to retain a strong owner throughout the call;
 the shared borrow gate does not acquire a replacement ownership reference.
+These Rust guard names replace `__ComSharedLease`/`__ComExclusiveLease`;
+rebuild generated Rust consumers with the matching SDK/compiler. The rename does
+not change the C ABI, interface signatures, storage layout or borrowing behavior.
+`ComBorrowState` replaces the former `__ComCallGate` name.
 
 Exclusive objects have one `ComBox` owner and cached `WeakComBox` observers.
 Their shared `AddRef` slot returns zero without retaining; shared query and

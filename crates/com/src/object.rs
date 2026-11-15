@@ -22,18 +22,28 @@ use neocogi_com_core::{NC_E_BUSY, NcStatus, ThreadingModel};
 const EXCLUSIVE_CALL: usize = usize::MAX;
 
 #[doc(hidden)]
-/// Borrow gate for shared COM classes; exclusive classes use their common header.
+/// Object-wide reader/writer borrow state for shared COM classes.
+/// Exclusive classes store their borrow state in the common lifetime header.
 ///
 /// Shared calls may overlap. A mutable call succeeds only while no other call
 /// is active, which prevents cloned COM pointers or foreign reentry from
 /// manufacturing overlapping Rust borrows of the stored implementation.
-pub struct __ComCallGate {
+/// One state covers every interface projection and construction-proven local
+/// borrow of the same allocation. Reader acquisition increments the atomic
+/// count; writer acquisition changes idle to the exclusive sentinel. Conflicts
+/// return `NC_E_BUSY` without blocking until an existing call finishes.
+/// Dropping the selected call token restores reader capacity or the idle state.
+///
+/// This state controls access to T, not ownership. Shared-object callers retain
+/// a strong owner for the entire borrow. Exclusive allocations instead combine
+/// borrow admission with owner-presence checks in their common lifetime header.
+pub struct ComBorrowState {
     /// Zero means idle, `EXCLUSIVE_CALL` means mutable, and other values count readers.
     state: AtomicUsize,
 }
 
-impl __ComCallGate {
-    /// Creates an idle gate for a newly allocated COM object.
+impl ComBorrowState {
+    /// Creates idle borrow state for a newly allocated COM object.
     pub const fn new() -> Self {
         Self { state: AtomicUsize::new(0) }
     }
@@ -62,42 +72,44 @@ impl __ComCallGate {
 }
 
 #[doc(hidden)]
-/// Shared typed access to a generated COM implementation while its call gate is held.
+/// Read access to a generated COM implementation while its admission token is held.
 ///
-/// Generated thunks keep this lease alive for exactly one Rust method call. Keeping
-/// the typed value slot and gate guard in one type ties every actual value reborrow
-/// to the lease. The lease must not store `&T`: moving such a guard into a drop
+/// Generated thunks keep this guard alive for exactly one Rust method call. Keeping
+/// the typed value slot and admission token in one type ties every value reborrow
+/// to the guard. The guard must not store `&T`: moving such a guard into a drop
 /// function can protect that reference until after its gate has been released.
-pub struct __ComSharedLease<'a, T, G = __ComSharedCall<'a>> {
+/// G selects the allocation's existing read-admission token; it adds no second
+/// gate. This provider-local Rust guard never crosses a COM interface boundary.
+pub struct ComReadGuard<'a, T, G = __ComSharedCall<'a>> {
     /// Retained storage remains valid after T is destroyed. UnsafeCell permits
-    /// a newly admitted writer/destructor after this lease releases its gate.
+    /// a newly admitted writer/destructor after this guard releases its gate.
     value: &'a UnsafeCell<MaybeUninit<T>>,
     /// Reader slot whose destructor releases the shared gate acquisition.
     _call: G,
 }
 
-impl<'a, T> __ComSharedLease<'a, T> {
+impl<'a, T> ComReadGuard<'a, T> {
     /// Acquires shared access to `value` through `gate`.
     ///
     /// # Safety
     ///
     /// `value` must contain initialized T while admission is held and belong to
     /// the same allocation as `gate`. Every value access uses this gate. The
-    /// caller retains slot storage through the complete lease/drop invocation;
+    /// caller retains slot storage through the complete guard/drop invocation;
     /// a newly admitted writer may change T immediately after guard release.
-    pub unsafe fn acquire(gate: &'a __ComCallGate, value: &'a UnsafeCell<MaybeUninit<T>>) -> Result<Self, NcStatus> {
+    pub unsafe fn acquire(gate: &'a ComBorrowState, value: &'a UnsafeCell<MaybeUninit<T>>) -> Result<Self, NcStatus> {
         let call = gate.try_shared()?;
         Ok(Self { value, _call: call })
     }
 }
 
-impl<'a, T> __ComSharedLease<'a, T, crate::lifetime::BoxRead> {
+impl<'a, T> ComReadGuard<'a, T, crate::lifetime::BoxRead> {
     /// Acquires lifetime and Rust borrowing in one atomic header transition.
     ///
     /// # Safety
     /// `control` and `value` belong to this retained exclusive allocation; all
     /// implementation access participates in its common borrowing protocol.
-    /// Storage must outlive the complete lease/drop call, not only gate release.
+    /// Storage must outlive the complete guard/drop call, not only gate release.
     pub unsafe fn acquire_box(control: *mut crate::lifetime::NcWeakControl, value: &'a UnsafeCell<MaybeUninit<T>>) -> Result<Self, NcStatus> {
         // SAFETY: the caller retains the matching control and value slot. A
         // successful admission guarantees initialized T until the guard releases.
@@ -106,52 +118,54 @@ impl<'a, T> __ComSharedLease<'a, T, crate::lifetime::BoxRead> {
     }
 }
 
-impl<T, G> core::ops::Deref for __ComSharedLease<'_, T, G> {
+impl<T, G> core::ops::Deref for ComReadGuard<'_, T, G> {
     type Target = T;
 
-    /// Borrows the implementation for no longer than the active shared lease.
+    /// Borrows the implementation for no longer than the active shared guard.
     fn deref(&self) -> &Self::Target {
         // SAFETY: admission proves initialization and excludes writers/destruction.
-        // This T loan ends with the borrow of the lease, before gate release;
+        // This T loan ends with the borrow of the guard, before gate release;
         // only a reference to the interior-mutable storage travels through Drop.
         unsafe { (&*self.value.get()).assume_init_ref() }
     }
 }
 
 #[doc(hidden)]
-/// Exclusive typed access to a generated COM implementation while its call gate is held.
+/// Write access to a generated COM implementation while its admission token is held.
 ///
-/// Generated thunks use this lease instead of a closure-shaped borrow API, so one
+/// Generated thunks use this guard instead of a closure-shaped borrow API, so one
 /// borrow implementation is emitted per concrete class rather than per ABI method.
-pub struct __ComExclusiveLease<'a, T, G = __ComExclusiveCall<'a>> {
+/// G selects the existing writer token for shared storage or exclusive-header
+/// admission. This provider-local Rust guard never crosses the COM interface ABI.
+pub struct ComWriteGuard<'a, T, G = __ComExclusiveCall<'a>> {
     /// Typed retained slot, without a T reference protected across gate release.
     value: &'a UnsafeCell<MaybeUninit<T>>,
     /// Writer slot whose destructor restores the gate to its idle state.
     _call: G,
 }
 
-impl<'a, T> __ComExclusiveLease<'a, T> {
+impl<'a, T> ComWriteGuard<'a, T> {
     /// Acquires exclusive access to `value` through `gate`.
     ///
     /// # Safety
     ///
     /// `value` must contain initialized T while admission is held and belong to
     /// the same allocation as `gate`. Every value access uses this gate. The
-    /// caller retains slot storage through the complete lease/drop invocation,
+    /// caller retains slot storage through the complete guard/drop invocation,
     /// including after a new operation can obtain admission.
-    pub unsafe fn acquire(gate: &'a __ComCallGate, value: &'a UnsafeCell<MaybeUninit<T>>) -> Result<Self, NcStatus> {
+    pub unsafe fn acquire(gate: &'a ComBorrowState, value: &'a UnsafeCell<MaybeUninit<T>>) -> Result<Self, NcStatus> {
         let call = gate.try_exclusive()?;
         Ok(Self { value, _call: call })
     }
 }
 
-impl<'a, T> __ComExclusiveLease<'a, T, crate::lifetime::BoxWrite> {
+impl<'a, T> ComWriteGuard<'a, T, crate::lifetime::BoxWrite> {
     /// Acquires lifetime and Rust borrowing in one atomic header transition.
     ///
     /// # Safety
     /// `control` and `value` belong to this retained exclusive allocation; all
     /// implementation access participates in its common borrowing protocol.
-    /// Storage must outlive the complete lease/drop call, not only gate release.
+    /// Storage must outlive the complete guard/drop call, not only gate release.
     pub unsafe fn acquire_box(control: *mut crate::lifetime::NcWeakControl, value: &'a UnsafeCell<MaybeUninit<T>>) -> Result<Self, NcStatus> {
         // SAFETY: the caller retains matching storage; admission excludes every
         // competing value access before Deref/DerefMut may create a T loan.
@@ -160,49 +174,49 @@ impl<'a, T> __ComExclusiveLease<'a, T, crate::lifetime::BoxWrite> {
     }
 }
 
-impl<T, G> core::ops::Deref for __ComExclusiveLease<'_, T, G> {
+impl<T, G> core::ops::Deref for ComWriteGuard<'_, T, G> {
     type Target = T;
 
-    /// Borrows the implementation for no longer than the active exclusive lease.
+    /// Borrows the implementation for no longer than the active exclusive guard.
     fn deref(&self) -> &Self::Target {
         // SAFETY: the held writer guard proves initialization and excludes all
-        // other value access. The returned reference borrows this lease only.
+        // other value access. The returned reference borrows this guard only.
         unsafe { (&*self.value.get()).assume_init_ref() }
     }
 }
 
-impl<T, G> core::ops::DerefMut for __ComExclusiveLease<'_, T, G> {
-    /// Mutably borrows the implementation while the lease owns the writer slot.
+impl<T, G> core::ops::DerefMut for ComWriteGuard<'_, T, G> {
+    /// Mutably borrows the implementation while the guard owns the writer slot.
     fn deref_mut(&mut self) -> &mut Self::Target {
-        // SAFETY: the unique lease reborrow and writer guard jointly grant this
-        // T loan. No T reference remains stored in the lease during its Drop.
+        // SAFETY: the unique guard reborrow and writer admission jointly grant this
+        // T loan. No T reference remains stored in the guard during its Drop.
         unsafe { (&mut *self.value.get()).assume_init_mut() }
     }
 }
 
 // SAFETY: these are the same value/guard bounds as the former &T field. The
-// gate excludes mutation, and moving the lease transfers its guard and loans.
-unsafe impl<T: Sync, G: Send> Send for __ComSharedLease<'_, T, G> {}
-// SAFETY: shared lease access can create only &T; the held guard excludes writers.
-unsafe impl<T: Sync, G: Sync> Sync for __ComSharedLease<'_, T, G> {}
+// gate excludes mutation; moving the guard transfers its admission token and loans.
+unsafe impl<T: Sync, G: Send> Send for ComReadGuard<'_, T, G> {}
+// SAFETY: shared guard access can create only &T; the held guard excludes writers.
+unsafe impl<T: Sync, G: Sync> Sync for ComReadGuard<'_, T, G> {}
 // SAFETY: these are the former &mut T bounds. Moving exclusive access is valid
 // for Send T only when the selected guard may itself move to that thread.
-unsafe impl<T: Send, G: Send> Send for __ComExclusiveLease<'_, T, G> {}
-// SAFETY: sharing &lease exposes only &T. DerefMut still requires unique access
-// to the lease, while G's Sync proof governs sharing the admission token.
-unsafe impl<T: Sync, G: Sync> Sync for __ComExclusiveLease<'_, T, G> {}
+unsafe impl<T: Send, G: Send> Send for ComWriteGuard<'_, T, G> {}
+// SAFETY: sharing &guard exposes only &T. DerefMut still requires unique access
+// to the guard, while G's Sync proof governs sharing the admission token.
+unsafe impl<T: Sync, G: Sync> Sync for ComWriteGuard<'_, T, G> {}
 
-impl Default for __ComCallGate {
-    /// Creates the same idle gate as [`__ComCallGate::new`].
+impl Default for ComBorrowState {
+    /// Creates the same idle state as [`ComBorrowState::new`].
     fn default() -> Self {
         Self::new()
     }
 }
 
-/// Active shared-call lease that restores its reader slot on every return path.
+/// Shared-call admission token that restores its reader slot on every return path.
 pub struct __ComSharedCall<'a> {
-    /// Gate whose reader count this lease owns.
-    gate: &'a __ComCallGate,
+    /// Gate whose reader count this token owns.
+    gate: &'a ComBorrowState,
 }
 
 impl Drop for __ComSharedCall<'_> {
@@ -213,10 +227,10 @@ impl Drop for __ComSharedCall<'_> {
     }
 }
 
-/// Active mutable-call lease that restores the idle state on every return path.
+/// Mutable-call admission token that restores the idle state on every return path.
 pub struct __ComExclusiveCall<'a> {
-    /// Gate whose exclusive sentinel this lease owns.
-    gate: &'a __ComCallGate,
+    /// Gate whose exclusive sentinel this token owns.
+    gate: &'a ComBorrowState,
 }
 
 impl Drop for __ComExclusiveCall<'_> {
@@ -244,7 +258,7 @@ pub use neocogi_com_core::{__com_add_ref_count, __com_release_ref_count};
 /// instances acquire their reader/writer bit in the lifetime header before
 /// referencing the value and release it only after all T loans have ended.
 /// Guards must not store a T reference protected across their release operation;
-/// callers retain storage through the complete lease/drop invocation even when
+/// callers retain storage through the complete guard/drop invocation even when
 /// a concurrent owner destroys T immediately after admission is released.
 ///
 /// Interface thunks receive an opaque object pointer and use this trait to
@@ -269,10 +283,10 @@ pub unsafe trait ComObject: Sized + 'static {
     ///
     /// `object` must be an opaque storage pointer originally produced by the
     /// matching generated `#[com_object]` implementation. The object allocation
-    /// must remain live until the returned lease is dropped. A shared class
+    /// must remain live until the returned guard is dropped. A shared class
     /// requires a retained strong owner; an exclusive class admits a call before
     /// accessing its value and rejects calls after owner removal.
-    unsafe fn borrow_abi_ref<'a>(object: *mut c_void) -> Result<__ComSharedLease<'a, Self, Self::SharedGuard<'a>>, NcStatus>;
+    unsafe fn borrow_abi_ref<'a>(object: *mut c_void) -> Result<ComReadGuard<'a, Self, Self::SharedGuard<'a>>, NcStatus>;
 
     /// Acquires exclusive access to the Rust value in generated storage.
     ///
@@ -280,15 +294,15 @@ pub unsafe trait ComObject: Sized + 'static {
     ///
     /// `object` must be an opaque storage pointer originally produced by the
     /// matching generated `#[com_object]` implementation. The object allocation
-    /// must remain live until the returned lease is dropped. A shared class
+    /// must remain live until the returned guard is dropped. A shared class
     /// requires a retained strong owner; an exclusive class admits a call before
     /// accessing its value and rejects calls after owner removal.
-    unsafe fn borrow_abi_mut<'a>(object: *mut c_void) -> Result<__ComExclusiveLease<'a, Self, Self::ExclusiveGuard<'a>>, NcStatus>;
+    unsafe fn borrow_abi_mut<'a>(object: *mut c_void) -> Result<ComWriteGuard<'a, Self, Self::ExclusiveGuard<'a>>, NcStatus>;
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{__ComCallGate, __ComExclusiveLease, __ComSharedLease};
+    use super::{ComBorrowState, ComWriteGuard, ComReadGuard};
     use core::{cell::UnsafeCell, mem::MaybeUninit};
     use crate::NC_E_BUSY;
 
@@ -299,7 +313,7 @@ mod tests {
         /// Admission being handed off, consumed exactly once in Drop.
         call: Option<G>,
         /// The same real gate must admit the following write.
-        gate: &'a __ComCallGate,
+        gate: &'a ComBorrowState,
         /// Typed storage, deliberately containing no reference to the value.
         value: &'a UnsafeCell<MaybeUninit<u32>>,
     }
@@ -308,20 +322,20 @@ mod tests {
             drop(self.call.take());
             // SAFETY: the previous admission has ended; this fresh writer uses
             // the same gate and initialized slot before changing its value.
-            let mut next = unsafe { __ComExclusiveLease::acquire(self.gate, self.value) }.unwrap();
+            let mut next = unsafe { ComWriteGuard::acquire(self.gate, self.value) }.unwrap();
             *next = 99;
         }
     }
 
-    /// Passing a lease by value to Drop must not protect T after gate release.
+    /// Passing a guard by value to Drop must not protect T after gate release.
     #[test]
-    fn lease_release_does_not_keep_a_protected_value_reference() {
-        let gate = __ComCallGate::new();
+    fn guard_release_does_not_keep_a_protected_value_reference() {
+        let gate = ComBorrowState::new();
         let value = UnsafeCell::new(MaybeUninit::new(7));
         // SAFETY: all accesses participate in this gate and storage outlives
-        // every lease, including the release callback's next admission.
-        let first = unsafe { __ComSharedLease::acquire(&gate, &value) }.unwrap();
-        let lease = __ComSharedLease {
+        // every guard, including the release callback's next admission.
+        let first = unsafe { ComReadGuard::acquire(&gate, &value) }.unwrap();
+        let guard = ComReadGuard {
             value: first.value,
             _call: WriteAfterRelease {
                 call: Some(first._call),
@@ -329,10 +343,10 @@ mod tests {
                 value: &value,
             },
         };
-        assert_eq!(*lease, 7);
-        drop(lease);
-        let first = unsafe { __ComExclusiveLease::acquire(&gate, &value) }.unwrap();
-        let mut lease = __ComExclusiveLease {
+        assert_eq!(*guard, 7);
+        drop(guard);
+        let first = unsafe { ComWriteGuard::acquire(&gate, &value) }.unwrap();
+        let mut guard = ComWriteGuard {
             value: first.value,
             _call: WriteAfterRelease {
                 call: Some(first._call),
@@ -340,61 +354,61 @@ mod tests {
                 value: &value,
             },
         };
-        assert_eq!(*lease, 99);
-        *lease = 8;
-        drop(lease);
-        let observed = unsafe { __ComSharedLease::acquire(&gate, &value) }.unwrap();
+        assert_eq!(*guard, 99);
+        *guard = 8;
+        drop(guard);
+        let observed = unsafe { ComReadGuard::acquire(&gate, &value) }.unwrap();
         assert_eq!(*observed, 99);
     }
 
     /// The typed slot keeps the old reference's positive threading bounds;
     /// local owner modes and non-Send guards still impose their own restriction.
     #[test]
-    fn shared_storage_lease_threading_capabilities_are_preserved() {
+    fn shared_storage_guard_threading_capabilities_are_preserved() {
         fn shared<T: Send + Sync>() {}
-        shared::<__ComSharedLease<'_, u32>>();
-        shared::<__ComExclusiveLease<'_, u32>>();
+        shared::<ComReadGuard<'_, u32>>();
+        shared::<ComWriteGuard<'_, u32>>();
     }
 
     /// Provider policy must not reintroduce optional tokens or boxed admission
     /// into shared calls: these helper records never need an enum discriminator.
     #[test]
-    fn call_leases_store_only_the_selected_lifetime_policy() {
+    fn call_guards_store_only_the_selected_lifetime_policy() {
         use core::mem::size_of;
         use crate::lifetime::{BoxRead, BoxWrite};
-        assert_eq!(size_of::<__ComSharedLease<'_, u32>>(), 2 * size_of::<usize>());
-        assert_eq!(size_of::<__ComExclusiveLease<'_, u32>>(), 2 * size_of::<usize>());
-        assert_eq!(size_of::<__ComSharedLease<'_, u32, BoxRead>>(), 2 * size_of::<usize>());
-        assert_eq!(size_of::<__ComExclusiveLease<'_, u32, BoxWrite>>(), 2 * size_of::<usize>());
+        assert_eq!(size_of::<ComReadGuard<'_, u32>>(), 2 * size_of::<usize>());
+        assert_eq!(size_of::<ComWriteGuard<'_, u32>>(), 2 * size_of::<usize>());
+        assert_eq!(size_of::<ComReadGuard<'_, u32, BoxRead>>(), 2 * size_of::<usize>());
+        assert_eq!(size_of::<ComWriteGuard<'_, u32, BoxWrite>>(), 2 * size_of::<usize>());
     }
 
     /// Confirms shared calls compose while an exclusive call requires an idle object.
     #[test]
-    fn call_gate_enforces_rust_borrowing_across_reentry() {
-        let gate = __ComCallGate::new();
+    fn borrow_state_enforces_rust_borrowing_across_reentry() {
+        let gate = ComBorrowState::new();
         let value = UnsafeCell::new(MaybeUninit::new(7));
 
         // SAFETY: `value` remains live and every test access participates in
-        // this local gate for the complete lifetime of each returned lease.
-        let shared = unsafe { __ComSharedLease::acquire(&gate, &value) }.unwrap();
-        // SAFETY: A second shared lease observes the same live immutable value.
-        let nested_shared = unsafe { __ComSharedLease::acquire(&gate, &value) }.unwrap();
+        // this local gate for the complete lifetime of each returned guard.
+        let shared = unsafe { ComReadGuard::acquire(&gate, &value) }.unwrap();
+        // SAFETY: A second shared guard observes the same live immutable value.
+        let nested_shared = unsafe { ComReadGuard::acquire(&gate, &value) }.unwrap();
         assert_eq!(*nested_shared, 7);
-        // SAFETY: The pointer is valid, but the active reader leases must reject
+        // SAFETY: The pointer is valid, but the active reader guards must reject
         // this exclusive acquisition before exposing a mutable reference.
-        assert!(matches!(unsafe { __ComExclusiveLease::acquire(&gate, &value) }, Err(NC_E_BUSY)));
+        assert!(matches!(unsafe { ComWriteGuard::acquire(&gate, &value) }, Err(NC_E_BUSY)));
         drop(nested_shared);
         drop(shared);
 
-        // SAFETY: No lease remains and `value` is still owned by this scope.
-        let mut exclusive = unsafe { __ComExclusiveLease::acquire(&gate, &value) }.unwrap();
+        // SAFETY: No guard remains and `value` is still owned by this scope.
+        let mut exclusive = unsafe { ComWriteGuard::acquire(&gate, &value) }.unwrap();
         *exclusive = 9;
-        // SAFETY: The pointer is valid, but the writer lease must reject another reader.
-        assert!(matches!(unsafe { __ComSharedLease::acquire(&gate, &value) }, Err(NC_E_BUSY)));
+        // SAFETY: The pointer is valid, but the writer guard must reject another reader.
+        assert!(matches!(unsafe { ComReadGuard::acquire(&gate, &value) }, Err(NC_E_BUSY)));
         drop(exclusive);
 
         // SAFETY: Dropping the writer restored the idle state and the value remains live.
-        let shared = unsafe { __ComSharedLease::acquire(&gate, &value) }.unwrap();
+        let shared = unsafe { ComReadGuard::acquire(&gate, &value) }.unwrap();
         assert_eq!(*shared, 9);
     }
 }
