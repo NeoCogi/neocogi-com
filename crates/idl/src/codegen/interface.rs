@@ -725,18 +725,18 @@ fn expand_parts(plan: InterfacePlan, dispatch: ProviderDispatch) -> Result<Inter
         ProviderDispatch::Owned => quote! { + #nc::ComObject },
         ProviderDispatch::Scoped => quote! {},
     };
-    let projections = match dispatch {
+    let interface_table = match dispatch {
         ProviderDispatch::Owned => quote! {
-            /// Distinct provider bindings in the interface's canonical metadata order.
-            /// T fixes the thunk implementation; no object headers are stored here.
-            pub const PROJECTIONS: [#nc::__ComProjection<#provider>; #abi_ident::INTERFACE_CHAIN.len()] =
-                #nc::__nc_projection_table(
+            /// Distinct interface entries in the canonical metadata order.
+            /// T fixes each vtable's implementation; entries own no object state.
+            pub const INTERFACE_TABLE: [#nc::ComInterfaceTableEntry<#provider>; #abi_ident::INTERFACE_CHAIN.len()] =
+                #nc::__nc_interface_table(
                     &#abi_ident::INTERFACE_CHAIN,
                     // SAFETY: this macro emits the exact contract identity and
                     // complete prefix-compatible vtable for T's allocation.
-                    unsafe { #nc::__ComProjection::new(<#abi_ident as #nc::ComInterface>::INTERFACE_ID,
+                    unsafe { #nc::ComInterfaceTableEntry::new(<#abi_ident as #nc::ComInterface>::INTERFACE_ID,
                         &Self::VTABLE as *const #vtable_ident as *const #nc::IUnknownVTable) },
-                    &[#(&#required_providers::<#provider>::PROJECTIONS,)*],
+                    &[#(&#required_providers::<#provider>::INTERFACE_TABLE,)*],
                 );
 
         },
@@ -756,7 +756,7 @@ fn expand_parts(plan: InterfacePlan, dispatch: ProviderDispatch) -> Result<Inter
         where
             #provider: #trait_ident #object_bound,
         {
-            #projections
+            #interface_table
 
             /// Table for a standalone projection of this interface.
             pub const VTABLE: #vtable_ident = Self::with_identity(&<#abi_ident as #nc::ComInterface>::INTERFACE_ID);

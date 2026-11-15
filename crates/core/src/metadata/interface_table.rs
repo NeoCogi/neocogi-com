@@ -1,4 +1,4 @@
-//! Compile-time provider bindings for canonical, static interface-table arrays.
+//! Compile-time entries for canonical, static interface tables.
 //!
 //! Contract identities determine table ordering, not per-object storage. The implementation
 //! parameter keeps every selected vtable tied to the one Rust value type whose
@@ -8,10 +8,14 @@ use core::marker::PhantomData;
 use crate::{IUnknownVTable, NcInterfaceDescriptor, NcInterfaceId};
 use super::inheritance::same_identity;
 
-/// One exact interface contract and its statically bound provider vtable.
-/// Generated associated constants compose these before runtime allocation.
+/// One interface identity and its vtable for the concrete implementation `T`.
+///
+/// Generated `INTERFACE_TABLE` constants compose these entries at compile time.
+/// `T` prevents combining vtables for incompatible object allocations, without
+/// storing or owning a value. Runtime queries use only the resulting vtable
+/// pointers; this Rust helper is not part of the C ABI.
 #[doc(hidden)]
-pub struct __ComProjection<T> {
+pub struct ComInterfaceTableEntry<T> {
     /// Exact identity used only while the compiler selects unique providers.
     /// Deliberately excludes pointers to method, parameter, or type descriptions.
     identity: NcInterfaceId,
@@ -21,17 +25,17 @@ pub struct __ComProjection<T> {
     implementor: PhantomData<fn() -> T>,
 }
 
-// A provider binding borrows immutable compiler-generated tables and owns no T.
-impl<T> Copy for __ComProjection<T> {}
-impl<T> Clone for __ComProjection<T> {
-    /// Copies the static binding without requiring the implementation to be Clone.
+// An entry borrows immutable compiler-generated tables and owns no T.
+impl<T> Copy for ComInterfaceTableEntry<T> {}
+impl<T> Clone for ComInterfaceTableEntry<T> {
+    /// Copies the static entry without requiring the implementation to be Clone.
     fn clone(&self) -> Self {
         *self
     }
 }
 
-impl<T> __ComProjection<T> {
-    /// Binds a complete interface vtable to its identity and concrete provider.
+impl<T> ComInterfaceTableEntry<T> {
+    /// Creates an entry for a complete interface vtable and its exact identity.
     ///
     /// # Safety
     /// The vtable must be permanently live, have an IUnknownVTable prefix, and
@@ -47,17 +51,17 @@ impl<T> __ComProjection<T> {
     }
 }
 
-/// Selects provider bindings in exactly the canonical descriptor order.
+/// Selects interface table entries in exactly the canonical descriptor order.
 ///
 /// Generated associated constants evaluate this at compilation. Parent tables
 /// already contain only unique interfaces. No runtime ancestry traversal, map,
 /// erased application value, or per-parent header allocation is needed.
 #[doc(hidden)]
-pub const fn __nc_projection_table<T, const N: usize>(
+pub const fn __nc_interface_table<T, const N: usize>(
     contracts: &[&'static NcInterfaceDescriptor; N],
-    own: __ComProjection<T>,
-    parents: &[&[__ComProjection<T>]],
-) -> [__ComProjection<T>; N] {
+    own: ComInterfaceTableEntry<T>,
+    parents: &[&[ComInterfaceTableEntry<T>]],
+) -> [ComInterfaceTableEntry<T>; N] {
     let mut result = [own; N];
     let mut index = 0;
     while index < N {
@@ -83,24 +87,24 @@ pub const fn __nc_projection_table<T, const N: usize>(
                 }
                 parent += 1;
             }
-            assert!(found, "canonical interface has no provider binding");
+            assert!(found, "canonical interface has no interface table entry");
         }
         index += 1;
     }
     result
 }
 
-/// Discards compiler-only identities after binding every interface to its typed vtable.
+/// Extracts runtime vtable pointers from the compiler-only interface table entries.
 ///
 /// Generated queries scan only this result. Returning pointer words instead
-/// of provider records prevents a runtime reference from retaining descriptor graphs
+/// of entry records prevents a runtime reference from retaining descriptor graphs
 /// or a redundant per-implementation interface-identity array.
 #[doc(hidden)]
-pub const fn __nc_projection_vtables<T, const N: usize>(projections: &[__ComProjection<T>; N]) -> [*const IUnknownVTable; N] {
+pub const fn __nc_interface_vtables<T, const N: usize>(entries: &[ComInterfaceTableEntry<T>; N]) -> [*const IUnknownVTable; N] {
     let mut result = [core::ptr::null(); N];
     let mut index = 0;
     while index < N {
-        result[index] = projections[index].vtable;
+        result[index] = entries[index].vtable;
         index += 1;
     }
     result

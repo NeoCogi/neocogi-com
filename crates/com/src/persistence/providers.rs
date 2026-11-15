@@ -27,14 +27,14 @@ const _: () = {
     where
         __NcProvider: IObjectChildren + ::neocogi_com::ComObject,
     {
-        /// Distinct provider bindings in the interface's canonical metadata order.
-        /// T fixes the thunk implementation; no object headers are stored here.
-        pub const PROJECTIONS: [::neocogi_com::__ComProjection<
+        /// Distinct interface entries in the canonical metadata order.
+        /// T fixes each vtable's implementation; entries own no object state.
+        pub const INTERFACE_TABLE: [::neocogi_com::ComInterfaceTableEntry<
             __NcProvider,
-        >; IObjectChildrenAbi::INTERFACE_CHAIN.len()] = ::neocogi_com::__nc_projection_table(
+        >; IObjectChildrenAbi::INTERFACE_CHAIN.len()] = ::neocogi_com::__nc_interface_table(
             &IObjectChildrenAbi::INTERFACE_CHAIN,
             unsafe {
-                ::neocogi_com::__ComProjection::new(
+                ::neocogi_com::ComInterfaceTableEntry::new(
                     <IObjectChildrenAbi as ::neocogi_com::ComInterface>::INTERFACE_ID,
                     &Self::VTABLE as *const IObjectChildrenVTable
                         as *const ::neocogi_com::IUnknownVTable,
@@ -195,14 +195,14 @@ const _: () = {
     where
         __NcProvider: IPersistable + ::neocogi_com::ComObject,
     {
-        /// Distinct provider bindings in the interface's canonical metadata order.
-        /// T fixes the thunk implementation; no object headers are stored here.
-        pub const PROJECTIONS: [::neocogi_com::__ComProjection<
+        /// Distinct interface entries in the canonical metadata order.
+        /// T fixes each vtable's implementation; entries own no object state.
+        pub const INTERFACE_TABLE: [::neocogi_com::ComInterfaceTableEntry<
             __NcProvider,
-        >; IPersistableAbi::INTERFACE_CHAIN.len()] = ::neocogi_com::__nc_projection_table(
+        >; IPersistableAbi::INTERFACE_CHAIN.len()] = ::neocogi_com::__nc_interface_table(
             &IPersistableAbi::INTERFACE_CHAIN,
             unsafe {
-                ::neocogi_com::__ComProjection::new(
+                ::neocogi_com::ComInterfaceTableEntry::new(
                     <IPersistableAbi as ::neocogi_com::ComInterface>::INTERFACE_ID,
                     &Self::VTABLE as *const IPersistableVTable
                         as *const ::neocogi_com::IUnknownVTable,
@@ -515,14 +515,14 @@ const _: () = {
     where
         __NcProvider: IPersistenceFactory + ::neocogi_com::ComObject,
     {
-        /// Distinct provider bindings in the interface's canonical metadata order.
-        /// T fixes the thunk implementation; no object headers are stored here.
-        pub const PROJECTIONS: [::neocogi_com::__ComProjection<
+        /// Distinct interface entries in the canonical metadata order.
+        /// T fixes each vtable's implementation; entries own no object state.
+        pub const INTERFACE_TABLE: [::neocogi_com::ComInterfaceTableEntry<
             __NcProvider,
-        >; IPersistenceFactoryAbi::INTERFACE_CHAIN.len()] = ::neocogi_com::__nc_projection_table(
+        >; IPersistenceFactoryAbi::INTERFACE_CHAIN.len()] = ::neocogi_com::__nc_interface_table(
             &IPersistenceFactoryAbi::INTERFACE_CHAIN,
             unsafe {
-                ::neocogi_com::__ComProjection::new(
+                ::neocogi_com::ComInterfaceTableEntry::new(
                     <IPersistenceFactoryAbi as ::neocogi_com::ComInterface>::INTERFACE_ID,
                     &Self::VTABLE as *const IPersistenceFactoryVTable
                         as *const ::neocogi_com::IUnknownVTable,

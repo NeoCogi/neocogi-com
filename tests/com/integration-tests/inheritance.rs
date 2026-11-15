@@ -139,6 +139,35 @@ fn inherited_methods_and_queries_share_one_allocation() {
     assert_eq!(drops.get(), 1);
 }
 
+/// Compile-time entries retain the concrete provider through real C queries and calls.
+#[test]
+fn interface_table_entries_dispatch_to_their_concrete_implementation() {
+    use neocogi_com::{ComInterfaceTableEntry, ComRaw, IUnknownVTable, NC_OK};
+
+    const ENTRIES: [ComInterfaceTableEntry<Toggle>; IToggleAbi::INTERFACE_CHAIN.len()] = IToggleVtblFor::<Toggle>::INTERFACE_TABLE;
+    const TABLES: [*const IUnknownVTable; ENTRIES.len()] = neocogi_com::__nc_interface_vtables(&ENTRIES);
+
+    let drops = Rc::new(Cell::new(0));
+    let owner = Toggle::from_value(Toggle { value: 0, drops: drops.clone() });
+    for (index, (&table, descriptor)) in TABLES.iter().zip(IToggleAbi::INTERFACE_CHAIN).enumerate() {
+        let mut output = ComRaw::<IUnknown>::null();
+        // SAFETY: these compiler-generated tables implement Toggle's exact allocation
+        // contract. The owner retains that allocation throughout query and dispatch.
+        unsafe {
+            assert_eq!((*(*table).interface_id).iid, descriptor.interface_id);
+            assert_eq!((*(*table).interface_id).abi_signature, descriptor.abi_signature);
+            assert_eq!(((*table).query_interface)(owner.as_raw().object, &IButtonAbi::INTERFACE_ID, &mut output), NC_OK);
+        }
+        // SAFETY: successful QueryInterface transferred one IButton reference.
+        let mut button = unsafe { ComPtr::<IButtonAbi>::from_raw_owned(output.cast()).unwrap() };
+        button.set_value(index as u32 + 1).unwrap();
+        assert_eq!(owner.query::<contract::IWidgetAbi>().unwrap().value(), Ok(index as u32 + 1));
+        assert_eq!(button.as_raw().object, owner.as_raw().object);
+    }
+    drop(owner);
+    assert_eq!(drops.get(), 1);
+}
+
 #[test]
 fn inherited_vtable_is_a_physical_prefix_and_signs_the_base() {
     assert_eq!(std::mem::offset_of!(IButtonVTable, base), 0);

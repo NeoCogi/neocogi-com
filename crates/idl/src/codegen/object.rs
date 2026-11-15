@@ -22,7 +22,7 @@ pub fn expand_com_object(args: ObjectArgs, input: ItemStruct) -> proc_macro2::To
     let object_pointer = names.binding("__nc_object_pointer");
     let initial = names.binding("__nc_initial_value");
     let contracts = names.binding("__nc_contracts");
-    let projections = names.binding("__nc_projections");
+    let interface_table = names.binding("__nc_interface_table");
     let object_ident = &input.ident;
     let object_vis = &input.vis;
     // Rust implementation generics stay inside the allocating binary, and COM
@@ -83,7 +83,7 @@ pub fn expand_com_object(args: ObjectArgs, input: ItemStruct) -> proc_macro2::To
         .iter()
         .map(|iface| {
             let provider = &iface.vtable_for_path;
-            quote! { &#provider::<#object_type>::PROJECTIONS }
+            quote! { &#provider::<#object_type>::INTERFACE_TABLE }
         })
         .collect::<Vec<_>>();
     // Only the selected provider policy exists; shared calls have no dynamic
@@ -152,14 +152,14 @@ pub fn expand_com_object(args: ObjectArgs, input: ItemStruct) -> proc_macro2::To
                 let #contracts = #nc::__nc_interface_chain::<{ #interface_count }>(
                     &#nc::IUnknown::INTERFACE_DESCRIPTOR, &[#(#declared_chains,)*],
                 );
-                let #projections = #nc::__nc_projection_table(
+                let #interface_table = #nc::__nc_interface_table(
                     &#contracts,
                     // SAFETY: this allocation's canonical unknown table delegates
                     // lifecycle and queries to the same stored implementation.
-                    unsafe { #nc::__ComProjection::<Self>::new(#nc::IUnknown::INTERFACE_ID, &#nc::lifetime::CANONICAL_UNKNOWN_VTABLE) },
+                    unsafe { #nc::ComInterfaceTableEntry::<Self>::new(#nc::IUnknown::INTERFACE_ID, &#nc::lifetime::CANONICAL_UNKNOWN_VTABLE) },
                     &[#(#providers,)*],
                 );
-                #nc::__nc_projection_vtables(&#projections)
+                #nc::__nc_interface_vtables(&#interface_table)
             };
 
             unsafe fn borrow_abi_ref<'a>(
