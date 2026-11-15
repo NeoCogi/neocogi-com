@@ -246,7 +246,7 @@ regardless of that provider's default format. A missing provider fails with
 The format interfaces themselves add no global registry, filesystem access,
 loader policy or automatic object-memory capture.
 
-Discovery uses ABI v2 for `0.3.0-alpha.1`. These interfaces are documented in the
+Discovery uses ABI v2 for `0.3.0`. These interfaces are documented in the
 [ABI v2 specification](../abi-v2.md); NCB persistence retains format version 1.
 
 ## Verification

@@ -643,7 +643,7 @@ UUID overrides remain errors.
 
 Generated nominal IDs and signatures change: rebuild contracts, providers and
 hosts together. Compiler encoding v14 records the versionless contract; COM
-discovery uses ABI v2 for the 0.3.0-alpha.1 release.
+discovery uses ABI v2 for the 0.3.0 release.
 
 ### Module names and dependencies
 

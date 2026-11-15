@@ -6,6 +6,17 @@ Historical draft numbers do not define additional supported COM baselines.
 
 ## Unreleased
 
+## 0.3.0 — 2026-11-14
+
+- Promote the coordinated eight-package SDK from `0.3.0-alpha.1` to `0.3.0`.
+  Keep ABI family 2, core generation 19, IDL encoding v14 and NCB wire v1.
+  The application must explicitly register or load `nc.serialization` before
+  persistence; existing `0.2.0` applications must migrate this deployment setup.
+- Align exact internal dependencies, maintained fixture locks, the first-use
+  tutorial, installation examples and release-tag links with `0.3.0`.
+  This source release is tagged before registry publication. Uploads remain
+  gated on all required CI jobs passing for the exact tagged commit.
+
 - Make the explicit serialization-provider requirement normative in the ABI-v2
   specification, raw persistence table docs and Rust client entry points. Keep
   ABI family 2/core generation 19 and NCB v1; codec availability is an application

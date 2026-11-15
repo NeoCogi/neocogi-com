@@ -5,7 +5,7 @@ through an explicit C-shaped ABI. Rust-like IDL is the source of public contract
 truth; generated COM interfaces carry calls, and plugins expose one typed root
 factory.
 
-The prepared [0.3.0-alpha.1 COM contract](abi-v2.md) selects ABI v2 discovery
+The prepared [0.3.0 COM contract](abi-v2.md) selects ABI v2 discovery
 and core generation 19. Rebuild hosts, providers and generated bindings together.
 
 ## Component model

@@ -21,7 +21,7 @@ publication. [Trusted publishing](https://crates.io/docs/trusted-publishing) can
 replace stored CI tokens for later releases.
 
 The compatibility rule is separate from Cargo versions. The prepared candidate
-is `0.3.0-alpha.1`, using ABI v2: runtime and descriptor family 2, core generation
+is `0.3.0`, using ABI v2: runtime and descriptor family 2, core generation
 19, and `nc_get_plugin_descriptor_v2`. Deploy hosts, providers and generated
 bindings from one SDK release. ABI v1 libraries are rejected before bootstrap;
 there is no compatibility export. Interface signatures, IDL encoding and NCB
@@ -32,7 +32,7 @@ Prepare a user-facing changelog entry with features, migration instructions,
 known limits and actual platform results. Keep superseded development entries
 historical. The currently prepared version is a release candidate until uploaded.
 
-## Persistence migration for 0.3.0-alpha.1
+## Persistence migration for 0.3.0
 
 All eight COM packages advance together. The unpublished host-only `0.2.1`
 candidate is superseded; no host-specific version policy or archive handling
@@ -41,10 +41,10 @@ load the serialization dylib before persistence. Missing providers return
 `NC_E_NOT_FOUND`; persistence always requests named NCB.
 
 This release does not promise Rust dependency compatibility with the published
-`0.2.0` SDK or platform `0.3.0-alpha.1`, which pins that SDK. Move downstream UI
-and platform compositions to the new COM cohort together; do not combine COM
-Rust types from the two versions. ABI family 2, core generation 19, IDL encoding
-v14 and NCB-v1 bytes retain their independent authorities.
+`0.2.0` SDK. Move downstream UI and platform compositions to the new COM cohort
+together; do not combine COM Rust types from different package versions. ABI
+family 2, core generation 19, IDL encoding v14 and NCB-v1 bytes retain their
+independent authorities.
 
 Merge the candidate to master and push for native CI before publication. Publish
 only after every required job for that exact commit passes. Historical prototype
@@ -132,10 +132,12 @@ new candidate and rerun affected checks; refresh packaging/provenance evidence.
 ## Execute the release
 
 Merge and push the verified commit through the project's normal Git workflow.
-Create the matching annotated `vVERSION` tag locally at that exact commit. Keep
-the tag local until every package below is published and its registry contents
-are verified. Check release-tag link targets locally before uploading; their
-remote links become available after the tag is pushed.
+Create the matching annotated `vVERSION` source tag at that exact commit and
+push it with master as authorized for this release. A pushed source tag does not
+claim crate publication. Check release-tag link targets locally before pushing.
+Do not publish any package until every required CI job passes for this exact
+tagged commit; a previous alpha's result or a different master revision does not
+satisfy the gate.
 
 Publish only the eight public packages, in dependency order:
 
@@ -159,9 +161,11 @@ uploaded content matches. Never silently skip a mismatch or attempt to overwrite
 an existing version. Changed public content requires a new coordinated version,
 with an explicit follow-up/yank decision for unusable earlier versions.
 
-After all eight packages are published and verified, push the annotated tag. Check
-that all rendered release documentation links resolve to that tag and its intended
-files. Do not push the tag after only a partial publication.
+After all eight packages are published and verified, record the registry archive
+hashes and provenance alongside the already pushed source tag. Check that all
+rendered release documentation links resolve to that tag and its intended files.
+A partial or failed publication must be reported separately from the source tag;
+never move an existing release tag to conceal a changed or incomplete candidate.
 
 ## Verify registry users' experience
 
