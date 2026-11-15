@@ -11,7 +11,7 @@ use std::path::Path;
 use std::ptr::NonNull;
 use std::string::{String, ToString};
 
-use super::{Error, PluginLoadErrorKind};
+use super::OpenLibraryError;
 
 #[link(name = "dl")]
 unsafe extern "C" {
@@ -30,7 +30,7 @@ const RTLD_NOW: c_int = 2;
 /// COM plugin vtables and static descriptors are embedded in the shared object;
 /// dynamic unloading while references or static descriptors exist causes segmentation
 /// faults. The handle is process-pinned and deliberately not closed on drop.
-pub(in crate::loader) struct DynamicLibrary {
+pub struct DynamicLibrary {
     /// Native handle returned by `dlopen`.
     handle: NonNull<c_void>,
 }
@@ -43,22 +43,25 @@ unsafe impl Sync for DynamicLibrary {}
 
 impl DynamicLibrary {
     /// Opens a path with immediate symbol resolution.
-    pub(in crate::loader) fn open(path: &Path) -> Result<Self, Error> {
-        let path = CString::new(path.as_os_str().as_bytes()).map_err(|_| Error {
-            kind: PluginLoadErrorKind::OpenLibrary,
-            message: "library path contains an interior NUL byte".to_string(),
-        })?;
+    ///
+    /// # Safety
+    /// The selected image and its loader initializers must be trusted native code.
+    pub unsafe fn open(path: &Path) -> Result<Self, OpenLibraryError> {
+        let path =
+            CString::new(path.as_os_str().as_bytes()).map_err(|_| OpenLibraryError::OpenLibrary("library path contains an interior NUL byte".to_string()))?;
         // SAFETY: `path` is a NUL-terminated platform path and `RTLD_NOW` asks
         // the dynamic loader to resolve symbols before returning.
         let handle = unsafe { dlopen(path.as_ptr(), RTLD_NOW) };
-        NonNull::new(handle).map(|handle| Self { handle }).ok_or_else(|| Error {
-            kind: PluginLoadErrorKind::OpenLibrary,
-            message: dl_error(),
-        })
+        NonNull::new(handle)
+            .map(|handle| Self { handle })
+            .ok_or_else(|| OpenLibraryError::OpenLibrary(dl_error()))
     }
 
     /// Resolves one trusted NUL-free symbol name from the live module.
-    pub(in crate::loader) unsafe fn symbol(&self, symbol: &[u8]) -> Result<*mut c_void, String> {
+    ///
+    /// # Safety
+    /// Callers must establish the resolved symbol's exact signature before use.
+    pub unsafe fn symbol(&self, symbol: &[u8]) -> Result<*mut c_void, String> {
         let symbol = CString::new(symbol).map_err(|_| "symbol name contains an interior NUL byte".to_string())?;
         // SAFETY: `self.handle` is live and `symbol` is NUL-terminated.
         let ptr = unsafe { dlsym(self.handle.as_ptr(), symbol.as_ptr()) };

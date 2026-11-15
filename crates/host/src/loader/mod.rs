@@ -22,7 +22,7 @@ use crate::state::RuntimeState;
 
 mod error;
 mod inspection;
-mod library;
+use neocogi_com::native_library as library;
 mod plan;
 
 pub use error::{PluginLoadError, PluginLoadErrorKind};
@@ -39,10 +39,19 @@ pub(crate) struct PinnedLibrary {
 
 impl PinnedLibrary {
     /// Opens one trusted path and classifies platform failures.
-    fn open(path: &Path) -> Result<Self, PluginLoadError> {
+    unsafe fn open(path: &Path) -> Result<Self, PluginLoadError> {
         // Both live loading and inspection pin every successfully opened mapping;
         // only live loading additionally publishes a plugin record.
-        let library = library::DynamicLibrary::open(path).map_err(|error| PluginLoadError::new(error.kind, path, None, error.message))?;
+        // SAFETY: forwarded trusted-image obligations from the selected plugin path.
+        let library = unsafe { library::DynamicLibrary::open(path) }.map_err(|error| match error {
+            library::OpenLibraryError::UnsupportedPlatform => PluginLoadError::new(
+                PluginLoadErrorKind::UnsupportedPlatform,
+                path,
+                None,
+                "dynamic loading is not implemented for this target",
+            ),
+            library::OpenLibraryError::OpenLibrary(message) => PluginLoadError::new(PluginLoadErrorKind::OpenLibrary, path, None, message),
+        })?;
         Ok(Self { library })
     }
 
@@ -134,7 +143,8 @@ unsafe fn plugin_descriptor_from_entrypoint(get_descriptor: NcGetPluginDescripto
 /// The path selects plugin code honoring the descriptor ABI and the process
 /// lifetime of all reachable metadata/code. Entry must not start a nested load.
 pub(crate) unsafe fn open_plugin_descriptor(path: &Path) -> Result<ValidatedPluginDescriptor, PluginLoadError> {
-    let module = PinnedLibrary::open(path)?;
+    // SAFETY: the caller selects a trusted image honoring the descriptor contract.
+    let module = unsafe { PinnedLibrary::open(path) }?;
     // SAFETY: the selected pinned module supplies its fixed descriptor entrypoint.
     let get = unsafe { module.get_plugin_descriptor(path)? };
     // SAFETY: the mapping keeps the descriptor and all referenced storage alive.

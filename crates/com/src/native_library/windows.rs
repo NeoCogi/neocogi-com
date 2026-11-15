@@ -15,7 +15,7 @@ use std::ptr::NonNull;
 use std::string::{String, ToString};
 use std::vec::Vec;
 
-use super::{Error, PluginLoadErrorKind};
+use super::OpenLibraryError;
 
 /// Opaque module handle returned by the Windows native loader.
 type Hmodule = *mut c_void;
@@ -42,7 +42,7 @@ unsafe extern "system" {
 /// COM plugin vtables and static descriptors are embedded in the dynamic module;
 /// dynamic unloading while references or static descriptors exist causes memory
 /// faults. The handle is process-pinned and deliberately not freed on drop.
-pub(in crate::loader) struct DynamicLibrary {
+pub struct DynamicLibrary {
     /// Native handle returned by the successful native open.
     handle: NonNull<c_void>,
 }
@@ -57,27 +57,21 @@ impl DynamicLibrary {
     /// Resolves an explicit filesystem path and opens it without ambient search.
     /// Original caller spelling remains with the outer error/provenance owner;
     /// neither this temporary absolute path nor its UTF-16 buffer is retained.
-    pub(in crate::loader) fn open(path: &Path) -> Result<Self, Error> {
+    ///
+    /// # Safety
+    /// The selected image and its loader initializers must be trusted native code.
+    pub unsafe fn open(path: &Path) -> Result<Self, OpenLibraryError> {
         if path.as_os_str().is_empty() {
-            return Err(Error {
-                kind: PluginLoadErrorKind::OpenLibrary,
-                message: "library path is empty".to_string(),
-            });
+            return Err(OpenLibraryError::OpenLibrary("library path is empty".to_string()));
         }
         // Check the original native spelling before resolving it: a terminator
         // must never turn an explicitly selected path into a different image.
         if path.as_os_str().encode_wide().any(|unit| unit == 0) {
-            return Err(Error {
-                kind: PluginLoadErrorKind::OpenLibrary,
-                message: "library path contains an interior NUL code unit".to_string(),
-            });
+            return Err(OpenLibraryError::OpenLibrary("library path contains an interior NUL code unit".to_string()));
         }
         // Qualification does not access the filesystem or resolve links. The
         // native loader remains the authority for missing/unloadable images.
-        let absolute = std::path::absolute(path).map_err(|error| Error {
-            kind: PluginLoadErrorKind::OpenLibrary,
-            message: format!("cannot resolve library path: {error}"),
-        })?;
+        let absolute = std::path::absolute(path).map_err(|error| OpenLibraryError::OpenLibrary(format!("cannot resolve library path: {error}")))?;
         let mut wide: Vec<u16> = absolute.as_os_str().encode_wide().collect();
         wide.push(0);
         // SAFETY: wide owns a terminated native path for the entire call, the
@@ -90,14 +84,16 @@ impl DynamicLibrary {
                 LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32,
             )
         };
-        NonNull::new(handle).map(|handle| Self { handle }).ok_or_else(|| Error {
-            kind: PluginLoadErrorKind::OpenLibrary,
-            message: last_error(),
-        })
+        NonNull::new(handle)
+            .map(|handle| Self { handle })
+            .ok_or_else(|| OpenLibraryError::OpenLibrary(last_error()))
     }
 
     /// Resolves one trusted NUL-free export name from the live module.
-    pub(in crate::loader) unsafe fn symbol(&self, symbol: &[u8]) -> Result<*mut c_void, String> {
+    ///
+    /// # Safety
+    /// Callers must establish the resolved symbol's exact signature before use.
+    pub unsafe fn symbol(&self, symbol: &[u8]) -> Result<*mut c_void, String> {
         let symbol = CString::new(symbol).map_err(|_| "symbol name contains an interior NUL byte".to_string())?;
         // SAFETY: `self.handle` is live and `symbol` is NUL-terminated.
         let ptr = unsafe { GetProcAddress(self.handle.as_ptr(), symbol.as_ptr()) };

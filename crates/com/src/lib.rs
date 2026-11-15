@@ -120,6 +120,10 @@ pub mod idl_metadata;
 mod object;
 mod runtime_access;
 pub use runtime_access::Runtime;
+/// Shared native loading support for host bootstrap and plugin implementation.
+#[cfg(feature = "runtime")]
+#[doc(hidden)]
+pub mod native_library;
 pub mod persistence;
 #[cfg(feature = "runtime")]
 mod runtime;

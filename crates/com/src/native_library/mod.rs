@@ -9,14 +9,13 @@
 
 use std::string::String;
 
-use super::PluginLoadErrorKind;
-
-/// Platform wrapper error before it is associated with a plugin path.
-pub(super) struct Error {
-    /// Loader phase that failed.
-    pub(super) kind: PluginLoadErrorKind,
-    /// Platform-specific human-readable detail.
-    pub(super) message: String,
+/// Native open failure before a caller adds its host/plugin context.
+#[derive(Debug)]
+pub enum OpenLibraryError {
+    /// This target has no native loader implementation.
+    UnsupportedPlatform,
+    /// The platform loader rejected the selected path.
+    OpenLibrary(String),
 }
 
 #[cfg(unix)]
@@ -27,8 +26,8 @@ mod unsupported;
 mod windows;
 
 #[cfg(unix)]
-pub(super) use unix::DynamicLibrary;
+pub use unix::DynamicLibrary;
 #[cfg(not(any(unix, windows)))]
-pub(super) use unsupported::DynamicLibrary;
+pub use unsupported::DynamicLibrary;
 #[cfg(windows)]
-pub(super) use windows::DynamicLibrary;
+pub use windows::DynamicLibrary;
