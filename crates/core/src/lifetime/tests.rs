@@ -105,6 +105,12 @@ static BOX_ROOT: IUnknownVTable = IUnknownVTable {
     ..EXCLUSIVE_UNKNOWN_VTABLE
 };
 
+/// A distinct boxed interface makes erasure select a different canonical table.
+static BOX_ALTERNATE_ROOT: IUnknownVTable = IUnknownVTable {
+    interface_id: &AlternateInterface::INTERFACE_ID,
+    ..BOX_ROOT
+};
+
 /// Boxed metadata is immutable and independent of the boxed owner/access word.
 static BOX_CLASS: NcObjectTypeInfo = NcObjectTypeInfo {
     destroy_value: destroy::<NcBoxedLifetimeState, crate::WeakComBox<IUnknown>>,
@@ -113,11 +119,23 @@ static BOX_CLASS: NcObjectTypeInfo = NcObjectTypeInfo {
     interface_count: 1,
 };
 
+/// Erasure fixtures declare an alternate view without changing rejection fixtures.
+static BOX_ERASURE_CLASS: NcObjectTypeInfo = NcObjectTypeInfo {
+    interfaces: [&BOX_ROOT as *const IUnknownVTable, &BOX_ALTERNATE_ROOT as *const IUnknownVTable].as_ptr(),
+    interface_count: 2,
+    ..BOX_CLASS
+};
+
 /// Allocates a boxed value without reinterpreting or mutating shared ownership.
 fn boxed_allocation() -> (*mut NcBoxedLifetimeState, Arc<Observations>) {
+    boxed_allocation_with_type_info(&BOX_CLASS)
+}
+
+/// Allocates the same concrete payload with its matching provider metadata.
+fn boxed_allocation_with_type_info(type_info: &'static NcObjectTypeInfo) -> (*mut NcBoxedLifetimeState, Arc<Observations>) {
     let observations = Arc::new(Observations::default());
     let storage: Box<Allocation<NcBoxedLifetimeState, crate::WeakComBox<IUnknown>>> = Box::new(Allocation {
-        control: NcBoxedLifetimeState::new(&BOX_CLASS),
+        control: NcBoxedLifetimeState::new(type_info),
         value: MaybeUninit::new(Value {
             observations: observations.clone(),
             self_weak: None,
@@ -320,6 +338,91 @@ fn borrowed_box_queries_preserve_weak_count_and_explicit_observers_still_expire(
     assert!(!observer.is_alive());
     drop(observer);
     assert_eq!(observed.freed.load(Ordering::SeqCst), 1);
+}
+
+/// Erasure changes the cached interface but transfers one live or expired weak token.
+#[test]
+fn boxed_weak_erasure_preserves_counts_identity_and_final_cleanup() {
+    for expired in [false, true] {
+        let (control, observed) = boxed_allocation_with_type_info(&BOX_ERASURE_CLASS);
+        // SAFETY: this unique boxed fixture declares the exact alternate interface.
+        let owner = unsafe {
+            crate::ComBox::<AlternateInterface>::from_raw_owned(ComRaw {
+                object: control.cast(),
+                vtable: &BOX_ALTERNATE_ROOT,
+            })
+        }
+        .unwrap();
+        let source = owner.downgrade();
+        let owner = match expired {
+            true => {
+                drop(owner);
+                None
+            }
+            false => Some(owner),
+        };
+        // SAFETY: source retains this fixture's header in either value-lifetime state.
+        let before = unsafe { (*control).weak_count.load(Ordering::Relaxed) };
+        let erased = source.into_unknown();
+        // Erasing an already-root view must likewise transfer the existing token.
+        let erased = erased.into_unknown();
+        assert_eq!(erased.as_raw().object, control.cast());
+        assert_eq!(erased.as_raw().vtable, &BOX_ROOT as *const IUnknownVTable);
+        assert_eq!(erased.is_alive(), !expired);
+        assert_eq!(unsafe { (*control).weak_count.load(Ordering::Relaxed) }, before);
+        assert_eq!(observed.destroyed.load(Ordering::SeqCst), usize::from(expired));
+        assert_eq!(observed.freed.load(Ordering::SeqCst), 0);
+        let projected = erased.query::<AlternateInterface>().unwrap();
+        assert!(erased.same_object(&projected));
+        assert_eq!(projected.as_raw().vtable, &BOX_ALTERNATE_ROOT as *const IUnknownVTable);
+        drop(projected);
+        drop(owner);
+        assert_eq!(observed.destroyed.load(Ordering::SeqCst), 1);
+        assert_eq!(observed.freed.load(Ordering::SeqCst), 0);
+        drop(erased);
+        assert_eq!(observed.destroyed.load(Ordering::SeqCst), 1);
+        assert_eq!(observed.freed.load(Ordering::SeqCst), 1);
+    }
+}
+
+/// Saturation exposes a transient retain that a final-count equality check cannot see.
+#[test]
+fn boxed_weak_erasure_transfers_at_the_weak_counter_limit() {
+    for expired in [false, true] {
+        let (control, observed) = boxed_allocation_with_type_info(&BOX_ERASURE_CLASS);
+        // SAFETY: the allocation and table form the initialized sole boxed owner.
+        let owner = unsafe {
+            crate::ComBox::<AlternateInterface>::from_raw_owned(ComRaw {
+                object: control.cast(),
+                vtable: &BOX_ALTERNATE_ROOT,
+            })
+        }
+        .unwrap();
+        let source = owner.downgrade();
+        let owner = match expired {
+            true => {
+                drop(owner);
+                None
+            }
+            false => Some(owner),
+        };
+        // SAFETY: source retains this private fixture, with no concurrent access.
+        // Model additional forgotten references at saturation, then restore the
+        // actual count before cleanup. No application value is accessed here.
+        let actual = unsafe { (*control).weak_count.load(Ordering::Relaxed) };
+        unsafe { (*control).weak_count.store(isize::MAX as usize, Ordering::Relaxed) };
+        let erased = source.into_unknown();
+        // Erasing an already-root view must likewise transfer the existing token.
+        let erased = erased.into_unknown();
+        assert_eq!(erased.as_raw().object, control.cast());
+        assert_eq!(erased.as_raw().vtable, &BOX_ROOT as *const IUnknownVTable);
+        assert_eq!(unsafe { (*control).weak_count.load(Ordering::Relaxed) }, isize::MAX as usize);
+        unsafe { (*control).weak_count.store(actual, Ordering::Relaxed) };
+        drop(owner);
+        drop(erased);
+        assert_eq!(observed.destroyed.load(Ordering::SeqCst), 1);
+        assert_eq!(observed.freed.load(Ordering::SeqCst), 1);
+    }
 }
 
 /// Both policies retain compact headers but never share an overloaded mutable field.

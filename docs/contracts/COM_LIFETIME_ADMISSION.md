@@ -48,6 +48,19 @@ equivalent copied tables with equal identities are allowed. A stale incoming
 identity cannot be replaced silently, and a correct incoming identity cannot
 invent canonical membership. Policy is already established before either check.
 
+## Consuming boxed weak erasure
+
+`WeakComBox::into_unknown(self)` selects the exact canonical IUnknown table while
+its input still retains boxed storage, then moves that existing weak token into
+the result. It changes neither the weak count nor the owner/access word and
+never promotes or borrows the application value. It is valid while the owner is
+live and after value destruction, including at the weak counter limit. Object
+identity, threading permission and provider/code retention are preserved.
+
+This consuming operation must not delegate ownership to borrowed `query(&self)`:
+that operation creates another independently retained weak observer. `Clone` and
+borrowed weak query still retain and preserve non-unwinding overflow behavior.
+
 ## Destruction and weak retention
 
 ```mermaid

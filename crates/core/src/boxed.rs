@@ -276,9 +276,19 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> WeakComBox<T, M> {
         unsafe { try_box_cast(self.as_raw().object.cast(), &expected) }.map(|_| ())
     }
 
-    /// Erases only the selected interface while preserving stable object identity.
+    /// Selects canonical IUnknown while transferring this weak token unchanged.
+    /// Works before and after value destruction; never acquires another weak or
+    /// strong reference, so erasure also succeeds at the weak counter limit.
+    /// Stable object identity and threading permission are preserved.
     pub fn into_unknown(self) -> WeakComBox<crate::IUnknown, M> {
-        self.query().expect("every boxed COM object declares IUnknown")
+        // SAFETY: self retains boxed storage and immutable provider metadata,
+        // including after value destruction. Resolve the exact root table before
+        // consuming self, so a violated provider invariant still drops its token.
+        let table = unsafe { try_box_cast(self.as_raw().object.cast(), &crate::IUnknown::INTERFACE_ID) }.expect("every boxed COM object declares IUnknown");
+        let raw = self.into_raw();
+        // SAFETY: move the existing weak token to the exact canonical root table;
+        // its allocation, retained code and threading permission are unchanged.
+        unsafe { WeakComBox::from_raw_owned(ComRaw { object: raw.object, vtable: table.cast() }) }.expect("existing observer is present")
     }
 
     /// Restricts cross-thread permission while preserving this observer's projection.

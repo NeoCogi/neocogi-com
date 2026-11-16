@@ -343,6 +343,9 @@ shared weak downgrade reject with `NC_E_INVALID_ARG`. Borrowed references cannot
 silently grant another owner: use fallible `ComRef::try_add_ref` when ownership
 policy is not already proven shared. Consuming exclusive queries preserve the
 one owner; borrowed `query_ref` and weak observation do not duplicate it.
+Consuming `WeakComBox::into_unknown` selects canonical IUnknown and moves the
+existing weak token without a retain/release pair. It works live or expired and
+at the weak counter limit; borrowed weak queries still retain a new observer.
 
 A reader atomically checks owner presence, excludes the writer and increments the
 reader count. A writer atomically checks owner presence and zero borrowers before
