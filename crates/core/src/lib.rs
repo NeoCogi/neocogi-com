@@ -18,10 +18,11 @@
 //! Format implementations live in the serialization plugin crate. Owned document
 //! objects live in the facade. Wire layouts and application storage remain separate.
 //!
-//! [`NC_COM_CORE_ABI_VERSION`] selects compatibility generation 20 for ABI v3.
-//! Runtime and plugin discovery use family 3. Within a compatible generation,
-//! layouts and callbacks are frozen; incompatible changes select a new generation.
-//! Deploy peers from one SDK release and require exact interface signatures.
+//! ABI v3 is WORK IN PROGRESS (WIP), unreleased and not frozen.
+//! [`NC_COM_CORE_ABI_VERSION`] selects the current candidate generation, 20;
+//! runtime and plugin discovery use family 3. Layouts and callbacks may evolve
+//! before release freeze. Keep generation/admission checks coherent to reject
+//! incompatible binaries, use matching source revisions and require exact signatures.
 
 #![no_std]
 #![deny(missing_docs)]

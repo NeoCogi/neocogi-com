@@ -3,7 +3,8 @@
 //! This module groups plugin operations, diagnostics and persistence contracts while keeping their `repr(C)` layouts in the allocation-free
 //! core crate. Every table begins with a byte size checked by consumers. This
 //! runtime-family-3 discovery uses the separately checked core generation to
-//! select compatible frozen layouts; deploy all roles from one SDK release.
+//! select compatible layouts. ABI v3 is WIP and not frozen; rebuild all roles
+//! from matching source revisions and keep incompatible binaries rejected.
 
 mod debug;
 mod host;
@@ -21,7 +22,7 @@ pub use plugin::{NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS, NcFactoryInfoV3, NcInspectP
 pub use runtime::NcRuntimeApiV3;
 pub use host::{NC_GET_HOST_API_SYMBOL, NcGetHostApi, NcHostApiV3, validate_host_api};
 
-/// Supplied host-service family for ABI v3.
+/// Supplied host-service family for WIP ABI v3; not a finalized release contract.
 ///
 /// The host and provider must agree on this family and the separately checked
 /// core generation before interpreting child tables or calling code. ABI v1

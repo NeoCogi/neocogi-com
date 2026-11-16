@@ -1,6 +1,8 @@
 # NeoCogi COM
 
-Development sources on this branch use unreleased **ABI v3/core generation 20**.
+Development sources use **ABI v3 — WORK IN PROGRESS (WIP)**, currently core
+generation 20. Its layouts, callbacks and ownership contracts are provisional
+and may change before release; ABI v3 is not frozen.
 Published 0.3.0 packages retain ABI v2/core generation 19; use their release-tag
 documentation for that contract.
 

@@ -5,7 +5,8 @@ runtime. Its default configuration is allocation-free; optional `alloc` helpers
 own decoded values and binary documents. Most authors use the `neocogi-com`
 facade. The [current object ABI](../../docs/abi-v3.md) remains experimental.
 
-These development sources use unreleased ABI v3/core generation 20; published
+These development sources use **WIP ABI v3/core generation 20**, not a frozen
+release contract; published
 0.3.0 retains ABI v2/core generation 19.
 
 Core defines statuses, GUIDs, exact signatures, typed metadata, raw object/table pairs

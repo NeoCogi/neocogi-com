@@ -34,8 +34,9 @@ pub type NcGetHostApi = unsafe extern "C" fn(output: *mut *const NcHostApiV3) ->
 /// support concurrent access. Caller-owned persistence contexts remain subject
 /// to their own thread-local and exclusive-borrow operation contracts.
 ///
-/// Core generation 20 freezes this layout and its callbacks. Deploy host and
-/// providers from one published SDK release; discovery family 3 is separate.
+/// WIP ABI v3/core generation 20 selects the current layout and callbacks,
+/// which remain provisional until release freeze. Use matching source revisions;
+/// discovery family 3 and incompatible-generation rejection remain separate checks.
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct NcHostApiV3 {

@@ -30,7 +30,7 @@ fn current_abi_specification_matches_the_runtime_generation() {
     specifications.sort();
     assert_eq!(specifications, [directory.join("abi-v3.md")]);
     let document = include_str!("../../../docs/abi-v3.md");
-    assert!(document.starts_with("# COM ABI v3 (development)\n"));
+    assert!(document.starts_with("# COM ABI v3 (WIP)\n"));
     assert!(document.contains("plugin descriptor discovery use family **3**, with core generation **20**"));
 }
 

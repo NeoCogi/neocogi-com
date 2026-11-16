@@ -1,5 +1,8 @@
 //! Shared and boxed lifetime algorithms over distinct C allocation headers.
 //!
+//! WIP ABI v3: these headers and callbacks are provisional, not frozen.
+//! See [`crate::NC_COM_CORE_ABI_VERSION`] for the current candidate generation.
+//!
 //! Shared strong counts contain only counts. Boxed owner/access bits belong to
 //! their own header. Immutable type information selects the policy at raw ABI
 //! admission; no ownership-kind tag is packed into either mutable state word.

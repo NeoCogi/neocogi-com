@@ -20,7 +20,11 @@
 use crate::guid::NcGuid;
 use crate::signature::NcAbiDigest;
 
-/// Core compatibility generation for the incompatible ABI-v3 lifetime contract.
+/// Current WIP core compatibility generation for the ABI-v3 lifetime contract.
+///
+/// ABI v3 is unreleased and not frozen; this identifies the current candidate.
+/// Layouts and callbacks may evolve before release freeze, with coherent
+/// generation/admission changes to reject incompatible binaries.
 ///
 /// Generation 20 selects policy-specific headers and immutable ownership metadata.
 /// Released ABI v2 used generation 19; ABI v1 used generation 18. Admission must

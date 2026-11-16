@@ -3,8 +3,9 @@
 //! inspection share this table. Diagnostics and persistence have independent
 //! lifecycles and tables. Callers admit this immutable size-prefixed table through
 //! the host-supplied API description. Runtime discovery stays family 3;
-//! the separately checked core generation freezes compatible table layouts and
-//! callbacks. Deploy all participants from the same published SDK release.
+//! the separately checked core generation selects compatible table layouts and
+//! callbacks. ABI v3 is WIP and not frozen; use matching source revisions and
+//! update admission coherently when layouts evolve.
 
 use core::ffi::c_void;
 use crate::{IUnknown, NcPluginDescriptor, NcGuid, NcInterfaceId, NcStatus};

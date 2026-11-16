@@ -11,7 +11,10 @@ use crate::{
     NcGuid, NcPluginDependencyDescriptor, NcStaticUtf8, NcStatus, guid_from_qualified_name, validate_qualified_name, validate_version_text,
 };
 
-/// ABI v3 plugin descriptor family with an exact root factory and dependencies.
+/// WIP ABI-v3 plugin descriptor family with an exact root factory and dependencies.
+///
+/// This is unreleased and not frozen; keep discovery/core admission coherent
+/// with further candidate changes and rebuild participants together.
 ///
 /// Descriptor discovery uses version three; its stable version prefix is read first.
 /// Consumers must also match the core generation, which selects the remaining

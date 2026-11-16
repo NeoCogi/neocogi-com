@@ -1,10 +1,14 @@
 # Changelog
 
-Development uses [ABI v3, core generation 20](docs/abi-v3.md). Published 0.3.0 uses ABI v2/core 19.
+Development uses **WIP [ABI v3, core generation 20](docs/abi-v3.md)**; it is unreleased and not frozen. Published 0.3.0 uses ABI v2/core 19.
 Entries below record development; later entries can supersede older implementation details.
 Historical draft numbers do not define additional supported COM baselines.
 
 ## Unreleased
+
+- Mark ABI v3 explicitly as WIP in agent guidance, the specification, READMEs
+  and source documentation. Its current layouts and callbacks remain provisional
+  until release freeze; existing version admission still rejects incompatible binaries.
 
 - Split the fused lifetime header into NcSharedLifetimeState and
   NcBoxedLifetimeState. Shared strong_count is purely numeric; boxed

@@ -1,4 +1,8 @@
-# Moving providers to the development ABI v3
+# Moving providers to WIP ABI v3
+
+**ABI v3 is work in progress, unreleased and not frozen.** Its layouts and
+callback/ownership contracts may change before release. This guide describes
+the current candidate; rebuild all participants from matching source revisions.
 
 This guide applies to the unreleased `0.4.0-wip` sources. Published SDK `0.3.0`
 uses ABI v2/core generation 19. Package versions, live object ABI versions,

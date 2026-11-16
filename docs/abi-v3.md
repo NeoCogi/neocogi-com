@@ -1,4 +1,14 @@
-# COM ABI v3 (development)
+# COM ABI v3 (WIP)
+
+**Status: WORK IN PROGRESS (WIP), unreleased and not frozen.**
+
+Layouts, vtables, callback signatures, ownership contracts and Rust APIs may
+change before the ABI-v3 release freeze. Family 3/core generation 20 identify
+the current candidate, not a finalized compatibility baseline. Further
+incompatible design changes can remain part of ABI v3 while it is WIP; keep
+core generations and admission checks coherent so incompatible binaries are
+rejected. Rebuild hosts, providers and generated consumers from the same source
+revision. Do not describe this candidate as final or frozen before release freeze.
 
 This is the unreleased development COM binary contract. Runtime and
 plugin descriptor discovery use family **3**, with core generation **20**.
@@ -843,7 +853,9 @@ return `NC_E_ABI_VERSION`; required null pointers return `NC_E_POINTER`.
 Handle copies can cross threads. Unsafe adoption therefore also guarantees
 concurrently callable host entrypoints; caller-owned persistence contexts keep
 their own thread-local and exclusive-borrow restrictions.
-The published core generation freezes these layouts; deploy participants from one SDK release.
+ABI v3 remains WIP: these layouts are provisional, selected by the current core
+generation. Use matching source revisions and reject incompatible binaries; a
+published ABI-v3 layout freeze has not occurred.
 
 | Runtime operation | Result and purpose |
 | --- | --- |
