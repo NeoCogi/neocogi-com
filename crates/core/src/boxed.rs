@@ -109,7 +109,9 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> ComBox<T, M> {
         })
     }
 
-    /// Checks a transferred factory result before adopting its exclusive owner.
+    /// Checks a transferred factory result and adopts its canonical interface table.
+    /// Validates the supplied identity independently before selecting the table;
+    /// copied equivalent tables are accepted without retaining another reference.
     ///
     /// # Safety
     /// A present pair transfers the sole genuine boxed owner and its matching
@@ -124,12 +126,17 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> ComBox<T, M> {
         }
         // The producer guarantees boxed backing; identity rejection consumes
         // that known boxed owner directly, without selecting a release policy.
-        let checked = unsafe { crate::raw::validate_interface(raw) }.and_then(|()| unsafe { try_box_cast(raw.object.cast(), &T::INTERFACE_ID) }.map(|_| ()));
-        if let Err(error) = checked {
-            unsafe { NcBoxedLifetimeState::release(raw.object.cast()) };
-            return Err(error);
-        }
-        unsafe { Self::from_raw_owned(raw) }.ok_or(NC_E_POINTER)
+        let checked = unsafe { crate::raw::validate_interface(raw) }.and_then(|()| unsafe { try_box_cast(raw.object.cast(), &T::INTERFACE_ID) });
+        let table = match checked {
+            Ok(table) => table,
+            Err(error) => {
+                unsafe { NcBoxedLifetimeState::release(raw.object.cast()) };
+                return Err(error);
+            }
+        };
+        // SAFETY: both identity authorities agree. Move the sole owner into the
+        // canonical view; do not cache the equivalent incoming table or retain.
+        unsafe { Self::from_raw_owned(ComRaw { object: raw.object, vtable: table.cast() }) }.ok_or(NC_E_POINTER)
     }
 
     /// Reports whether this object has no active implementation borrows.

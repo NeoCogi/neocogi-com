@@ -81,23 +81,51 @@ fn boxed_weak_wire_preserves_both_identity_authorities_without_retaining_errors(
 /// consumes precisely that same statically known owner without policy dispatch.
 #[test]
 fn boxed_owner_identity_rejection_preserves_inputs_and_cleans_outputs() {
-    let (control, observed) = boxed_allocation();
-    let mut raw = ComRaw::<AlternateInterface> {
-        object: control.cast(),
-        vtable: &BOX_ROOT,
-    };
-    let original = raw;
-    unsafe {
-        assert_eq!(crate::ComBox::<AlternateInterface>::__nc_validate_raw_input(&mut raw), Err(NC_E_NOINTERFACE));
-        assert_eq!(raw, original);
-        assert_eq!((*control).owner_and_borrows.load(Ordering::Relaxed), BOX_OWNER);
-        assert_eq!((*control).weak_count.load(Ordering::Relaxed), 1);
-        assert_eq!(observed.destroyed.load(Ordering::SeqCst), 0);
-        assert_eq!(
-            crate::ComBox::<AlternateInterface>::__nc_from_raw_owned_checked(raw).unwrap_err(),
-            NC_E_NOINTERFACE
-        );
+    /// Each rejection checks a real boxed allocation and consumes only its output token.
+    fn reject<T: ComInterface<VTable = IUnknownVTable>>(table: &'static IUnknownVTable, expected: NcStatus) {
+        let (control, observed) = boxed_allocation();
+        let mut raw = ComRaw::<T> { object: control.cast(), vtable: table };
+        let original = raw;
+        // SAFETY: tables and complete boxed storage remain readable. Identity
+        // mismatch is intentional; the input check must not consume its owner.
+        unsafe {
+            assert_eq!(crate::ComBox::<T>::__nc_validate_raw_input(&mut raw), Err(expected));
+            assert_eq!(raw, original);
+            assert_eq!((*control).owner_and_borrows.load(Ordering::Relaxed), BOX_OWNER);
+            assert_eq!((*control).weak_count.load(Ordering::Relaxed), 1);
+            assert_eq!(observed.destroyed.load(Ordering::SeqCst), 0);
+            assert_eq!(crate::ComBox::<T>::__nc_from_raw_owned_checked(raw).unwrap_err(), expected);
+        }
+        assert_eq!(observed.destroyed.load(Ordering::SeqCst), 1);
+        assert_eq!(observed.freed.load(Ordering::SeqCst), 1);
     }
+    reject::<IUnknown>(&UNLISTED_BOX_TABLE, NC_E_NOINTERFACE);
+    reject::<IUnknown>(&STALE_BOX_TABLE, NC_E_ABI_VERSION);
+    // Incoming identity matches, but cannot invent allocation membership.
+    reject::<AlternateInterface>(&UNLISTED_BOX_TABLE, NC_E_NOINTERFACE);
+    reject::<AlternateInterface>(&BOX_ROOT, NC_E_NOINTERFACE);
+}
+
+/// Copied-table owner results select canonical dispatch without another reference.
+#[test]
+fn boxed_owner_results_cache_the_canonical_table_and_destroy_once() {
+    let (control, observed) = boxed_allocation();
+    let copied = IUnknownVTable { ..BOX_ROOT };
+    assert_ne!(&copied as *const _, &BOX_ROOT as *const _);
+    let raw = ComRaw::<IUnknown> { object: control.cast(), vtable: &copied };
+    // SAFETY: the copied table matches this genuine boxed allocation. Both
+    // independent identity authorities are readable through checked adoption.
+    let owner = unsafe { crate::ComBox::<IUnknown>::__nc_from_raw_owned_checked(raw) }.unwrap();
+    assert_eq!(owner.as_raw().object, control.cast());
+    assert_eq!(owner.as_raw().vtable, &BOX_ROOT as *const _);
+    assert_eq!(unsafe { (*control).weak_count.load(Ordering::Relaxed) }, 1);
+    assert_eq!(unsafe { (*control).owner_and_borrows.load(Ordering::Relaxed) }, BOX_OWNER);
+    let weak = owner.downgrade();
+    drop(owner);
+    assert!(!weak.is_alive());
+    assert_eq!(observed.destroyed.load(Ordering::SeqCst), 1);
+    assert_eq!(observed.freed.load(Ordering::SeqCst), 0);
+    drop(weak);
     assert_eq!(observed.destroyed.load(Ordering::SeqCst), 1);
     assert_eq!(observed.freed.load(Ordering::SeqCst), 1);
 }
