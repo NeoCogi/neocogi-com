@@ -1,6 +1,6 @@
 # Changelog
 
-Development uses **WIP [ABI v3, core generation 20](docs/abi-v3.md)**; it is unreleased and not frozen. Published 0.3.0 uses ABI v2/core 19.
+Development uses **WIP [ABI v3](docs/abi-v3.md#abi-identities-and-versions)**; it is unreleased and not frozen. Published 0.3.0 uses ABI v2/core 19.
 Entries below record development; later entries can supersede older implementation details.
 Historical draft numbers do not define additional supported COM baselines.
 

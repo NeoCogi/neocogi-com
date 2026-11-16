@@ -24,8 +24,8 @@ these manifests is independent of the SDK dependency version.
 
 The manifests pin the published `0.3.0` SDK, including its versionless IDL and
 ABI v2/core generation 19. The commands below download these packages directly
-from crates.io. The development branch uses ABI v3/core generation 20; adopting
-it requires rebuilding both projects against the same development SDK sources.
+from crates.io. The development branch uses the [current WIP ABI versions](../../docs/abi-v3.md#abi-identities-and-versions);
+adopting it requires rebuilding both projects against the same development SDK sources.
 
 From the copied directory, build the plugin:
 

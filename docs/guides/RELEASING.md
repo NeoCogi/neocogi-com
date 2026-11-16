@@ -60,8 +60,8 @@ This release does not promise Rust dependency compatibility with the published
 together; do not combine COM Rust types from different package versions. ABI
 family 2, core generation 19, IDL encoding v14 and NCB-v1 bytes retain their
 independent authorities in that published release. The development lifetime split
-advances discovery to family 3 and core to generation 20 without changing IDL v14
-or NCB-v1.
+uses the [current discovery and core versions](../abi-v3.md#abi-identities-and-versions)
+without changing IDL v14 or NCB-v1.
 
 Merge the candidate to master and push for native CI before publication. Publish
 only after every required job for that exact commit passes. Historical prototype

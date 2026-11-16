@@ -16,9 +16,6 @@ fn example<'a>(document: &'a str, label: &str) -> &'a str {
 /// The current checkout carries only the ABI specification selected by its runtime.
 #[test]
 fn current_abi_specification_matches_the_runtime_generation() {
-    assert_eq!(neocogi_com_core::NC_COM_CORE_ABI_VERSION, 21);
-    assert_eq!(neocogi_com_core::NC_COM_RUNTIME_ABI_VERSION, 3);
-    assert_eq!(neocogi_com_core::NC_PLUGIN_DESCRIPTOR_ABI_VERSION, 3);
     let directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs");
     let mut specifications = fs::read_dir(&directory)
         .unwrap()
@@ -31,7 +28,35 @@ fn current_abi_specification_matches_the_runtime_generation() {
     assert_eq!(specifications, [directory.join("abi-v3.md")]);
     let document = include_str!("../../../docs/abi-v3.md");
     assert!(document.starts_with("# COM ABI v3 (WIP)\n"));
-    assert!(document.contains("plugin descriptor discovery use family **3**, with core generation **20**"));
+    // Compare the documented authorities to code, rather than separately
+    // asserting two hardcoded numbers that can contradict each other.
+    for (name, constant, version) in [
+        ("Core ABI", "NC_COM_CORE_ABI_VERSION", neocogi_com_core::NC_COM_CORE_ABI_VERSION),
+        ("Runtime ABI", "NC_COM_RUNTIME_ABI_VERSION", neocogi_com_core::NC_COM_RUNTIME_ABI_VERSION),
+        (
+            "Plugin descriptor ABI",
+            "NC_PLUGIN_DESCRIPTOR_ABI_VERSION",
+            neocogi_com_core::NC_PLUGIN_DESCRIPTOR_ABI_VERSION,
+        ),
+    ] {
+        let expected = format!("| {name} | {constant} == {version};");
+        let prefix = format!("| {name} | ");
+        let rows = document.lines().filter(|line| line.starts_with(&prefix)).collect::<Vec<_>>();
+        assert_eq!(rows.len(), 1, "one current {name} row must remain documented");
+        assert!(rows[0].starts_with(&expected), "the {name} row must match {constant}");
+    }
+    let migration = include_str!("../../../docs/guides/ABI_V3_MIGRATION.md");
+    let expected = format!("| Core generation | 19 | {} |", neocogi_com_core::NC_COM_CORE_ABI_VERSION);
+    assert!(
+        migration.lines().any(|line| line == expected),
+        "the provider migration table must use the current core generation"
+    );
+    let expected = format!("| Runtime and descriptor families | 2 | {} |", neocogi_com_core::NC_COM_RUNTIME_ABI_VERSION);
+    assert_eq!(neocogi_com_core::NC_COM_RUNTIME_ABI_VERSION, neocogi_com_core::NC_PLUGIN_DESCRIPTOR_ABI_VERSION);
+    assert!(
+        migration.lines().any(|line| line == expected),
+        "the provider migration table must use the current discovery family"
+    );
 }
 
 /// Current guidance consumes the actual compiler encoding and Cargo name policy.

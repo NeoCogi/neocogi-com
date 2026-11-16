@@ -1,8 +1,9 @@
 # NeoCogi COM
 
-Development sources use **ABI v3 — WORK IN PROGRESS (WIP)**, currently core
-generation 20. Its layouts, callbacks and ownership contracts are provisional
-and may change before release; ABI v3 is not frozen.
+Development sources use **ABI v3 — WORK IN PROGRESS (WIP)**; see the
+[current ABI versions](docs/abi-v3.md#abi-identities-and-versions). Its layouts,
+callbacks and ownership contracts are provisional and may change before release;
+ABI v3 is not frozen.
 Published 0.3.0 packages retain ABI v2/core generation 19; use their release-tag
 documentation for that contract.
 
@@ -18,8 +19,8 @@ with the same SDK release. Loaded plugins stay mapped until the process exits.
 
 The current release is **[0.3.0](https://crates.io/crates/neocogi-com/0.3.0)**.
 All eight packages listed below are published on crates.io with ABI v2/core
-generation 19. The development contract is [ABI v3](docs/abi-v3.md), with core
-generation 20.
+generation 19. The development contract and current version authorities are
+listed in [ABI v3](docs/abi-v3.md#abi-identities-and-versions).
 Persistence applications explicitly supply their selected serialization provider;
 see [host persistence](crates/host/PERSISTENCE.md).
 

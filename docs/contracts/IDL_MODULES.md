@@ -962,7 +962,7 @@ those routes nor filesystem roots affect logical IDs or ABI signatures. Pure
 `generate_rust_with_paths` callers continue supplying accessible owner locations;
 Cargo-specific routes are selected by `Module::build`. Source graph schema 7
 requires providers with this namespace and rejects older sidecars. Runtime and
-plugin discovery uses family 3 and the core baseline uses generation 20; source routes do not change
+plugin discovery and the core baseline follow the [ABI version table](../abi-v3.md#abi-identities-and-versions); source routes do not change
 the [canonical signature encoding](#canonical-signatures).
 
 ### Diagnostics

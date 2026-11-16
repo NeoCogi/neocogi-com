@@ -6,7 +6,7 @@ dependencies, descriptor/core ABI versions, and full factory IID/signature and
 threading capability. There are no contract libraries or module graphs to load.
 Opened libraries remain pinned until the short-lived process exits.
 
-These development sources inspect ABI v3/core generation 20. Build the matching
+These development sources inspect the [current WIP ABI versions](../../docs/abi-v3.md#abi-identities-and-versions). Build the matching
 CLI from this checkout with `cargo build -p neocogi-inspect` when inspecting
 development providers. The published `0.3.0` inspector expects ABI v2/core
 generation 19 and cannot inspect these incompatible providers. See the

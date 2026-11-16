@@ -7,7 +7,8 @@ the current candidate; rebuild all participants from matching source revisions.
 This guide applies to the unreleased `0.4.0-wip` sources. Published SDK `0.3.0`
 uses ABI v2/core generation 19. Package versions, live object ABI versions,
 interface identities and persistence document versions are separate authorities.
-The [ABI specification](../abi-v3.md) owns the development binary contract.
+The [ABI version table](../abi-v3.md#abi-identities-and-versions) owns the current
+development generations; the rows below are checked against the core constants.
 
 ## Rebuild the complete composition
 
@@ -18,7 +19,7 @@ header/type-information layouts cannot be interpreted as ABI v2.
 
 | Boundary | Earlier ABI-v2 source | Development ABI v3 |
 | --- | --- | --- |
-| Core generation | 19 | 20 |
+| Core generation | 19 | 21 |
 | Runtime and descriptor families | 2 | 3 |
 | Plugin discovery | `nc_get_plugin_descriptor_v2` | `nc_get_plugin_descriptor_v3` |
 | Optional host-shim discovery | `nc_get_host_api_v2` in earlier development sources | `nc_get_host_api_v3` |

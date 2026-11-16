@@ -3,16 +3,14 @@
 **Status: WORK IN PROGRESS (WIP), unreleased and not frozen.**
 
 Layouts, vtables, callback signatures, ownership contracts and Rust APIs may
-change before the ABI-v3 release freeze. Family 3/core generation 21 identify
-the current candidate, not a finalized compatibility baseline. Further
+change before the ABI-v3 release freeze. The [versions below](#abi-identities-and-versions)
+identify the current candidate, not a finalized compatibility baseline. Further
 incompatible design changes can remain part of ABI v3 while it is WIP; keep
 core generations and admission checks coherent so incompatible binaries are
 rejected. Rebuild hosts, providers and generated consumers from the same source
 revision. Do not describe this candidate as final or frozen before release freeze.
 
-This is the unreleased development COM binary contract. Runtime and
-plugin descriptor discovery use family **3**, with core generation **20**.
-It deliberately rejects the published 0.3.0 SDK's ABI v2/core-generation-19
+This is the unreleased development COM binary contract. It deliberately rejects the published 0.3.0 SDK's ABI v2/core-generation-19
 contract. The [released ABI v2 specification](https://github.com/NeoCogi/neocogi-com/blob/v0.3.0/docs/abi-v2.md)
 and [ABI v1 specification](https://github.com/NeoCogi/neocogi-com/blob/v0.1.0/docs/abi-v1.md)
 remain available at their release tags. No fallback symbols, aliases or automatic
@@ -26,6 +24,8 @@ generation. Host and plugin discovery exports are now nc_get_host_api_v3 and
 nc_get_plugin_descriptor_v3. Rebuild all hosts, providers and generated consumers
 together before exchanging objects. This development change does not publish
 packages or change an existing release tag.
+
+## ABI identities and versions
 
 The public C-shaped definitions in [core](../crates/core/src/lib.rs) own the
 layouts. Admission reads only supported prefixes before borrowing complete
@@ -1419,8 +1419,8 @@ An ordinary runtime build must produce its host
 rlib; no COM runtime shared library is deployed. One temporary shared target
 cache avoids retaining one copy per package and is removed after verification. The gate also builds a fresh consumer
 with `build.rs`, generates an interface and executes its checked COM call. Runtime
-and descriptor discovery use family 3; core admission uses generation 20. No-default and alloc-only
-facade checks cover the portable feature boundary. CI runs this same gate.
+and descriptor discovery and core admission follow the [current version table](#abi-identities-and-versions).
+No-default and alloc-only facade checks cover the portable feature boundary. CI runs this same gate.
 
 The unpublished `neocogi-com-tests` package at `tests/com` owns integration
 fixtures, their generation and five executable Cargo examples. The facade has
