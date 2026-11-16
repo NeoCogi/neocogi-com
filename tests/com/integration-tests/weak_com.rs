@@ -3,7 +3,7 @@
 mod test_contracts {
     include!(concat!(env!("OUT_DIR"), "/test_contracts.rs"));
 }
-use neocogi_com::{com_object, ComPtr, IUnknown, NcStatus, WeakComPtr, NC_E_CLOSED, NC_E_DROPPED};
+use neocogi_com::{com_object, ComPtr, IUnknown, NcStatus, WeakComPtr, NC_E_CLOSED};
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
@@ -202,10 +202,9 @@ fn absent_weak_tokens_are_rejected_without_accessing_their_pointers() {
     assert!(unsafe { WeakComPtr::<IUnknown>::from_raw_owned(neocogi_com::NcWeakRaw::null()) }.is_none());
 }
 
-/// Failed raw promotion clears the output and neither leaks nor transfers a strong owner.
+/// Generated weak selection preserves exact revision errors without acquiring owners.
 #[test]
-fn weak_promotion_checks_exact_interface_revision() {
-    use neocogi_com::ComInterface;
+fn weak_queries_check_exact_interface_revision() {
     let drops = Arc::new(AtomicUsize::new(0));
     let owner = Value::from_value(Value {
         drops: drops.clone(),
@@ -213,13 +212,7 @@ fn weak_promotion_checks_exact_interface_revision() {
         origin: None,
     });
     let weak = owner.downgrade().unwrap();
-    let raw = weak.as_raw();
-    let wrong = neocogi_com::NcInterfaceId::new(IValueAbi::IID, neocogi_com::NcAbiDigest::from_static(&[0; 32]));
-    let mut out = owner.as_raw();
-    // SAFETY: a real live weak allocation and distinct valid records exercise a wrong signature.
-    let status = unsafe { neocogi_com::lifetime::nc_weak_upgrade(raw.control, &wrong, &mut out) };
-    assert_eq!(status, neocogi_com::NC_E_ABI_VERSION);
-    assert!(!out.is_present());
+    assert_eq!(weak.query::<WrongRevision>().unwrap_err(), neocogi_com::NC_E_ABI_VERSION);
     drop(owner);
     assert_eq!(drops.load(Ordering::SeqCst), 1);
     assert!(weak.upgrade().unwrap().is_none());
@@ -247,60 +240,32 @@ fn failed_factory_after_connection_drops_the_value_and_expires_its_weak_identity
     assert!(escaped.unwrap().upgrade().unwrap().is_none());
 }
 
-/// Promotion transfers exactly one owner; neither negotiation nor failure retains extras.
+/// Generated promotion transfers one owner and does not prolong expiration after it drops.
 #[test]
-fn raw_promotion_balances_success_and_all_rejection_paths() {
-    use neocogi_com::{ComInterface, NcGuid, NcInterfaceId, NC_E_NOINTERFACE, NC_E_POINTER, NC_OK};
+fn typed_promotion_balances_owners_and_expiration() {
+    use neocogi_com::{NC_E_NOINTERFACE, raw};
     let drops = Arc::new(AtomicUsize::new(0));
     let owner = Value::from_value(Value {
         drops: drops.clone(),
         closed: false,
         origin: None,
     });
-    let weak = owner.downgrade().unwrap();
-    let token = weak.as_raw();
-    let table = owner.as_raw().vtable;
-    let missing = NcInterfaceId::new(NcGuid::from_uuid_bytes([0x42; 16]), IValueAbi::INTERFACE_ID.abi_signature);
-    let mut out = owner.as_raw();
-    // SAFETY: all non-null arguments below are distinct live records for this allocation.
+    let weak = owner.query::<IValueAbi>().unwrap().downgrade().unwrap();
+    assert_eq!(weak.query::<ISharedAbi>().unwrap_err(), NC_E_NOINTERFACE);
+    let promoted = weak.upgrade().unwrap().unwrap();
     unsafe {
-        assert_eq!(neocogi_com::lifetime::nc_weak_upgrade(token.control, &missing, &mut out), NC_E_NOINTERFACE);
-        assert!(!out.is_present());
-        assert_eq!(neocogi_com::lifetime::nc_weak_upgrade(token.control, core::ptr::null(), &mut out), NC_E_POINTER);
-        assert!(!out.is_present());
-        assert_eq!(
-            neocogi_com::lifetime::nc_weak_upgrade(core::ptr::null_mut(), &IValueAbi::INTERFACE_ID, &mut out),
-            NC_E_POINTER
-        );
-        assert!(!out.is_present());
-        assert_eq!(
-            neocogi_com::lifetime::nc_weak_upgrade(token.control, &IValueAbi::INTERFACE_ID, core::ptr::null_mut()),
-            NC_E_POINTER
-        );
-        // A balanced diagnostic retain/release proves failed promotion leaked no owner.
-        assert_eq!(((*table).add_ref)(owner.as_raw().object), 2);
-        assert_eq!(((*table).release)(owner.as_raw().object), 1);
-        assert_eq!(neocogi_com::lifetime::nc_weak_upgrade(token.control, &IValueAbi::INTERFACE_ID, &mut out), NC_OK);
-        assert_eq!(((*table).add_ref)(owner.as_raw().object), 3);
-        assert_eq!(((*table).release)(owner.as_raw().object), 2);
-        // Erasure retains the requested IValue table. Check its identity without
-        // constructing an unrelated typed IUnknown owner, then balance the raw
-        // transferred reference through its valid common lifecycle prefix.
-        assert_eq!(neocogi_com::raw::validate_interface(out), Err(NC_E_NOINTERFACE));
-        assert_eq!(neocogi_com::raw::validate_interface(out.cast::<IValueAbi>()), Ok(()));
-        assert_eq!(neocogi_com::raw::release(out), 1);
-        assert_eq!(((*table).add_ref)(owner.as_raw().object), 2);
-        assert_eq!(((*table).release)(owner.as_raw().object), 1);
+        assert_eq!(raw::validate_interface(promoted.as_raw()), Ok(()));
+        assert_eq!(raw::add_ref(owner.as_raw()), 3);
+        assert_eq!(raw::release(owner.as_raw()), 2);
+    }
+    drop(promoted);
+    unsafe {
+        assert_eq!(raw::add_ref(owner.as_raw()), 2);
+        assert_eq!(raw::release(owner.as_raw()), 1);
     }
     drop(owner);
     assert_eq!(drops.load(Ordering::SeqCst), 1);
-    // Expiration takes precedence over negotiation, preserving the original protocol.
-    // SAFETY: the weak control survives value destruction; output is distinct and writable.
-    assert_eq!(
-        unsafe { neocogi_com::lifetime::nc_weak_upgrade(token.control, &missing, &mut out) },
-        NC_E_DROPPED
-    );
-    assert!(!out.is_present());
+    assert!(weak.upgrade().unwrap().is_none());
 }
 
 #[com_object(IValue)]
@@ -368,7 +333,7 @@ fn weak_unknown_conversion_preserves_identity_without_retaining_the_value() {
 /// debug builds: code sharing does not depend on linker folding or generics.
 #[test]
 fn unrelated_classes_publish_the_same_lifetime_functions() {
-    use neocogi_com::lifetime::*;
+    use neocogi_com::lifetime::SHARED_UNKNOWN_VTABLE;
     let drops = Arc::new(AtomicUsize::new(0));
     let make = || Value {
         drops: drops.clone(),
@@ -380,13 +345,10 @@ fn unrelated_classes_publish_the_same_lifetime_functions() {
     for raw in [first.as_raw(), second.as_raw(), first.query::<IValueAbi>().unwrap().as_raw().cast()] {
         // SAFETY: both retained owners keep these immutable projection tables live.
         let table = unsafe { &*raw.vtable };
-        assert!(std::ptr::fn_addr_eq(
-            table.query_interface,
-            nc_query_interface as unsafe extern "C" fn(_, _, _) -> _
-        ));
-        assert!(std::ptr::fn_addr_eq(table.add_ref, nc_strong_retain as unsafe extern "C" fn(_) -> _));
-        assert!(std::ptr::fn_addr_eq(table.release, nc_strong_release as unsafe extern "C" fn(_) -> _));
-        assert!(std::ptr::fn_addr_eq(table.downgrade.unwrap(), nc_downgrade as unsafe extern "C" fn(_, _) -> _));
+        assert!(std::ptr::fn_addr_eq(table.query_interface, SHARED_UNKNOWN_VTABLE.query_interface));
+        assert!(std::ptr::fn_addr_eq(table.add_ref, SHARED_UNKNOWN_VTABLE.add_ref));
+        assert!(std::ptr::fn_addr_eq(table.release, SHARED_UNKNOWN_VTABLE.release));
+        assert!(std::ptr::fn_addr_eq(table.downgrade.unwrap(), SHARED_UNKNOWN_VTABLE.downgrade.unwrap()));
     }
     drop((first, second));
     assert_eq!(drops.load(Ordering::SeqCst), 2);
@@ -477,20 +439,17 @@ fn checked_shared_weak_wire_rejects_exclusive_control_blocks() {
     let owner = Exclusive::into_box(Exclusive);
     let observer = owner.downgrade();
     let control = observer.as_raw().object.cast();
-    // SAFETY: observer keeps the valid exclusive header alive; this independent
-    // weak retain is transferred to the rejection path, which must release it.
-    unsafe {
-        neocogi_com::lifetime::nc_weak_retain(control);
-    }
+    // Transfer one safely cloned observer to the checked rejection path.
+    let transferred = observer.clone().into_raw();
+    assert_eq!(transferred.object, control);
     assert_eq!(
         unsafe { WeakComPtr::<IUnknown>::__nc_from_raw_owned_checked(neocogi_com::NcWeakRaw { control }) }.unwrap_err(),
         neocogi_com::NC_E_INVALID_ARG
     );
     drop(owner);
-    // The permanent ownership tag also rejects expired exclusive allocations.
-    unsafe {
-        neocogi_com::lifetime::nc_weak_retain(control);
-    }
+    // The immutable ownership kind also rejects expired exclusive allocations.
+    let transferred = observer.clone().into_raw();
+    assert_eq!(transferred.object, control);
     assert_eq!(
         unsafe { WeakComPtr::<IUnknown>::__nc_from_raw_owned_checked(neocogi_com::NcWeakRaw { control }) }.unwrap_err(),
         neocogi_com::NC_E_INVALID_ARG

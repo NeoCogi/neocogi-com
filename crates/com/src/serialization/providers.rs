@@ -121,12 +121,7 @@ const _: () = {
             IDeserializerVTable {
                 unknown: ::neocogi_com::IUnknownVTable {
                     interface_id: __nc_identity,
-                    query_interface: ::neocogi_com::lifetime::nc_query_interface,
-                    add_ref: ::neocogi_com::lifetime::nc_strong_retain,
-                    release: ::neocogi_com::lifetime::nc_strong_release,
-                    downgrade: ::core::option::Option::Some(
-                        ::neocogi_com::lifetime::nc_downgrade,
-                    ),
+                    ..*<__NcProvider as ::neocogi_com::ComObject>::UNKNOWN_VTABLE
                 },
                 enter_value: Self::enter_value_thunk,
                 leave_value: Self::leave_value_thunk,
@@ -1510,12 +1505,7 @@ const _: () = {
             ISerializationDiagnosticsVTable {
                 unknown: ::neocogi_com::IUnknownVTable {
                     interface_id: __nc_identity,
-                    query_interface: ::neocogi_com::lifetime::nc_query_interface,
-                    add_ref: ::neocogi_com::lifetime::nc_strong_retain,
-                    release: ::neocogi_com::lifetime::nc_strong_release,
-                    downgrade: ::core::option::Option::Some(
-                        ::neocogi_com::lifetime::nc_downgrade,
-                    ),
+                    ..*<__NcProvider as ::neocogi_com::ComObject>::UNKNOWN_VTABLE
                 },
                 failure_status: Self::failure_status_thunk,
                 byte_offset: Self::byte_offset_thunk,
@@ -2046,12 +2036,7 @@ const _: () = {
             ISerializationFormatVTable {
                 unknown: ::neocogi_com::IUnknownVTable {
                     interface_id: __nc_identity,
-                    query_interface: ::neocogi_com::lifetime::nc_query_interface,
-                    add_ref: ::neocogi_com::lifetime::nc_strong_retain,
-                    release: ::neocogi_com::lifetime::nc_strong_release,
-                    downgrade: ::core::option::Option::Some(
-                        ::neocogi_com::lifetime::nc_downgrade,
-                    ),
+                    ..*<__NcProvider as ::neocogi_com::ComObject>::UNKNOWN_VTABLE
                 },
                 create_serializer: Self::create_serializer_thunk,
                 create_deserializer: Self::create_deserializer_thunk,
@@ -2276,12 +2261,7 @@ const _: () = {
             ISerializationOutputVTable {
                 unknown: ::neocogi_com::IUnknownVTable {
                     interface_id: __nc_identity,
-                    query_interface: ::neocogi_com::lifetime::nc_query_interface,
-                    add_ref: ::neocogi_com::lifetime::nc_strong_retain,
-                    release: ::neocogi_com::lifetime::nc_strong_release,
-                    downgrade: ::core::option::Option::Some(
-                        ::neocogi_com::lifetime::nc_downgrade,
-                    ),
+                    ..*<__NcProvider as ::neocogi_com::ComObject>::UNKNOWN_VTABLE
                 },
                 byte_len: Self::byte_len_thunk,
                 copy_to: Self::copy_to_thunk,
@@ -2465,12 +2445,7 @@ const _: () = {
             ISerializationPluginVTable {
                 unknown: ::neocogi_com::IUnknownVTable {
                     interface_id: __nc_identity,
-                    query_interface: ::neocogi_com::lifetime::nc_query_interface,
-                    add_ref: ::neocogi_com::lifetime::nc_strong_retain,
-                    release: ::neocogi_com::lifetime::nc_strong_release,
-                    downgrade: ::core::option::Option::Some(
-                        ::neocogi_com::lifetime::nc_downgrade,
-                    ),
+                    ..*<__NcProvider as ::neocogi_com::ComObject>::UNKNOWN_VTABLE
                 },
                 default_format: Self::default_format_thunk,
                 format: Self::format_thunk,
@@ -2746,12 +2721,7 @@ const _: () = {
             ISerializerVTable {
                 unknown: ::neocogi_com::IUnknownVTable {
                     interface_id: __nc_identity,
-                    query_interface: ::neocogi_com::lifetime::nc_query_interface,
-                    add_ref: ::neocogi_com::lifetime::nc_strong_retain,
-                    release: ::neocogi_com::lifetime::nc_strong_release,
-                    downgrade: ::core::option::Option::Some(
-                        ::neocogi_com::lifetime::nc_downgrade,
-                    ),
+                    ..*<__NcProvider as ::neocogi_com::ComObject>::UNKNOWN_VTABLE
                 },
                 serialize_unit: Self::serialize_unit_thunk,
                 serialize_bool: Self::serialize_bool_thunk,

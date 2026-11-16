@@ -495,11 +495,12 @@ the [ABI specification](../abi-v3.md#weak-lifetime-references) defines both poli
 The strong object/table handle remains two words; a weak handle now contains one
 control pointer. Generated allocations use the shared or boxed COM header in
 place of private Arc storage. One immutable class descriptor supplies ownership
-kind, typed destruction,
-allocator-local freeing and interface projections. All generated interface tables
-point directly to the same query, strong retain/release and downgrade functions;
-weak retain/release/upgrade likewise use non-generic functions. No weak operation
-table or per-type counting wrapper is emitted.
+kind, typed destruction, allocator-local freeing and interface projections.
+ComObject::UNKNOWN_VTABLE selects one canonical shared or exclusive prefix. Every
+projection copies that policy's callbacks, so release never dispatches between
+shared and boxed ownership. The C adapters are private; typed ownership operations
+and common weak bookkeeping are ordinary Rust helpers. No weak operation table
+or per-type counting wrapper is emitted.
 
 The header adds one class pointer relative to the former Arc header, while each
 weak handle saves one pointer. Concrete-value alignment can introduce padding;

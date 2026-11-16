@@ -53,12 +53,7 @@ const _: () = {
             IObjectChildrenVTable {
                 unknown: ::neocogi_com::IUnknownVTable {
                     interface_id: __nc_identity,
-                    query_interface: ::neocogi_com::lifetime::nc_query_interface,
-                    add_ref: ::neocogi_com::lifetime::nc_strong_retain,
-                    release: ::neocogi_com::lifetime::nc_strong_release,
-                    downgrade: ::core::option::Option::Some(
-                        ::neocogi_com::lifetime::nc_downgrade,
-                    ),
+                    ..*<__NcProvider as ::neocogi_com::ComObject>::UNKNOWN_VTABLE
                 },
                 count: Self::count_thunk,
                 get: Self::get_thunk,
@@ -221,12 +216,7 @@ const _: () = {
             IPersistableVTable {
                 unknown: ::neocogi_com::IUnknownVTable {
                     interface_id: __nc_identity,
-                    query_interface: ::neocogi_com::lifetime::nc_query_interface,
-                    add_ref: ::neocogi_com::lifetime::nc_strong_retain,
-                    release: ::neocogi_com::lifetime::nc_strong_release,
-                    downgrade: ::core::option::Option::Some(
-                        ::neocogi_com::lifetime::nc_downgrade,
-                    ),
+                    ..*<__NcProvider as ::neocogi_com::ComObject>::UNKNOWN_VTABLE
                 },
                 type_id: Self::type_id_thunk,
                 schema_version: Self::schema_version_thunk,
@@ -541,12 +531,7 @@ const _: () = {
             IPersistenceFactoryVTable {
                 unknown: ::neocogi_com::IUnknownVTable {
                     interface_id: __nc_identity,
-                    query_interface: ::neocogi_com::lifetime::nc_query_interface,
-                    add_ref: ::neocogi_com::lifetime::nc_strong_retain,
-                    release: ::neocogi_com::lifetime::nc_strong_release,
-                    downgrade: ::core::option::Option::Some(
-                        ::neocogi_com::lifetime::nc_downgrade,
-                    ),
+                    ..*<__NcProvider as ::neocogi_com::ComObject>::UNKNOWN_VTABLE
                 },
                 validate: Self::validate_thunk,
                 restore: Self::restore_thunk,

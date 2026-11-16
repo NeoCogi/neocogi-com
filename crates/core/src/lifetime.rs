@@ -172,58 +172,93 @@ unsafe fn weak_parts<'a>(object: *mut c_void) -> (&'a AtomicUsize, &'a NcObjectT
 
 /// Increments an owned numeric counter without wrapping or reviving zero.
 ///
-/// Non-unwinding C callers fail-stop on exhaustion rather than publish an
-/// uncounted owner. Reader-count exhaustion instead rejects call admission.
-fn retain(counter: &AtomicUsize) -> usize {
+/// Zero and exhaustion return None before mutation. Owning operations convert
+/// this result into fail-stop termination, including ordinary Rust weak clones.
+/// Reader-count exhaustion instead rejects call admission.
+fn retain(counter: &AtomicUsize) -> Option<usize> {
     let mut current = counter.load(Ordering::Relaxed);
     loop {
-        assert!(current > 0 && current < isize::MAX as usize, "COM lifetime counter exhausted or unowned");
+        if current == 0 || current >= isize::MAX as usize {
+            return None;
+        }
         match counter.compare_exchange_weak(current, current + 1, Ordering::Relaxed, Ordering::Relaxed) {
-            Ok(_) => return current + 1,
+            Ok(_) => return Some(current + 1),
             Err(observed) => current = observed,
         }
     }
 }
 
-/// Retains a shared owner. Null and boxed ownership return zero.
-///
-/// # Safety
-/// A nonnull address follows the raw admission contract of [`NcObjectTypeInfo`].
-/// Accepted shared storage must have a retained strong owner; zero cannot be
-/// resurrected. Unsupported kinds are rejected before any count is accessed.
-#[inline(never)]
-pub unsafe extern "C" fn nc_strong_retain(object: *mut c_void) -> u32 {
-    let Ok(header) = (unsafe { shared_state(object) }) else { return 0 };
-    retain(&header.strong_count).min(u32::MAX as usize) as u32
+/// Counter exhaustion must terminate through a non-unwinding boundary even for
+/// ordinary Rust weak-handle clones. This cold local function is not a C API.
+#[cold]
+extern "C" fn counter_exhausted() -> ! {
+    panic!("COM lifetime counter exhausted or unowned")
 }
 
-/// Releases shared ownership, or dispatches the sole boxed owner to boxed Drop.
+impl NcSharedLifetimeState {
+    /// Adds one numeric shared owner without changing ownership policy.
+    ///
+    /// # Safety
+    /// The caller retains a live shared owner throughout this operation.
+    pub(crate) unsafe fn retain(&self) -> u32 {
+        retain(&self.strong_count).unwrap_or_else(|| counter_exhausted()).min(u32::MAX as usize) as u32
+    }
+}
+
+/// C adapter for the shared prefix; other policies never reach their counters.
 ///
 /// # Safety
-/// A nonnull address transfers one valid owner in the current-core lifetime ABI.
-/// The caller must not use that owner after this call.
-#[inline(never)]
-pub unsafe extern "C" fn nc_strong_release(object: *mut c_void) -> u32 {
-    if object.is_null() {
-        return 0;
-    }
-    let info = unsafe { object_type_info(object) }.expect("valid owned lifetime metadata");
-    if info.ownership == NC_OWNERSHIP_BOXED {
-        unsafe { nc_box_release(object.cast()) };
-        return 0;
-    }
-    let header = unsafe { shared_state(object) }.expect("shared lifetime metadata");
-    let previous = header.strong_count.fetch_sub(1, Ordering::Release);
-    assert!(previous > 0, "COM strong release without an owner");
-    match previous {
-        1 => {
-            fence(Ordering::Acquire);
-            // The implicit weak protects storage during reentrant weak-field Drop.
-            unsafe { (info.destroy_value)(object) };
-            unsafe { nc_weak_release(object) };
-            0
+/// Object/metadata satisfy NcObjectTypeInfo raw admission; accepted shared storage
+/// has a retained strong owner throughout this call.
+unsafe extern "C" fn nc_shared_retain(object: *mut c_void) -> u32 {
+    let Ok(header) = (unsafe { shared_state(object) }) else { return 0 };
+    unsafe { header.retain() }
+}
+
+/// C adapter consuming exactly one shared owner through its typed Rust operation.
+///
+/// # Safety
+/// A nonnull object transfers one valid shared owner exactly once; its immutable
+/// metadata, callback code and matching complete header remain valid through release.
+unsafe extern "C" fn nc_shared_release(object: *mut c_void) -> u32 {
+    unsafe { NcSharedLifetimeState::release(object.cast()) }
+}
+
+/// C adapter consuming the sole exclusive owner; the common slot returns zero.
+///
+/// # Safety
+/// A nonnull object transfers its sole valid boxed owner and obeys the non-reentrant
+/// destruction/storage obligations of NcBoxedLifetimeState::release.
+unsafe extern "C" fn nc_exclusive_release(object: *mut c_void) -> u32 {
+    unsafe { NcBoxedLifetimeState::release(object.cast()) };
+    0
+}
+
+impl NcSharedLifetimeState {
+    /// Consumes one shared owner and destroys the value on the final release.
+    ///
+    /// # Safety
+    /// A nonnull address transfers one valid owner in the current-core lifetime ABI.
+    /// The caller must not use that owner after this call. The raw typed pointer
+    /// avoids a protected &self argument across final deallocation.
+    pub(crate) unsafe fn release(control: *mut Self) -> u32 {
+        let object = control.cast::<c_void>();
+        if object.is_null() {
+            return 0;
         }
-        _ => (previous - 1).min(u32::MAX as usize) as u32,
+        let header = unsafe { shared_state(object) }.expect("shared lifetime metadata");
+        let previous = header.strong_count.fetch_sub(1, Ordering::Release);
+        assert!(previous > 0, "COM strong release without an owner");
+        match previous {
+            1 => {
+                fence(Ordering::Acquire);
+                // The implicit weak protects storage during reentrant weak-field Drop.
+                unsafe { ((*header.type_info).destroy_value)(object) };
+                unsafe { weak_release(object) };
+                0
+            }
+            _ => (previous - 1).min(u32::MAX as usize) as u32,
+        }
     }
 }
 
@@ -233,10 +268,10 @@ pub unsafe extern "C" fn nc_strong_release(object: *mut c_void) -> u32 {
 /// A nonnull allocation is retained and has matching current-core metadata.
 /// Null is accepted as a no-op for foreign cleanup.
 #[inline(never)]
-pub unsafe extern "C" fn nc_weak_retain(object: *mut c_void) {
+pub(crate) unsafe fn weak_retain(object: *mut c_void) {
     if !object.is_null() {
         let (count, _) = unsafe { weak_parts(object) };
-        retain(count);
+        retain(count).unwrap_or_else(|| counter_exhausted());
     }
 }
 
@@ -246,7 +281,7 @@ pub unsafe extern "C" fn nc_weak_retain(object: *mut c_void) {
 /// A nonnull address transfers one weak owner. If it is final, the value's
 /// destructor has already returned. Null is a no-op. Do not access freed storage.
 #[inline(never)]
-pub unsafe extern "C" fn nc_weak_release(object: *mut c_void) {
+pub(crate) unsafe fn weak_release(object: *mut c_void) {
     if object.is_null() {
         return;
     }
@@ -265,7 +300,7 @@ pub unsafe extern "C" fn nc_weak_release(object: *mut c_void) {
 /// Nonnull object metadata/header and distinct output storage are valid for this
 /// call. Boxed policy is rejected before any shared count is interpreted.
 #[inline(never)]
-pub unsafe extern "C" fn nc_downgrade(object: *mut c_void, out: *mut crate::NcWeakRaw) -> NcStatus {
+unsafe extern "C" fn nc_shared_downgrade(object: *mut c_void, out: *mut crate::NcWeakRaw) -> NcStatus {
     if out.is_null() {
         return NC_E_POINTER;
     }
@@ -274,7 +309,7 @@ pub unsafe extern "C" fn nc_downgrade(object: *mut c_void, out: *mut crate::NcWe
         return status;
     }
     unsafe {
-        nc_weak_retain(object);
+        weak_retain(object);
         *out = crate::NcWeakRaw { control: object };
     }
     NC_OK
@@ -306,7 +341,7 @@ pub(crate) unsafe fn check_shared_weak_cast(object: *mut c_void, requested: &NcI
 /// shared storage has a retained strong owner. Request/output records are valid
 /// and distinct. Other policies are rejected without acquiring an owner.
 #[inline(never)]
-pub unsafe extern "C" fn nc_query_interface(object: *mut c_void, requested: *const NcInterfaceId, out: *mut ComRaw<IUnknown>) -> NcStatus {
+unsafe extern "C" fn nc_shared_query_interface(object: *mut c_void, requested: *const NcInterfaceId, out: *mut ComRaw<IUnknown>) -> NcStatus {
     if out.is_null() {
         return NC_E_POINTER;
     }
@@ -321,7 +356,7 @@ pub unsafe extern "C" fn nc_query_interface(object: *mut c_void, requested: *con
     match unsafe { try_cast(&*header.type_info, &*requested) } {
         Ok(vtable) => {
             unsafe {
-                nc_strong_retain(object);
+                header.retain();
                 *out = ComRaw { object, vtable };
             }
             NC_OK
@@ -330,14 +365,60 @@ pub unsafe extern "C" fn nc_query_interface(object: *mut c_void, requested: *con
     }
 }
 
-/// One root table forwards lifetime operations through immutable ownership admission.
-pub static CANONICAL_UNKNOWN_VTABLE: IUnknownVTable = IUnknownVTable {
+/// Shared ownership's canonical root prefix; all shared classes reuse its callbacks.
+/// Generated interface prefixes copy these slots and replace only interface_id.
+pub static SHARED_UNKNOWN_VTABLE: IUnknownVTable = IUnknownVTable {
     interface_id: &IUnknown::INTERFACE_ID,
-    query_interface: nc_query_interface,
-    add_ref: nc_strong_retain,
-    release: nc_strong_release,
-    downgrade: Some(nc_downgrade),
+    query_interface: nc_shared_query_interface,
+    add_ref: nc_shared_retain,
+    release: nc_shared_release,
+    downgrade: Some(nc_shared_downgrade),
 };
+
+/// Exclusive ownership's canonical root prefix, with no shared-owner acquisition.
+/// Release destroys synchronously; shared query/downgrade preserve their rejection status.
+pub static EXCLUSIVE_UNKNOWN_VTABLE: IUnknownVTable = IUnknownVTable {
+    interface_id: &IUnknown::INTERFACE_ID,
+    query_interface: reject_shared_query,
+    add_ref: reject_shared_retain,
+    release: nc_exclusive_release,
+    downgrade: Some(reject_shared_downgrade),
+};
+
+/// Rejects shared-owner acquisition without reading object storage or creating an owner.
+unsafe extern "C" fn reject_shared_retain(_object: *mut c_void) -> u32 {
+    0
+}
+
+/// Clears a shared query output and rejects exclusive ownership without table lookup.
+///
+/// # Safety
+/// A nonnull output is aligned/writable for one raw pair and distinct from inputs.
+/// Other nonnull arguments follow the selected exclusive vtable prefix contract.
+unsafe extern "C" fn reject_shared_query(object: *mut c_void, requested: *const NcInterfaceId, out: *mut ComRaw<IUnknown>) -> NcStatus {
+    if out.is_null() {
+        return NC_E_POINTER;
+    }
+    unsafe { *out = ComRaw::null() };
+    if object.is_null() || requested.is_null() {
+        NC_E_POINTER
+    } else {
+        NC_E_INVALID_ARG
+    }
+}
+
+/// Exclusive observers do not implement shared weak promotion; preserve invalid-policy errors.
+///
+/// # Safety
+/// A nonnull output is aligned/writable for one token; object follows the selected
+/// exclusive prefix contract. No ownership or object value is accessed.
+unsafe extern "C" fn reject_shared_downgrade(object: *mut c_void, out: *mut crate::NcWeakRaw) -> NcStatus {
+    if out.is_null() {
+        return NC_E_POINTER;
+    }
+    unsafe { *out = crate::NcWeakRaw::null() };
+    if object.is_null() { NC_E_POINTER } else { NC_E_INVALID_ARG }
+}
 
 /// Atomically promotes shared ownership before exact interface negotiation.
 ///
@@ -345,7 +426,7 @@ pub static CANONICAL_UNKNOWN_VTABLE: IUnknownVTable = IUnknownVTable {
 /// A nonnull allocation is weak-retained through the call; request/output storage
 /// is valid and distinct. Failure clears output. Expiration precedes negotiation.
 #[inline(never)]
-pub unsafe extern "C" fn nc_weak_upgrade(object: *mut c_void, requested: *const NcInterfaceId, out: *mut ComRaw<IUnknown>) -> NcStatus {
+pub(crate) unsafe fn weak_upgrade(object: *mut c_void, requested: *const NcInterfaceId, out: *mut ComRaw<IUnknown>) -> NcStatus {
     if out.is_null() {
         return NC_E_POINTER;
     }
@@ -362,7 +443,9 @@ pub unsafe extern "C" fn nc_weak_upgrade(object: *mut c_void, requested: *const 
         if count == 0 {
             return NC_E_DROPPED;
         }
-        assert!(count < isize::MAX as usize, "COM strong promotion counter exhausted");
+        if count >= isize::MAX as usize {
+            counter_exhausted();
+        }
         match header
             .strong_count
             .compare_exchange_weak(count, count + 1, Ordering::Acquire, Ordering::Relaxed)
@@ -377,7 +460,7 @@ pub unsafe extern "C" fn nc_weak_upgrade(object: *mut c_void, requested: *const 
             NC_OK
         }
         Err(status) => {
-            unsafe { nc_strong_release(object) };
+            unsafe { NcSharedLifetimeState::release(object.cast()) };
             status
         }
     }
@@ -496,35 +579,36 @@ impl NcBoxedLifetimeState {
     }
 }
 
-/// Releases the unique owner and destroys its value before returning.
-///
-/// New calls fail as soon as ownership is cleared. Calls already executing on
-/// other threads finish before destruction. The implicit weak keeps storage alive
-/// through T's destructor, including destruction of weak-to-self fields.
-///
-/// # Safety
-/// Transfers the sole owner exactly once. The caller must not be executing a
-/// method/borrow of this object, or hold a resource required by an active call:
-/// waiting on such a call would deadlock. Defer destruction until that call returns.
-#[inline(never)]
-pub unsafe extern "C" fn nc_box_release(control: *mut NcBoxedLifetimeState) {
-    if control.is_null() {
-        return;
-    }
-    // SAFETY: the caller transfers a valid boxed owner in the current core ABI.
-    let header = unsafe { boxed_state(control.cast()) }.expect("boxed lifetime metadata");
-    let previous = header.owner_and_borrows.fetch_and(!BOX_OWNER, Ordering::AcqRel);
-    assert!(previous & BOX_OWNER != 0, "exclusive owner released twice");
-    // Destruction belongs only to this owner. Borrow release never runs a
-    // destructor, so returning from Drop proves the entire owned value is gone.
-    while header.owner_and_borrows.load(Ordering::Acquire) & BOX_BORROWS != 0 {
-        core::hint::spin_loop();
-        #[cfg(feature = "std")]
-        std::thread::yield_now();
-    }
-    unsafe {
-        ((*header.type_info).destroy_value)(control.cast());
-        nc_weak_release(control.cast());
+impl NcBoxedLifetimeState {
+    /// Releases the unique owner and destroys its value before returning.
+    ///
+    /// New calls fail as soon as ownership is cleared. Calls already executing on
+    /// other threads finish before destruction. The implicit weak keeps storage alive
+    /// through T's destructor, including destruction of weak-to-self fields.
+    ///
+    /// # Safety
+    /// Transfers the sole owner exactly once. The caller must not be executing a
+    /// method/borrow of this object, or hold a resource required by an active call:
+    /// waiting on such a call would deadlock. Defer destruction until that call returns.
+    pub(crate) unsafe fn release(control: *mut Self) {
+        if control.is_null() {
+            return;
+        }
+        // SAFETY: the caller transfers a valid boxed owner in the current core ABI.
+        let header = unsafe { boxed_state(control.cast()) }.expect("boxed lifetime metadata");
+        let previous = header.owner_and_borrows.fetch_and(!BOX_OWNER, Ordering::AcqRel);
+        assert!(previous & BOX_OWNER != 0, "exclusive owner released twice");
+        // Destruction belongs only to this owner. Borrow release never runs a
+        // destructor, so returning from Drop proves the entire owned value is gone.
+        while header.owner_and_borrows.load(Ordering::Acquire) & BOX_BORROWS != 0 {
+            core::hint::spin_loop();
+            #[cfg(feature = "std")]
+            std::thread::yield_now();
+        }
+        unsafe {
+            ((*header.type_info).destroy_value)(control.cast());
+            weak_release(control.cast());
+        }
     }
 }
 

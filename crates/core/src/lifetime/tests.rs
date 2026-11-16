@@ -1,5 +1,6 @@
 //! Ownership regressions exercise the shared operations against real typed allocations.
 use super::*;
+use crate::ComInterface;
 use core::mem::MaybeUninit;
 use std::{boxed::Box, sync::Arc};
 
@@ -23,7 +24,7 @@ impl Drop for Value {
     fn drop(&mut self) {
         if let Some(control) = self.self_weak.take() {
             unsafe {
-                nc_weak_release(control.cast());
+                weak_release(control.cast());
             }
             assert_eq!(self.observations.freed.load(Ordering::SeqCst), 0);
         }
@@ -55,18 +56,31 @@ unsafe extern "C" fn free<Lifetime>(control: *mut c_void) {
 /// Static root projection uses the same shared entry points as generated objects will.
 static ROOT: IUnknownVTable = IUnknownVTable {
     interface_id: &crate::IUNKNOWN_INTERFACE_ID,
-    query_interface: nc_query_interface,
-    add_ref: nc_strong_retain,
-    release: nc_strong_release,
+    query_interface: nc_shared_query_interface,
+    add_ref: nc_shared_retain,
+    release: nc_shared_release,
     downgrade: None,
+};
+/// A real zero-method contract gives erased promotions a distinct valid table identity.
+enum AlternateInterface {}
+// SAFETY: its complete table is IUnknownVTable with this exact independent identity.
+unsafe impl crate::ComInterface for AlternateInterface {
+    const INTERFACE_ID: NcInterfaceId = NcInterfaceId::new(crate::NcGuid::from_fields(42, 1, 2, [3; 8]), crate::NcAbiDigest::from_static(&[4; 32]));
+    type Threading = crate::ThreadLocal;
+    type VTable = IUnknownVTable;
+}
+/// Shared callbacks with the alternate contract's complete immutable identity.
+static ALTERNATE_ROOT: IUnknownVTable = IUnknownVTable {
+    interface_id: &AlternateInterface::INTERFACE_ID,
+    ..SHARED_UNKNOWN_VTABLE
 };
 /// Class data points to one valid root projection without retaining inspection graphs.
 static CLASS: NcObjectTypeInfo = NcObjectTypeInfo {
     ownership: NC_OWNERSHIP_SHARED,
     destroy_value: destroy::<NcSharedLifetimeState>,
     deallocate: free::<NcSharedLifetimeState>,
-    interfaces: [&ROOT as *const IUnknownVTable].as_ptr(),
-    interface_count: 1,
+    interfaces: [&ROOT as *const IUnknownVTable, &ALTERNATE_ROOT as *const IUnknownVTable].as_ptr(),
+    interface_count: 2,
 };
 /// Allocates a fully initialized provider object with one shared owner.
 fn allocation() -> (*mut NcSharedLifetimeState, Arc<Observations>) {
@@ -82,12 +96,18 @@ fn allocation() -> (*mut NcSharedLifetimeState, Arc<Observations>) {
     (Box::into_raw(storage).cast(), observations)
 }
 
+/// The exclusive fixture uses its own statically selected root callbacks.
+static BOX_ROOT: IUnknownVTable = IUnknownVTable {
+    downgrade: None,
+    ..EXCLUSIVE_UNKNOWN_VTABLE
+};
+
 /// Boxed metadata is immutable and independent of the boxed owner/access word.
 static BOX_CLASS: NcObjectTypeInfo = NcObjectTypeInfo {
     ownership: NC_OWNERSHIP_BOXED,
     destroy_value: destroy::<NcBoxedLifetimeState>,
     deallocate: free::<NcBoxedLifetimeState>,
-    interfaces: [&ROOT as *const IUnknownVTable].as_ptr(),
+    interfaces: [&BOX_ROOT as *const IUnknownVTable].as_ptr(),
     interface_count: 1,
 };
 
@@ -110,20 +130,20 @@ fn boxed_allocation() -> (*mut NcBoxedLifetimeState, Arc<Observations>) {
 fn final_strong_drops_value_before_final_weak_frees_storage() {
     let (control, observations) = allocation();
     unsafe {
-        nc_weak_retain(control.cast());
+        weak_retain(control.cast());
         (*control.cast::<Allocation>()).value.assume_init_mut().self_weak = Some(control.cast());
-        nc_weak_retain(control.cast()); // External weak reference survives destruction.
-        assert_eq!(nc_strong_retain(control.cast()), 2);
-        assert_eq!(nc_strong_release(control.cast()), 1);
-        assert_eq!(nc_strong_release(control.cast()), 0);
+        weak_retain(control.cast()); // External weak reference survives destruction.
+        assert_eq!(nc_shared_retain(control.cast()), 2);
+        assert_eq!(nc_shared_release(control.cast()), 1);
+        assert_eq!(nc_shared_release(control.cast()), 0);
         assert_eq!(observations.destroyed.load(Ordering::SeqCst), 1);
         assert_eq!(observations.freed.load(Ordering::SeqCst), 0);
         let mut out = ComRaw::null();
-        assert_eq!(nc_weak_upgrade(control.cast(), &crate::IUNKNOWN_INTERFACE_ID, &mut out), NC_E_DROPPED);
+        assert_eq!(weak_upgrade(control.cast(), &crate::IUNKNOWN_INTERFACE_ID, &mut out), NC_E_DROPPED);
         assert!(!out.is_present());
-        nc_weak_retain(control.cast()); // Expired weak references can still be cloned.
-        nc_weak_release(control.cast());
-        nc_weak_release(control.cast());
+        weak_retain(control.cast()); // Expired weak references can still be cloned.
+        weak_release(control.cast());
+        weak_release(control.cast());
     }
     assert_eq!(observations.freed.load(Ordering::SeqCst), 1);
 }
@@ -134,19 +154,19 @@ fn checked_projection_balances_all_ownership_paths() {
     let (control, observations) = allocation();
     let wrong = NcInterfaceId::new(crate::IID_IUNKNOWN, crate::NcAbiDigest::from_static(&[0; 32]));
     unsafe {
-        nc_weak_retain(control.cast());
+        weak_retain(control.cast());
         let mut out = ComRaw { object: control.cast(), vtable: &ROOT };
-        assert_eq!(nc_weak_upgrade(control.cast(), &wrong, &mut out), crate::NC_E_ABI_VERSION);
+        assert_eq!(weak_upgrade(control.cast(), &wrong, &mut out), crate::NC_E_ABI_VERSION);
         assert!(!out.is_present());
-        assert_eq!(nc_strong_retain(control.cast()), 2);
-        assert_eq!(nc_strong_release(control.cast()), 1);
-        assert_eq!(nc_weak_upgrade(control.cast(), &crate::IUNKNOWN_INTERFACE_ID, &mut out), NC_OK);
-        assert_eq!(nc_strong_release(out.object), 1);
-        assert_eq!(nc_query_interface(control.cast(), &crate::IUNKNOWN_INTERFACE_ID, &mut out), NC_OK);
-        assert_eq!(nc_strong_release(out.object), 1);
-        assert_eq!(nc_strong_release(control.cast()), 0);
-        assert_eq!(nc_weak_upgrade(control.cast(), &wrong, &mut out), NC_E_DROPPED);
-        nc_weak_release(control.cast());
+        assert_eq!(nc_shared_retain(control.cast()), 2);
+        assert_eq!(nc_shared_release(control.cast()), 1);
+        assert_eq!(weak_upgrade(control.cast(), &crate::IUNKNOWN_INTERFACE_ID, &mut out), NC_OK);
+        assert_eq!(nc_shared_release(out.object), 1);
+        assert_eq!(nc_shared_query_interface(control.cast(), &crate::IUNKNOWN_INTERFACE_ID, &mut out), NC_OK);
+        assert_eq!(nc_shared_release(out.object), 1);
+        assert_eq!(nc_shared_release(control.cast()), 0);
+        assert_eq!(weak_upgrade(control.cast(), &wrong, &mut out), NC_E_DROPPED);
+        weak_release(control.cast());
     }
     assert_eq!(observations.destroyed.load(Ordering::SeqCst), 1);
     assert_eq!(observations.freed.load(Ordering::SeqCst), 1);
@@ -160,13 +180,13 @@ fn checked_weak_transport_balances_tokens_before_and_after_destruction() {
     // SAFETY: this fixture owns the initial strong reference and retains one
     // explicit weak owner across both iterations and final value destruction.
     unsafe {
-        nc_weak_retain(control.cast());
+        weak_retain(control.cast());
     }
     for expired in [false, true] {
         // SAFETY: the explicit weak owner keeps this header readable throughout.
         let before = unsafe { (*control).weak_count.load(Ordering::Relaxed) };
         unsafe {
-            nc_weak_retain(control.cast());
+            weak_retain(control.cast());
         }
         // SAFETY: transfer the additional weak token with intentionally wrong T.
         assert_eq!(
@@ -188,13 +208,13 @@ fn checked_weak_transport_balances_tokens_before_and_after_destruction() {
         assert_eq!(unsafe { (*control).weak_count.load(Ordering::Relaxed) }, before);
         if !expired {
             unsafe {
-                nc_strong_release(control.cast());
+                nc_shared_release(control.cast());
             }
         }
     }
     // SAFETY: release the final explicit weak owner; no header reads follow.
     unsafe {
-        nc_weak_release(control.cast());
+        weak_release(control.cast());
     }
     assert_eq!(observed.destroyed.load(Ordering::SeqCst), 1);
     assert_eq!(observed.freed.load(Ordering::SeqCst), 1);
@@ -204,7 +224,8 @@ fn checked_weak_transport_balances_tokens_before_and_after_destruction() {
 #[test]
 fn count_exhaustion_never_wraps_or_changes_the_counter() {
     let count = AtomicUsize::new(isize::MAX as usize);
-    assert!(std::panic::catch_unwind(|| retain(&count)).is_err());
+    assert_eq!(retain(&count), None);
+    assert_eq!(retain(&AtomicUsize::new(0)), None);
     assert_eq!(count.load(Ordering::Relaxed), isize::MAX as usize);
 }
 
@@ -223,15 +244,15 @@ fn exclusive_destruction_is_immediate_and_storage_release_is_separate() {
     // SAFETY: this boxed allocation has not escaped or been borrowed. Install
     // one properly retained weak field before transferring its owner.
     unsafe {
-        nc_weak_retain(control.cast());
+        weak_retain(control.cast());
         (*control.cast::<Allocation<NcBoxedLifetimeState>>()).value.assume_init_mut().self_weak = Some(control.cast());
-        nc_weak_retain(control.cast());
-        nc_box_release(control);
+        weak_retain(control.cast());
+        NcBoxedLifetimeState::release(control);
         assert_eq!(observed.destroyed.load(Ordering::SeqCst), 1);
         assert_eq!(observed.freed.load(Ordering::SeqCst), 0);
         assert!(matches!(BoxRead::enter(control), Err(NC_E_DROPPED)));
         assert!(matches!(BoxWrite::enter(control), Err(NC_E_DROPPED)));
-        nc_weak_release(control.cast());
+        weak_release(control.cast());
     }
     assert_eq!(observed.destroyed.load(Ordering::SeqCst), 1);
     assert_eq!(observed.freed.load(Ordering::SeqCst), 1);
@@ -269,7 +290,13 @@ fn exclusive_reader_overflow_and_writer_conflicts_preserve_header_state() {
 fn borrowed_box_queries_preserve_weak_count_and_explicit_observers_still_expire() {
     let (control, observed) = boxed_allocation();
     // SAFETY: transfer the initialized sole owner and its exact canonical projection.
-    let owner = unsafe { crate::ComBox::<IUnknown>::from_raw_owned(ComRaw { object: control.cast(), vtable: &ROOT }) }.unwrap();
+    let owner = unsafe {
+        crate::ComBox::<IUnknown>::from_raw_owned(ComRaw {
+            object: control.cast(),
+            vtable: &BOX_ROOT,
+        })
+    }
+    .unwrap();
     let before = unsafe { (*control).weak_count.load(Ordering::Relaxed) };
     let state = unsafe { (*control).owner_and_borrows.load(Ordering::Relaxed) };
     for _ in 0..16 {
@@ -301,10 +328,13 @@ fn raw_policy_mismatch_is_rejected_while_live_and_expired() {
         // SAFETY: valid boxed header/metadata and distinct complete outputs.
         unsafe {
             assert_eq!(check_shared_weak_cast(pointer.cast(), &crate::IUNKNOWN_INTERFACE_ID), Err(NC_E_INVALID_ARG));
-            assert_eq!(nc_weak_upgrade(pointer.cast(), &crate::IUNKNOWN_INTERFACE_ID, &mut output), NC_E_INVALID_ARG);
+            assert_eq!(weak_upgrade(pointer.cast(), &crate::IUNKNOWN_INTERFACE_ID, &mut output), NC_E_INVALID_ARG);
             assert!(!output.is_present());
-            assert_eq!(nc_query_interface(pointer.cast(), &crate::IUNKNOWN_INTERFACE_ID, &mut output), NC_E_INVALID_ARG);
-            assert_eq!(nc_strong_retain(pointer.cast()), 0);
+            assert_eq!(
+                nc_shared_query_interface(pointer.cast(), &crate::IUNKNOWN_INTERFACE_ID, &mut output),
+                NC_E_INVALID_ARG
+            );
+            assert_eq!(nc_shared_retain(pointer.cast()), 0);
         }
         assert_eq!(boxed.owner_and_borrows.load(Ordering::Relaxed), state);
         assert_eq!(boxed.weak_count.load(Ordering::Relaxed), 1);
@@ -371,8 +401,8 @@ fn either_policy_frees_without_an_extra_weak_only_phase() {
     let (boxed, boxed_observed) = boxed_allocation();
     // SAFETY: each fixture transfers its one matching owner exactly once.
     unsafe {
-        assert_eq!(nc_strong_release(shared.cast()), 0);
-        nc_box_release(boxed);
+        assert_eq!(nc_shared_release(shared.cast()), 0);
+        NcBoxedLifetimeState::release(boxed);
     }
     for observed in [shared_observed, boxed_observed] {
         assert_eq!(observed.destroyed.load(Ordering::SeqCst), 1);
@@ -385,4 +415,91 @@ fn either_policy_frees_without_an_extra_weak_only_phase() {
 fn typed_constructors_reject_mismatched_immutable_policy() {
     assert!(std::panic::catch_unwind(|| NcSharedLifetimeState::new(&BOX_CLASS)).is_err());
     assert!(std::panic::catch_unwind(|| NcBoxedLifetimeState::new(&CLASS)).is_err());
+}
+
+/// The two canonical prefixes preserve identity while selecting distinct release policies.
+#[test]
+fn canonical_prefixes_select_ownership_without_a_universal_release() {
+    // Metadata contents define identity; independent constant backing may differ.
+    unsafe {
+        assert_eq!(*SHARED_UNKNOWN_VTABLE.interface_id, *EXCLUSIVE_UNKNOWN_VTABLE.interface_id);
+    }
+    assert!(!std::ptr::fn_addr_eq(SHARED_UNKNOWN_VTABLE.release, EXCLUSIVE_UNKNOWN_VTABLE.release));
+    assert!(!std::ptr::fn_addr_eq(SHARED_UNKNOWN_VTABLE.add_ref, EXCLUSIVE_UNKNOWN_VTABLE.add_ref));
+    let (shared, shared_observed) = allocation();
+    let (boxed, boxed_observed) = boxed_allocation();
+    unsafe {
+        assert_eq!((SHARED_UNKNOWN_VTABLE.add_ref)(shared.cast()), 2);
+        assert_eq!((SHARED_UNKNOWN_VTABLE.release)(shared.cast()), 1);
+        assert_eq!((EXCLUSIVE_UNKNOWN_VTABLE.add_ref)(boxed.cast()), 0);
+        assert_eq!((EXCLUSIVE_UNKNOWN_VTABLE.release)(boxed.cast()), 0);
+        assert_eq!((SHARED_UNKNOWN_VTABLE.release)(shared.cast()), 0);
+    }
+    for observed in [shared_observed, boxed_observed] {
+        assert_eq!(observed.destroyed.load(Ordering::SeqCst), 1);
+        assert_eq!(observed.freed.load(Ordering::SeqCst), 1);
+    }
+}
+
+/// Ordinary Rust weak clones still fail-stop on exhaustion rather than unwind.
+#[test]
+#[cfg(not(miri))]
+fn weak_clone_exhaustion_cannot_unwind_to_its_caller() {
+    const CHILD: &str = "NC_TEST_WEAK_COUNTER_EXHAUSTION";
+    if std::env::var_os(CHILD).is_some() {
+        let (control, _) = allocation();
+        unsafe {
+            (*control).weak_count.store(isize::MAX as usize, Ordering::Relaxed);
+        }
+        let weak = unsafe { crate::WeakComPtr::<IUnknown>::from_raw_owned(crate::NcWeakRaw { control: control.cast() }) }.unwrap();
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| weak.clone()));
+        std::process::exit(97);
+    }
+    let output = std::process::Command::new(std::env::current_exe().unwrap())
+        .args(["--exact", "lifetime::tests::weak_clone_exhaustion_cannot_unwind_to_its_caller", "--nocapture"])
+        .env(CHILD, "1")
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert_ne!(output.status.code(), Some(97), "exhaustion unwound or returned");
+    assert!(std::string::String::from_utf8_lossy(&output.stderr).contains("COM lifetime counter exhausted"));
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::ExitStatusExt;
+        assert_eq!(output.status.signal(), Some(6));
+    }
+}
+
+/// Raw promotion clears outputs, negotiates exact tables and releases provisional owners.
+#[test]
+fn raw_promotion_balances_success_and_all_rejection_paths() {
+    use crate::{raw, NC_E_NOINTERFACE, NC_E_POINTER};
+    let (control, observed) = allocation();
+    let object = control.cast();
+    let missing = crate::INcBytesAbi::INTERFACE_ID;
+    let mut out = ComRaw { object, vtable: &ROOT };
+    unsafe {
+        weak_retain(object);
+        assert_eq!(weak_upgrade(object, &missing, &mut out), NC_E_NOINTERFACE);
+        assert!(!out.is_present());
+        assert_eq!(weak_upgrade(object, core::ptr::null(), &mut out), NC_E_POINTER);
+        assert!(!out.is_present());
+        assert_eq!(weak_upgrade(core::ptr::null_mut(), &AlternateInterface::INTERFACE_ID, &mut out), NC_E_POINTER);
+        assert!(!out.is_present());
+        assert_eq!(weak_upgrade(object, &AlternateInterface::INTERFACE_ID, core::ptr::null_mut()), NC_E_POINTER);
+        assert_eq!(nc_shared_retain(object), 2);
+        assert_eq!(nc_shared_release(object), 1);
+        assert_eq!(weak_upgrade(object, &AlternateInterface::INTERFACE_ID, &mut out), NC_OK);
+        assert_eq!(nc_shared_retain(object), 3);
+        assert_eq!(nc_shared_release(object), 2);
+        assert_eq!(raw::validate_interface(out), Err(NC_E_NOINTERFACE));
+        assert_eq!(raw::validate_interface(out.cast::<AlternateInterface>()), Ok(()));
+        assert_eq!(raw::release(out), 1);
+        assert_eq!(nc_shared_release(object), 0);
+        assert_eq!(observed.destroyed.load(Ordering::SeqCst), 1);
+        assert_eq!(weak_upgrade(object, &missing, &mut out), NC_E_DROPPED);
+        assert!(!out.is_present());
+        weak_release(object);
+    }
+    assert_eq!(observed.freed.load(Ordering::SeqCst), 1);
 }

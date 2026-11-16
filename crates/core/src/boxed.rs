@@ -14,7 +14,7 @@ use core::{
 };
 use crate::{ComInterface, ComClientInterface, ComRaw, ComRef, NcStatus, ThreadLocal, ThreadSafe, ThreadingModel, NC_E_POINTER};
 use crate::ptr::LiveInterface;
-use crate::lifetime::{try_box_cast, nc_box_release, nc_weak_retain, nc_weak_release};
+use crate::lifetime::{try_box_cast, NcBoxedLifetimeState, weak_retain, weak_release};
 
 /// The sole transferable owner of an object exposing typed C ABI interfaces.
 ///
@@ -68,7 +68,7 @@ pub struct WeakComBox<T: ComInterface + ?Sized, M: ThreadingModel = ThreadLocal>
 unsafe fn observe_projection<T: ComInterface, M: ThreadingModel>(control: *mut crate::lifetime::NcBoxedLifetimeState) -> Result<WeakComBox<T, M>, NcStatus> {
     let table = unsafe { try_box_cast(control, &T::INTERFACE_ID) }?;
     // Validation precedes retention, so failure creates no token to release.
-    unsafe { nc_weak_retain(control.cast()) };
+    unsafe { weak_retain(control.cast()) };
     Ok(unsafe {
         WeakComBox::from_raw_owned(ComRaw {
             object: control.cast(),
@@ -212,14 +212,14 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> ComBox<T, M> {
     pub fn downgrade(&self) -> WeakComBox<T, M> {
         let raw = self.as_raw();
         // SAFETY: owner keeps the control initialized while a new weak token is retained.
-        unsafe { nc_weak_retain(raw.object.cast()) };
+        unsafe { weak_retain(raw.object.cast()) };
         unsafe { WeakComBox::from_raw_owned(raw) }.expect("present owner")
     }
 }
 impl<T: ComInterface + ?Sized, M: ThreadingModel> Drop for ComBox<T, M> {
     /// Revokes new access and destroys the value once admitted calls have returned.
     fn drop(&mut self) {
-        unsafe { nc_box_release(self.raw.as_raw().object.cast()) };
+        unsafe { NcBoxedLifetimeState::release(self.raw.as_raw().object.cast()) };
     }
 }
 
@@ -301,14 +301,14 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> WeakComBox<T, M> {
 impl<T: ComInterface + ?Sized, M: ThreadingModel> Clone for WeakComBox<T, M> {
     /// Retains only control storage; no value or owner reference is acquired.
     fn clone(&self) -> Self {
-        unsafe { nc_weak_retain(self.as_raw().object.cast()) };
+        unsafe { weak_retain(self.as_raw().object.cast()) };
         Self { raw: self.raw, mode: PhantomData }
     }
 }
 impl<T: ComInterface + ?Sized, M: ThreadingModel> Drop for WeakComBox<T, M> {
     /// Frees expired storage through its original provider at final weak release.
     fn drop(&mut self) {
-        unsafe { nc_weak_release(self.as_raw().object.cast()) };
+        unsafe { weak_release(self.as_raw().object.cast()) };
     }
 }
 

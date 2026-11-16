@@ -253,7 +253,9 @@ pub use neocogi_com_core::{__com_add_ref_count, __com_release_ref_count};
 /// Immutable type information lists its matching interface tables and concrete
 /// destruction/deallocation callbacks. Shared lifetime operations must
 /// keep the allocation alive until the final `Release`, and `QueryInterface`
-/// must only return tables paired with that same allocation address. Every
+/// must only return tables paired with that same allocation address. UNKNOWN_VTABLE
+/// selects the canonical shared/exclusive prefix matching the header and guards;
+/// every VTABLES entry copies that same callback family. Every
 /// instance of one implementation must use its declared lifetime policy:
 /// shared instances require a strong owner throughout each call; exclusive
 /// instances acquire their reader/writer bit in the lifetime header before
@@ -269,6 +271,9 @@ pub use neocogi_com_core::{__com_add_ref_count, __com_release_ref_count};
 pub unsafe trait ComObject: Sized + 'static {
     /// Strongest threading permission the generated provider can expose.
     type Threading: ThreadingModel;
+    /// Canonical IUnknown prefix for this implementation's shared or exclusive policy.
+    /// Every generated projection copies its callbacks; it must match the storage header.
+    const UNKNOWN_VTABLE: &'static crate::IUnknownVTable;
     /// Compact immutable interface tables paired with this concrete storage.
     /// Includes canonical IUnknown; full inspection schemas are compile-time only.
     const VTABLES: &'static [*const crate::IUnknownVTable];

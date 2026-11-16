@@ -164,10 +164,7 @@ fn expand_parts(plan: InterfacePlan, dispatch: ProviderDispatch) -> Result<Inter
     let mut prefix_value = quote! {
         #prefix: #nc::IUnknownVTable {
             interface_id: #identity_local,
-            query_interface: #nc::lifetime::nc_query_interface,
-            add_ref: #nc::lifetime::nc_strong_retain,
-            release: #nc::lifetime::nc_strong_release,
-            downgrade: ::core::option::Option::Some(#nc::lifetime::nc_downgrade),
+            ..*<#provider as #nc::ComObject>::UNKNOWN_VTABLE
         },
     };
     if matches!(dispatch, ProviderDispatch::Scoped) {

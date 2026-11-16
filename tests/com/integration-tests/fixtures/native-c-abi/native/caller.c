@@ -665,13 +665,16 @@ static void nc_c_boxed_free(void *object) {
 /* Exercises both independently declared headers, including expired boxed kind
  * rejection: its zero access word must never become an expired shared counter. */
 int nc_c_exercise_split_lifetimes(
-    const IUnknownVTable *root, NcStatus dropped, NcStatus invalid,
-    uint32_t (*retain)(void *), uint32_t (*release)(void *),
+    const IUnknownVTable *shared_root, const IUnknownVTable *exclusive_root,
+    NcStatus dropped, NcStatus invalid,
     void (*weak_retain)(void *), void (*weak_release)(void *),
     NcStatus (*upgrade)(void *, const NcInterfaceId *, IUnknown *)) {
-    const IUnknownVTable *tables[1] = {root};
-    const NcObjectTypeInfo shared_info = {1, nc_c_shared_destroy, nc_c_shared_free, tables, 1};
-    const NcObjectTypeInfo boxed_info = {2, nc_c_boxed_destroy, nc_c_boxed_free, tables, 1};
+    if (shared_root->release == exclusive_root->release ||
+        shared_root->add_ref == exclusive_root->add_ref) return 0;
+    const IUnknownVTable *shared_tables[1] = {shared_root};
+    const IUnknownVTable *exclusive_tables[1] = {exclusive_root};
+    const NcObjectTypeInfo shared_info = {1, nc_c_shared_destroy, nc_c_shared_free, shared_tables, 1};
+    const NcObjectTypeInfo boxed_info = {2, nc_c_boxed_destroy, nc_c_boxed_free, exclusive_tables, 1};
     NcLifecycleCounters shared_counts = {0, 0}, boxed_counts = {0, 0};
     NcSharedCAllocation *shared = (NcSharedCAllocation *)malloc(sizeof(*shared));
     NcBoxedCAllocation *boxed = (NcBoxedCAllocation *)malloc(sizeof(*boxed));
@@ -686,27 +689,34 @@ int nc_c_exercise_split_lifetimes(
     boxed->counters = &boxed_counts;
 
     weak_retain(shared);
-    if (retain(shared) != 2 || shared->lifetime.strong_count != 2) return 0;
-    if (release(shared) != 1) return 0;
+    if (shared_root->add_ref(shared) != 2 || shared->lifetime.strong_count != 2) return 0;
+    if (shared_root->release(shared) != 1) return 0;
     IUnknown output = {0};
-    if (upgrade(shared, root->interface_id, &output) != 0 ||
-        output.object != shared || output.vtable != root) return 0;
-    if (release(output.object) != 1) return 0;
-    if (release(shared) != 0 || shared_counts.destroyed != 1 || shared_counts.freed != 0) return 0;
+    if (upgrade(shared, shared_root->interface_id, &output) != 0 ||
+        output.object != shared || output.vtable != shared_root) return 0;
+    if (output.vtable->release(output.object) != 1) return 0;
+    if (shared_root->release(shared) != 0 || shared_counts.destroyed != 1 || shared_counts.freed != 0) return 0;
     if (shared->lifetime.strong_count != 0 || shared->lifetime.weak_count != 1) return 0;
-    if (upgrade(shared, root->interface_id, &output) != dropped ||
+    if (upgrade(shared, shared_root->interface_id, &output) != dropped ||
         output.object || output.vtable) return 0;
     weak_release(shared);
     if (shared_counts.freed != 1) return 0;
 
     weak_retain(boxed);
     uintptr_t owner = boxed->lifetime.owner_and_borrows;
-    if (retain(boxed) != 0 || boxed->lifetime.owner_and_borrows != owner) return 0;
-    if (upgrade(boxed, root->interface_id, &output) != invalid ||
+    if (exclusive_root->add_ref(boxed) != 0 || boxed->lifetime.owner_and_borrows != owner) return 0;
+    if (upgrade(boxed, shared_root->interface_id, &output) != invalid ||
         output.object || output.vtable) return 0;
-    if (release(boxed) != 0 || boxed_counts.destroyed != 1 || boxed_counts.freed != 0) return 0;
+    output.object = boxed;
+    output.vtable = exclusive_root;
+    if (exclusive_root->query_interface(boxed, exclusive_root->interface_id, &output) != invalid ||
+        output.object || output.vtable) return 0;
+    NcWeakRaw rejected = {boxed};
+    if (!exclusive_root->downgrade || exclusive_root->downgrade(boxed, &rejected) != invalid ||
+        rejected.control || boxed->lifetime.weak_count != 2) return 0;
+    if (exclusive_root->release(boxed) != 0 || boxed_counts.destroyed != 1 || boxed_counts.freed != 0) return 0;
     if (boxed->lifetime.owner_and_borrows != 0 || boxed->lifetime.weak_count != 1) return 0;
-    if (upgrade(boxed, root->interface_id, &output) != invalid ||
+    if (upgrade(boxed, shared_root->interface_id, &output) != invalid ||
         output.object || output.vtable) return 0;
     weak_release(boxed);
     return boxed_counts.freed == 1 && shared_counts.destroyed == 1 && boxed_counts.destroyed == 1;

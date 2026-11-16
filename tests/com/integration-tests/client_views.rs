@@ -67,19 +67,19 @@ static DOWNGRADES: AtomicUsize = AtomicUsize::new(0);
 unsafe extern "C" fn retain(this: *mut core::ffi::c_void) -> u32 {
     RETAINS.fetch_add(1, Ordering::SeqCst);
     // SAFETY: the static table is used only with SharedValue allocations.
-    unsafe { neocogi_com::lifetime::nc_strong_retain(this) }
+    unsafe { (neocogi_com::lifetime::SHARED_UNKNOWN_VTABLE.add_ref)(this) }
 }
 /// Forwards consumption of the instrumented projection's actual owner token.
 unsafe extern "C" fn release(this: *mut core::ffi::c_void) -> u32 {
     RELEASES.fetch_add(1, Ordering::SeqCst);
     // SAFETY: each caller consumes exactly one retained SharedValue token.
-    unsafe { neocogi_com::lifetime::nc_strong_release(this) }
+    unsafe { (neocogi_com::lifetime::SHARED_UNKNOWN_VTABLE.release)(this) }
 }
 /// Forwards weak acquisition without changing the provider's canonical control.
 unsafe extern "C" fn downgrade(this: *mut core::ffi::c_void, out: *mut neocogi_com::NcWeakRaw) -> NcStatus {
     DOWNGRADES.fetch_add(1, Ordering::SeqCst);
     // SAFETY: the provider is live and out is the caller's writable token slot.
-    unsafe { neocogi_com::lifetime::nc_downgrade(this, out) }
+    unsafe { (neocogi_com::lifetime::SHARED_UNKNOWN_VTABLE.downgrade.unwrap())(this, out) }
 }
 
 /// A real generated table with only lifecycle observation interposed.

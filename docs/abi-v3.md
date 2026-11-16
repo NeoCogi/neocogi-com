@@ -229,11 +229,14 @@ Fallible raw admission rejects unknown/wrong kinds before interpreting a full
 policy-specific record. Foreign implementations match target atomic width,
 alignment and synchronization; no Rust Arc representation is inspected.
 
-nc_weak_retain and nc_weak_release accept the retained allocation address and
-select only the matching weak_count. nc_weak_upgrade admits shared metadata
-before reading strong_count. These C-callable operations are supplied by address;
-they are not promised unmangled dynamic exports. Their code and metadata remain
-valid through the final weak reference. There is no per-handle weak operation table.
+Weak retain/release and promotion are private ordinary Rust helpers used by the
+SDK handles. Promotion admits shared metadata before reading strong_count; weak
+cleanup selects only the matching weak_count. The SDK exposes no standalone weak
+C-helper API or promised weak function addresses. Foreign callers can use a
+binding-owned C adapter over the typed handles, or implement the documented common
+header/atomic protocol. The native C fixture supplies its own adapters. Metadata
+and provider code remain valid through final weak release; there is no per-handle
+weak operation table.
 
 A shared `WeakComPtr<T>` owns one weak reference and occupies one pointer word.
 Cloning changes only weak ownership. Promotion acquires a strong owner before
@@ -251,6 +254,33 @@ construction while an owner is available.
 Logical closure is separate from destruction. A closed service retained by a
 strong owner can still be promoted; its methods enforce closure. Owned queued
 facts remain readable after their weak source expires.
+
+## Ownership operations and C callbacks
+
+Generated objects select SHARED_UNKNOWN_VTABLE or EXCLUSIVE_UNKNOWN_VTABLE through
+ComObject::UNKNOWN_VTABLE at construction/code-generation time. Every interface
+prefix copies that implementation's selected callbacks and changes only its exact
+interface identity. Shared classes reuse one shared callback family; exclusive
+classes reuse another. There are two canonical root tables, not one per class.
+
+NcSharedLifetimeState owns ordinary Rust retain/release operations.
+NcBoxedLifetimeState owns ordinary Rust sole-owner release. Release consumes a raw
+typed pointer so final deallocation does not invalidate a protected &self argument.
+The private nc_shared_retain/nc_shared_release and nc_exclusive_release C adapters
+serve the existing IUnknown slots; no universal release selects an ownership policy.
+Exclusive AddRef returns zero, and shared query/downgrade clear outputs and reject
+with NC_E_INVALID_ARG (null argument/output rejection remains NC_E_POINTER).
+
+Only interface slots and provider cleanup callbacks cross the C boundary. C calling
+convention does not make their implementation names public Rust functions or
+unmangled exports. Counter bookkeeping and weak promotion remain Rust helpers;
+one private cold non-unwinding failure path preserves fail-stop exhaustion for
+ordinary Rust weak clones. destroy_value/deallocate remain C callbacks because
+final cleanup can execute in the allocating provider's binary.
+
+This WIP refinement changes Rust provider support APIs and removes the standalone
+weak-helper contract. Core generation 20, C record layouts, slot signatures,
+interface IID/digest bytes, IDL v14 and NCB-v1 bytes remain unchanged.
 
 ## Allocation and borrowing
 

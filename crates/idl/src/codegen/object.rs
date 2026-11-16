@@ -88,6 +88,10 @@ pub fn expand_com_object(args: ObjectArgs, input: ItemStruct) -> proc_macro2::To
         .collect::<Vec<_>>();
     // Only the selected provider policy exists; shared calls have no dynamic
     // exclusive-admission branch. All unsafe layout work belongs to typed support.
+    let unknown_vtable = match args.ownership {
+        ObjectOwnership::Shared => quote! { &#nc::lifetime::SHARED_UNKNOWN_VTABLE },
+        ObjectOwnership::Exclusive => quote! { &#nc::lifetime::EXCLUSIVE_UNKNOWN_VTABLE },
+    };
     let (storage, shared_guard, exclusive_guard, constructors) = match args.ownership {
         ObjectOwnership::Shared => (
             quote! { #nc::__ComSharedStorage<Self> },
@@ -145,6 +149,8 @@ pub fn expand_com_object(args: ObjectArgs, input: ItemStruct) -> proc_macro2::To
         // are generated together and select one concrete ownership policy.
         unsafe impl #impl_generics #nc::ComObject for #object_type #where_clause {
             type Threading = #declared_threading_model;
+            /// Canonical lifecycle prefix selected with the concrete storage policy.
+            const UNKNOWN_VTABLE: &'static #nc::IUnknownVTable = #unknown_vtable;
             type SharedGuard<'a> = #shared_guard;
             type ExclusiveGuard<'a> = #exclusive_guard;
             /// One trait-owned static table; no inherent forwarding member is emitted.
@@ -156,7 +162,7 @@ pub fn expand_com_object(args: ObjectArgs, input: ItemStruct) -> proc_macro2::To
                     &#contracts,
                     // SAFETY: this allocation's canonical unknown table delegates
                     // lifecycle and queries to the same stored implementation.
-                    unsafe { #nc::ComInterfaceTableEntry::<Self>::new(#nc::IUnknown::INTERFACE_ID, &#nc::lifetime::CANONICAL_UNKNOWN_VTABLE) },
+                    unsafe { #nc::ComInterfaceTableEntry::<Self>::new(#nc::IUnknown::INTERFACE_ID, <Self as #nc::ComObject>::UNKNOWN_VTABLE) },
                     &[#(#providers,)*],
                 );
                 #nc::__nc_interface_vtables(&#interface_table)

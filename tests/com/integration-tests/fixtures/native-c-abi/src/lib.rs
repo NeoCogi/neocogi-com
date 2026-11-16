@@ -160,11 +160,10 @@ mod tests {
         fn nc_c_validate_abi_layouts(layouts: *const NativeAbiLayouts) -> i32;
         /// C supplies both concrete lifetime layouts and its own allocation callbacks.
         fn nc_c_exercise_split_lifetimes(
-            root: *const neocogi_com::IUnknownVTable,
+            shared_root: *const neocogi_com::IUnknownVTable,
+            exclusive_root: *const neocogi_com::IUnknownVTable,
             dropped: NcStatus,
             invalid: NcStatus,
-            retain: unsafe extern "C" fn(*mut core::ffi::c_void) -> u32,
-            release: unsafe extern "C" fn(*mut core::ffi::c_void) -> u32,
             weak_retain: unsafe extern "C" fn(*mut core::ffi::c_void),
             weak_release: unsafe extern "C" fn(*mut core::ffi::c_void),
             upgrade: unsafe extern "C" fn(*mut core::ffi::c_void, *const NcInterfaceId, *mut neocogi_com::ComRaw<IUnknown>) -> NcStatus,
@@ -182,23 +181,111 @@ mod tests {
 
     }
 
+    /// Borrows one fixture weak token through the public typed handle APIs and
+    /// returns an additional owner. The C fixture guarantees readable known-policy
+    /// metadata and IUnknown support; this does not expose SDK weak C helpers.
+    unsafe fn clone_fixture_weak(object: *mut core::ffi::c_void) -> neocogi_com::NcWeakRaw {
+        use core::mem::ManuallyDrop;
+        use neocogi_com::{ComRaw, NcWeakRaw, WeakComPtr, WeakComBox};
+        use neocogi_com::lifetime::{NcObjectTypeInfo, NC_OWNERSHIP_SHARED, NC_OWNERSHIP_BOXED, EXCLUSIVE_UNKNOWN_VTABLE};
+        let info = unsafe { &**object.cast::<*const NcObjectTypeInfo>() };
+        match info.ownership {
+            NC_OWNERSHIP_SHARED => {
+                let borrowed = ManuallyDrop::new(unsafe { WeakComPtr::<IUnknown>::from_raw_owned(NcWeakRaw { control: object }) }.unwrap());
+                WeakComPtr::clone(&borrowed).into_raw()
+            }
+            NC_OWNERSHIP_BOXED => {
+                let borrowed = ManuallyDrop::new(
+                    unsafe {
+                        WeakComBox::<IUnknown>::from_raw_owned(ComRaw {
+                            object,
+                            vtable: &EXCLUSIVE_UNKNOWN_VTABLE,
+                        })
+                    }
+                    .unwrap(),
+                );
+                let owned = WeakComBox::clone(&borrowed).into_raw();
+                NcWeakRaw { control: owned.object }
+            }
+            _ => panic!("fixture requires known lifetime metadata"),
+        }
+    }
+
+    /// Test-only C adapter retains one weak token through ordinary Rust Clone.
+    unsafe extern "C" fn fixture_weak_retain(object: *mut core::ffi::c_void) {
+        let _ = unsafe { clone_fixture_weak(object) };
+    }
+
+    /// Test-only C cleanup transfers one token into its public matching Rust owner.
+    unsafe extern "C" fn fixture_weak_release(object: *mut core::ffi::c_void) {
+        use neocogi_com::{ComRaw, NcWeakRaw, WeakComPtr, WeakComBox};
+        use neocogi_com::lifetime::{NcObjectTypeInfo, NC_OWNERSHIP_SHARED, NC_OWNERSHIP_BOXED, EXCLUSIVE_UNKNOWN_VTABLE};
+        let info = unsafe { &**object.cast::<*const NcObjectTypeInfo>() };
+        match info.ownership {
+            NC_OWNERSHIP_SHARED => drop(unsafe { WeakComPtr::<IUnknown>::from_raw_owned(NcWeakRaw { control: object }) }.unwrap()),
+            NC_OWNERSHIP_BOXED => drop(
+                unsafe {
+                    WeakComBox::<IUnknown>::from_raw_owned(ComRaw {
+                        object,
+                        vtable: &EXCLUSIVE_UNKNOWN_VTABLE,
+                    })
+                }
+                .unwrap(),
+            ),
+            _ => panic!("fixture requires known lifetime metadata"),
+        }
+    }
+
+    /// Test-only foreign adapter uses checked token adoption, typed promotion,
+    /// then dynamic exact selection. Every temporary owner is balanced on error.
+    unsafe extern "C" fn fixture_weak_upgrade(
+        object: *mut core::ffi::c_void,
+        requested: *const NcInterfaceId,
+        output: *mut neocogi_com::ComRaw<IUnknown>,
+    ) -> NcStatus {
+        use neocogi_com::{ComRaw, WeakComPtr, NC_E_DROPPED, NC_E_POINTER, NC_OK};
+        if output.is_null() {
+            return NC_E_POINTER;
+        }
+        unsafe { *output = ComRaw::null() };
+        if object.is_null() || requested.is_null() {
+            return NC_E_POINTER;
+        }
+        let raw = unsafe { clone_fixture_weak(object) };
+        let weak = match unsafe { WeakComPtr::<IUnknown>::__nc_from_raw_owned_checked(raw) } {
+            Ok(weak) => weak,
+            Err(status) => return status,
+        };
+        let owner = match weak.upgrade() {
+            Ok(Some(owner)) => owner,
+            Ok(None) => return NC_E_DROPPED,
+            Err(status) => return status,
+        };
+        match unsafe { neocogi_com::raw::__nc_query_interface(owner.as_raw(), &*requested) } {
+            Ok(raw) => {
+                unsafe { *output = raw };
+                NC_OK
+            }
+            Err(status) => status,
+        }
+    }
+
     /// Independent C allocation declarations exercise both policies and expired-kind checks.
     #[test]
     fn native_c_uses_distinct_shared_and_boxed_lifetime_states() {
-        use neocogi_com::lifetime::{self, CANONICAL_UNKNOWN_VTABLE};
+        use neocogi_com::lifetime::{SHARED_UNKNOWN_VTABLE, EXCLUSIVE_UNKNOWN_VTABLE};
         // SAFETY: C retains every allocation, immutable metadata and output for the
         // complete call and frees both C-owned allocations through its callbacks.
         assert_eq!(
             unsafe {
                 nc_c_exercise_split_lifetimes(
-                    &CANONICAL_UNKNOWN_VTABLE,
+                    &SHARED_UNKNOWN_VTABLE,
+                    &EXCLUSIVE_UNKNOWN_VTABLE,
                     neocogi_com::NC_E_DROPPED,
                     neocogi_com::NC_E_INVALID_ARG,
-                    lifetime::nc_strong_retain,
-                    lifetime::nc_strong_release,
-                    lifetime::nc_weak_retain,
-                    lifetime::nc_weak_release,
-                    lifetime::nc_weak_upgrade,
+                    fixture_weak_retain,
+                    fixture_weak_release,
+                    fixture_weak_upgrade,
                 )
             },
             1
@@ -255,9 +342,9 @@ mod tests {
                     owner.into_raw(),
                     &INativeCalculatorAbi::INTERFACE_ID,
                     neocogi_com::NC_E_DROPPED,
-                    neocogi_com::lifetime::nc_weak_retain,
-                    neocogi_com::lifetime::nc_weak_release,
-                    neocogi_com::lifetime::nc_weak_upgrade,
+                    fixture_weak_retain,
+                    fixture_weak_release,
+                    fixture_weak_upgrade,
                 )
             },
             1

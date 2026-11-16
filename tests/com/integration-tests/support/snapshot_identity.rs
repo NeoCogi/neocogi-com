@@ -12,10 +12,7 @@ use neocogi_com::persistence::{IPersistable, IPersistableAbi, IPersistableVtblFo
 // It changes dispatch storage, with identical lifecycle methods and identity.
 static ALTERNATE: IUnknownVTable = IUnknownVTable {
     interface_id: &<IUnknown as ComInterface>::INTERFACE_ID,
-    query_interface: neocogi_com::lifetime::nc_query_interface,
-    add_ref: neocogi_com::lifetime::nc_strong_retain,
-    release: neocogi_com::lifetime::nc_strong_release,
-    downgrade: Some(neocogi_com::lifetime::nc_downgrade),
+    ..neocogi_com::lifetime::SHARED_UNKNOWN_VTABLE
 };
 
 /// Legal alternate exact IUnknown view transfers the same retained allocation.

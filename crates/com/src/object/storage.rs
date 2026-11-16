@@ -7,9 +7,7 @@
 use crate::__alloc::boxed::Box;
 use core::{cell::UnsafeCell, ffi::c_void, mem::MaybeUninit};
 use crate::{ComBox, ComObject, ComPtr, ComRaw, IUnknown, NcStatus, NC_E_POINTER};
-use crate::lifetime::{
-    BoxRead, BoxWrite, NcObjectTypeInfo, NcSharedLifetimeState, NcBoxedLifetimeState, NC_OWNERSHIP_SHARED, NC_OWNERSHIP_BOXED, CANONICAL_UNKNOWN_VTABLE,
-};
+use crate::lifetime::{BoxRead, BoxWrite, NcObjectTypeInfo, NcSharedLifetimeState, NcBoxedLifetimeState, NC_OWNERSHIP_SHARED, NC_OWNERSHIP_BOXED};
 use super::{ComBorrowState, ComReadGuard, ComWriteGuard, __ComExclusiveCall, __ComSharedCall};
 
 /// Typed allocation parameterized by one concrete lifetime policy and access gate.
@@ -58,7 +56,7 @@ impl<T: ComObject, Lifetime: 'static, Access: 'static> __ComStorage<T, Lifetime,
         }));
         ComRaw {
             object: storage.cast(),
-            vtable: &CANONICAL_UNKNOWN_VTABLE,
+            vtable: T::UNKNOWN_VTABLE,
         }
     }
 

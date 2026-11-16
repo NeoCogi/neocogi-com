@@ -705,7 +705,7 @@ unsafe impl<T: crate::ComInterface + 'static, M: crate::ThreadingModel> ComValue
             // kind and exact interface identity are checked before acquisition.
             unsafe { crate::lifetime::check_shared_weak_cast(wire.control, &T::INTERFACE_ID) }?;
             // SAFETY: successful validation proves a present retained header.
-            unsafe { crate::lifetime::nc_weak_retain(wire.control) };
+            unsafe { crate::lifetime::weak_retain(wire.control) };
             // SAFETY: this function just acquired the exact validated weak owner.
             Ok(unsafe { Self::from_raw_owned(*wire) }.expect("validated weak token is present"))
         })
@@ -734,7 +734,7 @@ unsafe impl<T: crate::ComInterface + 'static, M: crate::ThreadingModel> ComValue
             let table = unsafe { crate::lifetime::try_box_cast(control, &T::INTERFACE_ID) }?;
             // SAFETY: successful validation proves live weak bookkeeping. Only
             // the canonical provider table is retained, never the caller's table.
-            unsafe { crate::lifetime::nc_weak_retain(control.cast()) };
+            unsafe { crate::lifetime::weak_retain(control.cast()) };
             Ok(unsafe {
                 Self::from_raw_owned(crate::ComRaw {
                     object: wire.object,

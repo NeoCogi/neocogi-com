@@ -6,6 +6,14 @@ Historical draft numbers do not define additional supported COM baselines.
 
 ## Unreleased
 
+- Select separate shared/exclusive canonical lifetime prefixes through
+  ComObject::UNKNOWN_VTABLE. Move retain/release into typed Rust header operations,
+  remove universal ownership dispatch, and keep C adapters private to actual slots.
+  Weak bookkeeping/promotion are crate-private Rust helpers; foreign test callers
+  use their own typed-handle adapters. Preserve non-unwinding counter exhaustion,
+  exact errors, synchronous boxed destruction and provider-local cleanup. This
+  narrows WIP v3 Rust support APIs without changing core 20 C layouts or signatures.
+
 - Mark ABI v3 explicitly as WIP in agent guidance, the specification, READMEs
   and source documentation. Its current layouts and callbacks remain provisional
   until release freeze; existing version admission still rejects incompatible binaries.

@@ -501,3 +501,25 @@ fn borrowed_interface_queries_preserve_identity_errors_and_the_call_gate() {
     assert!(matches!(owner.query_ref::<IValueOtherRevisionAbi>(), Err(neocogi_com::NC_E_ABI_VERSION)));
     assert_eq!(owner.value(), Ok(53));
 }
+
+/// Root and generated projections reuse only the exclusive callback family.
+#[test]
+fn generated_exclusive_projections_select_their_policy_prefix() {
+    use neocogi_com::lifetime::{SHARED_UNKNOWN_VTABLE, EXCLUSIVE_UNKNOWN_VTABLE};
+    let state = value();
+    let drops = state.drops.clone();
+    let owner = Value::into_box(state);
+    let root = owner.as_raw();
+    let interface = owner.query::<IValueAbi>().unwrap();
+    for raw in [root, interface.as_raw().cast()] {
+        // SAFETY: interface retains the allocation and immutable tables for both views.
+        let table = unsafe { &*raw.vtable };
+        assert!(std::ptr::fn_addr_eq(table.release, EXCLUSIVE_UNKNOWN_VTABLE.release));
+        assert!(std::ptr::fn_addr_eq(table.add_ref, EXCLUSIVE_UNKNOWN_VTABLE.add_ref));
+        assert!(std::ptr::fn_addr_eq(table.query_interface, EXCLUSIVE_UNKNOWN_VTABLE.query_interface));
+        assert!(std::ptr::fn_addr_eq(table.downgrade.unwrap(), EXCLUSIVE_UNKNOWN_VTABLE.downgrade.unwrap()));
+        assert!(!std::ptr::fn_addr_eq(table.release, SHARED_UNKNOWN_VTABLE.release));
+    }
+    drop(interface);
+    assert_eq!(drops.load(Ordering::SeqCst), 1);
+}

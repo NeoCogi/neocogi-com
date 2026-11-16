@@ -69,7 +69,10 @@ below preserves the two constructor names for each ownership family.
 ## Typed storage and implementation proof
 
 `ComObject` is the single unsafe provider-local contract for threading, compact
-vtable bindings and checked concrete borrows. Generated objects no longer define
+vtable bindings and checked concrete borrows. Its UNKNOWN_VTABLE selects the
+canonical shared or exclusive root, paired with the same concrete header and
+constructors. Generated inherited/interface prefixes copy that root's callbacks;
+they do not name public lifetime functions or dispatch release by ownership kind. Generated objects no longer define
 a separately named storage companion or implement `ComAbiObject` and
 `ThreadSafeComObject`. Both primary-interface and explicit-list providers prove
 threading through the same mode-dependent bound, including generic specializations.
