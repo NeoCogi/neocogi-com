@@ -79,9 +79,10 @@ unsafe fn observe_projection<T: ComInterface, M: ThreadingModel>(control: *mut c
 }
 
 impl<T: ComInterface + ?Sized, M: ThreadingModel> ComBox<T, M> {
-    /// Checks an incoming owner slot without acquiring or destroying its token.
-    /// Generated thunks validate every argument and the receiver before adopting
-    /// owners. A rejected call therefore leaves all caller slots unchanged.
+    /// Resolves an incoming owner's canonical table without changing its slot/token.
+    /// Generated thunks save this table, validate every argument and admit the
+    /// receiver before adopting the owner with canonical dispatch. Rejected calls
+    /// restore the original object/table pair, including an equivalent copied table.
     ///
     /// # Safety
     /// `slot` is writable, properly aligned call-scoped storage containing the
@@ -89,14 +90,15 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> ComBox<T, M> {
     /// readable lifecycle table/header. Rejection leaves that owner untouched.
     /// Shared backing violates this ABI input's ownership contract.
     #[doc(hidden)]
-    pub unsafe fn __nc_validate_raw_input(slot: *mut ComRaw<T>) -> Result<(), NcStatus> {
+    pub unsafe fn __nc_validate_raw_input(slot: *mut ComRaw<T>) -> Result<*const T::VTable, NcStatus> {
         let raw = unsafe { slot.as_ref() }.ok_or(NC_E_POINTER)?;
         unsafe { crate::raw::validate_interface(*raw) }?;
-        unsafe { try_box_cast(raw.object.cast(), &T::INTERFACE_ID) }?;
-        Ok(())
+        unsafe { try_box_cast(raw.object.cast(), &T::INTERFACE_ID) }.map(|table| table.cast())
     }
 
-    /// Adopts the sole owner transferred by an exclusive provider.
+    /// Adopts the sole owner transferred by an exclusive provider, preserving its table.
+    /// This unchecked transfer trusts the supplied pairing; checked ABI adoption
+    /// independently validates identities and selects canonical dispatch.
     ///
     /// # Safety
     /// The present raw pair transfers one unique initialized owner, with common

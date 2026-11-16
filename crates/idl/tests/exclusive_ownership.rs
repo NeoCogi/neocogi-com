@@ -86,4 +86,14 @@ fn generated_factories_transfer_one_owner_through_real_abi_calls() {
         String::from_utf8_lossy(&result.stdout),
         String::from_utf8_lossy(&result.stderr)
     );
+    let execution = String::from_utf8(result.stdout).unwrap();
+    for expected in [
+        "test exclusive_tests::factory_container_and_inspection_agree_on_ownership ... ok",
+        "test exclusive_tests::changed_admitted_owner_view_aborts_before_rejection_publication ... ok",
+    ] {
+        assert!(
+            execution.lines().any(|line| line == expected),
+            "generated ownership regression must execute: {expected}\n{execution}"
+        );
+    }
 }

@@ -1186,6 +1186,15 @@ The raw slot is null on success and unchanged on failure. Forwarding providers
 propagate the complete returned-owner error. There is no public transfer wrapper.
 Shared `ComPtr` inputs retain their existing prohibition; borrow services with `&T`.
 
+Checked owner results and admitted owner inputs use the allocation's canonical
+table after independently validating the incoming IID/full digest. Input lookup
+resolves that table once without changing the caller's slot; adoption waits for
+all argument checks and receiver admission. The implementation must return the
+same admitted canonical owner on rejection. Generated thunks verify it, then
+restore the original caller pair, including any valid equivalent copied table.
+This preserves exact rejected slots while canonicalizing the implementation's
+owner. Unchecked unsafe raw transfers retain their caller-proven table pairing.
+
 Consuming methods may combine owners with checked writable slices and copied
 results. Generated callers and providers reserve conversion storage and admit
 the maximum possible output cost before invoking the implementation. The shared

@@ -41,12 +41,36 @@ backing. These checks do not authenticate arbitrary native pointers or providers
 
 ## Interface validation is independent
 
-A boxed raw pair's supplied table identity and the allocation's canonical
+A checked boxed owner/weak pair's supplied table identity and the allocation's canonical
 interface list are separate authorities. Validate the supplied IID/full digest,
 then canonical membership and identity. Success retains the canonical table;
 equivalent copied tables with equal identities are allowed. A stale incoming
 identity cannot be replaced silently, and a correct incoming identity cannot
 invent canonical membership. Policy is already established before either check.
+
+### Canonical owner admission and unchanged rejected inputs
+
+Checked boxed-owner results cache the resolved canonical table after both identity
+checks; rejection consumes the transferred owner exactly once. Resolving an owner
+input instead returns that table without changing its caller-owned slot or counts.
+The generator saves the result, validates all other arguments and admits the
+receiver before taking any owner. The implementation then receives a canonical
+owner, and successful transfer leaves the caller's slot null.
+
+On method rejection, each returned owner must still have the admitted allocation
+and canonical table. The thunk verifies that pair before restoring the original
+caller pair, including an equivalent copied table. Replacing either the admitted
+allocation or its table violates the returned-owner contract and terminates at the
+non-unwinding provider boundary before a mismatched pair can be published. Early
+validation/admission rejection never changes the slots. Multiple owners follow
+these rules together, preserving the destination on rejection.
+
+`ComBox::from_raw_owned` is an unchecked transfer and preserves its caller-proven
+pair. Canonical caching is the checked ABI-adoption rule; it does not replace the
+unsafe constructor's backing, exact-identity, threading and provider/code proofs.
+Regenerate WIP Rust consumers: `__nc_validate_raw_input` now returns the resolved
+canonical table. No C record/slot, interface digest or core-generation change is
+required; ABI v3/core 21 remains WIP.
 
 ## Consuming boxed weak erasure
 

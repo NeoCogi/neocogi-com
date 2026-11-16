@@ -119,7 +119,17 @@ fn expand_parts(plan: InterfacePlan, dispatch: ProviderDispatch) -> Result<Inter
         for (position, argument) in method.args.iter_mut().enumerate() {
             argument.binding = names.binding_family(
                 &format!("__nc_arg_{position}"),
-                &["", "_owner_slot", "_offset", "_len", "_ptr", "_values", "_written"],
+                &[
+                    "",
+                    "_owner_slot",
+                    "_owner_table",
+                    "_owner_original",
+                    "_offset",
+                    "_len",
+                    "_ptr",
+                    "_values",
+                    "_written",
+                ],
             );
         }
     }
@@ -291,13 +301,15 @@ fn expand_parts(plan: InterfacePlan, dispatch: ProviderDispatch) -> Result<Inter
         let arg_conversions = method.args.iter().map(|arg| match &arg.kind {
             AbiArgKind::ComBox { interface_ty, mode_ty } => {
                 let ident = &arg.binding;
+                let table = owner_table_ident(ident);
                 let mode = mode_ty.as_ref().map(|ty| quote! { #ty }).unwrap_or_else(|| quote! { #nc::ThreadLocal });
                 quote! {
-                    // Validate without adopting: any later input or receiver
-                    // rejection must leave the original owner in the caller slot.
-                    if let ::core::result::Result::Err(#status_local) = unsafe { #nc::ComBox::<#interface_ty, #mode>::__nc_validate_raw_input(#ident) } {
-                        return #status_local;
-                    }
+                    // Resolve canonical dispatch without adopting or rewriting
+                    // the caller's pair. Later rejection must leave it unchanged.
+                    let #table = match unsafe { #nc::ComBox::<#interface_ty, #mode>::__nc_validate_raw_input(#ident) } {
+                        ::core::result::Result::Ok(#value_local) => #value_local,
+                        ::core::result::Result::Err(#status_local) => return #status_local,
+                    };
                 }
             },
             AbiArgKind::BorrowedValue { value_ty } => {
@@ -400,10 +412,16 @@ fn expand_parts(plan: InterfacePlan, dispatch: ProviderDispatch) -> Result<Inter
             let ident = &arg.binding;
             let ty = &arg.rust_ty;
             let slot = owner_slot_ident(ident);
+            let table = owner_table_ident(ident);
+            let original = owner_original_ident(ident);
             quote! {
                 let #slot = #ident;
+                // SAFETY: all inputs and the receiver are admitted. Save only
+                // the original wire metadata for rejection; its token now moves
+                // into the canonical owner and the caller slot becomes absent.
+                let #original = unsafe { ::core::mem::take(&mut *#slot) };
                 let #ident = unsafe {
-                    <#ty>::from_raw_owned(::core::mem::take(&mut *#slot))
+                    <#ty>::from_raw_owned(#nc::ComRaw { object: #original.object, vtable: #table })
                 }.expect("validated unique COM owner");
             }
         });
@@ -414,7 +432,19 @@ fn expand_parts(plan: InterfacePlan, dispatch: ProviderDispatch) -> Result<Inter
                 let restores = owners.iter().map(|arg| {
                     let ident = &arg.binding;
                     let slot = owner_slot_ident(ident);
-                    quote! { unsafe { *#slot = #ident.into_raw(); } }
+                    let table = owner_table_ident(ident);
+                    let original = owner_original_ident(ident);
+                    quote! {
+                        let #raw_local = #ident.into_raw();
+                        // Do not pair the original table with a replacement
+                        // allocation or changed view. Invalid provider returns
+                        // fail at this non-unwinding boundary before publication.
+                        ::core::assert!(#raw_local.object == #original.object && #raw_local.vtable == #table,
+                            "rejected COM method did not return its admitted owner");
+                        // The same token returns with the caller's exact pair,
+                        // including a valid noncanonical incoming table.
+                        unsafe { *#slot = #original; }
+                    }
                 });
                 quote! {
                     ::core::result::Result::Err((#status_local, #(#names),*)) => {
@@ -1205,6 +1235,16 @@ fn safe_vtable_call_args(arg: &crate::codegen::model::AbiArg) -> Vec<proc_macro2
 /// Names private owner wire slots hygienically so user arguments cannot alias them.
 fn owner_slot_ident(ident: &syn::Ident) -> syn::Ident {
     private_ident(&format!("{ident}_owner_slot"))
+}
+
+/// Names the canonical table resolved before consuming an owner input.
+fn owner_table_ident(ident: &syn::Ident) -> syn::Ident {
+    private_ident(&format!("{ident}_owner_table"))
+}
+
+/// Names original wire metadata used only to restore a rejected owner input.
+fn owner_original_ident(ident: &syn::Ident) -> syn::Ident {
+    private_ident(&format!("{ident}_owner_original"))
 }
 
 /// Builds the generated offset parameter name for a bounded buffer.

@@ -6,6 +6,12 @@ Historical draft numbers do not define additional supported COM baselines.
 
 ## Unreleased
 
+- Canonicalize checked boxed-owner results and consuming inputs after independent
+  incoming/canonical interface validation. Resolve input tables once, adopt only
+  after full admission, and restore exact original caller pairs on rejection.
+  Keep matching-policy cleanup, owner counts and C layouts unchanged; regenerate
+  WIP Rust consumers for the input resolver's canonical-table result.
+
 - Share one const IID/full-digest equality predicate between shared and boxed
   owner queries. Preserve compile-time identity fast paths, content equality
   across independent metadata storage and distinct retain/transfer/error behavior.

@@ -112,7 +112,12 @@ fn boxed_owner_results_cache_the_canonical_table_and_destroy_once() {
     let (control, observed) = boxed_allocation();
     let copied = IUnknownVTable { ..BOX_ROOT };
     assert_ne!(&copied as *const _, &BOX_ROOT as *const _);
-    let raw = ComRaw::<IUnknown> { object: control.cast(), vtable: &copied };
+    let mut raw = ComRaw::<IUnknown> { object: control.cast(), vtable: &copied };
+    let original = raw;
+    // SAFETY: resolution borrows the caller-owned slot without consuming it.
+    let table = unsafe { crate::ComBox::<IUnknown>::__nc_validate_raw_input(&mut raw) }.unwrap();
+    assert_eq!(table, &BOX_ROOT as *const _);
+    assert_eq!(raw, original);
     // SAFETY: the copied table matches this genuine boxed allocation. Both
     // independent identity authorities are readable through checked adoption.
     let owner = unsafe { crate::ComBox::<IUnknown>::__nc_from_raw_owned_checked(raw) }.unwrap();

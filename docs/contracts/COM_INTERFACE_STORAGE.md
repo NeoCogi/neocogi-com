@@ -127,6 +127,14 @@ while boxed query transfers its sole owner. A different digest returns false and
 takes checked discovery; ancestry validation separately rejects conflicting
 inherited revisions during compilation.
 
+Checked boxed-owner/weak adoption validates the incoming table's exact identity
+and canonical allocation membership separately, then caches the canonical table.
+Consuming input validation resolves it without rewriting caller storage; full
+admission precedes adoption. On rejection the provider must return its admitted
+owner unchanged, and the thunk restores the caller's original object/table pair.
+The unchecked unsafe raw constructor preserves the matched pair supplied by its
+caller. See [canonical owner admission](COM_LIFETIME_ADMISSION.md#canonical-owner-admission-and-unchanged-rejected-inputs).
+
 A first-parent client can borrow the physical prefix of its derived vtable for
 method lookup. It retains the derived pair and cannot convert that borrowed view
 into an owned base reference. Querying the base obtains its exact table. Static

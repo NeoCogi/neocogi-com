@@ -68,6 +68,57 @@ fn value() -> Value {
     }
 }
 
+/// Private dispatch observation distinguishes the copy from identical promoted constants.
+static COPIED_VALUE_CALLS: AtomicUsize = AtomicUsize::new(0);
+/// Forwards the exact generated checked call while observing use of copied dispatch.
+unsafe extern "C" fn copied_value_call(object: *mut core::ffi::c_void, output: *mut u32) -> NcStatus {
+    COPIED_VALUE_CALLS.fetch_add(1, Ordering::SeqCst);
+    // SAFETY: this matching Value allocation/output satisfies the original thunk's contract.
+    unsafe { (IValueVtblFor::<Value>::VTABLE.value)(object, output) }
+}
+/// An equivalent method table with observable forwarding, rather than pointer aliases.
+static COPIED_VALUE_TABLE: IValueVTable = IValueVTable {
+    value: copied_value_call,
+    ..IValueVtblFor::<Value>::VTABLE
+};
+/// The supplied revision is stale only in its final byte; all method storage is valid.
+static STALE_VALUE_DIGEST: [u8; 32] = {
+    // SAFETY: generated interface identity has permanent initialized digest bytes.
+    let mut bytes = unsafe { *IValueAbi::ABI_SIGNATURE.as_digest().unwrap() };
+    bytes[31] ^= 1;
+    bytes
+};
+/// Exact IID with an intentionally different expected contract revision.
+static STALE_VALUE_ID: neocogi_com::NcInterfaceId = neocogi_com::NcInterfaceId::new(IValueAbi::IID, neocogi_com::NcAbiDigest::from_static(&STALE_VALUE_DIGEST));
+/// Matching Value entry points with stale incoming identity for raw rejection tests.
+static STALE_VALUE_TABLE: IValueVTable = IValueVTable {
+    unknown: neocogi_com::IUnknownVTable {
+        interface_id: &STALE_VALUE_ID,
+        ..COPIED_VALUE_TABLE.unknown
+    },
+    ..COPIED_VALUE_TABLE
+};
+
+/// Transfers a genuine Value owner into its equivalent noncanonical table.
+fn copied_value_owner(state: Value) -> ComBox<IValueAbi, neocogi_com::ThreadSafe> {
+    let expected = state.value;
+    let raw = Value::into_box(state).query::<IValueAbi>().unwrap().into_raw();
+    assert_ne!(raw.vtable, &COPIED_VALUE_TABLE as *const _);
+    // SAFETY: object, threading, identity and methods match this concrete Value.
+    // Move its existing sole owner; the copied table and provider code are static.
+    let owner: ComBox<IValueAbi, neocogi_com::ThreadSafe> = unsafe {
+        ComBox::from_raw_owned(neocogi_com::ComRaw {
+            object: raw.object,
+            vtable: &COPIED_VALUE_TABLE,
+        })
+    }
+    .unwrap();
+    let calls = COPIED_VALUE_CALLS.load(Ordering::SeqCst);
+    assert_eq!(owner.value(), Ok(expected));
+    assert_eq!(COPIED_VALUE_CALLS.load(Ordering::SeqCst), calls + 1);
+    owner
+}
+
 /// Cached weak projections do not retain the concrete value or create strong owners.
 #[test]
 fn container_owner_destruction_expires_all_cached_interfaces() {
@@ -299,6 +350,9 @@ impl IContainer for Container {
         child: neocogi_com::ComBox<IValueAbi, neocogi_com::ThreadSafe>,
         reject: bool,
     ) -> Result<(), (NcStatus, neocogi_com::ComBox<IValueAbi, neocogi_com::ThreadSafe>)> {
+        // Admission must give the implementation canonical dispatch, even when
+        // the caller supplies a distinct equivalent table or this method rejects.
+        assert_eq!(child.as_raw().vtable, child.query_ref::<IValueAbi>().unwrap().as_raw().vtable);
         if reject {
             return Err((NC_E_INVALID_ARG, child));
         }
@@ -368,6 +422,54 @@ fn raw_transfer_rejection_preserves_the_input_slot() {
     assert_eq!(container.remove(), Ok(()));
 }
 
+/// Metadata lookup precedes admission, while canonical adoption waits for the
+/// complete call. Every rejection preserves both original caller pointer words.
+#[test]
+fn copied_boxed_input_tables_preserve_rejections_and_commit_canonical_dispatch() {
+    let local = Container::into_local_box(Container { child: None });
+    let mut container = local.query::<IContainerAbi>().unwrap();
+    let state = value();
+    let drops = state.drops.clone();
+    let child = copied_value_owner(state);
+    let canonical = child.query_ref::<IValueAbi>().unwrap().as_raw().vtable;
+    let weak = child.downgrade();
+    let original = child.as_raw();
+    let mut slot = child.into_raw();
+    let target = container.as_raw();
+    // SAFETY: real retained objects, distinct writable slot and matching method
+    // entry points. Only identity or an initialized raw bool is malformed.
+    unsafe {
+        slot.vtable = &STALE_VALUE_TABLE;
+        let stale = slot;
+        assert_eq!(((*target.vtable).insert)(target.object, &mut slot, 0), neocogi_com::NC_E_ABI_VERSION);
+        assert_eq!(slot, stale);
+        slot = original;
+        assert_eq!(((*target.vtable).insert)(target.object, &mut slot, 2), NC_E_INVALID_ARG);
+        assert_eq!(slot, original);
+        let held = local.try_borrow().unwrap();
+        assert_eq!(((*target.vtable).insert)(target.object, &mut slot, 0), NC_E_BUSY);
+        assert_eq!(slot, original);
+        drop(held);
+        assert_eq!(((*target.vtable).insert)(target.object, &mut slot, 1), NC_E_INVALID_ARG);
+        assert_eq!(slot, original);
+        assert_eq!(weak.value(), Ok(42));
+        assert_eq!(drops.load(Ordering::SeqCst), 0);
+        // Rebuild the same live owner only after proving the slot was returned.
+        let child = ComBox::<IValueAbi, neocogi_com::ThreadSafe>::from_raw_owned(slot).unwrap();
+        let (status, child) = container.insert(child, true).unwrap_err();
+        assert_eq!(status, NC_E_INVALID_ARG);
+        assert_eq!(child.as_raw(), original);
+        container.insert(child, false).unwrap();
+    }
+    {
+        let state = local.try_borrow().unwrap();
+        assert_eq!(state.child.as_ref().unwrap().as_raw().vtable, canonical);
+    }
+    container.remove().unwrap();
+    assert_eq!(drops.load(Ordering::SeqCst), 1);
+    assert_eq!(weak.value(), Err(NC_E_DROPPED));
+}
+
 /// Concrete initialization uses the same borrow gate and cannot keep a moved owner alive.
 #[test]
 fn local_box_observers_follow_owner_transfer_and_gate_conflicts() {
@@ -412,6 +514,9 @@ impl IPair for Pair {
         right: ComBox<IValueAbi, neocogi_com::ThreadSafe>,
         accept: bool,
     ) -> Result<u32, (NcStatus, ComBox<IValueAbi, neocogi_com::ThreadSafe>, ComBox<IValueAbi, neocogi_com::ThreadSafe>)> {
+        for owner in [&left, &right] {
+            assert_eq!(owner.as_raw().vtable, owner.query_ref::<IValueAbi>().unwrap().as_raw().vtable);
+        }
         match accept {
             false => Err((neocogi_com::NC_OK, left, right)),
             true => {
@@ -443,6 +548,59 @@ fn multiple_owner_inputs_survive_rejection_busy_admission_and_retry() {
     assert_eq!(pair.offer(left, right, true).unwrap(), 2);
     drop(local);
     assert!(observed.iter().all(|weak| weak.value() == Err(NC_E_DROPPED)));
+}
+
+/// A later bad input must leave earlier copied tables untouched; body rejection
+/// restores every original pair after seeing canonical owners, then retry commits.
+#[test]
+fn copied_multi_owner_inputs_restore_each_original_table_before_retry() {
+    let local = Pair::into_local_box(Pair { values: None });
+    let mut pair = local.query::<IPairAbi>().unwrap();
+    let left_state = value();
+    let left_drops = left_state.drops.clone();
+    let right_state = value();
+    let right_drops = right_state.drops.clone();
+    let left = copied_value_owner(left_state);
+    let right = copied_value_owner(right_state);
+    let canonical = left.query_ref::<IValueAbi>().unwrap().as_raw().vtable;
+    let observed = [left.downgrade(), right.downgrade()];
+    let originals = [left.as_raw(), right.as_raw()];
+    let mut left_slot = left.into_raw();
+    let mut right_slot = right.into_raw();
+    let target = pair.as_raw();
+    let mut output = 17;
+    // SAFETY: both retained Value allocations/tables and all scalar/slot storage
+    // are valid. The second incoming identity is deliberately stale, then repaired.
+    let (left, right) = unsafe {
+        right_slot.vtable = &STALE_VALUE_TABLE;
+        let stale = right_slot;
+        assert_eq!(
+            ((*target.vtable).offer)(target.object, &mut left_slot, &mut right_slot, 1, &mut output),
+            neocogi_com::NC_E_ABI_VERSION
+        );
+        assert_eq!(left_slot, originals[0]);
+        assert_eq!(right_slot, stale);
+        assert_eq!(output, 17);
+        right_slot = originals[1];
+        (
+            ComBox::<IValueAbi, neocogi_com::ThreadSafe>::from_raw_owned(left_slot).unwrap(),
+            ComBox::<IValueAbi, neocogi_com::ThreadSafe>::from_raw_owned(right_slot).unwrap(),
+        )
+    };
+    let (status, left, right) = pair.offer(left, right, false).unwrap_err();
+    assert_eq!(status, NC_E_INVALID_ARG);
+    assert_eq!(left.as_raw(), originals[0]);
+    assert_eq!(right.as_raw(), originals[1]);
+    assert!(observed.iter().all(|weak| weak.value() == Ok(42)));
+    assert_eq!(pair.offer(left, right, true).unwrap(), 2);
+    {
+        let state = local.try_borrow().unwrap();
+        assert!(state.values.as_ref().unwrap().iter().all(|owner| owner.as_raw().vtable == canonical));
+    }
+    drop(local);
+    assert!(observed.iter().all(|weak| weak.value() == Err(NC_E_DROPPED)));
+    assert_eq!(left_drops.load(Ordering::SeqCst), 1);
+    assert_eq!(right_drops.load(Ordering::SeqCst), 1);
 }
 
 /// Failed consuming interface selection also returns the original allocation,

@@ -58,7 +58,7 @@ fn raw_vtable_arg_docs(arg: &AbiArg) -> Vec<proc_macro2::TokenStream> {
     let native = arg.rust_ty.to_token_stream();
     let contract = match &arg.kind {
         AbiArgKind::ComBox { .. } => {
-            "The writable owner slot transfers one exclusive owner. Success clears the slot. Every error restores the original owner unchanged; the caller decides whether to retry or destroy it. Providers must finish all fallible preparation before committing ownership."
+            "The writable owner slot transfers one exclusive owner. After full admission the receiver uses canonical dispatch. Success clears the slot. Every error restores the original object/table pair unchanged; the caller decides whether to retry or destroy it. Providers must finish all fallible preparation before committing ownership."
         }
         AbiArgKind::BorrowedValue { .. } => "The pointed-to checked representation is borrowed; the receiver acquires owned fields before retaining data.",
         AbiArgKind::Plain => "Passed by value.",
@@ -151,7 +151,7 @@ fn safe_arg_docs(arg: &AbiArg) -> Vec<proc_macro2::TokenStream> {
     match &arg.kind {
         AbiArgKind::ComBox { .. } => vec![literal_doc(
             format!(
-                "- `{ident}` transfers one exclusive owner. Success clears the writable owner slot. Every error restores the original owner unchanged; the caller decides whether to retry or destroy it. Providers must finish all fallible preparation before committing ownership."
+                "- `{ident}` transfers one exclusive owner. After full admission the receiver uses canonical dispatch. Success clears the writable owner slot. Every error restores the original object/table pair unchanged; the caller decides whether to retry or destroy it. Providers must finish all fallible preparation before committing ownership."
             ),
             ident.span(),
         )],
