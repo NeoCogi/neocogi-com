@@ -6,6 +6,11 @@ Historical draft numbers do not define additional supported COM baselines.
 
 ## Unreleased
 
+- Document the shared/exclusive `NcLifetimeState` state machine, including
+  reader/writer admission, owner removal, synchronous value destruction and
+  final weak-reference deallocation. Explain the implicit weak reference and
+  terminal expiration without adding state fields or changing lifetime behavior.
+
 - Rename the common allocation header from `NcWeakControl` to `NcLifetimeState`
   across shared/exclusive ownership, weak tokens, provider storage and native C
   mirrors. The name covers strong ownership and exclusive call admission as well

@@ -265,6 +265,10 @@ Exclusive mode remains set after destruction. The other header words are the wea
 count and a pointer to immutable class metadata. That metadata is shared by all
 instances of a class and supplies provider-local destruction and allocation release.
 
+The [lifetime state machine](contracts/COM_INTERFACE_STORAGE.md#lifetime-state-machine)
+shows ownership, exclusive access, value destruction and final weak deallocation
+as separate transitions. `NcLifetimeState` preserves this existing ABI-v2 protocol.
+
 Generated exclusive storage places `UnsafeCell<MaybeUninit<T>>` after the header.
 It contains no separate call gate. Generated shared storage retains its separate
 `ComBorrowState` because its header word counts strong owners. This one atomic

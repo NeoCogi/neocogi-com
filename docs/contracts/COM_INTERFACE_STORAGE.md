@@ -146,6 +146,107 @@ All calls reach one generated shared/exclusive borrow guard. Mutable methods use
 existing `UnsafeCell` and guard are needed because independently owned COM handles
 can alias one allocation.
 
+## Lifetime state machine
+
+`NcLifetimeState` is the common header of a generated allocation, shared by all
+of its interface views. Handwritten providers that opt into the common lifetime
+protocol use the same layout. Its three words are the atomic ownership/access
+`state`, atomic `weak` count, and immutable `NcObjectTypeInfo` pointer. The name
+covers strong ownership, exclusive call admission and weak storage retention.
+
+The construction policy is chosen once, before publishing the initialized value.
+Shared allocations count strong owners. Exclusive allocations have one owner and
+pack owner presence plus active readers or a writer into the same atomic word.
+The policy never changes after publication; the exclusive `BOXED` tag remains
+set even after the value is destroyed.
+
+```mermaid
+stateDiagram-v2
+    state Policy <<choice>>
+    [*] --> Policy: publish initialized value
+    Policy --> SharedLive: one strong owner
+    Policy --> ExclusiveLive: one exclusive owner
+
+    SharedLive --> SharedLive: retain, release, or promote while strong stays positive
+    SharedLive --> Destroying: final strong release sets count to zero
+
+    state ExclusiveLive {
+        [*] --> Idle
+        Idle --> Readers: admit first reader
+        Readers --> Readers: reader count changes above zero
+        Readers --> Idle: final reader exits
+        Idle --> Writer: admit writer
+        Writer --> Idle: writer exits
+    }
+    ExclusiveLive --> Stopping: owner drop clears owner bit
+    Stopping --> Destroying: all admitted calls have returned
+
+    Destroying --> WeakOnly: destructor returns, implicit weak released, observers remain
+    Destroying --> Freed: destructor returns, implicit weak was final reference
+    WeakOnly --> WeakOnly: retain or release while weak count stays positive
+    WeakOnly --> Freed: final weak release
+    Freed --> [*]
+```
+
+The diagram distinguishes ending ownership, destroying the value, and freeing
+the allocation. `Destroying` and `WeakOnly` are logical phases, not additional
+bits or an enum stored in the header. A zero shared strong count, or the absence
+of the exclusive owner bit, already prevents revival or new call admission.
+The implicit weak reference keeps the header and storage alive until the
+destructor has returned, including reentrant release of weak-to-self fields.
+
+For **shared ownership**, cloning and successful weak promotion acquire strong
+owners; releasing a non-final owner leaves the value live. Final release makes
+the strong count zero before invoking the destructor. Promotion races that
+transition atomically: it either acquires an owner first or returns
+`NC_E_DROPPED`. Zero is terminal. Shared method borrowing uses a separate
+`ComBorrowState`; the header's strong count is not a reader/writer gate.
+If promotion acquires a provisional owner but exact interface validation fails,
+it releases that owner again and returns the validation error. That rollback
+may itself be the final strong release if other owners disappeared meanwhile.
+
+For **exclusive ownership**, `Idle`, `Readers` and `Writer` all retain the sole
+owner. Readers may overlap; a writer excludes readers and other writers.
+Conflicting admission, or a full reader count, returns `NC_E_BUSY` without
+changing state. Owner drop first clears `BOX_OWNER`, so new calls return
+`NC_E_DROPPED` immediately. Already admitted calls finish, their guards release
+only their reader/writer bits, and the dropping owner invokes the destructor
+once those bits are clear. An idle owner passes through `Stopping` immediately.
+The owner drop returns only after value destruction; a borrow guard never
+destroys the value. Dropping the owner from inside one of its own admitted calls
+is forbidden because it would wait for itself.
+
+| Phase | Ownership/access word | Weak storage invariant |
+| --- | --- | --- |
+| Shared live | Positive strong count | Explicit weak count plus one implicit weak reference |
+| Shared destroying or weak-only | Zero; promotion cannot revive it | Implicit reference remains through the destructor; only explicit references remain afterward |
+| Exclusive live | `BOXED \| BOX_OWNER` plus zero, reader count, or `BOX_WRITER` | Explicit weak count plus one implicit reference |
+| Exclusive stopping | `BOXED` plus any still-admitted reader/writer bits; owner bit clear | Implicit reference protects all admitted calls and the subsequent destructor |
+| Exclusive destroying or weak-only | `BOXED`; owner and access bits clear | Same destruction/explicit-weak rule as shared storage |
+| Freed | No readable header remains | Final weak release invoked the provider's deallocation callback |
+
+Weak retain/release is also allowed while an owner exists; the implicit reference
+prevents those explicit releases from freeing live storage. After destruction,
+remaining weak handles retain metadata and allocation identity, not the value.
+Exact interface casts may still inspect that metadata, but they neither revive
+the value nor grant method access. Final weak release frees storage through its
+allocating provider without running the value destructor again. No explicit weak
+observers means destruction can proceed directly to `Freed`.
+
+Strong and weak counters never wrap; exhaustion fails without manufacturing an
+uncounted owner. The atomics synchronize lifetime and access but do not supply
+threading permission for the concrete value: its existing thread marker and
+provider obligations still apply. This naming/documentation change preserves
+the header layout, callback ABI, interface identities and ABI v2/core generation 19.
+
+The implementation is in [lifetime.rs](../../crates/core/src/lifetime.rs).
+[Core lifetime regressions](../../crates/core/src/lifetime/tests.rs) observe
+destruction versus deallocation, reentrant weak release, rejection and reader
+conflicts. [Generated exclusive calls](../../tests/com/integration-tests/exclusive_com.rs)
+exercise owner drop while readers/writers are admitted; [shared weak calls](../../tests/com/integration-tests/weak_com.rs)
+exercise promotion races, expiration and unchanged header size.
+
+
 ## Historical storage tradeoff at the object/table migration
 
 For a five-interface object on a 64-bit target, with `H` separately stored handles,
