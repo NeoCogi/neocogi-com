@@ -4,9 +4,8 @@
 //! See [`crate::NC_COM_CORE_ABI_VERSION`] for the current candidate generation.
 //!
 //! Shared strong counts contain only counts. Boxed owner/access bits belong to
-//! their own header. Immutable type information selects the policy at raw ABI
-//! admission. Established typed owners trust their selected policy; no
-//! ownership-kind tag is packed into either mutable state word.
+//! their own header. Construction and each ABI ownership contract establish the
+//! matching state. No allocation metadata or mutable counter carries a kind tag.
 //! Concrete provider storage and allocator callbacks stay in their owning binary.
 use core::{
     ffi::c_void,
@@ -15,29 +14,15 @@ use core::{
 };
 use crate::{ComRaw, IUnknown, IUnknownVTable, NcInterfaceId, NcStatus, NC_E_DROPPED, NC_E_POINTER, NC_E_INVALID_ARG, NC_OK};
 
-/// Immutable type-information tag for shared strong-reference ownership.
-pub const NC_OWNERSHIP_SHARED: u32 = 1;
-/// Immutable type-information tag for one boxed owner with checked call admission.
-pub const NC_OWNERSHIP_BOXED: u32 = 2;
-
-/// Immutable ownership, cleanup callbacks and interface tables for one implementation.
+/// Immutable cleanup callbacks and interface tables for one implementation.
 ///
-/// Both lifetime headers begin with a pointer to this record. Checked raw admission
-/// inspects that pointer and the integer ownership tag before borrowing the
-/// complete policy-specific header. Unknown tags are rejected by fallible
-/// admission; valid owned lifetime tokens always have one of the two known tags.
-/// A raw object address must be aligned/readable for its leading metadata pointer,
-/// whose nonnull target is a readable current-core record. A known ownership kind
-/// promises its matching complete header. Storage, metadata and code remain
-/// retained for each operation and any borrow it returns.
-///
-/// Metadata and code remain live through the final weak release. Cleanup
-/// callbacks receive the allocation address, whose concrete type their provider
-/// owns. They must not unwind, and deallocation must not destroy the value twice.
+/// Both typed lifetime states refer to this record. Their ownership policy is
+/// established by construction or the ABI argument/result contract, never by a
+/// runtime tag. The provider pairs these callbacks with its exact concrete storage.
+/// Metadata and code remain valid through final weak release. Cleanup receives
+/// the allocation address, must not unwind and must free in its allocating binary.
 #[repr(C)]
 pub struct NcObjectTypeInfo {
-    /// Exactly NC_OWNERSHIP_SHARED or NC_OWNERSHIP_BOXED; never mutable access flags.
-    pub ownership: u32,
     /// Destroys the initialized value once, while the implicit weak retains storage.
     pub destroy_value: unsafe extern "C" fn(*mut c_void),
     /// Frees storage in its allocating provider after value destruction has returned.
@@ -57,7 +42,7 @@ unsafe impl Sync for NcObjectTypeInfo {}
 /// One implicit weak reference remains until the value destructor has returned.
 #[repr(C)]
 pub struct NcSharedLifetimeState {
-    /// Immutable metadata pointer at the common ABI admission offset.
+    /// Immutable provider metadata for this statically selected lifetime state.
     type_info: *const NcObjectTypeInfo,
     /// Number of shared owners; no ownership-kind or reader/writer flag bits.
     strong_count: AtomicUsize,
@@ -67,7 +52,6 @@ pub struct NcSharedLifetimeState {
 impl NcSharedLifetimeState {
     /// Starts one shared owner and one implicit weak reference before publication.
     pub const fn new(type_info: &'static NcObjectTypeInfo) -> Self {
-        assert!(type_info.ownership == NC_OWNERSHIP_SHARED, "shared lifetime metadata required");
         Self {
             type_info,
             strong_count: AtomicUsize::new(1),
@@ -84,7 +68,7 @@ impl NcSharedLifetimeState {
 /// the dropping owner waits for admitted calls and destroys the value itself.
 #[repr(C)]
 pub struct NcBoxedLifetimeState {
-    /// Immutable metadata pointer at the common ABI admission offset.
+    /// Immutable provider metadata for this statically selected lifetime state.
     type_info: *const NcObjectTypeInfo,
     /// Sole-owner presence, writer presence and reader count, updated atomically.
     owner_and_borrows: AtomicUsize,
@@ -94,65 +78,11 @@ pub struct NcBoxedLifetimeState {
 impl NcBoxedLifetimeState {
     /// Starts the sole owner and one implicit weak reference before publication.
     pub const fn new(type_info: &'static NcObjectTypeInfo) -> Self {
-        assert!(type_info.ownership == NC_OWNERSHIP_BOXED, "boxed lifetime metadata required");
         Self {
             type_info,
             owner_and_borrows: AtomicUsize::new(BOX_OWNER),
             weak_count: AtomicUsize::new(1),
         }
-    }
-}
-
-/// Reads only the common immutable metadata pointer, then admits its ownership tag.
-///
-/// # Safety
-/// A nonnull object is aligned/readable for its leading metadata pointer. Its
-/// nonnull metadata is a readable current-core record and remains valid for the
-/// chosen borrow. A known kind promises the corresponding complete header.
-unsafe fn object_type_info<'a>(object: *mut c_void) -> Result<&'a NcObjectTypeInfo, NcStatus> {
-    if object.is_null() {
-        return Err(NC_E_POINTER);
-    }
-    // SAFETY: both policy-specific C records begin with exactly this pointer.
-    let pointer = unsafe { object.cast::<*const NcObjectTypeInfo>().read() };
-    let info = unsafe { pointer.as_ref() }.ok_or(NC_E_POINTER)?;
-    match info.ownership {
-        NC_OWNERSHIP_SHARED | NC_OWNERSHIP_BOXED => Ok(info),
-        _ => Err(NC_E_INVALID_ARG),
-    }
-}
-
-/// Checks the raw boundary's expected policy and exact interface before any
-/// policy-specific header reference or ownership is constructed.
-///
-/// # Safety
-/// The retained input satisfies object_type_info. Known kinds promise complete
-/// matching headers; an unknown-kind prefix can be rejected without one. This
-/// lookup acquires nothing and never makes an arbitrary address readable.
-pub(crate) unsafe fn admit_interface(object: *mut c_void, ownership: u32, requested: &NcInterfaceId) -> Result<*const IUnknownVTable, NcStatus> {
-    let info = unsafe { object_type_info(object) }?;
-    if info.ownership != ownership {
-        return Err(NC_E_INVALID_ARG);
-    }
-    unsafe { try_cast(info, requested) }
-}
-
-/// Consumes a rejected raw weak transfer under its actual known policy.
-/// This boundary-only dispatcher must not be used by established typed owners.
-///
-/// # Safety
-/// A nonnull address transfers one weak reference to a complete shared or boxed
-/// header with truthful known-policy metadata and retained provider code. Unknown
-/// prefixes own no reference this function can release. Null transfers nothing.
-pub(crate) unsafe fn release_rejected_weak(object: *mut c_void) {
-    if object.is_null() {
-        return;
-    }
-    let info = unsafe { object_type_info(object) }.expect("valid transferred weak metadata");
-    match info.ownership {
-        NC_OWNERSHIP_SHARED => unsafe { NcSharedLifetimeState::weak_release(object.cast()) },
-        NC_OWNERSHIP_BOXED => unsafe { NcBoxedLifetimeState::weak_release(object.cast()) },
-        _ => unreachable!("known owned weak policy"),
     }
 }
 
@@ -279,7 +209,7 @@ unsafe extern "C" fn nc_shared_downgrade(object: *mut c_void, out: *mut crate::N
     };
     unsafe {
         header.weak_retain();
-        *out = crate::NcWeakRaw { control: object };
+        *out = crate::NcWeakRaw { control: object.cast() };
     }
     NC_OK
 }
@@ -590,7 +520,7 @@ impl NcBoxedLifetimeState {
 /// # Safety
 /// A nonnull pointer identifies genuine complete boxed storage with matching
 /// metadata/tables retained through the call, including after value destruction.
-/// Policy must be proven by construction, raw admission or the unsafe caller;
+/// Policy must be proven by construction or the ABI producer/unsafe caller;
 /// casting a pointer does not prove it. Null is rejected without reading storage.
 pub unsafe fn try_box_cast(control: *mut NcBoxedLifetimeState, requested: &NcInterfaceId) -> Result<*const IUnknownVTable, NcStatus> {
     // SAFETY: the caller proves policy; null remains a documented error input.

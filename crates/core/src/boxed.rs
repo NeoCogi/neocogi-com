@@ -14,7 +14,7 @@ use core::{
 };
 use crate::{ComInterface, ComClientInterface, ComRaw, ComRef, NcStatus, ThreadLocal, ThreadSafe, ThreadingModel, NC_E_POINTER};
 use crate::ptr::LiveInterface;
-use crate::lifetime::{admit_interface, release_rejected_weak, try_box_cast, NcBoxedLifetimeState, NC_OWNERSHIP_BOXED};
+use crate::lifetime::{try_box_cast, NcBoxedLifetimeState};
 
 /// The sole transferable owner of an object exposing typed C ABI interfaces.
 ///
@@ -85,15 +85,14 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> ComBox<T, M> {
     ///
     /// # Safety
     /// `slot` is writable, properly aligned call-scoped storage containing the
-    /// actual transferable owner (one shared reference or the sole boxed owner),
-    /// with the provider's threading guarantee M and a matching readable lifecycle
-    /// table/common-lifetime header. Rejection leaves that actual owner untouched;
-    /// successful adoption requires boxed policy.
+    /// sole boxed owner with the provider's threading guarantee M and a matching
+    /// readable lifecycle table/header. Rejection leaves that owner untouched.
+    /// Shared backing violates this ABI input's ownership contract.
     #[doc(hidden)]
     pub unsafe fn __nc_validate_raw_input(slot: *mut ComRaw<T>) -> Result<(), NcStatus> {
         let raw = unsafe { slot.as_ref() }.ok_or(NC_E_POINTER)?;
         unsafe { crate::raw::validate_interface(*raw) }?;
-        unsafe { admit_interface(raw.object, NC_OWNERSHIP_BOXED, &T::INTERFACE_ID) }?;
+        unsafe { try_box_cast(raw.object.cast(), &T::INTERFACE_ID) }?;
         Ok(())
     }
 
@@ -113,19 +112,21 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> ComBox<T, M> {
     /// Checks a transferred factory result before adopting its exclusive owner.
     ///
     /// # Safety
-    /// A present pair transfers one actual shared reference or the sole boxed
-    /// owner under the common lifetime ABI, with its matching readable lifecycle
-    /// table. Rejection consumes that actual owner; only boxed policy is adopted.
+    /// A present pair transfers the sole genuine boxed owner and its matching
+    /// readable lifecycle table. Rejection consumes that boxed owner. The ABI
+    /// producer guarantees boxed backing before identity validation.
     /// The provider establishes its threading promise; readable metadata alone
     /// cannot prove that foreign code obeys ownership or call-access obligations.
     #[doc(hidden)]
     pub unsafe fn __nc_from_raw_owned_checked(raw: ComRaw<T>) -> Result<Self, NcStatus> {
-        // The common release slot can balance either lifetime policy when a
-        // foreign result has a mismatched interface or ownership mode.
-        let checked = unsafe { crate::raw::validate_interface(raw) }
-            .and_then(|()| unsafe { admit_interface(raw.object, NC_OWNERSHIP_BOXED, &T::INTERFACE_ID) }.map(|_| ()));
+        if !raw.is_present() {
+            return Err(NC_E_POINTER);
+        }
+        // The producer guarantees boxed backing; identity rejection consumes
+        // that known boxed owner directly, without selecting a release policy.
+        let checked = unsafe { crate::raw::validate_interface(raw) }.and_then(|()| unsafe { try_box_cast(raw.object.cast(), &T::INTERFACE_ID) }.map(|_| ()));
         if let Err(error) = checked {
-            unsafe { crate::raw::release(raw) };
+            unsafe { NcBoxedLifetimeState::release(raw.object.cast()) };
             return Err(error);
         }
         unsafe { Self::from_raw_owned(raw) }.ok_or(NC_E_POINTER)
@@ -367,11 +368,10 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> WeakComBox<T, M> {
     /// Adopts a weak output after exact cached-interface validation.
     ///
     /// # Safety
-    /// A present pair transfers one weak reference to a complete shared or boxed
-    /// header with matching known-policy metadata and a readable matching-provider
-    /// table. Metadata/code remain retained, including after value destruction.
-    /// The provider establishes threading M. Rejection consumes exactly that weak
-    /// reference; unknown-kind prefixes are not owned tokens that can be cleaned up.
+    /// A present pair transfers one weak reference to genuine boxed storage with
+    /// matching metadata, provider table/code and threading M, even after value
+    /// destruction. The ABI producer guarantees boxed backing. Rejection consumes
+    /// that boxed weak reference; shared backing violates the producer contract.
     /// Both-null and half-null shapes transfer nothing and reject without reading
     /// either component. Only a present pair carries a cleanup obligation.
     #[doc(hidden)]
@@ -381,18 +381,17 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> WeakComBox<T, M> {
         }
         // The supplied table and canonical allocation metadata are independent
         // authorities. Neither check may publish an unadmitted typed owner.
-        let checked =
-            unsafe { crate::raw::validate_interface(raw) }.and_then(|()| unsafe { admit_interface(raw.object, NC_OWNERSHIP_BOXED, &T::INTERFACE_ID) });
+        let checked = unsafe { crate::raw::validate_interface(raw) }.and_then(|()| unsafe { try_box_cast(raw.object.cast(), &T::INTERFACE_ID) });
         let table = match checked {
             Ok(table) => table,
             Err(status) => {
-                // SAFETY: the raw token owns one weak under its actual known
-                // policy. Never use a strong release slot or a premature boxed Drop.
-                unsafe { release_rejected_weak(raw.object) };
+                // SAFETY: the producer transfers a boxed weak reference. Identity
+                // rejection consumes it directly, without a premature typed owner.
+                unsafe { NcBoxedLifetimeState::weak_release(raw.object.cast()) };
                 return Err(status);
             }
         };
-        // SAFETY: both identity authorities and boxed policy are now established.
+        // SAFETY: both identity authorities are validated; the producer proves boxed backing.
         unsafe { Self::from_raw_owned(ComRaw { object: raw.object, vtable: table.cast() }) }.ok_or(NC_E_POINTER)
     }
 }

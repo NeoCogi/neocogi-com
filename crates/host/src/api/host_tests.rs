@@ -52,7 +52,7 @@ fn initialized_host_tables_share_registration_and_separate_core_and_discovery() 
     let first = crate::initialize_process();
     let second = crate::initialize_process();
     assert_eq!(NC_COM_RUNTIME_ABI_VERSION, 3);
-    assert_eq!(NC_COM_CORE_ABI_VERSION, 20);
+    assert_eq!(NC_COM_CORE_ABI_VERSION, 21);
     assert_eq!(NC_PLUGIN_DESCRIPTOR_ABI_VERSION, 3);
     // SAFETY: The producer guarantees complete immutable process-lived tables.
     assert_eq!(unsafe { validate_host_api(first) }, NC_OK);

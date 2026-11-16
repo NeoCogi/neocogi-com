@@ -2,66 +2,6 @@
 use super::*;
 use crate::{ComRaw, ComValue, NcWeakRaw, ValueBudget, WeakComBox, WeakComPtr, NC_E_ABI_VERSION, NC_E_NOINTERFACE};
 
-/// Both transferred policies reject the other target before constructing an owner,
-/// including when the rejected token is the final reference to expired storage.
-#[test]
-fn owned_wrong_policy_weak_rejection_consumes_exactly_one_actual_token() {
-    for ownership in [NC_OWNERSHIP_SHARED, NC_OWNERSHIP_BOXED] {
-        for expired in [false, true] {
-            for final_token in [false, true] {
-                let (object, observed, table) = match ownership {
-                    NC_OWNERSHIP_SHARED => {
-                        let (control, observed) = allocation();
-                        (control.cast::<c_void>(), observed, &ROOT)
-                    }
-                    NC_OWNERSHIP_BOXED => {
-                        let (control, observed) = boxed_allocation();
-                        (control.cast::<c_void>(), observed, &BOX_ROOT)
-                    }
-                    _ => unreachable!(),
-                };
-                // SAFETY: real fixture headers, retained matching metadata and
-                // exact lifecycle tables; every added token has one consumer.
-                unsafe {
-                    weak_retain(object); // Transferred token, not a borrowed copy.
-                    if !final_token {
-                        weak_retain(object);
-                    }
-                    if expired {
-                        (table.release)(object);
-                    }
-                    let count = || match ownership {
-                        NC_OWNERSHIP_SHARED => (*object.cast::<NcSharedLifetimeState>()).weak_count.load(Ordering::Relaxed),
-                        NC_OWNERSHIP_BOXED => (*object.cast::<NcBoxedLifetimeState>()).weak_count.load(Ordering::Relaxed),
-                        _ => unreachable!(),
-                    };
-                    let before = count();
-                    let status = match ownership {
-                        NC_OWNERSHIP_SHARED => WeakComBox::<IUnknown>::__nc_from_raw_owned_checked(ComRaw { object, vtable: table }).unwrap_err(),
-                        NC_OWNERSHIP_BOXED => WeakComPtr::<IUnknown>::__nc_from_raw_owned_checked(NcWeakRaw { control: object }).unwrap_err(),
-                        _ => unreachable!(),
-                    };
-                    assert_eq!(status, NC_E_INVALID_ARG);
-                    if expired && final_token {
-                        assert_eq!(observed.freed.load(Ordering::SeqCst), 1);
-                    } else {
-                        assert_eq!(count(), before - 1);
-                        assert_eq!(observed.freed.load(Ordering::SeqCst), 0);
-                        if !final_token {
-                            weak_release(object);
-                        }
-                        if !expired {
-                            (table.release)(object);
-                        }
-                    }
-                }
-                assert_eq!(observed.destroyed.load(Ordering::SeqCst), 1);
-                assert_eq!(observed.freed.load(Ordering::SeqCst), 1);
-            }
-        }
-    }
-}
-
 /// This second zero-method table has valid boxed callbacks for the same concrete
 /// storage, but is intentionally omitted from that allocation's canonical list.
 static UNLISTED_BOX_TABLE: IUnknownVTable = IUnknownVTable {
@@ -88,7 +28,7 @@ static STALE_BOX_TABLE: IUnknownVTable = IUnknownVTable {
 #[test]
 fn boxed_weak_wire_preserves_both_identity_authorities_without_retaining_errors() {
     let (control, observed) = boxed_allocation();
-    unsafe { weak_retain(control.cast()) };
+    unsafe { (*control).weak_retain() };
     for expired in [false, true] {
         let before = unsafe { (*control).weak_count.load(Ordering::Relaxed) };
         for (table, error) in [(&UNLISTED_BOX_TABLE, NC_E_NOINTERFACE), (&STALE_BOX_TABLE, NC_E_ABI_VERSION)] {
@@ -99,7 +39,7 @@ fn boxed_weak_wire_preserves_both_identity_authorities_without_retaining_errors(
                 unsafe { WeakComBox::<IUnknown>::decode_value(&wire, &mut ValueBudget::default()) }.unwrap_err(),
                 error
             );
-            unsafe { weak_retain(control.cast()) };
+            unsafe { (*control).weak_retain() };
             assert_eq!(unsafe { WeakComBox::<IUnknown>::__nc_from_raw_owned_checked(wire) }.unwrap_err(), error);
             assert_eq!(unsafe { (*control).weak_count.load(Ordering::Relaxed) }, before);
         }
@@ -113,7 +53,7 @@ fn boxed_weak_wire_preserves_both_identity_authorities_without_retaining_errors(
             unsafe { WeakComBox::<AlternateInterface>::decode_value(&unlisted, &mut ValueBudget::default()) }.unwrap_err(),
             NC_E_NOINTERFACE
         );
-        unsafe { weak_retain(control.cast()) };
+        unsafe { (*control).weak_retain() };
         assert_eq!(
             unsafe { WeakComBox::<AlternateInterface>::__nc_from_raw_owned_checked(unlisted) }.unwrap_err(),
             NC_E_NOINTERFACE
@@ -123,7 +63,7 @@ fn boxed_weak_wire_preserves_both_identity_authorities_without_retaining_errors(
         let wire = ComRaw::<IUnknown> { object: control.cast(), vtable: &copied };
         let acquired = unsafe { WeakComBox::<IUnknown>::decode_value(&wire, &mut ValueBudget::default()) }.unwrap();
         assert_eq!(acquired.as_raw().vtable, &BOX_ROOT as *const _);
-        unsafe { weak_retain(control.cast()) };
+        unsafe { (*control).weak_retain() };
         let adopted = unsafe { WeakComBox::<IUnknown>::__nc_from_raw_owned_checked(wire) }.unwrap();
         assert_eq!(adopted.as_raw().vtable, &BOX_ROOT as *const _);
         drop((acquired, adopted));
@@ -132,27 +72,67 @@ fn boxed_weak_wire_preserves_both_identity_authorities_without_retaining_errors(
             unsafe { NcBoxedLifetimeState::release(control) };
         }
     }
-    unsafe { weak_release(control.cast()) };
+    unsafe { NcBoxedLifetimeState::weak_release(control) };
     assert_eq!(observed.destroyed.load(Ordering::SeqCst), 1);
     assert_eq!(observed.freed.load(Ordering::SeqCst), 1);
 }
 
-/// A rejected borrowed owner slot stays intact; rejecting that same transferred
-/// shared owner as a boxed result releases its actual lifecycle exactly once.
+/// Rejected boxed input slots retain their owner; rejected boxed output identity
+/// consumes precisely that same statically known owner without policy dispatch.
 #[test]
-fn boxed_owner_admission_preserves_inputs_and_releases_actual_rejected_outputs() {
-    let (control, observed) = allocation();
-    let mut raw = ComRaw::<IUnknown> { object: control.cast(), vtable: &ROOT };
+fn boxed_owner_identity_rejection_preserves_inputs_and_cleans_outputs() {
+    let (control, observed) = boxed_allocation();
+    let mut raw = ComRaw::<AlternateInterface> {
+        object: control.cast(),
+        vtable: &BOX_ROOT,
+    };
     let original = raw;
-    // SAFETY: matching complete shared storage and table with one actual owner.
-    // The checked boxed boundary accepts it for rejection, never boxed adoption.
     unsafe {
-        assert_eq!(crate::ComBox::<IUnknown>::__nc_validate_raw_input(&mut raw), Err(NC_E_INVALID_ARG));
+        assert_eq!(crate::ComBox::<AlternateInterface>::__nc_validate_raw_input(&mut raw), Err(NC_E_NOINTERFACE));
         assert_eq!(raw, original);
-        assert_eq!((*control).strong_count.load(Ordering::Relaxed), 1);
+        assert_eq!((*control).owner_and_borrows.load(Ordering::Relaxed), BOX_OWNER);
         assert_eq!((*control).weak_count.load(Ordering::Relaxed), 1);
         assert_eq!(observed.destroyed.load(Ordering::SeqCst), 0);
-        assert_eq!(crate::ComBox::<IUnknown>::__nc_from_raw_owned_checked(raw).unwrap_err(), NC_E_INVALID_ARG);
+        assert_eq!(
+            crate::ComBox::<AlternateInterface>::__nc_from_raw_owned_checked(raw).unwrap_err(),
+            NC_E_NOINTERFACE
+        );
+    }
+    assert_eq!(observed.destroyed.load(Ordering::SeqCst), 1);
+    assert_eq!(observed.freed.load(Ordering::SeqCst), 1);
+}
+
+/// A rejected expired shared result releases the final shared weak exactly once.
+#[test]
+fn shared_identity_rejection_frees_the_final_expired_weak() {
+    let (control, observed) = allocation();
+    unsafe {
+        (*control).weak_retain();
+        NcSharedLifetimeState::release(control);
+        assert_eq!(
+            WeakComPtr::<crate::INcBytesAbi>::__nc_from_raw_owned_checked(NcWeakRaw { control }).unwrap_err(),
+            NC_E_NOINTERFACE
+        );
+    }
+    assert_eq!(observed.destroyed.load(Ordering::SeqCst), 1);
+    assert_eq!(observed.freed.load(Ordering::SeqCst), 1);
+}
+
+/// A rejected expired boxed result releases the final boxed weak exactly once.
+#[test]
+fn boxed_identity_rejection_frees_the_final_expired_weak() {
+    let (control, observed) = boxed_allocation();
+    unsafe {
+        (*control).weak_retain();
+        NcBoxedLifetimeState::release(control);
+        let raw = ComRaw::<AlternateInterface> {
+            object: control.cast(),
+            vtable: &UNLISTED_BOX_TABLE,
+        };
+        assert_eq!(
+            WeakComBox::<AlternateInterface>::__nc_from_raw_owned_checked(raw).unwrap_err(),
+            NC_E_NOINTERFACE
+        );
     }
     assert_eq!(observed.destroyed.load(Ordering::SeqCst), 1);
     assert_eq!(observed.freed.load(Ordering::SeqCst), 1);

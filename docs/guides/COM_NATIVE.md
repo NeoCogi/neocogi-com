@@ -55,7 +55,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // for process lifetime before adopting its coherent immutable C tables.
     let runtime = unsafe { RuntimeHandle::load_host_library(path) }?;
     // Register/load the application's providers through this same runtime.
-    assert_eq!(runtime.core_abi_version(), 20);
+    assert_eq!(runtime.core_abi_version(), 21);
     Ok(())
 }
 ```

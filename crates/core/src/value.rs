@@ -689,8 +689,8 @@ unsafe impl<T: crate::ComInterface + 'static, M: crate::ThreadingModel> ComValue
     }
 }
 
-// SAFETY: the wire borrows one common weak header. Acquisition validates shared
-// ownership and the exact contract, then retains bookkeeping without promoting T.
+// SAFETY: the ABI wire contract borrows one genuine shared state. Acquisition
+// validates exact identity, then retains bookkeeping without promoting T.
 unsafe impl<T: crate::ComInterface + 'static, M: crate::ThreadingModel> ComValue for crate::WeakComPtr<T, M> {
     type Wire = crate::NcWeakRaw;
     type Storage = ();
@@ -701,11 +701,12 @@ unsafe impl<T: crate::ComInterface + 'static, M: crate::ThreadingModel> ComValue
     /// Acquires an independent weak reference, even after concrete destruction.
     unsafe fn decode_value(wire: &Self::Wire, budget: &mut ValueBudget) -> Result<Self, NcStatus> {
         budget.value(|_| {
-            // SAFETY: the caller lends valid header/class storage; null, ownership
-            // kind and exact interface identity are checked before acquisition.
-            unsafe { crate::lifetime::admit_interface(wire.control, crate::lifetime::NC_OWNERSHIP_SHARED, &T::INTERFACE_ID) }?;
+            // SAFETY: this ABI value borrows genuine shared backing. Validate
+            // presence and the requested interface before retaining another weak.
+            let control = unsafe { wire.control.as_ref() }.ok_or(crate::NC_E_POINTER)?;
+            unsafe { control.try_cast(&T::INTERFACE_ID) }?;
             // SAFETY: successful validation proves a present retained header.
-            unsafe { (*wire.control.cast::<crate::lifetime::NcSharedLifetimeState>()).weak_retain() };
+            unsafe { control.weak_retain() };
             // SAFETY: this function just acquired the exact validated weak owner.
             Ok(unsafe { Self::from_raw_owned(*wire) }.expect("validated weak token is present"))
         })
@@ -713,7 +714,7 @@ unsafe impl<T: crate::ComInterface + 'static, M: crate::ThreadingModel> ComValue
 }
 
 // SAFETY: the wire borrows exclusive lifetime bookkeeping and an immutable
-// projection. Acquisition validates the ownership kind and exact interface,
+// projection. The producer proves boxed backing; acquisition checks identity,
 // then retains only the weak header, including after the value has expired.
 unsafe impl<T: crate::ComInterface + 'static, M: crate::ThreadingModel> ComValue for crate::WeakComBox<T, M> {
     type Wire = crate::ComRaw<T>;
@@ -729,9 +730,9 @@ unsafe impl<T: crate::ComInterface + 'static, M: crate::ThreadingModel> ComValue
             // Validate the supplied pair before finding the canonical projection.
             unsafe { crate::raw::validate_interface(*wire) }?;
             let control = wire.object.cast::<crate::lifetime::NcBoxedLifetimeState>();
-            // SAFETY: the valid borrowed header survives this call; projection
-            // rejects shared ownership and mismatched interface metadata.
-            let table = unsafe { crate::lifetime::admit_interface(control.cast(), crate::lifetime::NC_OWNERSHIP_BOXED, &T::INTERFACE_ID) }?;
+            // SAFETY: the ABI value contract already establishes boxed backing;
+            // canonical lookup checks its exact requested interface independently.
+            let table = unsafe { crate::lifetime::try_box_cast(control, &T::INTERFACE_ID) }?;
             // SAFETY: successful validation proves live weak bookkeeping. Only
             // the canonical provider table is retained, never the caller's table.
             unsafe { (*control).weak_retain() };

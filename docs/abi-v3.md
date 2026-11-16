@@ -3,7 +3,7 @@
 **Status: WORK IN PROGRESS (WIP), unreleased and not frozen.**
 
 Layouts, vtables, callback signatures, ownership contracts and Rust APIs may
-change before the ABI-v3 release freeze. Family 3/core generation 20 identify
+change before the ABI-v3 release freeze. Family 3/core generation 21 identify
 the current candidate, not a finalized compatibility baseline. Further
 incompatible design changes can remain part of ABI v3 while it is WIP; keep
 core generations and admission checks coherent so incompatible binaries are
@@ -19,7 +19,8 @@ remain available at their release tags. No fallback symbols, aliases or automati
 adapters admit those older participants.
 
 The incompatible change separates shared strong-count state from boxed
-owner/access state and selects ownership through immutable type information.
+owner/access state. Construction and declared ABI ownership establish the matching
+header; provider metadata contains no ownership discriminator.
 Header field order and type-information layout therefore require the fresh
 generation. Host and plugin discovery exports are now nc_get_host_api_v3 and
 nc_get_plugin_descriptor_v3. Rebuild all hosts, providers and generated consumers
@@ -33,7 +34,7 @@ Opening an image may still execute its initializers and descriptor getter.
 
 | Identity or version | Current authority and purpose |
 | --- | --- |
-| Core ABI | NC_COM_CORE_ABI_VERSION == 20; policy-specific lifetime headers, metadata and callbacks |
+| Core ABI | NC_COM_CORE_ABI_VERSION == 21; policy-specific lifetime headers, metadata and callbacks |
 | Runtime ABI | NC_COM_RUNTIME_ABI_VERSION == 3; supplied immutable host-service family |
 | Plugin descriptor ABI | NC_PLUGIN_DESCRIPTOR_ABI_VERSION == 3; nc_get_plugin_descriptor_v3 and its prefix |
 | Interface contract | IID plus exact 32-byte ABI signature; checked independently of core admission |
@@ -104,7 +105,7 @@ fields tests the selected view. Table addresses alone are not contract identitie
 GUID and signature are authoritative. Implementations may share or duplicate
 identical static tables without changing those contracts.
 
-Discovery checks core generation 20 before dispatch. Exact interface signatures do
+Discovery checks core generation 21 before dispatch. Exact interface signatures do
 not replace that global layout/behavior check. See the
 [storage rationale](contracts/COM_INTERFACE_STORAGE.md) for the
 object/table design and its measurement boundaries.
@@ -187,7 +188,7 @@ The public static constructor makes digest width a compile-time obligation:
 
 ```rust
 use neocogi_com::{NcAbiDigest, NC_COM_CORE_ABI_VERSION};
-assert_eq!(NC_COM_CORE_ABI_VERSION, 20);
+assert_eq!(NC_COM_CORE_ABI_VERSION, 21);
 static FIRST: [u8; 32] = [7; 32];
 static SECOND: [u8; 32] = [7; 32];
 let a = NcAbiDigest::from_static(&FIRST);
@@ -213,7 +214,7 @@ the common header and lifetime protocol, not an opaque Rust Weak token.
 The raw shared weak token contains one opaque allocation address:
 
 ```c
-typedef struct NcWeakRaw { void *control; } NcWeakRaw;
+typedef struct NcWeakRaw { struct NcSharedLifetimeState *control; } NcWeakRaw;
 ```
 
 The [lifetime engine](../crates/core/src/lifetime.rs) provides two distinct headers.
@@ -222,26 +223,27 @@ word and the weak count. NcSharedLifetimeState uses a numeric strong_count;
 NcBoxedLifetimeState uses owner_and_borrows. No BOXED kind bit is mixed into a
 strong count. Each header remains three pointer-width words.
 
-NcObjectTypeInfo stores ownership as an integer (NC_OWNERSHIP_SHARED == 1 or
-NC_OWNERSHIP_BOXED == 2), provider-local destroy_value/deallocate callbacks taking
-the allocation address, the immutable interface table array and its count.
-Fallible raw admission rejects unknown/wrong kinds before interpreting a full
-policy-specific record. Foreign implementations match target atomic width,
-alignment and synchronization; no Rust Arc representation is inspected.
+NcObjectTypeInfo contains only provider-local destroy_value/deallocate callbacks,
+the immutable interface table array and its count: four pointer-width words.
+Core 21 removes core 20's ownership field. Foreign implementations match target
+atomic width, alignment and synchronization; no Rust Arc representation is read.
 
-Weak retain/release and promotion are private ordinary Rust operations on the
-matching concrete state. Established typed handles and matching policy-specific
-callbacks trust their allocation policy; they do not rediscover the metadata kind.
-Only checked mixed-policy raw adoption/decoding admits that kind. Rejected owned
-weak tokens release their actual known policy; borrowed rejection changes no count.
-See [lifetime admission](contracts/COM_LIFETIME_ADMISSION.md) for the boundary matrix.
-Promotion returns a Rust result directly after acquiring the numeric strong count;
-there is no internal raw output handshake or repeated validation of its own lookup. The SDK exposes no standalone weak
-C-helper API or promised weak function addresses. Foreign callers can use a
-binding-owned C adapter over the typed handles, or implement the documented common
-header/atomic protocol. The native C fixture supplies its own adapters. Metadata
-and provider code remain valid through final weak release; there is no per-handle
-weak operation table.
+Construction, ABI argument/result categories and unsafe matching-storage contracts
+establish shared/boxed policy before an operation begins. Raw shared weak tokens
+point to NcSharedLifetimeState. Boxed weak pairs must identify genuine boxed
+storage. Checked adoption validates presence and exact interface identity; it
+releases a rejected token through that declared policy. A producer supplying the
+opposite policy violates the ABI contract: the SDK does not accept, classify or
+clean up arbitrary cross-policy tokens. Borrowed rejection acquires nothing.
+See [lifetime contracts](contracts/COM_LIFETIME_ADMISSION.md) for the proof matrix.
+
+Weak operations are ordinary Rust operations on their concrete states, with no
+erased dispatcher or standalone SDK weak C-helper API. Promotion returns a Rust
+result directly, acquiring a nonzero strong count before exact lookup. Binding-
+owned C adapters translate that result to their own status/output protocol. The
+native C fixture declares separate shared/boxed callback families. Metadata and
+provider code remain valid through final weak release; no weak operation table
+or allocation ownership tag is used.
 
 A shared `WeakComPtr<T>` owns one weak reference and occupies one pointer word.
 Cloning changes only weak ownership. Promotion acquires a strong owner before
@@ -289,16 +291,17 @@ one private cold non-unwinding failure path preserves fail-stop exhaustion for
 ordinary Rust weak clones. destroy_value/deallocate remain C callbacks because
 final cleanup can execute in the allocating provider's binary.
 
-This WIP refinement changes Rust provider support APIs and removes the standalone
-weak-helper contract. Core generation 20, C record layouts, slot signatures,
-interface IID/digest bytes, IDL v14 and NCB-v1 bytes remain unchanged.
+Core generation 21 is required because provider type information shrinks from
+five to four words. Core 20 is rejected before callbacks/storage are interpreted.
+ABI family 3 remains WIP; three-word headers, interface slots, IID/digest bytes,
+IDL v14 and NCB-v1 bytes are preserved.
 
 ## Allocation and borrowing
 
 Each allocation embeds exactly one policy-specific header at offset zero.
 NcSharedLifetimeState contains type_info, strong_count and weak_count.
 NcBoxedLifetimeState contains type_info, owner_and_borrows and weak_count.
-Ownership kind is immutable metadata; it never changes after publication.
+Ownership policy is fixed by construction and ABI contracts; metadata contains no kind tag.
 
 For boxed storage, the highest policy-word bit is owner presence, the next bit
 is mutable writer admission and the remaining bits count readers. Clearing owner
@@ -647,9 +650,10 @@ mode; the return type descriptor supplies the exact interface identity and the
 passing descriptor preserves the threading capability. It is distinct from the
 two-word exclusive `WeakComBox` output (`0x0b`).
 
-A successful provider transfers one retained weak token. The client rejects null
-tokens, exclusive ownership, missing interfaces and wrong interface revisions,
-releasing a rejected transferred token exactly once. Errors transfer no result.
+A successful provider transfers one retained genuine shared weak token. The client
+rejects null tokens, missing interfaces and wrong revisions, releasing a rejected
+present token exactly once through shared release. The producer guarantees shared
+backing; boxed storage is outside this ABI result contract. Errors transfer no result.
 Expired shared tokens remain valid: checking reads immutable
 interface metadata under weak ownership and never promotes or reads the value.
 Raw callers must supply a retained valid header, readable class metadata and
@@ -757,7 +761,7 @@ unsafe extern "C" fn(output: *mut *const NcHostApiV3) -> NcStatus
 Null output returns `NC_E_POINTER`. A writable slot is cleared on failure;
 success returns `NC_OK` and one nonnull immutable canonical host description.
 Repeated bootstrap selects the same owner in that image and invokes no provider.
-The shim supplies the ABI-v3/core-generation-20 service graph used by plugin
+The shim supplies the ABI-v3/core-generation-21 service graph used by plugin
 acquisition. This application bootstrap does not register a plugin descriptor.
 
 The SDK loader qualifies an explicit filesystem path, pins every successfully
@@ -870,7 +874,7 @@ Rust entry, returning an admitted `RuntimeHandle` from its existing singleton wi
 provider calls. It owns unsafe adoption of the complete static graph; safe
 startup never promotes a raw record returned by an arbitrary module. The separate
 `initialize_process()` lends the immutable C description for ABI bootstrap:
-`NcHostApiV3` has byte size, runtime family 3 and core generation 20,
+`NcHostApiV3` has byte size, runtime family 3 and core generation 21,
 and pointers to the runtime, debug and persistence tables. The complete service
 graph and callback code remain process/instance-lived, including after main
 returns. Copying this description does not create a registry.
@@ -1129,7 +1133,7 @@ Supplying a provider later permits retry using the same live context.
 The explicit application dependency introduced in COM `0.3.0` changed deployment
 requirements from `0.2.0`, whose host embedded NCB. That provider-selection change
 retained ABI v2/core generation 19. The development lifetime-policy split now
-requires ABI v3/core generation 20 because header/type-information layouts change;
+requires ABI v3/core generation 21 because header/type-information layouts change;
 provider selection, interface signatures, IDL encoding v14 and NCB-v1 bytes remain
 unchanged. An incompatible change to a frozen layout, callback or guaranteed
 calling/ownership behavior must advance its applicable compatibility authority

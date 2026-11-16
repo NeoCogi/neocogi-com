@@ -49,7 +49,7 @@ mod legacy {
     struct LegacyDescriptor {
         /// Current family for core rejection, or v2 for old-symbol rejection.
         description_abi_version: u32,
-        /// Published ABI-v2 core generation, incompatible with development core 20.
+        /// Published ABI-v2 core generation, incompatible with development core 21.
         core_abi_version: u32,
         /// Same plugin identity as the compatible control.
         plugin_id: NcGuid,

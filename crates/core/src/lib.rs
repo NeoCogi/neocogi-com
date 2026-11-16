@@ -19,7 +19,7 @@
 //! objects live in the facade. Wire layouts and application storage remain separate.
 //!
 //! ABI v3 is WORK IN PROGRESS (WIP), unreleased and not frozen.
-//! [`NC_COM_CORE_ABI_VERSION`] selects the current candidate generation, 20;
+//! [`NC_COM_CORE_ABI_VERSION`] selects the current candidate generation, 21;
 //! runtime and plugin discovery use family 3. Layouts and callbacks may evolve
 //! before release freeze. Keep generation/admission checks coherent to reject
 //! incompatible binaries, use matching source revisions and require exact signatures.

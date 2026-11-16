@@ -4,24 +4,6 @@ use crate::ComInterface;
 use core::mem::MaybeUninit;
 use std::{boxed::Box, sync::Arc};
 
-/// Only the test harness accepts either fixture policy. Production typed handles
-/// call their own state operations directly; this dispatch also lets one payload
-/// exercise weak-to-self destructor reentry under both real storage layouts.
-unsafe fn weak_retain(object: *mut c_void) {
-    match unsafe { object_type_info(object).unwrap().ownership } {
-        NC_OWNERSHIP_SHARED => unsafe { (*object.cast::<NcSharedLifetimeState>()).weak_retain() },
-        NC_OWNERSHIP_BOXED => unsafe { (*object.cast::<NcBoxedLifetimeState>()).weak_retain() },
-        _ => unreachable!(),
-    }
-}
-/// Consumes exactly one fixture weak token through its actual typed state.
-unsafe fn weak_release(object: *mut c_void) {
-    match unsafe { object_type_info(object).unwrap().ownership } {
-        NC_OWNERSHIP_SHARED => unsafe { NcSharedLifetimeState::weak_release(object.cast()) },
-        NC_OWNERSHIP_BOXED => unsafe { NcBoxedLifetimeState::weak_release(object.cast()) },
-        _ => unreachable!(),
-    }
-}
 std::thread_local! {
     /// Deterministic test-only interleaving: consume the original owner after
     /// promotion acquires another, so failed negotiation rolls back the last one.
@@ -37,19 +19,17 @@ struct Observations {
     freed: AtomicUsize,
 }
 /// A payload with an observable destructor and an owned weak self reference.
-struct Value {
+struct Value<Weak> {
     /// External counters avoid reading memory after final release.
     observations: Arc<Observations>,
     /// Optional explicit weak owner released from inside value destruction.
-    self_weak: Option<*mut c_void>,
+    self_weak: Option<Weak>,
 }
-impl Drop for Value {
+impl<Weak> Drop for Value<Weak> {
     /// Reentrant weak release must not free the header before this destructor returns.
     fn drop(&mut self) {
         if let Some(control) = self.self_weak.take() {
-            unsafe {
-                weak_release(control.cast());
-            }
+            drop(control);
             assert_eq!(self.observations.freed.load(Ordering::SeqCst), 0);
         }
         self.observations.destroyed.fetch_add(1, Ordering::SeqCst);
@@ -57,23 +37,23 @@ impl Drop for Value {
 }
 /// Header-first storage remains valid after value destruction until final weak release.
 #[repr(C)]
-struct Allocation<Lifetime = NcSharedLifetimeState> {
+struct Allocation<Lifetime = NcSharedLifetimeState, Weak = crate::WeakComPtr<IUnknown>> {
     /// Common prefix used without knowing this concrete storage type.
     control: Lifetime,
     /// Destroyed once on final strong release; never dropped by Box<Allocation>.
-    value: MaybeUninit<Value>,
+    value: MaybeUninit<Value<Weak>>,
     /// Allocation-only observer remains available after value destruction.
     observations: Arc<Observations>,
 }
 /// Provider-specific destruction knows the exact value layout.
-unsafe extern "C" fn destroy<Lifetime>(control: *mut c_void) {
+unsafe extern "C" fn destroy<Lifetime, Weak>(control: *mut c_void) {
     unsafe {
-        (*control.cast::<Allocation<Lifetime>>()).value.assume_init_drop();
+        (*control.cast::<Allocation<Lifetime, Weak>>()).value.assume_init_drop();
     }
 }
 /// Provider-specific freeing never runs the concrete value destructor twice.
-unsafe extern "C" fn free<Lifetime>(control: *mut c_void) {
-    let allocation = unsafe { Box::from_raw(control.cast::<Allocation<Lifetime>>()) };
+unsafe extern "C" fn free<Lifetime, Weak>(control: *mut c_void) {
+    let allocation = unsafe { Box::from_raw(control.cast::<Allocation<Lifetime, Weak>>()) };
     allocation.observations.freed.fetch_add(1, Ordering::SeqCst);
     drop(allocation);
 }
@@ -100,16 +80,15 @@ static ALTERNATE_ROOT: IUnknownVTable = IUnknownVTable {
 };
 /// Class data points to one valid root projection without retaining inspection graphs.
 static CLASS: NcObjectTypeInfo = NcObjectTypeInfo {
-    ownership: NC_OWNERSHIP_SHARED,
-    destroy_value: destroy::<NcSharedLifetimeState>,
-    deallocate: free::<NcSharedLifetimeState>,
+    destroy_value: destroy::<NcSharedLifetimeState, crate::WeakComPtr<IUnknown>>,
+    deallocate: free::<NcSharedLifetimeState, crate::WeakComPtr<IUnknown>>,
     interfaces: [&ROOT as *const IUnknownVTable, &ALTERNATE_ROOT as *const IUnknownVTable].as_ptr(),
     interface_count: 2,
 };
 /// Allocates a fully initialized provider object with one shared owner.
 fn allocation() -> (*mut NcSharedLifetimeState, Arc<Observations>) {
     let observations = Arc::new(Observations::default());
-    let storage = Box::new(Allocation {
+    let storage: Box<Allocation> = Box::new(Allocation {
         control: NcSharedLifetimeState::new(&CLASS),
         value: MaybeUninit::new(Value {
             observations: observations.clone(),
@@ -128,9 +107,8 @@ static BOX_ROOT: IUnknownVTable = IUnknownVTable {
 
 /// Boxed metadata is immutable and independent of the boxed owner/access word.
 static BOX_CLASS: NcObjectTypeInfo = NcObjectTypeInfo {
-    ownership: NC_OWNERSHIP_BOXED,
-    destroy_value: destroy::<NcBoxedLifetimeState>,
-    deallocate: free::<NcBoxedLifetimeState>,
+    destroy_value: destroy::<NcBoxedLifetimeState, crate::WeakComBox<IUnknown>>,
+    deallocate: free::<NcBoxedLifetimeState, crate::WeakComBox<IUnknown>>,
     interfaces: [&BOX_ROOT as *const IUnknownVTable].as_ptr(),
     interface_count: 1,
 };
@@ -138,7 +116,7 @@ static BOX_CLASS: NcObjectTypeInfo = NcObjectTypeInfo {
 /// Allocates a boxed value without reinterpreting or mutating shared ownership.
 fn boxed_allocation() -> (*mut NcBoxedLifetimeState, Arc<Observations>) {
     let observations = Arc::new(Observations::default());
-    let storage = Box::new(Allocation {
+    let storage: Box<Allocation<NcBoxedLifetimeState, crate::WeakComBox<IUnknown>>> = Box::new(Allocation {
         control: NcBoxedLifetimeState::new(&BOX_CLASS),
         value: MaybeUninit::new(Value {
             observations: observations.clone(),
@@ -154,18 +132,18 @@ fn boxed_allocation() -> (*mut NcBoxedLifetimeState, Arc<Observations>) {
 fn final_strong_drops_value_before_final_weak_frees_storage() {
     let (control, observations) = allocation();
     unsafe {
-        weak_retain(control.cast());
-        (*control.cast::<Allocation>()).value.assume_init_mut().self_weak = Some(control.cast());
-        weak_retain(control.cast()); // External weak reference survives destruction.
+        (*control).weak_retain();
+        (*control.cast::<Allocation>()).value.assume_init_mut().self_weak = crate::WeakComPtr::from_raw_owned(crate::NcWeakRaw { control });
+        (*control).weak_retain(); // External weak reference survives destruction.
         assert_eq!(nc_shared_retain(control.cast()), 2);
         assert_eq!(nc_shared_release(control.cast()), 1);
         assert_eq!(nc_shared_release(control.cast()), 0);
         assert_eq!(observations.destroyed.load(Ordering::SeqCst), 1);
         assert_eq!(observations.freed.load(Ordering::SeqCst), 0);
         assert_eq!(NcSharedLifetimeState::upgrade(control, &crate::IUNKNOWN_INTERFACE_ID).unwrap(), None);
-        weak_retain(control.cast()); // Expired weak references can still be cloned.
-        weak_release(control.cast());
-        weak_release(control.cast());
+        (*control).weak_retain(); // Expired weak references can still be cloned.
+        NcSharedLifetimeState::weak_release(control);
+        NcSharedLifetimeState::weak_release(control);
     }
     assert_eq!(observations.freed.load(Ordering::SeqCst), 1);
 }
@@ -176,7 +154,7 @@ fn checked_projection_balances_all_ownership_paths() {
     let (control, observations) = allocation();
     let wrong = NcInterfaceId::new(crate::IID_IUNKNOWN, crate::NcAbiDigest::from_static(&[0; 32]));
     unsafe {
-        weak_retain(control.cast());
+        (*control).weak_retain();
         assert_eq!(NcSharedLifetimeState::upgrade(control, &wrong).unwrap_err(), crate::NC_E_ABI_VERSION);
         assert_eq!(nc_shared_retain(control.cast()), 2);
         assert_eq!(nc_shared_release(control.cast()), 1);
@@ -187,7 +165,7 @@ fn checked_projection_balances_all_ownership_paths() {
         assert_eq!(nc_shared_release(out.object), 1);
         assert_eq!(nc_shared_release(control.cast()), 0);
         assert_eq!(NcSharedLifetimeState::upgrade(control, &wrong).unwrap(), None);
-        weak_release(control.cast());
+        NcSharedLifetimeState::weak_release(control);
     }
     assert_eq!(observations.destroyed.load(Ordering::SeqCst), 1);
     assert_eq!(observations.freed.load(Ordering::SeqCst), 1);
@@ -201,13 +179,13 @@ fn checked_weak_transport_balances_tokens_before_and_after_destruction() {
     // SAFETY: this fixture owns the initial strong reference and retains one
     // explicit weak owner across both iterations and final value destruction.
     unsafe {
-        weak_retain(control.cast());
+        (*control).weak_retain();
     }
     for expired in [false, true] {
         // SAFETY: the explicit weak owner keeps this header readable throughout.
         let before = unsafe { (*control).weak_count.load(Ordering::Relaxed) };
         unsafe {
-            weak_retain(control.cast());
+            (*control).weak_retain();
         }
         // SAFETY: transfer the additional weak token with intentionally wrong T.
         assert_eq!(
@@ -235,7 +213,7 @@ fn checked_weak_transport_balances_tokens_before_and_after_destruction() {
     }
     // SAFETY: release the final explicit weak owner; no header reads follow.
     unsafe {
-        weak_release(control.cast());
+        NcSharedLifetimeState::weak_release(control);
     }
     assert_eq!(observed.destroyed.load(Ordering::SeqCst), 1);
     assert_eq!(observed.freed.load(Ordering::SeqCst), 1);
@@ -265,15 +243,21 @@ fn exclusive_destruction_is_immediate_and_storage_release_is_separate() {
     // SAFETY: this boxed allocation has not escaped or been borrowed. Install
     // one properly retained weak field before transferring its owner.
     unsafe {
-        weak_retain(control.cast());
-        (*control.cast::<Allocation<NcBoxedLifetimeState>>()).value.assume_init_mut().self_weak = Some(control.cast());
-        weak_retain(control.cast());
+        (*control).weak_retain();
+        (*control.cast::<Allocation<NcBoxedLifetimeState, crate::WeakComBox<IUnknown>>>())
+            .value
+            .assume_init_mut()
+            .self_weak = crate::WeakComBox::from_raw_owned(ComRaw {
+            object: control.cast(),
+            vtable: &BOX_ROOT,
+        });
+        (*control).weak_retain();
         NcBoxedLifetimeState::release(control);
         assert_eq!(observed.destroyed.load(Ordering::SeqCst), 1);
         assert_eq!(observed.freed.load(Ordering::SeqCst), 0);
         assert!(matches!(BoxRead::enter(control), Err(NC_E_DROPPED)));
         assert!(matches!(BoxWrite::enter(control), Err(NC_E_DROPPED)));
-        weak_release(control.cast());
+        NcBoxedLifetimeState::weak_release(control);
     }
     assert_eq!(observed.destroyed.load(Ordering::SeqCst), 1);
     assert_eq!(observed.freed.load(Ordering::SeqCst), 1);
@@ -338,76 +322,6 @@ fn borrowed_box_queries_preserve_weak_count_and_explicit_observers_still_expire(
     assert_eq!(observed.freed.load(Ordering::SeqCst), 1);
 }
 
-/// Policy rejection belongs to actual borrowed wire admission, not a mismatched
-/// object passed to an unsafe callback whose selected table already proves policy.
-#[test]
-fn raw_policy_mismatch_is_rejected_while_live_and_expired() {
-    use crate::{ComValue, NcWeakRaw, ValueBudget, WeakComPtr, WeakComBox};
-    let (boxed, boxed_observed) = boxed_allocation();
-    let (shared, shared_observed) = allocation();
-    unsafe {
-        weak_retain(boxed.cast());
-        weak_retain(shared.cast());
-    }
-    for expired in [false, true] {
-        let boxed_before = unsafe { (*boxed).weak_count.load(Ordering::Relaxed) };
-        let shared_before = unsafe { (*shared).weak_count.load(Ordering::Relaxed) };
-        // SAFETY: borrowed real known-policy headers and matching table; wrong
-        // requested ownership is rejected without retaining or invoking cleanup.
-        unsafe {
-            assert_eq!(
-                WeakComPtr::<IUnknown>::decode_value(&NcWeakRaw { control: boxed.cast() }, &mut ValueBudget::default()).unwrap_err(),
-                NC_E_INVALID_ARG
-            );
-            assert_eq!(
-                WeakComBox::<IUnknown>::decode_value(&ComRaw { object: shared.cast(), vtable: &ROOT }, &mut ValueBudget::default()).unwrap_err(),
-                NC_E_INVALID_ARG
-            );
-            assert_eq!((*boxed).weak_count.load(Ordering::Relaxed), boxed_before);
-            assert_eq!((*shared).weak_count.load(Ordering::Relaxed), shared_before);
-            if !expired {
-                NcBoxedLifetimeState::release(boxed);
-                NcSharedLifetimeState::release(shared);
-            }
-        }
-    }
-    unsafe {
-        weak_release(boxed.cast());
-        weak_release(shared.cast());
-    }
-    for observed in [boxed_observed, shared_observed] {
-        assert_eq!(observed.destroyed.load(Ordering::SeqCst), 1);
-        assert_eq!(observed.freed.load(Ordering::SeqCst), 1);
-    }
-}
-
-/// Unknown policy needs only a readable metadata-pointer prefix, never a full header.
-#[test]
-fn raw_admission_rejects_unknown_kind_before_borrowing_a_complete_header() {
-    let info = NcObjectTypeInfo {
-        ownership: 99,
-        destroy_value: destroy::<NcSharedLifetimeState>,
-        deallocate: free::<NcSharedLifetimeState>,
-        interfaces: [&ROOT as *const IUnknownVTable].as_ptr(),
-        interface_count: 1,
-    };
-    // This single pointer has no readable count/access words following it.
-    let prefix = core::ptr::from_ref(&info);
-    let pointer = core::ptr::from_ref(&prefix).cast_mut().cast();
-    // SAFETY: the complete prefix and immutable metadata live through these calls.
-    unsafe {
-        assert!(matches!(
-            admit_interface(pointer, NC_OWNERSHIP_SHARED, &crate::IUNKNOWN_INTERFACE_ID),
-            Err(NC_E_INVALID_ARG)
-        ));
-        assert!(matches!(
-            admit_interface(pointer, NC_OWNERSHIP_BOXED, &crate::IUNKNOWN_INTERFACE_ID),
-            Err(NC_E_INVALID_ARG)
-        ));
-        assert!(matches!(object_type_info(core::ptr::null_mut()), Err(NC_E_POINTER)));
-    }
-}
-
 /// Both policies retain compact headers but never share an overloaded mutable field.
 #[test]
 fn policy_headers_keep_metadata_first_and_have_three_words() {
@@ -417,12 +331,11 @@ fn policy_headers_keep_metadata_first_and_have_three_words() {
     assert_eq!(size_of::<NcBoxedLifetimeState>(), 3 * word);
     assert_eq!(align_of::<NcSharedLifetimeState>(), align_of::<usize>());
     assert_eq!(align_of::<NcBoxedLifetimeState>(), align_of::<usize>());
-    assert_eq!(size_of::<NcObjectTypeInfo>(), 5 * word);
-    assert_eq!(offset_of!(NcObjectTypeInfo, ownership), 0);
-    assert_eq!(offset_of!(NcObjectTypeInfo, destroy_value), word);
-    assert_eq!(offset_of!(NcObjectTypeInfo, deallocate), 2 * word);
-    assert_eq!(offset_of!(NcObjectTypeInfo, interfaces), 3 * word);
-    assert_eq!(offset_of!(NcObjectTypeInfo, interface_count), 4 * word);
+    assert_eq!(size_of::<NcObjectTypeInfo>(), 4 * word);
+    assert_eq!(offset_of!(NcObjectTypeInfo, destroy_value), 0);
+    assert_eq!(offset_of!(NcObjectTypeInfo, deallocate), word);
+    assert_eq!(offset_of!(NcObjectTypeInfo, interfaces), 2 * word);
+    assert_eq!(offset_of!(NcObjectTypeInfo, interface_count), 3 * word);
     assert_eq!(offset_of!(NcSharedLifetimeState, type_info), 0);
     assert_eq!(offset_of!(NcSharedLifetimeState, strong_count), word);
     assert_eq!(offset_of!(NcSharedLifetimeState, weak_count), 2 * word);
@@ -445,13 +358,6 @@ fn either_policy_frees_without_an_extra_weak_only_phase() {
         assert_eq!(observed.destroyed.load(Ordering::SeqCst), 1);
         assert_eq!(observed.freed.load(Ordering::SeqCst), 1);
     }
-}
-
-/// Safe constructors never publish a header paired with the other policy's metadata.
-#[test]
-fn typed_constructors_reject_mismatched_immutable_policy() {
-    assert!(std::panic::catch_unwind(|| NcSharedLifetimeState::new(&BOX_CLASS)).is_err());
-    assert!(std::panic::catch_unwind(|| NcBoxedLifetimeState::new(&CLASS)).is_err());
 }
 
 /// The two canonical prefixes preserve identity while selecting distinct release policies.
@@ -514,7 +420,7 @@ fn typed_promotion_balances_success_and_negotiation_errors() {
     let (control, observed) = allocation();
     let missing = crate::INcBytesAbi::INTERFACE_ID;
     unsafe {
-        weak_retain(control.cast());
+        (*control).weak_retain();
         assert_eq!(NcSharedLifetimeState::upgrade(control, &missing).unwrap_err(), NC_E_NOINTERFACE);
         assert_eq!(nc_shared_retain(control.cast()), 2);
         assert_eq!(nc_shared_release(control.cast()), 1);
@@ -527,7 +433,7 @@ fn typed_promotion_balances_success_and_negotiation_errors() {
         assert_eq!(nc_shared_release(control.cast()), 0);
         assert_eq!(observed.destroyed.load(Ordering::SeqCst), 1);
         assert_eq!(NcSharedLifetimeState::upgrade(control, &missing).unwrap(), None);
-        weak_release(control.cast());
+        NcSharedLifetimeState::weak_release(control);
     }
     assert_eq!(observed.freed.load(Ordering::SeqCst), 1);
 }
@@ -542,9 +448,9 @@ fn failed_promotion_rollback_destroys_the_final_owner() {
     ] {
         let (control, observed) = allocation();
         unsafe {
-            weak_retain(control.cast());
-            (*control.cast::<Allocation>()).value.assume_init_mut().self_weak = Some(control.cast());
-            weak_retain(control.cast());
+            (*control).weak_retain();
+            (*control.cast::<Allocation>()).value.assume_init_mut().self_weak = crate::WeakComPtr::from_raw_owned(crate::NcWeakRaw { control });
+            (*control).weak_retain();
             RELEASE_OWNER_AFTER_PROMOTION.with(|release| release.set(true));
             let expected = if requested.iid == crate::IID_IUNKNOWN {
                 crate::NC_E_ABI_VERSION
@@ -557,7 +463,7 @@ fn failed_promotion_rollback_destroys_the_final_owner() {
             assert_eq!((*control).strong_count.load(Ordering::Relaxed), 0);
             assert_eq!((*control).weak_count.load(Ordering::Relaxed), 1);
             assert_eq!(NcSharedLifetimeState::upgrade(control, &requested).unwrap(), None);
-            weak_release(control.cast());
+            NcSharedLifetimeState::weak_release(control);
         }
         assert_eq!(observed.freed.load(Ordering::SeqCst), 1);
     }
@@ -570,7 +476,7 @@ fn shared_prefix_null_arguments_clear_outputs_without_acquiring_owners() {
     let (control, observed) = allocation();
     let object = control.cast();
     let mut output = ComRaw { object, vtable: &ROOT };
-    let mut weak = crate::NcWeakRaw { control: object };
+    let mut weak = crate::NcWeakRaw { control };
     unsafe {
         assert_eq!(nc_shared_query_interface(object, core::ptr::null(), &mut output), NC_E_POINTER);
         assert!(!output.is_present());

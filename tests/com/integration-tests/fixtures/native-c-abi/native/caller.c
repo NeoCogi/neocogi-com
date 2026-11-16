@@ -101,7 +101,8 @@ struct IUnknown {
 
 /* Common lifetime entry points receive a one-pointer token. C need not
  * interpret the atomic header to call the shared functions supplied by Rust. */
-typedef struct NcWeakRaw { void *control; } NcWeakRaw;
+struct NcSharedLifetimeState;
+typedef struct NcWeakRaw { struct NcSharedLifetimeState *control; } NcWeakRaw;
 _Static_assert(sizeof(NcWeakRaw) == sizeof(void *), "weak token must be one pointer");
 
 struct IUnknownVTable {
@@ -515,8 +516,8 @@ release_calculator:
 
 /* Consumes one sole strong owner and checks the full weak protocol from plain C. */
 int nc_c_exercise_weak(IUnknown owned, const NcInterfaceId *requested, NcStatus dropped_status,
-    void (*retain)(void *), void (*release)(void *),
-    NcStatus (*upgrade)(void *, const NcInterfaceId *, IUnknown *)) {
+    void (*retain)(struct NcSharedLifetimeState *), void (*release)(struct NcSharedLifetimeState *),
+    NcStatus (*upgrade)(struct NcSharedLifetimeState *, const NcInterfaceId *, IUnknown *)) {
     NcWeakRaw weak = {0};
     if (!owned.vtable->downgrade || owned.vtable->downgrade(owned.object, &weak) != 0) return 0;
     if ((void *)weak.control != owned.object) return 0;
@@ -607,7 +608,6 @@ int32_t nc_c_exercise_host_bootstrap(const NcHostApiV3 *host, NcAcquirePluginFac
  * before publication and are accessed atomically only by the supplied Rust
  * lifetime operations; this fixture makes no concurrent plain C accesses. */
 typedef struct NcObjectTypeInfo {
-    uint32_t ownership;
     void (*destroy_value)(void *);
     void (*deallocate)(void *);
     const IUnknownVTable *const *interfaces;
@@ -623,8 +623,8 @@ typedef struct NcBoxedLifetimeState {
     uintptr_t owner_and_borrows;
     uintptr_t weak_count;
 } NcBoxedLifetimeState;
-_Static_assert(sizeof(NcObjectTypeInfo) == 5 * sizeof(void *), "object type information size");
-_Static_assert(offsetof(NcObjectTypeInfo, destroy_value) == sizeof(void *), "object cleanup callback offset");
+_Static_assert(sizeof(NcObjectTypeInfo) == 4 * sizeof(void *), "object type information size");
+_Static_assert(offsetof(NcObjectTypeInfo, destroy_value) == 0, "object cleanup callback offset");
 _Static_assert(sizeof(NcSharedLifetimeState) == 3 * sizeof(void *), "shared lifetime size");
 _Static_assert(sizeof(NcBoxedLifetimeState) == 3 * sizeof(void *), "boxed lifetime size");
 _Static_assert(offsetof(NcSharedLifetimeState, type_info) == 0, "shared metadata prefix");
@@ -662,20 +662,22 @@ static void nc_c_boxed_free(void *object) {
     free(storage);
 }
 
-/* Exercises both independently declared headers, including expired boxed kind
- * rejection: its zero access word must never become an expired shared counter. */
+/* Each callback family accepts exactly its declared state. No metadata kind,
+ * opposite-policy token or universal weak operation participates in the protocol. */
 int nc_c_exercise_split_lifetimes(
     const IUnknownVTable *shared_root, const IUnknownVTable *exclusive_root,
     NcStatus dropped, NcStatus invalid,
-    void (*weak_retain)(void *), void (*weak_release)(void *),
-    NcStatus (*upgrade)(void *, const NcInterfaceId *, IUnknown *),
-    NcStatus (*reject_shared_as_boxed)(void *)) {
+    void (*shared_retain)(NcSharedLifetimeState *),
+    void (*shared_release)(NcSharedLifetimeState *),
+    NcStatus (*upgrade)(NcSharedLifetimeState *, const NcInterfaceId *, IUnknown *),
+    void (*boxed_retain)(NcBoxedLifetimeState *),
+    void (*boxed_release)(NcBoxedLifetimeState *)) {
     if (shared_root->release == exclusive_root->release ||
         shared_root->add_ref == exclusive_root->add_ref) return 0;
     const IUnknownVTable *shared_tables[1] = {shared_root};
     const IUnknownVTable *exclusive_tables[1] = {exclusive_root};
-    const NcObjectTypeInfo shared_info = {1, nc_c_shared_destroy, nc_c_shared_free, shared_tables, 1};
-    const NcObjectTypeInfo boxed_info = {2, nc_c_boxed_destroy, nc_c_boxed_free, exclusive_tables, 1};
+    const NcObjectTypeInfo shared_info = {nc_c_shared_destroy, nc_c_shared_free, shared_tables, 1};
+    const NcObjectTypeInfo boxed_info = {nc_c_boxed_destroy, nc_c_boxed_free, exclusive_tables, 1};
     NcLifecycleCounters shared_counts = {0, 0}, boxed_counts = {0, 0};
     NcSharedCAllocation *shared = (NcSharedCAllocation *)malloc(sizeof(*shared));
     NcBoxedCAllocation *boxed = (NcBoxedCAllocation *)malloc(sizeof(*boxed));
@@ -689,42 +691,37 @@ int nc_c_exercise_split_lifetimes(
     boxed->lifetime.weak_count = 1;
     boxed->counters = &boxed_counts;
 
-    weak_retain(shared);
-    /* Checked boxed-weak adoption rejects and consumes its temporary shared
-     * clone. The C lender's weak reference and live owner remain untouched. */
-    if (reject_shared_as_boxed(shared) != invalid ||
-        shared->lifetime.weak_count != 2 || shared_counts.destroyed != 0) return 0;
+    shared_retain(&shared->lifetime);
     if (shared_root->add_ref(shared) != 2 || shared->lifetime.strong_count != 2) return 0;
     if (shared_root->release(shared) != 1) return 0;
     IUnknown output = {0};
-    if (upgrade(shared, shared_root->interface_id, &output) != 0 ||
+    if (upgrade(&shared->lifetime, shared_root->interface_id, &output) != 0 ||
         output.object != shared || output.vtable != shared_root) return 0;
     if (output.vtable->release(output.object) != 1) return 0;
     if (shared_root->release(shared) != 0 || shared_counts.destroyed != 1 || shared_counts.freed != 0) return 0;
     if (shared->lifetime.strong_count != 0 || shared->lifetime.weak_count != 1) return 0;
-    if (reject_shared_as_boxed(shared) != invalid ||
-        shared->lifetime.weak_count != 1 || shared_counts.freed != 0) return 0;
-    if (upgrade(shared, shared_root->interface_id, &output) != dropped ||
+    if (upgrade(&shared->lifetime, shared_root->interface_id, &output) != dropped ||
         output.object || output.vtable) return 0;
-    weak_release(shared);
+    shared_release(&shared->lifetime);
     if (shared_counts.freed != 1) return 0;
 
-    weak_retain(boxed);
+    boxed_retain(&boxed->lifetime);
     uintptr_t owner = boxed->lifetime.owner_and_borrows;
     if (exclusive_root->add_ref(boxed) != 0 || boxed->lifetime.owner_and_borrows != owner) return 0;
-    if (upgrade(boxed, shared_root->interface_id, &output) != invalid ||
-        output.object || output.vtable) return 0;
     output.object = boxed;
     output.vtable = exclusive_root;
     if (exclusive_root->query_interface(boxed, exclusive_root->interface_id, &output) != invalid ||
         output.object || output.vtable) return 0;
-    NcWeakRaw rejected = {boxed};
+    NcWeakRaw rejected = {0};
     if (!exclusive_root->downgrade || exclusive_root->downgrade(boxed, &rejected) != invalid ||
         rejected.control || boxed->lifetime.weak_count != 2) return 0;
     if (exclusive_root->release(boxed) != 0 || boxed_counts.destroyed != 1 || boxed_counts.freed != 0) return 0;
     if (boxed->lifetime.owner_and_borrows != 0 || boxed->lifetime.weak_count != 1) return 0;
-    if (upgrade(boxed, shared_root->interface_id, &output) != invalid ||
-        output.object || output.vtable) return 0;
-    weak_release(boxed);
+    /* Expired boxed observers can still clone/drop their own retained shell. */
+    boxed_retain(&boxed->lifetime);
+    if (boxed->lifetime.weak_count != 2) return 0;
+    boxed_release(&boxed->lifetime);
+    if (boxed->lifetime.weak_count != 1) return 0;
+    boxed_release(&boxed->lifetime);
     return boxed_counts.freed == 1 && shared_counts.destroyed == 1 && boxed_counts.destroyed == 1;
 }

@@ -164,10 +164,11 @@ mod tests {
             exclusive_root: *const neocogi_com::IUnknownVTable,
             dropped: NcStatus,
             invalid: NcStatus,
-            weak_retain: unsafe extern "C" fn(*mut core::ffi::c_void),
-            weak_release: unsafe extern "C" fn(*mut core::ffi::c_void),
-            upgrade: unsafe extern "C" fn(*mut core::ffi::c_void, *const NcInterfaceId, *mut neocogi_com::ComRaw<IUnknown>) -> NcStatus,
-            reject_shared_as_boxed: unsafe extern "C" fn(*mut core::ffi::c_void) -> NcStatus,
+            weak_retain: unsafe extern "C" fn(*mut neocogi_com::lifetime::NcSharedLifetimeState),
+            weak_release: unsafe extern "C" fn(*mut neocogi_com::lifetime::NcSharedLifetimeState),
+            upgrade: unsafe extern "C" fn(*mut neocogi_com::lifetime::NcSharedLifetimeState, *const NcInterfaceId, *mut neocogi_com::ComRaw<IUnknown>) -> NcStatus,
+            boxed_retain: unsafe extern "C" fn(*mut neocogi_com::lifetime::NcBoxedLifetimeState),
+            boxed_release: unsafe extern "C" fn(*mut neocogi_com::lifetime::NcBoxedLifetimeState),
         ) -> i32;
 
         /// Consumes the supplied sole owner and verifies weak expiration in C.
@@ -175,72 +176,42 @@ mod tests {
             owned: neocogi_com::ComRaw<IUnknown>,
             requested: *const NcInterfaceId,
             dropped: NcStatus,
-            retain: unsafe extern "C" fn(*mut core::ffi::c_void),
-            release: unsafe extern "C" fn(*mut core::ffi::c_void),
-            upgrade: unsafe extern "C" fn(*mut core::ffi::c_void, *const NcInterfaceId, *mut neocogi_com::ComRaw<IUnknown>) -> NcStatus,
+            retain: unsafe extern "C" fn(*mut neocogi_com::lifetime::NcSharedLifetimeState),
+            release: unsafe extern "C" fn(*mut neocogi_com::lifetime::NcSharedLifetimeState),
+            upgrade: unsafe extern "C" fn(*mut neocogi_com::lifetime::NcSharedLifetimeState, *const NcInterfaceId, *mut neocogi_com::ComRaw<IUnknown>) -> NcStatus,
         ) -> i32;
 
     }
 
-    /// Borrows one fixture weak token through the public typed handle APIs and
-    /// returns an additional owner. The C fixture guarantees readable known-policy
-    /// metadata and IUnknown support; this does not expose SDK weak C helpers.
-    unsafe fn clone_fixture_weak(object: *mut core::ffi::c_void) -> neocogi_com::NcWeakRaw {
-        use core::mem::ManuallyDrop;
-        use neocogi_com::{ComRaw, NcWeakRaw, WeakComPtr, WeakComBox};
-        use neocogi_com::lifetime::{NcObjectTypeInfo, NC_OWNERSHIP_SHARED, NC_OWNERSHIP_BOXED, EXCLUSIVE_UNKNOWN_VTABLE};
-        let info = unsafe { &**object.cast::<*const NcObjectTypeInfo>() };
-        match info.ownership {
-            NC_OWNERSHIP_SHARED => {
-                let borrowed = ManuallyDrop::new(unsafe { WeakComPtr::<IUnknown>::from_raw_owned(NcWeakRaw { control: object }) }.unwrap());
-                WeakComPtr::clone(&borrowed).into_raw()
-            }
-            NC_OWNERSHIP_BOXED => {
-                let borrowed = ManuallyDrop::new(
-                    unsafe {
-                        WeakComBox::<IUnknown>::from_raw_owned(ComRaw {
-                            object,
-                            vtable: &EXCLUSIVE_UNKNOWN_VTABLE,
-                        })
-                    }
-                    .unwrap(),
-                );
-                let owned = WeakComBox::clone(&borrowed).into_raw();
-                NcWeakRaw { control: owned.object }
-            }
-            _ => panic!("fixture requires known lifetime metadata"),
-        }
+    /// Borrows a shared fixture token; its typed ABI argument proves backing.
+    unsafe fn clone_fixture_shared(control: *mut neocogi_com::lifetime::NcSharedLifetimeState) -> neocogi_com::NcWeakRaw {
+        let borrowed = core::mem::ManuallyDrop::new(unsafe { neocogi_com::WeakComPtr::<IUnknown>::from_raw_owned(neocogi_com::NcWeakRaw { control }) }.unwrap());
+        neocogi_com::WeakComPtr::clone(&borrowed).into_raw()
     }
-
-    /// Test-only C adapter retains one weak token through ordinary Rust Clone.
-    unsafe extern "C" fn fixture_weak_retain(object: *mut core::ffi::c_void) {
-        let _ = unsafe { clone_fixture_weak(object) };
+    /// Binding-owned shared retain callback; no lifetime kind is discovered.
+    unsafe extern "C" fn fixture_weak_retain(control: *mut neocogi_com::lifetime::NcSharedLifetimeState) {
+        let _ = unsafe { clone_fixture_shared(control) };
     }
-
-    /// Test-only C cleanup transfers one token into its public matching Rust owner.
-    unsafe extern "C" fn fixture_weak_release(object: *mut core::ffi::c_void) {
-        use neocogi_com::{ComRaw, NcWeakRaw, WeakComPtr, WeakComBox};
-        use neocogi_com::lifetime::{NcObjectTypeInfo, NC_OWNERSHIP_SHARED, NC_OWNERSHIP_BOXED, EXCLUSIVE_UNKNOWN_VTABLE};
-        let info = unsafe { &**object.cast::<*const NcObjectTypeInfo>() };
-        match info.ownership {
-            NC_OWNERSHIP_SHARED => drop(unsafe { WeakComPtr::<IUnknown>::from_raw_owned(NcWeakRaw { control: object }) }.unwrap()),
-            NC_OWNERSHIP_BOXED => drop(
-                unsafe {
-                    WeakComBox::<IUnknown>::from_raw_owned(ComRaw {
-                        object,
-                        vtable: &EXCLUSIVE_UNKNOWN_VTABLE,
-                    })
-                }
-                .unwrap(),
-            ),
-            _ => panic!("fixture requires known lifetime metadata"),
-        }
+    /// Consumes one shared token using its declared state.
+    unsafe extern "C" fn fixture_weak_release(control: *mut neocogi_com::lifetime::NcSharedLifetimeState) {
+        drop(unsafe { neocogi_com::WeakComPtr::<IUnknown>::from_raw_owned(neocogi_com::NcWeakRaw { control }) });
+    }
+    /// Borrows one boxed fixture token; this callback's ABI declares boxed backing.
+    unsafe extern "C" fn fixture_boxed_weak_retain(control: *mut neocogi_com::lifetime::NcBoxedLifetimeState) {
+        let raw = neocogi_com::ComRaw::<IUnknown> { object: control.cast(), vtable: &neocogi_com::lifetime::EXCLUSIVE_UNKNOWN_VTABLE };
+        let borrowed = core::mem::ManuallyDrop::new(unsafe { neocogi_com::WeakComBox::<IUnknown>::from_raw_owned(raw) }.unwrap());
+        let _ = neocogi_com::WeakComBox::clone(&borrowed).into_raw();
+    }
+    /// Consumes a boxed observer directly through its declared policy.
+    unsafe extern "C" fn fixture_boxed_weak_release(control: *mut neocogi_com::lifetime::NcBoxedLifetimeState) {
+        let raw = neocogi_com::ComRaw::<IUnknown> { object: control.cast(), vtable: &neocogi_com::lifetime::EXCLUSIVE_UNKNOWN_VTABLE };
+        drop(unsafe { neocogi_com::WeakComBox::<IUnknown>::from_raw_owned(raw) });
     }
 
     /// Test-only foreign adapter uses checked token adoption, typed promotion,
     /// then dynamic exact selection. Every temporary owner is balanced on error.
     unsafe extern "C" fn fixture_weak_upgrade(
-        object: *mut core::ffi::c_void,
+        object: *mut neocogi_com::lifetime::NcSharedLifetimeState,
         requested: *const NcInterfaceId,
         output: *mut neocogi_com::ComRaw<IUnknown>,
     ) -> NcStatus {
@@ -252,7 +223,7 @@ mod tests {
         if object.is_null() || requested.is_null() {
             return NC_E_POINTER;
         }
-        let raw = unsafe { clone_fixture_weak(object) };
+        let raw = unsafe { clone_fixture_shared(object) };
         let weak = match unsafe { WeakComPtr::<IUnknown>::__nc_from_raw_owned_checked(raw) } {
             Ok(weak) => weak,
             Err(status) => return status,
@@ -267,18 +238,6 @@ mod tests {
                 unsafe { *output = raw };
                 NC_OK
             }
-            Err(status) => status,
-        }
-    }
-
-    /// Binding-owned negative-admission adapter consumes a newly cloned shared
-    /// weak through the checked boxed boundary. The original C token is borrowed.
-    unsafe extern "C" fn fixture_reject_shared_as_boxed(object: *mut core::ffi::c_void) -> NcStatus {
-        use neocogi_com::{ComRaw, WeakComBox, NC_OK};
-        let token = unsafe { clone_fixture_weak(object) };
-        let raw = ComRaw::<IUnknown> { object: token.control, vtable: &neocogi_com::lifetime::SHARED_UNKNOWN_VTABLE };
-        match unsafe { WeakComBox::<IUnknown>::__nc_from_raw_owned_checked(raw) } {
-            Ok(weak) => { drop(weak); NC_OK }
             Err(status) => status,
         }
     }
@@ -299,7 +258,8 @@ mod tests {
                     fixture_weak_retain,
                     fixture_weak_release,
                     fixture_weak_upgrade,
-                    fixture_reject_shared_as_boxed,
+                    fixture_boxed_weak_retain,
+                    fixture_boxed_weak_release,
                 )
             },
             1

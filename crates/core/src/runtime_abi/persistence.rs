@@ -43,7 +43,7 @@ pub type NcPersistenceWriteBytesV3 = unsafe extern "C" fn(user_data: *mut c_void
 
 /// Size-prefixed persistence table admitted through the host API description.
 ///
-/// Table admission establishes ABI v3/core-generation-20 compatibility,
+/// Table admission establishes ABI v3/core-generation-21 compatibility,
 /// not serialization-provider availability. Callers still owe the host API's
 /// backing and lifetime guarantees. The application must explicitly
 /// register or load `nc.serialization` in this host's catalog before snapshot

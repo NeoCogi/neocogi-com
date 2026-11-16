@@ -140,7 +140,7 @@ mod tests {
         unsafe { &*user_data.cast::<AtomicI32>() }.store(status, Ordering::SeqCst);
     }
 
-    /// Runtime family 3 and core generation 20 identify separate contracts.
+    /// Runtime family 3 and core generation 21 identify separate contracts.
     #[test]
     fn host_runtime_uses_family_two() {
         assert_eq!(crate::initialize_process().runtime_abi_version, 3);

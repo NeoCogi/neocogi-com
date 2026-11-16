@@ -16,7 +16,7 @@ fn example<'a>(document: &'a str, label: &str) -> &'a str {
 /// The current checkout carries only the ABI specification selected by its runtime.
 #[test]
 fn current_abi_specification_matches_the_runtime_generation() {
-    assert_eq!(neocogi_com_core::NC_COM_CORE_ABI_VERSION, 20);
+    assert_eq!(neocogi_com_core::NC_COM_CORE_ABI_VERSION, 21);
     assert_eq!(neocogi_com_core::NC_COM_RUNTIME_ABI_VERSION, 3);
     assert_eq!(neocogi_com_core::NC_PLUGIN_DESCRIPTOR_ABI_VERSION, 3);
     let directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs");
@@ -228,8 +228,8 @@ fn provider_lifetime_prefix_guide_executes_with_private_helpers() {
         ("weak_retain", "E0432"),
         ("weak_release", "E0432"),
         ("weak_upgrade", "E0432"),
-        ("admit_interface", "E0603"),
-        ("release_rejected_weak", "E0603"),
+        ("admit_interface", "E0432"),
+        ("release_rejected_weak", "E0432"),
         ("nc_shared_release", "E0603"),
         ("nc_exclusive_release", "E0603"),
         ("nc_strong_release", "E0432"),

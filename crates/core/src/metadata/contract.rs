@@ -26,11 +26,12 @@ use crate::signature::NcAbiDigest;
 /// Layouts and callbacks may evolve before release freeze, with coherent
 /// generation/admission changes to reject incompatible binaries.
 ///
-/// Generation 20 selects policy-specific headers and immutable ownership metadata.
+/// Generation 21 removes ownership tags from provider metadata; ABI ownership
+/// contracts establish the matching shared/boxed header. Generation 20 is retired.
 /// Released ABI v2 used generation 19; ABI v1 used generation 18. Admission must
 /// reject both before interpreting a complete header, descriptor or service graph.
 /// Runtime and descriptor discovery separately select family 3.
-pub const NC_COM_CORE_ABI_VERSION: u32 = 20;
+pub const NC_COM_CORE_ABI_VERSION: u32 = 21;
 
 /// Stable identity for one COM interface ABI contract.
 ///

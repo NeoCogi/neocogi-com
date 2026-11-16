@@ -42,7 +42,7 @@ fn retired_host_prefixes_are_rejected_before_authored_acquisition() {
     use neocogi_com::{ComRaw, IUnknown, IUnknownVTable, NcHostApiV3, NC_E_CLOSED};
     let acquire = host_admission::plugin_descriptor().acquire.unwrap();
     host_admission::CALLS.store(0, Ordering::SeqCst);
-    for (runtime, core) in [(1, 18), (1, 19), (2, 18), (2, 19), (3, 19)] {
+    for (runtime, core) in [(1, 18), (1, 19), (2, 18), (2, 19), (3, 19), (3, 20)] {
         let prefix = RejectedHostPrefix {
             size: core::mem::size_of::<NcHostApiV3>(),
             runtime,

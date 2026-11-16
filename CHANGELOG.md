@@ -6,6 +6,16 @@ Historical draft numbers do not define additional supported COM baselines.
 
 ## Unreleased
 
+- Remove runtime allocation-policy classification throughout raw weak transport,
+  adoption, value decoding, provider construction and native bindings. Shared raw
+  weak pointers name NcSharedLifetimeState; every ABI ownership position requires
+  matching backing. Remove NcObjectTypeInfo.ownership, NC_OWNERSHIP_*, raw expected-
+  kind admission and erased rejection dispatch. Interface failures release their
+  declared state. Provider metadata shrinks to four words: select WIP ABI v3/core
+  21 and reject provisional core 20 before use. Supersedes earlier mixed-policy
+  rejection/cleanup promises; exact interface, lifetime/borrow and allocator rules
+  remain. This is unreleased development, not a new release family or publication.
+
 - Trust established shared/boxed lifetime policy in typed handles and matching
   callbacks. Admit policy at mixed raw boundaries, validate before typed weak
   construction, and balance rejected owned weak tokens under their actual policy.

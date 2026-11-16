@@ -7,7 +7,7 @@
 use crate::__alloc::boxed::Box;
 use core::{cell::UnsafeCell, ffi::c_void, mem::MaybeUninit};
 use crate::{ComBox, ComObject, ComPtr, ComRaw, IUnknown, NcStatus, NC_E_POINTER};
-use crate::lifetime::{BoxRead, BoxWrite, NcObjectTypeInfo, NcSharedLifetimeState, NcBoxedLifetimeState, NC_OWNERSHIP_SHARED, NC_OWNERSHIP_BOXED};
+use crate::lifetime::{BoxRead, BoxWrite, NcObjectTypeInfo, NcSharedLifetimeState, NcBoxedLifetimeState};
 use super::{ComBorrowState, ComReadGuard, ComWriteGuard, __ComExclusiveCall, __ComSharedCall};
 
 /// Typed allocation parameterized by one concrete lifetime policy and access gate.
@@ -35,10 +35,9 @@ pub type __ComSharedStorage<T> = __ComStorage<T, NcSharedLifetimeState, ComBorro
 pub type __ComBoxStorage<T> = __ComStorage<T, NcBoxedLifetimeState, ()>;
 
 impl<T: ComObject, Lifetime: 'static, Access: 'static> __ComStorage<T, Lifetime, Access> {
-    /// Builds immutable policy admission and callbacks for this exact storage layout.
-    const fn type_info(ownership: u32) -> NcObjectTypeInfo {
+    /// Builds immutable interface metadata and callbacks for this exact storage layout.
+    const fn type_info() -> NcObjectTypeInfo {
         NcObjectTypeInfo {
-            ownership,
             destroy_value: Self::destroy_value,
             deallocate: Self::deallocate,
             interfaces: T::VTABLES.as_ptr(),
@@ -77,8 +76,8 @@ impl<T: ComObject, Lifetime: 'static, Access: 'static> __ComStorage<T, Lifetime,
 }
 
 impl<T: ComObject> __ComSharedStorage<T> {
-    /// Shared metadata admits the numeric strong counter before raw operations.
-    const CLASS: NcObjectTypeInfo = Self::type_info(NC_OWNERSHIP_SHARED);
+    /// Callbacks and interfaces belong to this concrete shared storage instantiation.
+    const CLASS: NcObjectTypeInfo = Self::type_info();
 
     /// Allocates shared storage and transfers its initial strong owner.
     ///
@@ -116,8 +115,8 @@ impl<T: ComObject> __ComSharedStorage<T> {
 }
 
 impl<T: ComObject> __ComBoxStorage<T> {
-    /// Boxed metadata admits owner/access bits without interpreting them as a count.
-    const CLASS: NcObjectTypeInfo = Self::type_info(NC_OWNERSHIP_BOXED);
+    /// Callbacks and interfaces belong to this concrete boxed storage instantiation.
+    const CLASS: NcObjectTypeInfo = Self::type_info();
 
     /// Allocates exclusive storage and transfers its sole owner.
     ///

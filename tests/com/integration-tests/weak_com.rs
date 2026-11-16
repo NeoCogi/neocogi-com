@@ -185,7 +185,7 @@ fn strong_handles_keep_two_words_and_weak_handles_use_one() {
         std::mem::size_of::<neocogi_com::lifetime::NcBoxedLifetimeState>(),
         3 * std::mem::size_of::<usize>()
     );
-    assert_eq!(std::mem::size_of::<neocogi_com::lifetime::NcObjectTypeInfo>(), 5 * std::mem::size_of::<usize>());
+    assert_eq!(std::mem::size_of::<neocogi_com::lifetime::NcObjectTypeInfo>(), 4 * std::mem::size_of::<usize>());
 }
 
 /// Providers can decline weak lifetime support without inventing a wrapper lifetime.
@@ -424,34 +424,4 @@ fn checked_weak_wire_preserves_expiration_and_rejects_wrong_contracts() {
         }
     }
     assert_eq!(drops.load(Ordering::SeqCst), 1);
-}
-
-/// An exclusive observer's retained header is valid storage but the wrong ownership kind.
-#[test]
-fn checked_shared_weak_wire_rejects_exclusive_control_blocks() {
-    #[com_object(IShared, ownership = exclusive)]
-    struct Exclusive;
-    impl IShared for Exclusive {
-        fn value(&self) -> Result<u32, NcStatus> {
-            Ok(1)
-        }
-    }
-    let owner = Exclusive::into_box(Exclusive);
-    let observer = owner.downgrade();
-    let control = observer.as_raw().object.cast();
-    // Transfer one safely cloned observer to the checked rejection path.
-    let transferred = observer.clone().into_raw();
-    assert_eq!(transferred.object, control);
-    assert_eq!(
-        unsafe { WeakComPtr::<IUnknown>::__nc_from_raw_owned_checked(neocogi_com::NcWeakRaw { control }) }.unwrap_err(),
-        neocogi_com::NC_E_INVALID_ARG
-    );
-    drop(owner);
-    // The immutable ownership kind also rejects expired exclusive allocations.
-    let transferred = observer.clone().into_raw();
-    assert_eq!(transferred.object, control);
-    assert_eq!(
-        unsafe { WeakComPtr::<IUnknown>::__nc_from_raw_owned_checked(neocogi_com::NcWeakRaw { control }) }.unwrap_err(),
-        neocogi_com::NC_E_INVALID_ARG
-    );
 }

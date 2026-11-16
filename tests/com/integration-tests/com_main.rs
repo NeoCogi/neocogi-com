@@ -15,7 +15,7 @@ mod entry {
     /// Ordinary application body receives access and returns unit.
     pub fn main(runtime: neocogi_com::RuntimeHandle) {
         assert_eq!(runtime.runtime_abi_version(), 3);
-        assert_eq!(runtime.core_abi_version(), 20);
+        assert_eq!(runtime.core_abi_version(), 21);
         super::CALLS.fetch_add(1, super::Ordering::SeqCst);
     }
 }

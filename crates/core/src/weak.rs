@@ -4,17 +4,17 @@
 //! reference before exposing any object state, and never resurrects a destroyed
 //! value. Logical domain closure is deliberately independent of this protocol.
 use core::{marker::PhantomData, ptr::NonNull};
-use crate::lifetime::{admit_interface, release_rejected_weak, NcSharedLifetimeState, NC_OWNERSHIP_SHARED};
+use crate::lifetime::NcSharedLifetimeState;
 use crate::{ComInterface, ComPtr, ComRaw, IUnknown, NcStatus, ThreadLocal, ThreadSafe, ThreadingModel, NC_E_NOINTERFACE, NC_E_POINTER};
 
-/// One nullable allocation address admitted through immutable ownership metadata. Success transfers
+/// One nullable shared-state address. The ABI producer guarantees shared backing; success transfers
 /// one weak reference; a null pointer represents absence and owns nothing.
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct NcWeakRaw {
     /// Header at the allocation's canonical object address, retained through
     /// shared weak operations even after the concrete value is destroyed.
-    pub control: *mut core::ffi::c_void,
+    pub control: *mut NcSharedLifetimeState,
 }
 impl NcWeakRaw {
     /// Empty output initialized before every fallible lifetime operation.
@@ -57,31 +57,35 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> WeakComPtr<T, M> {
     ///
     /// # Safety
     /// A present token must own one weak reference to NcSharedLifetimeState with
-    /// NC_OWNERSHIP_SHARED metadata at the canonical allocation address.
+    /// matching provider metadata at the canonical allocation address.
     /// Its provider must support T with capability M and uphold atomic promotion,
     /// unique control identity, allocator-local release, and code lifetime through
     /// all weak references. Null tokens transfer nothing and are rejected.
+    ///
+    /// Shared and boxed raw states are distinct pointer types:
+    /// ```compile_fail
+    /// use neocogi_com_core::{NcWeakRaw, lifetime::NcBoxedLifetimeState};
+    /// let _ = NcWeakRaw { control: core::ptr::null_mut::<NcBoxedLifetimeState>() };
+    /// ```
     pub unsafe fn from_raw_owned(raw: NcWeakRaw) -> Option<Self> {
-        NonNull::new(raw.control.cast()).map(|control| Self { control, marker: PhantomData })
+        NonNull::new(raw.control).map(|control| Self { control, marker: PhantomData })
     }
 
-    /// Adopts a weak output after validating shared ownership and exact interface identity.
+    /// Adopts a shared weak output after validating its exact interface identity.
     /// Expired values remain transportable; this never promotes them.
     /// Rejection releases the transferred weak reference exactly once.
     ///
     /// # Safety
-    /// A present token transfers one retained complete shared or boxed header with
-    /// matching known-policy metadata and valid provider code. The caller guarantees capability M;
-    /// this checks token presence, ownership kind and T's complete identity.
+    /// A present token transfers one retained genuine shared state with matching
+    /// provider metadata/code and capability M. This validates presence and exact
+    /// interface identity; supplying boxed backing violates the ABI producer contract.
     #[doc(hidden)]
     pub unsafe fn __nc_from_raw_owned_checked(raw: NcWeakRaw) -> Result<Self, NcStatus> {
-        let control = NonNull::new(raw.control.cast()).ok_or(NC_E_POINTER)?;
-        // SAFETY: the transferred token retains valid header/class storage even
-        // when it proves the wrong ownership kind or target interface.
-        if let Err(status) = unsafe { admit_interface(raw.control, NC_OWNERSHIP_SHARED, &T::INTERFACE_ID) } {
-            // SAFETY: failure consumes exactly the transferred weak reference;
-            // boundary cleanup selects the actual shared or exclusive header.
-            unsafe { release_rejected_weak(raw.control) };
+        let control = NonNull::new(raw.control).ok_or(NC_E_POINTER)?;
+        // SAFETY: the producer establishes shared backing before this call;
+        // exact interface rejection still consumes its one shared weak reference.
+        if let Err(status) = unsafe { control.as_ref().try_cast(&T::INTERFACE_ID) } {
+            unsafe { NcSharedLifetimeState::weak_release(raw.control) };
             return Err(status);
         }
         // Only validated tokens acquire the typed shared-weak invariant.
@@ -89,7 +93,7 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> WeakComPtr<T, M> {
     }
     /// Borrows the control identity without extending or transferring its lifetime.
     pub fn as_raw(&self) -> NcWeakRaw {
-        NcWeakRaw { control: self.control.as_ptr().cast() }
+        NcWeakRaw { control: self.control.as_ptr() }
     }
     /// Transfers this handle's one weak reference to an ABI caller.
     pub fn into_raw(self) -> NcWeakRaw {
