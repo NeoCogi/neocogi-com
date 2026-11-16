@@ -98,6 +98,110 @@ static COUNTED_TABLE: IDerivedVTable = {
     }
 };
 
+/// Independent static metadata with the generated interface's exact digest contents.
+static EQUIVALENT_DERIVED_DIGEST: [u8; 32] = {
+    // SAFETY: generated interface metadata owns a permanent complete digest.
+    match unsafe { IDerivedAbi::ABI_SIGNATURE.as_digest() } {
+        Some(bytes) => *bytes,
+        None => panic!("generated interfaces have a complete digest"),
+    }
+};
+/// A rejection-only revision differs in the final digest byte, not its IID.
+static OTHER_DERIVED_DIGEST: [u8; 32] = {
+    let mut bytes = EQUIVALENT_DERIVED_DIGEST;
+    bytes[31] ^= 1;
+    bytes
+};
+/// The same physical contract with its digest stored independently.
+enum EquivalentDerived {}
+// SAFETY: identity contents, physical table and threading exactly match IDerived.
+unsafe impl neocogi_com::ComInterface for EquivalentDerived {
+    const INTERFACE_ID: neocogi_com::NcInterfaceId =
+        neocogi_com::NcInterfaceId::new(IDerivedAbi::IID, neocogi_com::NcAbiDigest::from_static(&EQUIVALENT_DERIVED_DIGEST));
+    type VTable = IDerivedVTable;
+    type Threading = <IDerivedAbi as neocogi_com::ComInterface>::Threading;
+}
+/// Hypothetical revision requested only for rejection; no provider publishes it.
+enum OtherDerivedRevision {}
+// SAFETY: the hypothetical revision uses this physical table and threading;
+// rejection tests never publish a provider or call through this unsupported view.
+unsafe impl neocogi_com::ComInterface for OtherDerivedRevision {
+    const INTERFACE_ID: neocogi_com::NcInterfaceId =
+        neocogi_com::NcInterfaceId::new(IDerivedAbi::IID, neocogi_com::NcAbiDigest::from_static(&OTHER_DERIVED_DIGEST));
+    type VTable = IDerivedVTable;
+    type Threading = <IDerivedAbi as neocogi_com::ComInterface>::Threading;
+}
+
+/// Content-equal static identity bypasses discovery but still adds one shared owner.
+#[test]
+fn shared_identity_queries_retain_once_and_reject_the_last_digest_byte() {
+    let drops = Arc::new(AtomicUsize::new(0));
+    let root = SharedValue::from_value(SharedValue {
+        state: State { closed: false, drops: drops.clone() },
+    });
+    // SAFETY: COUNTED_TABLE has the exact generated IDerived identity and method
+    // thunks for this concrete allocation. Move, rather than duplicate, the root owner.
+    let owner = unsafe {
+        ComPtr::<IDerivedAbi>::from_raw_owned(neocogi_com::ComRaw {
+            object: root.into_raw().object,
+            vtable: &COUNTED_TABLE,
+        })
+    }
+    .unwrap();
+    let original = owner.as_raw();
+    let retains = RETAINS.load(Ordering::SeqCst);
+    let releases = RELEASES.load(Ordering::SeqCst);
+    // SAFETY: the generated digest is permanently readable metadata.
+    assert_ne!(
+        unsafe { IDerivedAbi::ABI_SIGNATURE.as_digest() }.unwrap().as_ptr(),
+        EQUIVALENT_DERIVED_DIGEST.as_ptr()
+    );
+    assert_eq!(owner.query::<OtherDerivedRevision>().unwrap_err(), neocogi_com::NC_E_ABI_VERSION);
+    assert_eq!(owner.as_raw(), original);
+    assert_eq!(RETAINS.load(Ordering::SeqCst), retains);
+    assert_eq!(RELEASES.load(Ordering::SeqCst), releases);
+    let equivalent = owner.query::<EquivalentDerived>().unwrap();
+    assert_eq!(equivalent.as_raw().cast::<IDerivedAbi>(), original);
+    assert_eq!(RETAINS.load(Ordering::SeqCst), retains + 1);
+    let projected = equivalent.query::<IDerivedAbi>().unwrap();
+    assert_eq!(RETAINS.load(Ordering::SeqCst), retains + 2);
+    assert_eq!(projected.value(), Ok(42));
+    drop((owner, equivalent));
+    assert_eq!(drops.load(Ordering::SeqCst), 0);
+    assert_eq!(projected.value(), Ok(42));
+    drop(projected);
+    assert_eq!(RELEASES.load(Ordering::SeqCst), releases + 3);
+    assert_eq!(drops.load(Ordering::SeqCst), 1);
+}
+
+/// Box identity queries move the sole owner and return it unchanged on revision failure.
+#[test]
+fn boxed_identity_queries_transfer_once_and_reject_the_last_digest_byte() {
+    let drops = Arc::new(AtomicUsize::new(0));
+    let owner = ExclusiveValue::into_box(ExclusiveValue {
+        state: State { closed: false, drops: drops.clone() },
+    })
+    .query::<IDerivedAbi>()
+    .unwrap();
+    let weak = owner.downgrade();
+    let original = owner.as_raw();
+    let (status, owner) = owner.query::<OtherDerivedRevision>().unwrap_err();
+    assert_eq!(status, neocogi_com::NC_E_ABI_VERSION);
+    assert_eq!(owner.as_raw(), original);
+    assert_eq!(owner.value(), Ok(42));
+    let equivalent = owner.query::<EquivalentDerived>().unwrap();
+    assert_eq!(equivalent.as_raw().cast::<IDerivedAbi>(), original);
+    let owner = equivalent.query::<IDerivedAbi>().unwrap();
+    assert_eq!(owner.as_raw(), original);
+    assert_eq!(owner.value(), Ok(42));
+    assert_eq!(drops.load(Ordering::SeqCst), 0);
+    drop(owner);
+    assert_eq!(drops.load(Ordering::SeqCst), 1);
+    assert_eq!(weak.value(), Err(NC_E_DROPPED));
+    drop(weak);
+    assert_eq!(drops.load(Ordering::SeqCst), 1);
+}
+
 /// Borrowing and inherited mutable lookup never acquire another lifecycle token.
 #[test]
 fn method_view_reborrows_have_no_lifecycle_traffic() {

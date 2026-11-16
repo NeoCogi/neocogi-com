@@ -119,6 +119,14 @@ Object address determines allocation identity;
 GUID plus signature determines interface identity. Table-address equality is not
 a substitute for contract validation.
 
+Both typed owner query paths use one crate-private const exact-identity
+predicate owned by `NcInterfaceId`. It compares the complete IID and all digest
+bytes by contents, including equal bytes at different addresses. Explicit const
+evaluation preserves the existing fast paths: shared query retains one owner,
+while boxed query transfers its sole owner. A different digest returns false and
+takes checked discovery; ancestry validation separately rejects conflicting
+inherited revisions during compilation.
+
 A first-parent client can borrow the physical prefix of its derived vtable for
 method lookup. It retains the derived pair and cannot convert that borrowed view
 into an owned base reference. Querying the base obtains its exact table. Static

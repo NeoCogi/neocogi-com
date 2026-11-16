@@ -58,6 +58,18 @@ impl NcInterfaceId {
         Self { iid, abi_signature }
     }
 
+    /// Compares every IID bit and complete digest contents in a const context.
+    /// Typed owner queries share this predicate while retaining their distinct
+    /// ownership actions. Different revisions return false for checked discovery;
+    /// ancestry validation keeps its separate panic-on-conflict rule.
+    pub(crate) const fn const_eq(self, other: Self) -> bool {
+        self.iid.data1 == other.iid.data1
+            && self.iid.data2 == other.iid.data2
+            && self.iid.data3 == other.iid.data3
+            && u64::from_ne_bytes(self.iid.data4) == u64::from_ne_bytes(other.iid.data4)
+            && self.abi_signature.__const_eq(other.abi_signature)
+    }
+
     /// Returns whether this is the no-interface sentinel.
     pub const fn is_none(self) -> bool {
         self.iid.is_nil() && self.abi_signature.is_empty()

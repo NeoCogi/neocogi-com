@@ -339,15 +339,7 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> ComPtr<T, M> {
     /// Selects another contract on the same allocation and acquires one reference.
     /// The object address stays unchanged; the selected interface table may differ.
     pub fn query<U: ComInterface>(&self) -> Result<ComPtr<U, M>, NcStatus> {
-        let identical = const {
-            let left = T::INTERFACE_ID;
-            let right = U::INTERFACE_ID;
-            left.iid.data1 == right.iid.data1
-                && left.iid.data2 == right.iid.data2
-                && left.iid.data3 == right.iid.data3
-                && u64::from_ne_bytes(left.iid.data4) == u64::from_ne_bytes(right.iid.data4)
-                && left.abi_signature.__const_eq(right.abi_signature)
-        };
+        let identical = const { T::INTERFACE_ID.const_eq(U::INTERFACE_ID) };
         if identical {
             // SAFETY: this owner is live and proves the exact interface contract.
             // Retaining another reference to the same interface table requires only

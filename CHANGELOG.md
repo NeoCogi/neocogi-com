@@ -6,6 +6,11 @@ Historical draft numbers do not define additional supported COM baselines.
 
 ## Unreleased
 
+- Share one const IID/full-digest equality predicate between shared and boxed
+  owner queries. Preserve compile-time identity fast paths, content equality
+  across independent metadata storage and distinct retain/transfer/error behavior.
+  No ABI or interface-identity change.
+
 - Make consuming boxed weak interface erasure move its existing token after exact
   canonical IUnknown lookup. Preserve live/expired operation and threading without
   a transient weak retain/release, including at the weak counter limit. Borrowed

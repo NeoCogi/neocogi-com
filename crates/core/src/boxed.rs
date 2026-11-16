@@ -169,15 +169,7 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> ComBox<T, M> {
         // PartialEq kept per-type comparisons in size-optimized provider code.
         // A different revision must still take checked discovery, even for the
         // same IID. Both identities come from static unsafe ComInterface proofs.
-        let identical = const {
-            let left = T::INTERFACE_ID;
-            let right = U::INTERFACE_ID;
-            left.iid.data1 == right.iid.data1
-                && left.iid.data2 == right.iid.data2
-                && left.iid.data3 == right.iid.data3
-                && u64::from_ne_bytes(left.iid.data4) == u64::from_ne_bytes(right.iid.data4)
-                && left.abi_signature.__const_eq(right.abi_signature)
-        };
+        let identical = const { T::INTERFACE_ID.const_eq(U::INTERFACE_ID) };
         let table = match identical {
             true => self.as_raw().vtable.cast(),
             false => match unsafe { try_box_cast(self.as_raw().object.cast(), &U::INTERFACE_ID) } {

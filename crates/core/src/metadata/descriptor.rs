@@ -279,6 +279,51 @@ mod tests {
         assert!(!NcInterfaceId::new(NcGuid::nil(), NcAbiDigest::from_static(&NONEMPTY_SIGNATURE)).is_none());
     }
 
+    /// Const evaluation and runtime equality agree for separate storage and absence.
+    #[test]
+    fn exact_interface_identity_is_const_and_compares_digest_contents() {
+        /// Equal static contents deliberately live at a separate address.
+        static LEFT: [u8; 32] = [0x5a; 32];
+        /// Independent metadata may publish the same identity without pointer equality.
+        static RIGHT: [u8; 32] = [0x5a; 32];
+        const {
+            assert!(
+                NcInterfaceId::new(NcGuid::nil(), NcAbiDigest::from_static(&LEFT))
+                    .const_eq(NcInterfaceId::new(NcGuid::nil(), NcAbiDigest::from_static(&RIGHT)))
+            );
+            assert!(NcInterfaceId::NONE.const_eq(NcInterfaceId::NONE));
+            assert!(!NcInterfaceId::NONE.const_eq(NcInterfaceId::new(NcGuid::nil(), NcAbiDigest::from_static(&[0; 32]))));
+        }
+        assert_ne!(LEFT.as_ptr(), RIGHT.as_ptr());
+        let left = NcInterfaceId::new(NcGuid::nil(), NcAbiDigest::from_static(&LEFT));
+        let right = NcInterfaceId::new(NcGuid::nil(), NcAbiDigest::from_static(&RIGHT));
+        assert!(left.const_eq(right));
+        assert_eq!(left.const_eq(right), left == right);
+        let zero = NcInterfaceId::new(NcGuid::nil(), NcAbiDigest::from_static(&[0; 32]));
+        assert!(!zero.const_eq(NcInterfaceId::NONE));
+    }
+
+    /// No IID bit or digest bit may make distinct contracts take an identity fast path.
+    #[test]
+    fn exact_interface_identity_checks_every_iid_and_digest_bit() {
+        let iid = NcGuid::from_fields(0x1234_5678, 0x9abc, 0xdef0, [0x5a; 8]);
+        let expected = NcInterfaceId::new(iid, NcAbiDigest::from_static(&[0x5a; 32]));
+        for bit in 0..128 {
+            let mut bytes = iid.to_uuid_bytes();
+            bytes[bit / 8] ^= 1 << (bit % 8);
+            let changed = NcInterfaceId::new(NcGuid::from_uuid_bytes(bytes), expected.abi_signature);
+            assert!(!expected.const_eq(changed), "IID bit {bit}");
+            assert!(!changed.const_eq(expected), "IID bit {bit}, reverse");
+        }
+        for bit in 0..256 {
+            let mut bytes = [0x5a; 32];
+            bytes[bit / 8] ^= 1 << (bit % 8);
+            let changed = NcInterfaceId::new(iid, NcAbiDigest::from_borrowed(&bytes));
+            assert!(!expected.const_eq(changed), "digest bit {bit}");
+            assert!(!changed.const_eq(expected), "digest bit {bit}, reverse");
+        }
+    }
+
     #[test]
     fn threading_mode_raw_values_are_stable_and_checked() {
         assert_eq!(NcAbiThreadingMode::ThreadLocal.as_raw(), NC_ABI_THREADING_THREAD_LOCAL);
