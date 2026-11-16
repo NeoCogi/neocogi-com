@@ -1,10 +1,10 @@
 //! Real native bootstrap failure fixture; all advertised prefixes have backing storage.
-use neocogi_com_core::{NcHostApiV2, NcStatus, NC_E_POINTER, NC_E_NOT_FOUND, NC_OK};
+use neocogi_com_core::{NcHostApiV3, NcStatus, NC_E_POINTER, NC_E_NOT_FOUND, NC_OK};
 /// Complete outer storage with unsupported versions and unvisited null children.
-static WRONG: NcHostApiV2 = NcHostApiV2 {
-    size: core::mem::size_of::<NcHostApiV2>(),
+static WRONG: NcHostApiV3 = NcHostApiV3 {
+    size: core::mem::size_of::<NcHostApiV3>(),
     runtime_abi_version: u32::MAX,
-    core_abi_version: 19,
+    core_abi_version: 20,
     runtime: core::ptr::null(),
     debug: core::ptr::null(),
     persistence: core::ptr::null(),
@@ -14,7 +14,7 @@ static WRONG: NcHostApiV2 = NcHostApiV2 {
 /// # Safety
 /// A nonnull output is aligned and writable for one host pointer.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn nc_get_host_api_v2(output: *mut *const NcHostApiV2) -> NcStatus {
+pub unsafe extern "C" fn nc_get_host_api_v3(output: *mut *const NcHostApiV3) -> NcStatus {
     if output.is_null() {
         return NC_E_POINTER;
     }

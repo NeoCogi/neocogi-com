@@ -55,7 +55,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // for process lifetime before adopting its coherent immutable C tables.
     let runtime = unsafe { RuntimeHandle::load_host_library(path) }?;
     // Register/load the application's providers through this same runtime.
-    assert_eq!(runtime.core_abi_version(), 19);
+    assert_eq!(runtime.core_abi_version(), 20);
     Ok(())
 }
 ```
@@ -88,4 +88,4 @@ independently, and executes relocated artifacts after removing their targets.
 The `build-flags` suite requires both stable and nightly compilers to exercise
 different layout, optimization, and panic policies. Optional safety and sanitizer
 suites require the nightly components documented in the
-[ABI qualification guide](../abi-v2.md#independent-build-compatibility).
+[ABI qualification guide](../abi-v3.md#independent-build-compatibility).

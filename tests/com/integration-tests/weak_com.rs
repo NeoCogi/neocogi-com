@@ -177,8 +177,15 @@ fn strong_handles_keep_two_words_and_weak_handles_use_one() {
     assert_eq!(std::mem::size_of::<WeakComPtr<IUnknown>>(), std::mem::size_of::<usize>());
     assert_eq!(std::mem::size_of::<Option<WeakComPtr<IUnknown>>>(), std::mem::size_of::<usize>());
     assert_eq!(std::mem::size_of::<neocogi_com::NcWeakRaw>(), std::mem::size_of::<usize>());
-    assert_eq!(std::mem::size_of::<neocogi_com::lifetime::NcLifetimeState>(), 3 * std::mem::size_of::<usize>());
-    assert_eq!(std::mem::size_of::<neocogi_com::lifetime::NcObjectTypeInfo>(), 4 * std::mem::size_of::<usize>());
+    assert_eq!(
+        std::mem::size_of::<neocogi_com::lifetime::NcSharedLifetimeState>(),
+        3 * std::mem::size_of::<usize>()
+    );
+    assert_eq!(
+        std::mem::size_of::<neocogi_com::lifetime::NcBoxedLifetimeState>(),
+        3 * std::mem::size_of::<usize>()
+    );
+    assert_eq!(std::mem::size_of::<neocogi_com::lifetime::NcObjectTypeInfo>(), 5 * std::mem::size_of::<usize>());
 }
 
 /// Providers can decline weak lifetime support without inventing a wrapper lifetime.

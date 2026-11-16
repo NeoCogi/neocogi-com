@@ -70,9 +70,10 @@ thread-local context and reentrancy rules still apply; this adds no global codec
 state or persistence-context mutation through shared access.
 
 Persistence is implemented in `neocogi-com-host` and called through
-`NcPersistenceApiV2`, supplied in the admitted host API description. Enable the
-facade's `runtime` feature for callers. All final hosts link the implementation
-rlib and pass access to registry creation and capture. ABI v2/core generation 19
+`NcPersistenceApiV3`, supplied in the admitted host API description. Enable the
+facade's `runtime` feature for callers. The application selects one static host
+rlib or native host shim and passes its access to registry creation and capture.
+ABI v3/core generation 20
 freezes the current table layouts and calling/ownership contract; the explicit
 codec requirement adds no table field, callback, interface signature or NCB-v1
 wire change. COM `0.2.0` embedded the codec; applications upgrading must now

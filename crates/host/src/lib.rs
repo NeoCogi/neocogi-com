@@ -11,7 +11,7 @@
 //! claiming the same plugin GUID are rejected. Plugin code never runs under
 //! the catalog lock. Inspection derives views from the authoritative records.
 //!
-//! Runtime ABI v2 returns plugin GUIDs from loading, enumerates only
+//! Runtime ABI v3 returns plugin GUIDs from loading, enumerates only
 //! plugins and exposes origin paths through plugin inspection. It permits 1,024
 //! distinct dynamic providers and 64 simultaneous debug messengers. Live-load
 //! failures diagnose and abort; static registration and debug capacity failures
@@ -77,7 +77,7 @@ pub fn initialize_runtime() -> neocogi_com::RuntimeHandle {
 /// retain their thread-local and exclusive-operation requirements.
 /// Ordinary Rust startup uses [`initialize_runtime`]; this raw description is
 /// for C bootstrap and code that explicitly works with the service ABI.
-pub fn initialize_process() -> &'static neocogi_com::NcHostApiV2 {
+pub fn initialize_process() -> &'static neocogi_com::NcHostApiV3 {
     let _ = state::RuntimeState::global();
     &api::HOST_API
 }

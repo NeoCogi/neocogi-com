@@ -7,23 +7,23 @@
 
 use core::{mem, ptr};
 
-use super::{NC_COM_RUNTIME_ABI_VERSION, NcDebugApiV2, NcPersistenceApiV2, NcRuntimeApiV2};
+use super::{NC_COM_RUNTIME_ABI_VERSION, NcDebugApiV3, NcPersistenceApiV3, NcRuntimeApiV3};
 use crate::{NC_COM_CORE_ABI_VERSION, NC_E_ABI_VERSION, NC_E_POINTER, NC_OK, NcStatus};
 
 /// Native bootstrap export of the optional host runtime shared library.
 ///
 /// Applications resolve this export once from their explicitly selected host
 /// image. Plugin acquisition continues to receive supplied tables directly.
-pub const NC_GET_HOST_API_SYMBOL: &str = "nc_get_host_api_v2";
+pub const NC_GET_HOST_API_SYMBOL: &str = "nc_get_host_api_v3";
 
 /// Lends the selected runtime image's canonical immutable host service graph.
 ///
 /// A null output returns `NC_E_POINTER`. For a writable output slot, failure
-/// clears it and success stores one nonnull `NcHostApiV2` pointer. The caller
+/// clears it and success stores one nonnull `NcHostApiV3` pointer. The caller
 /// retains the runtime image, all tables and callback code for process lifetime.
 /// Calling this entry repeatedly selects the same owner in that image; it does
 /// not establish uniqueness across separately loaded or statically linked hosts.
-pub type NcGetHostApi = unsafe extern "C" fn(output: *mut *const NcHostApiV2) -> NcStatus;
+pub type NcGetHostApi = unsafe extern "C" fn(output: *mut *const NcHostApiV3) -> NcStatus;
 
 /// Immutable C description supplied by the host when acquiring a plugin factory.
 ///
@@ -34,11 +34,11 @@ pub type NcGetHostApi = unsafe extern "C" fn(output: *mut *const NcHostApiV2) ->
 /// support concurrent access. Caller-owned persistence contexts remain subject
 /// to their own thread-local and exclusive-borrow operation contracts.
 ///
-/// Core generation 19 freezes this layout and its callbacks. Deploy host and
-/// providers from one published SDK release; discovery family 2 is separate.
+/// Core generation 20 freezes this layout and its callbacks. Deploy host and
+/// providers from one published SDK release; discovery family 3 is separate.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct NcHostApiV2 {
+pub struct NcHostApiV3 {
     /// Available record bytes, including the size/version prefix.
     pub size: usize,
     /// RuntimeHandle table family; must equal [`NC_COM_RUNTIME_ABI_VERSION`].
@@ -46,19 +46,19 @@ pub struct NcHostApiV2 {
     /// Core object/descriptor ABI understood by the supplied implementation.
     pub core_abi_version: u32,
     /// Required immutable plugin/catalog operation table in the host.
-    pub runtime: *const NcRuntimeApiV2,
+    pub runtime: *const NcRuntimeApiV3,
     /// Required immutable diagnostics operation table in the same host.
-    pub debug: *const NcDebugApiV2,
+    pub debug: *const NcDebugApiV3,
     /// Required immutable caller-owned persistence operation table in that host.
     /// Its presence does not guarantee a serialization provider; see
-    /// [`NcPersistenceApiV2`] for the application's explicit registration duty.
-    pub persistence: *const NcPersistenceApiV2,
+    /// [`NcPersistenceApiV3`] for the application's explicit registration duty.
+    pub persistence: *const NcPersistenceApiV3,
 }
 
 // SAFETY: Sharing the record exposes only const raw pointers. Dereferencing them
 // still requires the documented backing/immutability/callable-code obligations;
 // no safe operation on this record mutates or dereferences foreign storage.
-unsafe impl Sync for NcHostApiV2 {}
+unsafe impl Sync for NcHostApiV3 {}
 
 /// Checks the host record and required table prefixes without invoking code.
 ///
@@ -76,7 +76,7 @@ unsafe impl Sync for NcHostApiV2 {}
 /// supported children describe valid current tables. This validator retains no
 /// pointer, so backing need only survive this call; adopting process-lived access
 /// additionally requires the complete immutable coherent graph for that lifetime.
-pub unsafe fn validate_host_api(host: *const NcHostApiV2) -> NcStatus {
+pub unsafe fn validate_host_api(host: *const NcHostApiV3) -> NcStatus {
     // SAFETY: The caller guarantees the readable size prefix of a nonnull host.
     let status = unsafe { validate_size(host) };
     if status.is_err() {

@@ -14,6 +14,7 @@ crate-type = ["cdylib"]
 default = []
 current = []
 legacy-symbol = []
+legacy-v2-symbol = []
 dynamic-plugin = []
 
 [dependencies]

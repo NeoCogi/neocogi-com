@@ -65,10 +65,10 @@ pub struct WeakComBox<T: ComInterface + ?Sized, M: ThreadingModel = ThreadLocal>
 /// # Safety
 /// `control` is retained common exclusive storage with immutable provider
 /// metadata, and its declared threading capability permits M.
-unsafe fn observe_projection<T: ComInterface, M: ThreadingModel>(control: *mut crate::lifetime::NcLifetimeState) -> Result<WeakComBox<T, M>, NcStatus> {
+unsafe fn observe_projection<T: ComInterface, M: ThreadingModel>(control: *mut crate::lifetime::NcBoxedLifetimeState) -> Result<WeakComBox<T, M>, NcStatus> {
     let table = unsafe { try_box_cast(control, &T::INTERFACE_ID) }?;
     // Validation precedes retention, so failure creates no token to release.
-    unsafe { nc_weak_retain(control) };
+    unsafe { nc_weak_retain(control.cast()) };
     Ok(unsafe {
         WeakComBox::from_raw_owned(ComRaw {
             object: control.cast(),
@@ -132,7 +132,7 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> ComBox<T, M> {
     /// Drop itself stops new calls and waits for existing calls on other threads.
     pub fn is_idle(&self) -> bool {
         // SAFETY: the unique owner retains the common allocation header.
-        unsafe { &*self.as_raw().object.cast::<crate::lifetime::NcLifetimeState>() }.box_is_idle()
+        unsafe { &*self.as_raw().object.cast::<crate::lifetime::NcBoxedLifetimeState>() }.box_is_idle()
     }
 
     /// Transfers ownership without destruction; the recipient must adopt it once.
@@ -259,7 +259,7 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> WeakComBox<T, M> {
     /// own execution lease because another thread may remove the owner meanwhile.
     pub fn is_alive(&self) -> bool {
         // SAFETY: this weak handle retains its allocation header independently of T.
-        unsafe { &*self.as_raw().object.cast::<crate::lifetime::NcLifetimeState>() }.box_is_alive()
+        unsafe { &*self.as_raw().object.cast::<crate::lifetime::NcBoxedLifetimeState>() }.box_is_alive()
     }
 
     /// Checks discovered catalog metadata without acquiring a shared owner.

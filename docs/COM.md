@@ -5,8 +5,9 @@ through an explicit C-shaped ABI. Rust-like IDL is the source of public contract
 truth; generated COM interfaces carry calls, and plugins expose one typed root
 factory.
 
-The released [0.3.0 COM contract](abi-v2.md) uses ABI v2 discovery
-and core generation 19. Rebuild hosts, providers and generated bindings together.
+This development branch uses unreleased [ABI v3](abi-v3.md) discovery and core
+generation 20. Published 0.3.0 uses ABI v2/core generation 19. Rebuild hosts,
+providers and generated bindings together when adopting the development contract.
 
 ## Rust names in 0.4.0 development
 
@@ -29,8 +30,11 @@ and regenerate bindings together; the previous names have no compatibility alias
 
 The core `AbiType` trait and Rust's `std::fmt::Debug` trait retain their names.
 The interface schemas, GUIDs, canonical digest bytes and encoding domains are
-unchanged. Existing C records, vtable slots, status values and ownership rules
-retain ABI v2/core generation 19; these are Rust source API changes.
+unchanged by these renames; the renames alone are Rust source API changes.
+The separate lifetime-policy split changes C headers and type information,
+requiring ABI v3/core generation 20. Its ownership records are
+`NcSharedLifetimeState` and `NcBoxedLifetimeState`; there is no fused
+`NcLifetimeState` compatibility alias.
 
 ## Component model
 
@@ -53,7 +57,7 @@ plugin as a shared library and as an rlib statically linked into a monolith.
 
 See [IDL contract modules](contracts/IDL_MODULES.md) for authoring and native
 builds, [component design](architecture/COM_DESIGN.md) for responsibility
-boundaries, and [the current ABI specification](abi-v2.md) for the binary model.
+boundaries, and [the current ABI specification](abi-v3.md) for the binary model.
 
 ## Hosts, callers and providers
 
@@ -126,7 +130,7 @@ owner's tables again; no plugin initializes its own catalog. Host bootstrap
 returns typed startup errors without a fallback. The default `#[com_main]`
 remains static startup; dynamic applications use an ordinary `main` or configure
 an explicit initializer path. See the [shim guide](../crates/host-dylib/README.md)
-and [bootstrap contract](abi-v2.md#optional-native-host-bootstrap).
+and [bootstrap contract](abi-v3.md#optional-native-host-bootstrap).
 
 ### Startup and calls
 
@@ -271,7 +275,7 @@ fn acquire_root(_runtime: neocogi_com::RuntimeHandle) -> Result<neocogi_com::Com
 }
 ```
 
-The plugin exports `nc_get_plugin_descriptor_v2`. Descriptor ABI v2
+The plugin exports `nc_get_plugin_descriptor_v3`. Descriptor ABI v3
 includes plugin identity/version, hard dependencies, the complete factory
 IID/signature, threading, and one bootstrap pointer. Static assemblies call
 `plugin_descriptor()` directly. Both paths borrow the provider-authored
@@ -330,11 +334,11 @@ runtime never discovers or recursively loads their paths. Required live-load
 failure is diagnosed and aborts rather than exposing partial state. Successful
 libraries remain mapped until process exit.
 
-Runtime ABI v2 has one complete plugin-operation table, plus debug and
+Runtime ABI v3 has one complete plugin-operation table, plus debug and
 caller-scoped persistence tables. Lookup and enumeration return the same complete
 plugin description, including its factory contract and dependency GUIDs. Loading returns the plugin GUID; inspection
 reports its first static/dynamic origin. Separate module identities and module
-queries were removed. See [the runtime contract](abi-v2.md#runtime-and-global-registry).
+queries were removed. See [the runtime contract](abi-v3.md#runtime-and-global-registry).
 Acquisition checks the exact factory signature before bootstrap. Unconnected
 contract revisions can coexist; incompatible pointer transfers are rejected.
 `neocogi-inspect` emits schema 9 with plugin/dependency/root-factory metadata,
@@ -425,7 +429,7 @@ objects through a typed factory and reconnects its application-defined observer.
 
 ## Executed compatibility checks
 
-The [compatibility matrix](abi-v2.md#independent-build-compatibility) defines independent host/runtime and
+The [compatibility matrix](abi-v3.md#independent-build-compatibility) defines independent host/runtime and
 provider builds, mixed compiler/profile policies, relocated execution,
 and the separate Miri/sanitizer checks. One unpublished Rust
 [`xtask`](../tools/xtask/README.md) owns these checks on Linux, macOS and Windows;

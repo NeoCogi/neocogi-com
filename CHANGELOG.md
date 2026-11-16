@@ -1,10 +1,22 @@
 # Changelog
 
-The current contract uses [ABI v2, core generation 19](docs/abi-v2.md). Entries below record
-its development; later entries can supersede older implementation details.
+Development uses [ABI v3, core generation 20](docs/abi-v3.md). Published 0.3.0 uses ABI v2/core 19.
+Entries below record development; later entries can supersede older implementation details.
 Historical draft numbers do not define additional supported COM baselines.
 
 ## Unreleased
+
+- Split the fused lifetime header into NcSharedLifetimeState and
+  NcBoxedLifetimeState. Shared strong_count is purely numeric; boxed
+  owner_and_borrows combines only owner presence and call admission. Both retain
+  their own weak_count and an immutable type-info pointer. Ownership kind moves
+  to NcObjectTypeInfo, and raw admission checks it before interpreting either
+  complete header. Weak arithmetic/cleanup is shared without a fused state type.
+- Select incompatible ABI v3/core generation 20 and family-3 host/plugin
+  bootstrap exports. Remove old record names and discovery fallbacks; rebuild
+  all participants together. Preserve method-interface identities, IDL encoding
+  v14, NCB-v1 documents, synchronous boxed destruction and the explicit codec
+  provider requirement. This is unreleased development, not a publication.
 
 - Document the shared/exclusive `NcLifetimeState` state machine, including
   reader/writer admission, owner removal, synchronous value destruction and

@@ -346,7 +346,7 @@ borrowed optional COM capabilities, and the remaining explicit limitations.
 Readable `&[T]` lowers to `NcCopyFromBufferOffset`; `&mut [T]` and
 `&mut Slice<T>` lower to fresh `NcOutputWriter` provider parameters and
 `NcOutput` client arguments. Output expands to offset, capacity, wire pointer,
-and initialized-prefix count pointer in ABI v2. Existing destination
+and initialized-prefix count pointer in ABI v3. Existing destination
 contents are never input. A transformation needs an explicit readable argument
 and a separate output. Recursive checked wire types remain authoritative; Rust
 containers, enum layout, and persistence serialization do not cross these slots.

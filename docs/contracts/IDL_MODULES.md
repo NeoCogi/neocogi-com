@@ -222,9 +222,9 @@ described above.
 Interfaces have no implementation-role discriminator in their canonical encoding.
 Canonical encoding v14 contains ordinary value and callable-interface contracts;
 IDL has no event-reference slots. Rebuild affected contracts, providers and hosts
-together, including built-in persistence bindings. Nominal IDs, core generation 19,
+together, including built-in persistence bindings. Nominal IDs, core generation 20,
 source-graph schema and the host-owned runtime registry are separate contracts;
-runtime discovery uses ABI v2. Closed generic interfaces work as object
+runtime discovery uses ABI v3. Closed generic interfaces work as object
 contracts and plugin roots; open templates have no callable ABI.
 
 Generic values can nest and recurse through explicit sequences:
@@ -643,7 +643,8 @@ UUID overrides remain errors.
 
 Generated nominal IDs and signatures change: rebuild contracts, providers and
 hosts together. Compiler encoding v14 records the versionless contract; COM
-discovery uses ABI v2 for the 0.3.0 release.
+discovery uses ABI v2 for the 0.3.0 release and ABI v3/core generation 20 on
+this development branch. The lifetime-policy split does not change encoding v14.
 
 ### Module names and dependencies
 
@@ -961,7 +962,7 @@ those routes nor filesystem roots affect logical IDs or ABI signatures. Pure
 `generate_rust_with_paths` callers continue supplying accessible owner locations;
 Cargo-specific routes are selected by `Module::build`. Source graph schema 7
 requires providers with this namespace and rejects older sidecars. Runtime and
-plugin discovery uses family 2 and the core baseline uses generation 19; source routes do not change
+plugin discovery uses family 3 and the core baseline uses generation 20; source routes do not change
 the [canonical signature encoding](#canonical-signatures).
 
 ### Diagnostics
@@ -1070,9 +1071,9 @@ Ordinary interface methods own parameterized object construction; there are no
 IDL `class` or `factory` roles, constructor registries or erased argument bags.
 
 Hard provider requirements can be listed as `dependencies = [PLUGIN_ID]`.
-There is no `contracts` list. Plugin descriptor ABI v2 contains the full factory
+There is no `contracts` list. Plugin descriptor ABI v3 contains the full factory
 identity, threading capability, bootstrap pointer, plugin metadata, and provider
-IDs. Its native getter is `nc_get_plugin_descriptor_v2`.
+IDs. Its native getter is `nc_get_plugin_descriptor_v3`.
 
 Dynamic loading validates and registers one plugin atomically. Providers must
 already be registered; registration invokes neither factories nor dependency
@@ -1118,7 +1119,7 @@ ordinary interface methods. Use interface `IID`, `INTERFACE_ID` and
 `INTERFACE_DESCRIPTOR`. Low-level
 handwritten `ComInterface` implementations must specify `type Threading`.
 Remove contract registration and `MODULE` imports, and rebuild against runtime
-ABI v2 and the versioned plugin descriptor getter. No legacy adapter retains the
+ABI v3 and the versioned plugin descriptor getter. No legacy adapter retains the
 removed runtime contract mechanism.
 
 ### Generated IDL metadata
@@ -1194,7 +1195,7 @@ budgeting. See [prepared output completion](COM_OUTPUT_COMPLETION.md) for an IDL
 example, enum limits, and real generated-call regressions.
 
 The provider threading guarantee is preserved for all three owner/observer
-wrappers. See the [current core ABI](../abi-v2.md) for lifetime and concurrency rules.
+wrappers. See the [current core ABI](../abi-v3.md) for lifetime and concurrency rules.
 
 ## Interpreting generated names
 
@@ -1208,7 +1209,7 @@ wrappers. See the [current core ABI](../abi-v2.md) for lifetime and concurrency 
 Cargo ownership keys are never native library filenames. Specialization UUIDs
 are never ABI signatures. Generated comments keep the original logical module
 or closed type beside these names. Their spelling and build-sidecar schemas do
-not advance runtime or plugin descriptor discovery: both use family 2. See
+not advance runtime or plugin descriptor discovery: both use family 3. See
 [generic name documentation](IDL_GENERIC_VALUES.md#reading-generated-specialization-names)
 and [source-map lookup](../guides/IDL_SOURCE_MAPS.md).
 

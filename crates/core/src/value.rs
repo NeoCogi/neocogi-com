@@ -734,7 +734,7 @@ unsafe impl<T: crate::ComInterface + 'static, M: crate::ThreadingModel> ComValue
             let table = unsafe { crate::lifetime::try_box_cast(control, &T::INTERFACE_ID) }?;
             // SAFETY: successful validation proves live weak bookkeeping. Only
             // the canonical provider table is retained, never the caller's table.
-            unsafe { crate::lifetime::nc_weak_retain(control) };
+            unsafe { crate::lifetime::nc_weak_retain(control.cast()) };
             Ok(unsafe {
                 Self::from_raw_owned(crate::ComRaw {
                     object: wire.object,

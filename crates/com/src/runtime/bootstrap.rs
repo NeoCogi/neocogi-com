@@ -112,7 +112,7 @@ impl RuntimeHandle {
     /// admission failure. Returned handles and callbacks remain process-lived.
     ///
     /// # Safety
-    /// The path selects trusted native code implementing `nc_get_host_api_v2`
+    /// The path selects trusted native code implementing `nc_get_host_api_v3`
     /// with the exact [`NcGetHostApi`] contract. A successful graph satisfies
     /// [`RuntimeHandle::__from_host_api`]'s complete backing, immutability, coherence
     /// and callback obligations. Size/version checks cannot establish these.
@@ -165,7 +165,7 @@ unsafe fn host_from_entry(get: NcGetHostApi, path: &Path) -> Result<RuntimeHandl
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{NC_COM_CORE_ABI_VERSION, NC_COM_RUNTIME_ABI_VERSION, NC_E_ABI_VERSION, NC_E_NOT_FOUND, NC_E_POINTER, NC_OK, NcHostApiV2};
+    use crate::{NC_COM_CORE_ABI_VERSION, NC_COM_RUNTIME_ABI_VERSION, NC_E_ABI_VERSION, NC_E_NOT_FOUND, NC_E_POINTER, NC_OK, NcHostApiV3};
 
     /// Only the advertised size exists; admission must reject before reading more.
     #[repr(C)]
@@ -176,8 +176,8 @@ mod tests {
     /// Real short storage exercises prefix validation without fabricated memory.
     static SHORT: ShortHost = ShortHost { size: 0 };
     /// Readable version prefix rejects the graph before null children are visited.
-    static WRONG_VERSION: NcHostApiV2 = NcHostApiV2 {
-        size: core::mem::size_of::<NcHostApiV2>(),
+    static WRONG_VERSION: NcHostApiV3 = NcHostApiV3 {
+        size: core::mem::size_of::<NcHostApiV3>(),
         runtime_abi_version: NC_COM_RUNTIME_ABI_VERSION + 1,
         core_abi_version: NC_COM_CORE_ABI_VERSION,
         runtime: core::ptr::null(),
@@ -186,23 +186,23 @@ mod tests {
     };
 
     /// Failure output is deliberately unusable; no admission read is permitted.
-    unsafe extern "C" fn failed(output: *mut *const NcHostApiV2) -> NcStatus {
+    unsafe extern "C" fn failed(output: *mut *const NcHostApiV3) -> NcStatus {
         // SAFETY: the bootstrap caller supplies one writable pointer slot.
         unsafe { *output = core::ptr::dangling() };
         NC_E_NOT_FOUND
     }
     /// Success without a graph must fail the host validator.
-    unsafe extern "C" fn absent(_output: *mut *const NcHostApiV2) -> NcStatus {
+    unsafe extern "C" fn absent(_output: *mut *const NcHostApiV3) -> NcStatus {
         NC_OK
     }
     /// Only the leading size is readable, as the admission contract permits.
-    unsafe extern "C" fn short(output: *mut *const NcHostApiV2) -> NcStatus {
+    unsafe extern "C" fn short(output: *mut *const NcHostApiV3) -> NcStatus {
         // SAFETY: local output slot is writable; SHORT lives for process lifetime.
         unsafe { *output = core::ptr::from_ref(&SHORT).cast() };
         NC_OK
     }
     /// Unsupported versions permit prefix reads only, without child access.
-    unsafe extern "C" fn wrong_version(output: *mut *const NcHostApiV2) -> NcStatus {
+    unsafe extern "C" fn wrong_version(output: *mut *const NcHostApiV3) -> NcStatus {
         // SAFETY: local output slot is writable; the complete version prefix is live.
         unsafe { *output = &WRONG_VERSION };
         NC_OK

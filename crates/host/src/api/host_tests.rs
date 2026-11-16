@@ -4,14 +4,14 @@ use core::{mem, ptr};
 
 use neocogi_com_core::{
     ComRaw, IUnknown, NC_ABI_THREADING_THREAD_LOCAL, NC_COM_CORE_ABI_VERSION, NC_COM_RUNTIME_ABI_VERSION, NC_E_ABI_VERSION, NC_E_CLOSED, NC_E_POINTER, NC_OK,
-    NC_PLUGIN_DESCRIPTOR_ABI_VERSION, NcPersistenceApiV2, NcPluginDescriptor, NcPluginInfoV2, NcStaticUtf8, NcStatus, guid_from_qualified_name,
+    NC_PLUGIN_DESCRIPTOR_ABI_VERSION, NcPersistenceApiV3, NcPluginDescriptor, NcPluginInfoV3, NcStaticUtf8, NcStatus, guid_from_qualified_name,
     validate_host_api,
 };
 
-use super::{HOST_API, PERSISTENCE_API_V2, RUNTIME_API_V2};
+use super::{HOST_API, PERSISTENCE_API_V3, RUNTIME_API_V3};
 
 /// Descriptor-only fixture; admission and lookup must never acquire a factory.
-unsafe extern "C" fn unused_acquisition(_host: *const neocogi_com_core::NcHostApiV2, out: *mut ComRaw<IUnknown>) -> NcStatus {
+unsafe extern "C" fn unused_acquisition(_host: *const neocogi_com_core::NcHostApiV3, out: *mut ComRaw<IUnknown>) -> NcStatus {
     if out.is_null() {
         return NC_E_POINTER;
     }
@@ -35,15 +35,15 @@ static DESCRIPTION: NcPluginDescriptor = NcPluginDescriptor {
 };
 
 /// Copies a complete valid table into local storage for prefix-only rejection.
-fn persistence_with_core(core_abi_version: u32) -> NcPersistenceApiV2 {
-    NcPersistenceApiV2 {
-        size: mem::size_of::<NcPersistenceApiV2>(),
+fn persistence_with_core(core_abi_version: u32) -> NcPersistenceApiV3 {
+    NcPersistenceApiV3 {
+        size: mem::size_of::<NcPersistenceApiV3>(),
         core_abi_version,
-        create_context: PERSISTENCE_API_V2.create_context,
-        destroy_context: PERSISTENCE_API_V2.destroy_context,
-        register_factory: PERSISTENCE_API_V2.register_factory,
-        snapshot: PERSISTENCE_API_V2.snapshot,
-        restore: PERSISTENCE_API_V2.restore,
+        create_context: PERSISTENCE_API_V3.create_context,
+        destroy_context: PERSISTENCE_API_V3.destroy_context,
+        register_factory: PERSISTENCE_API_V3.register_factory,
+        snapshot: PERSISTENCE_API_V3.snapshot,
+        restore: PERSISTENCE_API_V3.restore,
     }
 }
 
@@ -51,15 +51,15 @@ fn persistence_with_core(core_abi_version: u32) -> NcPersistenceApiV2 {
 fn initialized_host_tables_share_registration_and_separate_core_and_discovery() {
     let first = crate::initialize_process();
     let second = crate::initialize_process();
-    assert_eq!(NC_COM_RUNTIME_ABI_VERSION, 2);
-    assert_eq!(NC_COM_CORE_ABI_VERSION, 19);
-    assert_eq!(NC_PLUGIN_DESCRIPTOR_ABI_VERSION, 2);
+    assert_eq!(NC_COM_RUNTIME_ABI_VERSION, 3);
+    assert_eq!(NC_COM_CORE_ABI_VERSION, 20);
+    assert_eq!(NC_PLUGIN_DESCRIPTOR_ABI_VERSION, 3);
     // SAFETY: The producer guarantees complete immutable process-lived tables.
     assert_eq!(unsafe { validate_host_api(first) }, NC_OK);
     // SAFETY: The host supplies live tables and the descriptor's entire graph is static.
     let status = unsafe { ((*first.runtime).register_plugin_descriptor)(&DESCRIPTION) };
     assert_eq!(status, NC_OK);
-    let mut info = mem::MaybeUninit::<NcPluginInfoV2>::uninit();
+    let mut info = mem::MaybeUninit::<NcPluginInfoV3>::uninit();
     // SAFETY: A second access description refers to the same host state and gets one output.
     let status = unsafe { ((*second.runtime).plugin_info)(DESCRIPTION.plugin_id, info.as_mut_ptr()) };
     assert_eq!(status, NC_OK);
@@ -126,9 +126,9 @@ fn host_admission_reads_only_available_child_prefixes() {
 
 #[test]
 fn host_admission_rejects_inconsistent_service_core_versions() {
-    let runtime = neocogi_com_core::NcRuntimeApiV2 {
+    let runtime = neocogi_com_core::NcRuntimeApiV3 {
         core_abi_version: NC_COM_CORE_ABI_VERSION + 1,
-        ..RUNTIME_API_V2
+        ..RUNTIME_API_V3
     };
     let mut host = HOST_API;
     host.runtime = &runtime;

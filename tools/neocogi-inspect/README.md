@@ -1,6 +1,6 @@
 # neocogi-inspect
 
-Reads an actual plugin's `nc_get_plugin_descriptor_v2` export without
+Reads an actual plugin's `nc_get_plugin_descriptor_v3` export without
 registering or activating its factory. It copies plugin identity/version, hard
 dependencies, descriptor/core ABI versions, and full factory IID/signature and
 threading capability. There are no contract libraries or module graphs to load.
@@ -53,6 +53,6 @@ Later provider loads and delay loads follow the provider's own policy. This is
 executable inspection, not a sandbox or publisher authentication. Successfully
 opened mappings stay pinned until the inspector exits; inspection errors remain
 recoverable. See the
-[native loading contract](https://github.com/NeoCogi/neocogi-com/blob/v0.3.0/docs/abi-v2.md#runtime-and-global-registry).
+[native loading contract](../../docs/abi-v3.md#runtime-and-global-registry).
 The [sample plugin](https://github.com/NeoCogi/neocogi-com/blob/v0.3.0/examples/com-plugin/README.md) can be built and
 inspected with ordinary Cargo, without the assembly driver.

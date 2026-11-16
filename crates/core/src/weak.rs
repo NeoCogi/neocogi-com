@@ -4,19 +4,19 @@
 //! reference before exposing any object state, and never resurrects a destroyed
 //! value. Logical domain closure is deliberately independent of this protocol.
 use core::{marker::PhantomData, ptr::NonNull};
-use crate::lifetime::{NcLifetimeState, nc_weak_retain, nc_weak_release, nc_weak_upgrade};
+use crate::lifetime::{NcSharedLifetimeState, nc_weak_retain, nc_weak_release, nc_weak_upgrade};
 use crate::{
     ComInterface, ComPtr, ComRaw, IUnknown, NcInterfaceId, NcStatus, ThreadLocal, ThreadSafe, ThreadingModel, NC_E_DROPPED, NC_E_NOINTERFACE, NC_E_POINTER,
 };
 
-/// One nullable pointer to the common COM lifetime header. Success transfers
+/// One nullable allocation address admitted through immutable ownership metadata. Success transfers
 /// one weak reference; a null pointer represents absence and owns nothing.
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct NcWeakRaw {
     /// Header at the allocation's canonical object address, retained through
     /// shared weak operations even after the concrete value is destroyed.
-    pub control: *mut NcLifetimeState,
+    pub control: *mut core::ffi::c_void,
 }
 impl NcWeakRaw {
     /// Empty output initialized before every fallible lifetime operation.
@@ -50,7 +50,7 @@ impl NcWeakRaw {
 #[repr(transparent)]
 pub struct WeakComPtr<T: ComInterface + ?Sized, M: ThreadingModel = ThreadLocal> {
     /// Exactly one provider-owned weak reference; safe construction requires presence.
-    control: NonNull<NcLifetimeState>,
+    control: NonNull<NcSharedLifetimeState>,
     /// Keeps the requested interface and threading permissions in the static type.
     marker: PhantomData<(*const T, M)>,
 }
@@ -58,12 +58,13 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> WeakComPtr<T, M> {
     /// Adopts an owned weak token for this exact interface and threading capability.
     ///
     /// # Safety
-    /// A present token must own one weak reference to the common allocation header.
+    /// A present token must own one weak reference to NcSharedLifetimeState with
+    /// NC_OWNERSHIP_SHARED metadata at the canonical allocation address.
     /// Its provider must support T with capability M and uphold atomic promotion,
     /// unique control identity, allocator-local release, and code lifetime through
     /// all weak references. Null tokens transfer nothing and are rejected.
     pub unsafe fn from_raw_owned(raw: NcWeakRaw) -> Option<Self> {
-        NonNull::new(raw.control).map(|control| Self { control, marker: PhantomData })
+        NonNull::new(raw.control.cast()).map(|control| Self { control, marker: PhantomData })
     }
 
     /// Adopts a weak output after validating shared ownership and exact interface identity.
@@ -71,12 +72,12 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> WeakComPtr<T, M> {
     /// Rejection releases the transferred weak reference exactly once.
     ///
     /// # Safety
-    /// A present token transfers one retained common header with valid immutable
-    /// class metadata and provider code. The caller guarantees capability M;
+    /// A present token transfers one retained complete shared or boxed header with
+    /// matching known-policy metadata and valid provider code. The caller guarantees capability M;
     /// this checks token presence, ownership kind and T's complete identity.
     #[doc(hidden)]
     pub unsafe fn __nc_from_raw_owned_checked(raw: NcWeakRaw) -> Result<Self, NcStatus> {
-        let control = NonNull::new(raw.control).ok_or(NC_E_POINTER)?;
+        let control = NonNull::new(raw.control.cast()).ok_or(NC_E_POINTER)?;
         // SAFETY: the transferred token retains valid header/class storage even
         // when it proves the wrong ownership kind or target interface.
         if let Err(status) = unsafe { crate::lifetime::check_shared_weak_cast(raw.control, &T::INTERFACE_ID) } {
@@ -90,7 +91,7 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> WeakComPtr<T, M> {
     }
     /// Borrows the control identity without extending or transferring its lifetime.
     pub fn as_raw(&self) -> NcWeakRaw {
-        NcWeakRaw { control: self.control.as_ptr() }
+        NcWeakRaw { control: self.control.as_ptr().cast() }
     }
     /// Transfers this handle's one weak reference to an ABI caller.
     pub fn into_raw(self) -> NcWeakRaw {
@@ -132,9 +133,9 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> WeakComPtr<T, M> {
     /// Expired sources retain their immutable class metadata through this observer.
     pub fn query<U: ComInterface>(&self) -> Result<WeakComPtr<U, M>, NcStatus> {
         // SAFETY: this observer retains the common shared header and class tables.
-        unsafe { crate::lifetime::check_shared_weak_cast(self.control.as_ptr(), &U::INTERFACE_ID) }?;
+        unsafe { crate::lifetime::check_shared_weak_cast(self.control.as_ptr().cast(), &U::INTERFACE_ID) }?;
         // SAFETY: validation precedes acquisition and this token remains alive.
-        unsafe { nc_weak_retain(self.control.as_ptr()) };
+        unsafe { nc_weak_retain(self.control.as_ptr().cast()) };
         Ok(WeakComPtr {
             control: self.control,
             marker: PhantomData,
@@ -158,7 +159,7 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> Clone for WeakComPtr<T, M> {
     /// Retains the same weak control identity, without affecting the strong lifetime.
     fn clone(&self) -> Self {
         // SAFETY: this handle owns a live token while its provider retains another.
-        unsafe { nc_weak_retain(self.control.as_ptr()) };
+        unsafe { nc_weak_retain(self.control.as_ptr().cast()) };
         Self {
             control: self.control,
             marker: PhantomData,
@@ -169,7 +170,7 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> Drop for WeakComPtr<T, M> {
     /// Releases exactly this weak reference through the allocating provider.
     fn drop(&mut self) {
         // SAFETY: the owned token is consumed once and never accessed afterwards.
-        unsafe { nc_weak_release(self.control.as_ptr()) };
+        unsafe { nc_weak_release(self.control.as_ptr().cast()) };
     }
 }
 impl<T: ComInterface + ?Sized, M: ThreadingModel> core::fmt::Debug for WeakComPtr<T, M> {

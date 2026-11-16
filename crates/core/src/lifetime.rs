@@ -1,8 +1,9 @@
-//! Shared lifetime algorithms for allocations with the COM control header.
+//! Shared and boxed lifetime algorithms over distinct C allocation headers.
 //!
-//! Counters belong to the allocation, not an interface projection. These functions
-//! are deliberately non-generic: only destruction, allocator release and the
-//! immutable interface list depend on the concrete class. No Arc layout is read.
+//! Shared strong counts contain only counts. Boxed owner/access bits belong to
+//! their own header. Immutable type information selects the policy at raw ABI
+//! admission; no ownership-kind tag is packed into either mutable state word.
+//! Concrete provider storage and allocator callbacks stay in their owning binary.
 use core::{
     ffi::c_void,
     ptr::NonNull,
@@ -10,65 +11,162 @@ use core::{
 };
 use crate::{ComRaw, IUnknown, IUnknownVTable, NcInterfaceId, NcStatus, NC_E_DROPPED, NC_E_POINTER, NC_E_INVALID_ARG, NC_OK};
 
-/// Immutable per-implementation destruction callbacks and interface tables.
+/// Immutable type-information tag for shared strong-reference ownership.
+pub const NC_OWNERSHIP_SHARED: u32 = 1;
+/// Immutable type-information tag for one boxed owner with checked call admission.
+pub const NC_OWNERSHIP_BOXED: u32 = 2;
+
+/// Immutable ownership, cleanup callbacks and interface tables for one implementation.
 ///
-/// This is object type information shared by allocations of one implementation;
-/// it owns no object value and registers no class or runtime type.
+/// Both lifetime headers begin with a pointer to this record. Raw operations
+/// inspect that pointer and the integer ownership tag before borrowing the
+/// complete policy-specific header. Unknown tags are rejected by fallible
+/// admission; valid owned lifetime tokens always have one of the two known tags.
 ///
-/// The descriptor and its interface tables are immutable and must remain loaded
-/// until the final weak owner releases every referencing allocation. Neither
-/// callback may unwind. Both receive the allocation's header at offset zero.
+/// Metadata and code remain live through the final weak release. Cleanup
+/// callbacks receive the allocation address, whose concrete type their provider
+/// owns. They must not unwind, and deallocation must not destroy the value twice.
 #[repr(C)]
 pub struct NcObjectTypeInfo {
-    /// Destroys only the initialized Rust/foreign value, exactly once. The header
-    /// and allocation remain valid throughout this call, including reentrant
-    /// release of weak fields. Strong promotion has already become impossible.
-    pub destroy_value: unsafe extern "C" fn(*mut NcLifetimeState),
-    /// Frees the storage through its allocating provider, after value destruction
-    /// has completed. Must not attempt to destroy the value again.
-    pub deallocate: unsafe extern "C" fn(*mut NcLifetimeState),
-    /// Static array of matching class interface tables, including IUnknown.
+    /// Exactly NC_OWNERSHIP_SHARED or NC_OWNERSHIP_BOXED; never mutable access flags.
+    pub ownership: u32,
+    /// Destroys the initialized value once, while the implicit weak retains storage.
+    pub destroy_value: unsafe extern "C" fn(*mut c_void),
+    /// Frees storage in its allocating provider after value destruction has returned.
+    pub deallocate: unsafe extern "C" fn(*mut c_void),
+    /// Permanent nonempty array of exact interface tables, including IUnknown.
     pub interfaces: *const *const IUnknownVTable,
-    /// Number of initialized entries in `interfaces`; must be nonzero.
+    /// Number of initialized entries in the interface table array.
     pub interface_count: usize,
 }
-// SAFETY: immutable metadata carries no permission to access any object value.
+// SAFETY: immutable type information grants no mutable application-value access.
 unsafe impl Sync for NcObjectTypeInfo {}
 
-/// Common C-shaped lifetime state at allocation offset zero; the value follows at its own alignment.
+/// C allocation header for shared ownership, at offset zero of its storage.
 ///
-/// Shared allocations count strong owners; exclusive allocations combine owner
-/// presence and reader/writer admission. Both retain weak storage and type information.
-/// A live allocation owns one implicit weak reference until destruction completes.
-/// Objects are fully initialized before any handle escapes construction. A zero
-/// shared strong count cannot be revived; a cleared exclusive owner rejects new calls.
+/// The strong count is purely numeric: zero is terminal and cannot be promoted.
+/// Weak owners keep this header and its metadata alive after value destruction.
+/// One implicit weak reference remains until the value destructor has returned.
 #[repr(C)]
-pub struct NcLifetimeState {
-    /// Shared allocations count strong owners. Exclusive allocations pack their
-    /// ownership bit and reader/writer access into this same word, so checked
-    /// entry and destruction cannot race through separate lifetime/borrow gates.
-    /// Promotion and destruction synchronize with acquire/release; counters never wrap.
-    state: AtomicUsize,
-    /// Explicit weak owners plus the implicit owner retained through value destruction.
-    weak: AtomicUsize,
-    /// Provider-owned class metadata, stable through the final weak release.
-    class: *const NcObjectTypeInfo,
+pub struct NcSharedLifetimeState {
+    /// Immutable metadata pointer at the common ABI admission offset.
+    type_info: *const NcObjectTypeInfo,
+    /// Number of shared owners; no ownership-kind or reader/writer flag bits.
+    strong_count: AtomicUsize,
+    /// Explicit weak owners plus the implicit reference through value destruction.
+    weak_count: AtomicUsize,
 }
-impl NcLifetimeState {
-    /// Starts a fully initialized allocation with one strong and one implicit weak owner.
-    /// The caller must initialize the complete concrete value before publishing it.
-    pub const fn new(class: &'static NcObjectTypeInfo) -> Self {
+impl NcSharedLifetimeState {
+    /// Starts one shared owner and one implicit weak reference before publication.
+    pub const fn new(type_info: &'static NcObjectTypeInfo) -> Self {
+        assert!(type_info.ownership == NC_OWNERSHIP_SHARED, "shared lifetime metadata required");
         Self {
-            state: AtomicUsize::new(1),
-            weak: AtomicUsize::new(1),
-            class,
+            type_info,
+            strong_count: AtomicUsize::new(1),
+            weak_count: AtomicUsize::new(1),
         }
     }
 }
 
-/// Increments an already owned counter without wrapping, for both ownership kinds.
-/// Public lifetime entry points use the non-unwinding C ABI, so exhaustion aborts
-/// instead of exposing a wrapped count or allowing premature destruction.
+/// C allocation header for a boxed owner, at offset zero of its storage.
+///
+/// Owner presence and admitted calls share one atomic word so destruction cannot
+/// race a separate access gate. This word contains no shared strong count or
+/// ownership-kind discriminator. Clearing the owner bit rejects new calls;
+/// the dropping owner waits for admitted calls and destroys the value itself.
+#[repr(C)]
+pub struct NcBoxedLifetimeState {
+    /// Immutable metadata pointer at the common ABI admission offset.
+    type_info: *const NcObjectTypeInfo,
+    /// Sole-owner presence, writer presence and reader count, updated atomically.
+    owner_and_borrows: AtomicUsize,
+    /// Explicit observers plus the implicit reference through value destruction.
+    weak_count: AtomicUsize,
+}
+impl NcBoxedLifetimeState {
+    /// Starts the sole owner and one implicit weak reference before publication.
+    pub const fn new(type_info: &'static NcObjectTypeInfo) -> Self {
+        assert!(type_info.ownership == NC_OWNERSHIP_BOXED, "boxed lifetime metadata required");
+        Self {
+            type_info,
+            owner_and_borrows: AtomicUsize::new(BOX_OWNER),
+            weak_count: AtomicUsize::new(1),
+        }
+    }
+}
+
+/// Reads only the common immutable metadata pointer, then admits its ownership tag.
+///
+/// # Safety
+/// A nonnull object is aligned/readable for its leading metadata pointer. Its
+/// nonnull metadata is a readable current-core record and remains valid for the
+/// chosen borrow. A known kind promises the corresponding complete header.
+unsafe fn object_type_info<'a>(object: *mut c_void) -> Result<&'a NcObjectTypeInfo, NcStatus> {
+    if object.is_null() {
+        return Err(NC_E_POINTER);
+    }
+    // SAFETY: both policy-specific C records begin with exactly this pointer.
+    let pointer = unsafe { object.cast::<*const NcObjectTypeInfo>().read() };
+    let info = unsafe { pointer.as_ref() }.ok_or(NC_E_POINTER)?;
+    match info.ownership {
+        NC_OWNERSHIP_SHARED | NC_OWNERSHIP_BOXED => Ok(info),
+        _ => Err(NC_E_INVALID_ARG),
+    }
+}
+
+/// Admits shared policy before constructing a shared-header reference.
+///
+/// # Safety
+/// Object and metadata satisfy object_type_info for the returned borrow.
+unsafe fn shared_state<'a>(object: *mut c_void) -> Result<&'a NcSharedLifetimeState, NcStatus> {
+    let info = unsafe { object_type_info(object) }?;
+    if info.ownership != NC_OWNERSHIP_SHARED {
+        return Err(NC_E_INVALID_ARG);
+    }
+    // SAFETY: admitted metadata selects this complete current-core representation.
+    Ok(unsafe { &*object.cast::<NcSharedLifetimeState>() })
+}
+
+/// Admits boxed policy before constructing a boxed-header reference.
+///
+/// # Safety
+/// Object and metadata satisfy object_type_info for the returned borrow.
+unsafe fn boxed_state<'a>(object: *mut c_void) -> Result<&'a NcBoxedLifetimeState, NcStatus> {
+    let info = unsafe { object_type_info(object) }?;
+    if info.ownership != NC_OWNERSHIP_BOXED {
+        return Err(NC_E_INVALID_ARG);
+    }
+    // SAFETY: admitted metadata selects this complete current-core representation.
+    Ok(unsafe { &*object.cast::<NcBoxedLifetimeState>() })
+}
+
+/// Selects only weak bookkeeping shared by the two concrete ownership policies.
+///
+/// # Safety
+/// The allocation has valid immutable current-core metadata and is retained for
+/// the returned borrows. No reference to an application value is constructed.
+unsafe fn weak_parts<'a>(object: *mut c_void) -> (&'a AtomicUsize, &'a NcObjectTypeInfo) {
+    let info = unsafe { object_type_info(object) }.expect("valid lifetime metadata");
+    let count = match info.ownership {
+        NC_OWNERSHIP_SHARED => {
+            // SAFETY: immutable metadata admitted exactly this header representation.
+            let header = unsafe { &*object.cast::<NcSharedLifetimeState>() };
+            &header.weak_count
+        }
+        NC_OWNERSHIP_BOXED => {
+            // SAFETY: immutable metadata admitted exactly this header representation.
+            let header = unsafe { &*object.cast::<NcBoxedLifetimeState>() };
+            &header.weak_count
+        }
+        _ => unreachable!("ownership was admitted"),
+    };
+    (count, info)
+}
+
+/// Increments an owned numeric counter without wrapping or reviving zero.
+///
+/// Non-unwinding C callers fail-stop on exhaustion rather than publish an
+/// uncounted owner. Reader-count exhaustion instead rejects call admission.
 fn retain(counter: &AtomicUsize) -> usize {
     let mut current = counter.load(Ordering::Relaxed);
     loop {
@@ -80,162 +178,138 @@ fn retain(counter: &AtomicUsize) -> usize {
     }
 }
 
-/// Retains a live generated owner; null returns zero without accessing storage.
+/// Retains a shared owner. Null and boxed ownership return zero.
 ///
 /// # Safety
-/// A non-null object must begin with a valid header and remain strongly owned
-/// throughout the call. This operation cannot resurrect a zero strong count.
+/// A nonnull allocation has current-core metadata and remains strongly owned
+/// throughout this operation. A zero shared strong count cannot be resurrected.
 #[inline(never)]
 pub unsafe extern "C" fn nc_strong_retain(object: *mut c_void) -> u32 {
-    let Some(control) = (unsafe { object.cast::<NcLifetimeState>().as_ref() }) else {
-        return 0;
-    };
-    // Exclusive objects never manufacture a second owner, including through
-    // borrowed COM arguments or foreign AddRef calls.
-    if control.state.load(Ordering::Relaxed) & BOXED != 0 {
-        return 0;
-    }
-    retain(&control.state).min(u32::MAX as usize) as u32
+    let Ok(header) = (unsafe { shared_state(object) }) else { return 0 };
+    retain(&header.strong_count).min(u32::MAX as usize) as u32
 }
 
-/// Releases a strong owner, destroying the value before releasing its implicit weak owner.
+/// Releases shared ownership, or dispatches the sole boxed owner to boxed Drop.
 ///
 /// # Safety
-/// A non-null object must own one reference to a matching header allocation.
-/// The caller must not access the allocation after transferring that reference.
+/// A nonnull address transfers one valid owner in the current-core lifetime ABI.
+/// The caller must not use that owner after this call.
 #[inline(never)]
 pub unsafe extern "C" fn nc_strong_release(object: *mut c_void) -> u32 {
-    let pointer = object.cast::<NcLifetimeState>();
-    let Some(control) = (unsafe { pointer.as_ref() }) else { return 0 };
-    if control.state.load(Ordering::Relaxed) & BOXED != 0 {
-        // SAFETY: the caller transfers the allocation's sole owner.
-        unsafe { nc_box_release(pointer) };
+    if object.is_null() {
         return 0;
     }
-    let previous = control.state.fetch_sub(1, Ordering::Release);
+    let info = unsafe { object_type_info(object) }.expect("valid owned lifetime metadata");
+    if info.ownership == NC_OWNERSHIP_BOXED {
+        unsafe { nc_box_release(object.cast()) };
+        return 0;
+    }
+    let header = unsafe { shared_state(object) }.expect("shared lifetime metadata");
+    let previous = header.strong_count.fetch_sub(1, Ordering::Release);
     assert!(previous > 0, "COM strong release without an owner");
     match previous {
         1 => {
-            // All preceding owners' writes complete before the one destructor.
             fence(Ordering::Acquire);
-            // SAFETY: class metadata remains retained by the implicit weak owner.
-            unsafe { ((*control.class).destroy_value)(pointer) };
-            // The destructor may release weak fields; our implicit owner kept
-            // storage alive until it returned. Do not read control after this call.
-            unsafe { nc_weak_release(pointer) };
+            // The implicit weak protects storage during reentrant weak-field Drop.
+            unsafe { (info.destroy_value)(object) };
+            unsafe { nc_weak_release(object) };
             0
         }
         _ => (previous - 1).min(u32::MAX as usize) as u32,
     }
 }
 
-/// Retains an explicit weak owner, including after value destruction.
+/// Retains a weak reference in either policy, including after value destruction.
 ///
 /// # Safety
-/// A non-null control must remain weak-owned or strongly owned during this call.
-/// Null is accepted as a no-op for foreign cleanup paths.
+/// A nonnull allocation is retained and has matching current-core metadata.
+/// Null is accepted as a no-op for foreign cleanup.
 #[inline(never)]
-pub unsafe extern "C" fn nc_weak_retain(control: *mut NcLifetimeState) {
-    if let Some(control) = unsafe { control.as_ref() } {
-        retain(&control.weak);
+pub unsafe extern "C" fn nc_weak_retain(object: *mut c_void) {
+    if !object.is_null() {
+        let (count, _) = unsafe { weak_parts(object) };
+        retain(count);
     }
 }
 
-/// Releases an explicit weak owner; only the final release frees the allocation.
+/// Releases weak storage; the final reference deallocates in its provider.
 ///
 /// # Safety
-/// A non-null control transfers exactly one weak owner. Its value must already
-/// be destroyed if this is the final owner. Null is a no-op.
+/// A nonnull address transfers one weak owner. If it is final, the value's
+/// destructor has already returned. Null is a no-op. Do not access freed storage.
 #[inline(never)]
-pub unsafe extern "C" fn nc_weak_release(control: *mut NcLifetimeState) {
-    let Some(header) = (unsafe { control.as_ref() }) else { return };
-    let previous = header.weak.fetch_sub(1, Ordering::Release);
+pub unsafe extern "C" fn nc_weak_release(object: *mut c_void) {
+    if object.is_null() {
+        return;
+    }
+    let (count, info) = unsafe { weak_parts(object) };
+    let previous = count.fetch_sub(1, Ordering::Release);
     assert!(previous > 0, "COM weak release without an owner");
     if previous == 1 {
         fence(Ordering::Acquire);
-        // SAFETY: the last weak owner still keeps immutable metadata readable;
-        // the provider deallocates exactly its own storage without dropping T.
-        unsafe { ((*header.class).deallocate)(control) };
+        unsafe { (info.deallocate)(object) };
     }
 }
 
-/// Creates one weak owner for a strongly retained header allocation.
+/// Creates one shared weak token while the value remains strongly retained.
 ///
 /// # Safety
-/// Non-null object must begin with the common header and remain strongly owned.
-/// Non-null output is a distinct writable record. Failure clears the output.
+/// Nonnull object metadata/header and distinct output storage are valid for this
+/// call. Boxed policy is rejected before any shared count is interpreted.
 #[inline(never)]
 pub unsafe extern "C" fn nc_downgrade(object: *mut c_void, out: *mut crate::NcWeakRaw) -> NcStatus {
     if out.is_null() {
         return NC_E_POINTER;
     }
-    unsafe {
-        *out = crate::NcWeakRaw::null();
-    }
-    if object.is_null() {
-        return NC_E_POINTER;
-    }
-    let control = object.cast::<NcLifetimeState>();
-    if unsafe { (*control).state.load(Ordering::Acquire) } & BOXED != 0 {
-        return NC_E_INVALID_ARG;
+    unsafe { *out = crate::NcWeakRaw::null() };
+    if let Err(status) = unsafe { shared_state(object) } {
+        return status;
     }
     unsafe {
-        nc_weak_retain(control);
-        *out = crate::NcWeakRaw { control };
+        nc_weak_retain(object);
+        *out = crate::NcWeakRaw { control: object };
     }
     NC_OK
 }
 
-/// Tries an exact interface cast by selecting its table without altering ownership.
+/// Selects an exact interface table from already-admitted immutable metadata.
 ///
 /// # Safety
-/// Header, class metadata and requested identity must be live and valid.
-unsafe fn try_cast(control: &NcLifetimeState, requested: &NcInterfaceId) -> Result<*const IUnknownVTable, NcStatus> {
-    // SAFETY: the class contract supplies a permanent nonempty table array.
-    let class = unsafe { &*control.class };
-    let tables = unsafe { core::slice::from_raw_parts(class.interfaces, class.interface_count) };
+/// Metadata and every table remain valid through this lookup.
+unsafe fn try_cast(info: &NcObjectTypeInfo, requested: &NcInterfaceId) -> Result<*const IUnknownVTable, NcStatus> {
+    let tables = unsafe { core::slice::from_raw_parts(info.interfaces, info.interface_count) };
     unsafe { crate::__nc_find_interface(tables, requested) }
 }
 
-/// Checks whether retained shared weak storage supports an exact interface cast.
-/// Expired tokens retain immutable metadata; this never promotes or touches the value.
-/// Rejects exclusive storage and preserves precise lookup failures in NcStatus.
+/// Checks a shared weak contract without promotion or value access.
 ///
 /// # Safety
-/// A non-null control must be retained by a weak or strong owner with valid class
-/// metadata/code through this call. The requested identity must be readable.
-pub(crate) unsafe fn check_shared_weak_cast(control: *mut NcLifetimeState, requested: &NcInterfaceId) -> Result<(), NcStatus> {
-    let control = core::ptr::NonNull::new(control).ok_or(NC_E_POINTER)?;
-    // SAFETY: the caller retains this header, including after value destruction.
-    let header = unsafe { control.as_ref() };
-    if header.state.load(Ordering::Relaxed) & BOXED != 0 {
-        return Err(NC_E_INVALID_ARG);
-    }
-    // SAFETY: metadata outlives all weak references; no value access is performed.
-    unsafe { try_cast(header, requested) }.map(|_| ())
+/// The retained allocation and current-core metadata satisfy object_type_info.
+/// Exact mismatch and ownership errors create no additional reference.
+pub(crate) unsafe fn check_shared_weak_cast(object: *mut c_void, requested: &NcInterfaceId) -> Result<(), NcStatus> {
+    let header = unsafe { shared_state(object) }?;
+    unsafe { try_cast(&*header.type_info, requested) }.map(|_| ())
 }
 
-/// Queries a live allocation and transfers exactly one new strong reference.
+/// Selects a shared interface and transfers exactly one strong owner.
 ///
 /// # Safety
-/// Non-null object begins with the matching header and remains strongly owned.
-/// Non-null requested/output records are valid and distinct from the allocation.
+/// Nonnull object is retained and request/output records are valid and distinct.
+/// Boxed allocations are rejected without acquiring another owner.
 #[inline(never)]
 pub unsafe extern "C" fn nc_query_interface(object: *mut c_void, requested: *const NcInterfaceId, out: *mut ComRaw<IUnknown>) -> NcStatus {
     if out.is_null() {
         return NC_E_POINTER;
     }
-    unsafe {
-        *out = ComRaw::null();
-    }
-    if object.is_null() || requested.is_null() {
+    unsafe { *out = ComRaw::null() };
+    if requested.is_null() {
         return NC_E_POINTER;
     }
-    let control = unsafe { &*object.cast::<NcLifetimeState>() };
-    if control.state.load(Ordering::Acquire) & BOXED != 0 {
-        return NC_E_INVALID_ARG;
-    }
-    match unsafe { try_cast(control, &*requested) } {
+    let header = match unsafe { shared_state(object) } {
+        Ok(header) => header,
+        Err(status) => return status,
+    };
+    match unsafe { try_cast(&*header.type_info, &*requested) } {
         Ok(vtable) => {
             unsafe {
                 nc_strong_retain(object);
@@ -247,7 +321,7 @@ pub unsafe extern "C" fn nc_query_interface(object: *mut c_void, requested: *con
     }
 }
 
-/// Canonical strong root table, shared across all standard COM objects using `NcLifetimeState`.
+/// One root table forwards lifetime operations through immutable ownership admission.
 pub static CANONICAL_UNKNOWN_VTABLE: IUnknownVTable = IUnknownVTable {
     interface_id: &IUnknown::INTERFACE_ID,
     query_interface: nc_query_interface,
@@ -256,95 +330,71 @@ pub static CANONICAL_UNKNOWN_VTABLE: IUnknownVTable = IUnknownVTable {
     downgrade: Some(nc_downgrade),
 };
 
-/// Atomically promotes and transfers the acquired owner without QueryInterface retaining again.
+/// Atomically promotes shared ownership before exact interface negotiation.
 ///
 /// # Safety
-/// A non-null control is weak-owned throughout the call. Non-null request/output
-/// records are valid and distinct. Success transfers one strong owner; every
-/// failure clears output. Expiration takes precedence over interface negotiation.
+/// A nonnull allocation is weak-retained through the call; request/output storage
+/// is valid and distinct. Failure clears output. Expiration precedes negotiation.
 #[inline(never)]
-pub unsafe extern "C" fn nc_weak_upgrade(control: *mut NcLifetimeState, requested: *const NcInterfaceId, out: *mut ComRaw<IUnknown>) -> NcStatus {
+pub unsafe extern "C" fn nc_weak_upgrade(object: *mut c_void, requested: *const NcInterfaceId, out: *mut ComRaw<IUnknown>) -> NcStatus {
     if out.is_null() {
         return NC_E_POINTER;
     }
-    unsafe {
-        *out = ComRaw::null();
-    }
-    if control.is_null() || requested.is_null() {
+    unsafe { *out = ComRaw::null() };
+    if requested.is_null() {
         return NC_E_POINTER;
     }
-    let header = unsafe { &*control };
-    let mut current = header.state.load(Ordering::Relaxed);
+    let header = match unsafe { shared_state(object) } {
+        Ok(header) => header,
+        Err(status) => return status,
+    };
+    let mut count = header.strong_count.load(Ordering::Relaxed);
     loop {
-        match current {
-            0 => return NC_E_DROPPED,
-            count if count & BOXED != 0 => return NC_E_INVALID_ARG,
-            count => {
-                assert!(count < isize::MAX as usize, "COM strong promotion counter exhausted");
-                // Acquire pairs with preceding releases. A concurrent final
-                // release wins by setting zero or loses to this acquired owner.
-                match header.state.compare_exchange_weak(count, count + 1, Ordering::Acquire, Ordering::Relaxed) {
-                    Ok(_) => break,
-                    Err(observed) => current = observed,
-                }
-            }
+        if count == 0 {
+            return NC_E_DROPPED;
+        }
+        assert!(count < isize::MAX as usize, "COM strong promotion counter exhausted");
+        match header
+            .strong_count
+            .compare_exchange_weak(count, count + 1, Ordering::Acquire, Ordering::Relaxed)
+        {
+            Ok(_) => break,
+            Err(observed) => count = observed,
         }
     }
-    match unsafe { try_cast(header, &*requested) } {
+    match unsafe { try_cast(&*header.type_info, &*requested) } {
         Ok(vtable) => {
-            unsafe {
-                *out = ComRaw { object: control.cast(), vtable };
-            }
+            unsafe { *out = ComRaw { object, vtable } };
             NC_OK
         }
         Err(status) => {
-            // May destroy the value if another thread released the former last
-            // owner while we queried. The caller's weak token still owns storage.
-            unsafe {
-                nc_strong_release(control.cast());
-            }
+            unsafe { nc_strong_release(object) };
             status
         }
     }
 }
 
-/// Distinguishes exclusive allocations from ordinary reference-counted ones.
-/// The tag is permanent, including after destruction, so weak observers cannot
-/// accidentally interpret an expired box as a destroyed shared allocation.
-const BOXED: usize = 1 << (usize::BITS - 1);
-/// The sole owner exists while this bit is set. Clearing it rejects new borrows.
-const BOX_OWNER: usize = BOXED >> 1;
-/// Exclusive mutable access; it cannot coexist with any reader.
+/// Boxed owner presence shares one word with admission, but carries no kind tag.
+const BOX_OWNER: usize = 1 << (usize::BITS - 1);
+/// Exclusive writer presence excludes every reader.
 const BOX_WRITER: usize = BOX_OWNER >> 1;
-/// Reader count occupies the remaining bits and must not overflow into the writer bit.
+/// Reader count occupies the remaining bits and must not overflow into writer presence.
 const BOX_READERS: usize = BOX_WRITER - 1;
-/// Either borrow keeps Drop waiting after owner presence has already been cleared.
+/// Outstanding admitted calls keep the dropping owner waiting.
 const BOX_BORROWS: usize = BOX_WRITER | BOX_READERS;
-
-impl NcLifetimeState {
-    /// Constructs an exclusive owner with the same stable C header as shared COM.
-    /// Publication must happen only after the provider has initialized its value.
-    pub const fn boxed(class: &'static NcObjectTypeInfo) -> Self {
-        Self {
-            state: AtomicUsize::new(BOXED | BOX_OWNER),
-            weak: AtomicUsize::new(1),
-            class,
-        }
-    }
-}
 
 /// One shared implementation borrow, acquired atomically with the lifetime check.
 /// Only generated provider entry points create these guards. Their destruction
 /// releases access; it never destroys the implementation or takes ownership.
 pub struct BoxRead {
     /// Retained header whose reader count includes this guard.
-    control: NonNull<NcLifetimeState>,
+    control: NonNull<NcBoxedLifetimeState>,
 }
 
 /// One exclusive implementation borrow, using the same state as readers and Drop.
 pub struct BoxWrite {
     /// Retained header whose writer bit belongs to this guard.
-    control: NonNull<NcLifetimeState>,
+    control: NonNull<NcBoxedLifetimeState>,
 }
 
 /// Atomically admits one reader or the unique writer before any T reference exists.
@@ -353,13 +403,14 @@ pub struct BoxWrite {
 /// The caller retains exclusive-class allocation storage throughout acquisition
 /// and through the returned borrow. Null is rejected without accessing storage.
 #[inline(never)]
-unsafe fn borrow_box(control: *mut NcLifetimeState, writer: bool) -> Result<NonNull<NcLifetimeState>, NcStatus> {
+unsafe fn borrow_box(control: *mut NcBoxedLifetimeState, writer: bool) -> Result<NonNull<NcBoxedLifetimeState>, NcStatus> {
+    // Admit immutable ownership metadata before interpreting boxed access bits.
+    unsafe { boxed_state(control.cast()) }?;
     let control = NonNull::new(control).ok_or(NC_E_POINTER)?;
     let header = unsafe { control.as_ref() };
-    let mut state = header.state.load(Ordering::Acquire);
+    let mut state = header.owner_and_borrows.load(Ordering::Acquire);
     loop {
         let next = match state {
-            invalid if invalid & BOXED == 0 => return Err(NC_E_INVALID_ARG),
             expired if expired & BOX_OWNER == 0 => return Err(NC_E_DROPPED),
             busy if busy & BOX_WRITER != 0 => return Err(crate::NC_E_BUSY),
             busy if writer && busy & BOX_READERS != 0 => return Err(crate::NC_E_BUSY),
@@ -367,7 +418,10 @@ unsafe fn borrow_box(control: *mut NcLifetimeState, writer: bool) -> Result<NonN
             live if writer => live | BOX_WRITER,
             live => live + 1,
         };
-        match header.state.compare_exchange_weak(state, next, Ordering::Acquire, Ordering::Relaxed) {
+        match header
+            .owner_and_borrows
+            .compare_exchange_weak(state, next, Ordering::Acquire, Ordering::Relaxed)
+        {
             Ok(_) => return Ok(control),
             Err(observed) => state = observed,
         }
@@ -378,7 +432,7 @@ impl BoxRead {
     ///
     /// # Safety
     /// `control` obeys the retained exclusive storage contract of `borrow_box`.
-    pub unsafe fn enter(control: *mut NcLifetimeState) -> Result<Self, NcStatus> {
+    pub unsafe fn enter(control: *mut NcBoxedLifetimeState) -> Result<Self, NcStatus> {
         Ok(Self {
             control: unsafe { borrow_box(control, false) }?,
         })
@@ -389,7 +443,7 @@ impl BoxWrite {
     ///
     /// # Safety
     /// `control` obeys the retained exclusive storage contract of `borrow_box`.
-    pub unsafe fn enter(control: *mut NcLifetimeState) -> Result<Self, NcStatus> {
+    pub unsafe fn enter(control: *mut NcBoxedLifetimeState) -> Result<Self, NcStatus> {
         Ok(Self {
             control: unsafe { borrow_box(control, true) }?,
         })
@@ -400,7 +454,7 @@ impl Drop for BoxRead {
     fn drop(&mut self) {
         // SAFETY: admission protects T; the caller retains header storage. Nothing
         // accesses T after this release, which may unblock its owning destructor.
-        let previous = unsafe { self.control.as_ref() }.state.fetch_sub(1, Ordering::Release);
+        let previous = unsafe { self.control.as_ref() }.owner_and_borrows.fetch_sub(1, Ordering::Release);
         debug_assert!(previous & BOX_READERS != 0 && previous & BOX_WRITER == 0);
     }
 }
@@ -409,23 +463,23 @@ impl Drop for BoxWrite {
     fn drop(&mut self) {
         // A store of zero would resurrect or erase ownership state. Clear exactly
         // the writer bit and publish all implementation writes before destruction.
-        let previous = unsafe { self.control.as_ref() }.state.fetch_and(!BOX_WRITER, Ordering::Release);
+        let previous = unsafe { self.control.as_ref() }.owner_and_borrows.fetch_and(!BOX_WRITER, Ordering::Release);
         debug_assert!(previous & BOX_WRITER != 0 && previous & BOX_READERS == 0);
     }
 }
 
-impl NcLifetimeState {
+impl NcBoxedLifetimeState {
     /// Observes whether an exclusive owner still accepts calls. This is a snapshot,
     /// not a borrow: provider entry must independently acquire checked access.
     pub fn box_is_alive(&self) -> bool {
-        self.state.load(Ordering::Acquire) & (BOXED | BOX_OWNER) == BOXED | BOX_OWNER
+        self.owner_and_borrows.load(Ordering::Acquire) & BOX_OWNER != 0
     }
 
     /// Observes an idle exclusive implementation without calling provider code.
     /// An owner can preflight destruction against reentry. This observation
     /// reserves no access; Drop still waits for calls admitted concurrently.
     pub fn box_is_idle(&self) -> bool {
-        self.state.load(Ordering::Acquire) == BOXED | BOX_OWNER
+        self.owner_and_borrows.load(Ordering::Acquire) == BOX_OWNER
     }
 }
 
@@ -440,20 +494,24 @@ impl NcLifetimeState {
 /// method/borrow of this object, or hold a resource required by an active call:
 /// waiting on such a call would deadlock. Defer destruction until that call returns.
 #[inline(never)]
-pub unsafe extern "C" fn nc_box_release(control: *mut NcLifetimeState) {
-    let Some(header) = (unsafe { control.as_ref() }) else { return };
-    let previous = header.state.fetch_and(!BOX_OWNER, Ordering::AcqRel);
-    assert!(previous & (BOXED | BOX_OWNER) == BOXED | BOX_OWNER, "exclusive owner released twice");
+pub unsafe extern "C" fn nc_box_release(control: *mut NcBoxedLifetimeState) {
+    if control.is_null() {
+        return;
+    }
+    // SAFETY: the caller transfers a valid boxed owner in the current core ABI.
+    let header = unsafe { boxed_state(control.cast()) }.expect("boxed lifetime metadata");
+    let previous = header.owner_and_borrows.fetch_and(!BOX_OWNER, Ordering::AcqRel);
+    assert!(previous & BOX_OWNER != 0, "exclusive owner released twice");
     // Destruction belongs only to this owner. Borrow release never runs a
     // destructor, so returning from Drop proves the entire owned value is gone.
-    while header.state.load(Ordering::Acquire) & BOX_BORROWS != 0 {
+    while header.owner_and_borrows.load(Ordering::Acquire) & BOX_BORROWS != 0 {
         core::hint::spin_loop();
         #[cfg(feature = "std")]
         std::thread::yield_now();
     }
     unsafe {
-        ((*header.class).destroy_value)(control);
-        nc_weak_release(control);
+        ((*header.type_info).destroy_value)(control.cast());
+        nc_weak_release(control.cast());
     }
 }
 
@@ -462,12 +520,11 @@ pub unsafe extern "C" fn nc_box_release(control: *mut NcLifetimeState) {
 ///
 /// # Safety
 /// The common header and requested contract are readable and retained for this call.
-pub unsafe fn try_box_cast(control: *mut NcLifetimeState, requested: &NcInterfaceId) -> Result<*const IUnknownVTable, NcStatus> {
-    let header = unsafe { control.as_ref() }.ok_or(NC_E_POINTER)?;
-    if header.state.load(Ordering::Acquire) & BOXED == 0 {
-        return Err(NC_E_INVALID_ARG);
-    }
-    unsafe { try_cast(header, requested) }
+pub unsafe fn try_box_cast(control: *mut NcBoxedLifetimeState, requested: &NcInterfaceId) -> Result<*const IUnknownVTable, NcStatus> {
+    // SAFETY: only the common immutable pointer is read before ownership admission.
+    let header = unsafe { boxed_state(control.cast()) }?;
+    // SAFETY: retained boxed storage keeps its metadata and interface tables live.
+    unsafe { try_cast(&*header.type_info, requested) }
 }
 
 #[cfg(test)]

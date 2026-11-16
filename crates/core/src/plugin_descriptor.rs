@@ -11,15 +11,15 @@ use crate::{
     NcGuid, NcPluginDependencyDescriptor, NcStaticUtf8, NcStatus, guid_from_qualified_name, validate_qualified_name, validate_version_text,
 };
 
-/// ABI v2 plugin descriptor family with an exact root factory and dependencies.
+/// ABI v3 plugin descriptor family with an exact root factory and dependencies.
 ///
-/// Descriptor discovery uses version two; its stable version prefix is read first.
+/// Descriptor discovery uses version three; its stable version prefix is read first.
 /// Consumers must also match the core generation, which selects the remaining
 /// record layout, rather than infer compatibility from this number alone.
-pub const NC_PLUGIN_DESCRIPTOR_ABI_VERSION: u32 = 2;
+pub const NC_PLUGIN_DESCRIPTOR_ABI_VERSION: u32 = 3;
 
 /// Exported symbol returning a plugin descriptor.
-pub const NC_GET_PLUGIN_DESCRIPTOR_SYMBOL: &str = "nc_get_plugin_descriptor_v2";
+pub const NC_GET_PLUGIN_DESCRIPTOR_SYMBOL: &str = "nc_get_plugin_descriptor_v3";
 
 /// Fixed bootstrap operation that transfers one owned root factory reference.
 ///
@@ -40,7 +40,7 @@ pub const NC_GET_PLUGIN_DESCRIPTOR_SYMBOL: &str = "nc_get_plugin_descriptor_v2";
 /// Its erased table preserves the declared factory identity, not IUnknown's
 /// identity. Common lifecycle calls are valid; typed IUnknown adoption requires
 /// QueryInterface. Erasure neither casts the object nor acquires a reference.
-pub type NcAcquirePluginFactory = unsafe extern "C" fn(host: *const crate::NcHostApiV2, out: *mut crate::ComRaw<IUnknown>) -> NcStatus;
+pub type NcAcquirePluginFactory = unsafe extern "C" fn(host: *const crate::NcHostApiV3, out: *mut crate::ComRaw<IUnknown>) -> NcStatus;
 
 /// Adapts a safe typed root-factory constructor to the fixed plugin ABI.
 ///
@@ -95,7 +95,7 @@ pub unsafe fn write_plugin_root<T: ComInterface>(
 /// lifetime storage; dynamic registration keeps the exporting library pinned.
 /// A copied record copies pointers only and does not retain a library.
 ///
-/// [`crate::NcPluginInfoV2`] is the runtime-produced lookup/enumeration output. It
+/// [`crate::NcPluginInfoV3`] is the runtime-produced lookup/enumeration output. It
 /// includes registration provenance and omits the bootstrap function. Neither
 /// reading that output nor inspecting this descriptor transfers a COM reference.
 #[repr(C)]
@@ -277,7 +277,7 @@ mod tests {
     const FACTORY_ID: NcInterfaceId = NcInterfaceId::new(NcGuid::from_fields(6, 7, 8, [9; 8]), NcAbiDigest::from_static(&[5; 32]));
 
     /// Satisfies the fixed factory acquisition shape for descriptor validation.
-    unsafe extern "C" fn acquire_factory(_host: *const crate::NcHostApiV2, out: *mut crate::ComRaw<IUnknown>) -> NcStatus {
+    unsafe extern "C" fn acquire_factory(_host: *const crate::NcHostApiV3, out: *mut crate::ComRaw<IUnknown>) -> NcStatus {
         if out.is_null() {
             return NC_E_POINTER;
         }
@@ -350,12 +350,16 @@ mod tests {
             [NC_PLUGIN_DESCRIPTOR_ABI_VERSION, 0],
             [NC_PLUGIN_DESCRIPTOR_ABI_VERSION, 1],
             [NC_PLUGIN_DESCRIPTOR_ABI_VERSION, 2],
+            [NC_PLUGIN_DESCRIPTOR_ABI_VERSION, 3],
             [NC_PLUGIN_DESCRIPTOR_ABI_VERSION, 17],
             [NC_PLUGIN_DESCRIPTOR_ABI_VERSION, 18],
+            [NC_PLUGIN_DESCRIPTOR_ABI_VERSION, 19],
             [NC_PLUGIN_DESCRIPTOR_ABI_VERSION, u32::MAX],
             [0, NC_COM_CORE_ABI_VERSION],
             [1, NC_COM_CORE_ABI_VERSION],
             [1, 18],
+            [2, 19],
+            [2, NC_COM_CORE_ABI_VERSION],
             [NC_PLUGIN_DESCRIPTOR_ABI_VERSION + 1, NC_COM_CORE_ABI_VERSION],
         ] {
             // SAFETY: Only the readable version prefix is promised for an

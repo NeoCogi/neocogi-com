@@ -3,13 +3,22 @@
 The C-shaped ABI shared by generated contracts, hosts, plugins, and the process
 runtime. Its default configuration is allocation-free; optional `alloc` helpers
 own decoded values and binary documents. Most authors use the `neocogi-com`
-facade. The [current object ABI](https://github.com/NeoCogi/neocogi-com/blob/v0.3.0/docs/abi-v2.md) remains experimental.
+facade. The [current object ABI](../../docs/abi-v3.md) remains experimental.
+
+These development sources use unreleased ABI v3/core generation 20; published
+0.3.0 retains ABI v2/core generation 19.
 
 Core defines statuses, GUIDs, exact signatures, typed metadata, raw object/table pairs
 and vtables, `IUnknown`, `ComPtr`, and `ComRef`. `ComInterface` owns identity and
 the minimum threading promise. Any closed interface can be a plugin root. The
 provider's typed Rust acquisition function supplies its exact contract and
 initializes private object state without separate bootstrap or role traits.
+
+Common-lifetime providers choose `NcSharedLifetimeState` or
+`NcBoxedLifetimeState`. The shared header has a numeric `strong_count`; the boxed
+header has `owner_and_borrows`. Each has its own `weak_count` and leading immutable
+`NcObjectTypeInfo` pointer. Metadata fixes the ownership kind before raw operations
+interpret either header. Cleanup remains in the allocating provider.
 
 Consumers generate Rust bindings and fixed signatures from shared IDL sources
 in their own crates. They can instead import bindings exposed by an existing
@@ -19,22 +28,22 @@ required. The IDL build helper hashes the complete transitive graph and derives
 each declaration's final 32 bytes. Core compares those bytes at factory/interface
 boundaries and does not hash or reconstruct an IDL graph.
 
-Plugin descriptor ABI v2 publishes plugin identity/version, hard dependencies,
+Plugin descriptor ABI v3 publishes plugin identity/version, hard dependencies,
 full root-factory IID/signature, threading, and one acquisition bootstrap.
 The safe Rust acquisition function takes the host-supplied `RuntimeHandle`; its raw
 C adapter takes a host API pointer and a caller-owned factory output slot.
 Successful acquisition transfers one factory owner using the host's one global
 registry; providers initialize no separate runtime.
 `NcPluginDescriptor` is the provider-authored registration input, returned by
-`nc_get_plugin_descriptor_v2`. `NcPluginInfoV2` is the runtime's complete
+`nc_get_plugin_descriptor_v3`. `NcPluginInfoV3` is the runtime's complete
 lookup/enumeration output: metadata plus first registration origin, without a
 bootstrap function or live factory reference. These records have different roles
 and do not own the storage behind their pointers.
 
 Runtime discovery supplies three tables: complete plugin operations, debug,
-and persistence. See [runtime ABI v2](https://github.com/NeoCogi/neocogi-com/blob/v0.3.0/docs/abi-v2.md#runtime-and-global-registry) for descriptor
+and persistence. See [runtime ABI v3](../../docs/abi-v3.md#runtime-and-global-registry) for descriptor
 lifetimes, inspection and acquisition, and the
-[ABI specification entrypoint](https://github.com/NeoCogi/neocogi-com/blob/v0.3.0/docs/abi-v2.md) for object layouts.
+[ABI specification entrypoint](../../docs/abi-v3.md) for object layouts.
 
 ## Interface safety
 

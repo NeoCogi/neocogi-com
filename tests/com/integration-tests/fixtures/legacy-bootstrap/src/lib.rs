@@ -43,12 +43,13 @@ mod legacy {
         guid_from_qualified_name,
     };
 
-    /// Pre-a8cb86c descriptor shape: its acquisition pointer takes only output.
+    /// Core-19 rejection fixture with a deliberately retired one-argument trap.
+    /// It need not model published callback semantics: no callback may be read.
     #[repr(C)]
     struct LegacyDescriptor {
-        /// Discovery getter family shared with the retired implementation.
+        /// Current family for core rejection, or v2 for old-symbol rejection.
         description_abi_version: u32,
-        /// Retired generation deliberately reused before the first publication.
+        /// Published ABI-v2 core generation, incompatible with development core 20.
         core_abi_version: u32,
         /// Same plugin identity as the compatible control.
         plugin_id: NcGuid,
@@ -82,8 +83,12 @@ mod legacy {
     /// Full, aligned legacy storage prevents malformed-memory rejection masking
     /// the generation mismatch that must precede any complete-record borrow.
     static DESCRIPTOR: LegacyDescriptor = LegacyDescriptor {
-        description_abi_version: 1,
-        core_abi_version: 1,
+        description_abi_version: if cfg!(feature = "legacy-v2-symbol") {
+            2
+        } else {
+            neocogi_com_core::NC_PLUGIN_DESCRIPTOR_ABI_VERSION
+        },
+        core_abi_version: 19,
         plugin_id: guid_from_qualified_name("nc.tests.legacy_bootstrap"),
         qualified_name: NcStaticUtf8::from_static("nc.tests.legacy_bootstrap"),
         plugin_version: NcStaticUtf8::from_static("0.0.0"),
@@ -100,7 +105,14 @@ mod legacy {
     /// `out` must be null or writable for one native pointer. The host may read
     /// only the prefix until it has admitted the legacy generation.
     #[cfg_attr(feature = "legacy-symbol", unsafe(export_name = "nc_get_plugin_descriptor_v1"))]
-    #[cfg_attr(not(feature = "legacy-symbol"), unsafe(export_name = "nc_get_plugin_descriptor_v2"))]
+    #[cfg_attr(
+        all(feature = "legacy-v2-symbol", not(feature = "legacy-symbol")),
+        unsafe(export_name = "nc_get_plugin_descriptor_v2")
+    )]
+    #[cfg_attr(
+        not(any(feature = "legacy-symbol", feature = "legacy-v2-symbol")),
+        unsafe(export_name = "nc_get_plugin_descriptor_v3")
+    )]
     unsafe extern "C" fn legacy_descriptor(out: *mut *const LegacyDescriptor) -> NcStatus {
         if out.is_null() {
             return NC_E_POINTER;

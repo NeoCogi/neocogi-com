@@ -227,7 +227,7 @@ fn interface_pairs_share_one_object_without_embedded_headers() {
     let value_address = (&*state as *const Toggle) as usize;
     assert_eq!(
         value_address - root.as_raw().object as usize,
-        core::mem::size_of::<neocogi_com::lifetime::NcLifetimeState>() + word
+        core::mem::size_of::<neocogi_com::lifetime::NcSharedLifetimeState>() + word
     );
 }
 

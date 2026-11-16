@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
@@ -50,47 +51,47 @@ struct NcInterfaceDescriptor {
 };
 
 typedef struct NcUtf8View { const uint8_t *data; size_t len; } NcUtf8View;
-typedef struct NcFactoryInfoV2 { NcInterfaceId interface; uint32_t threading; } NcFactoryInfoV2;
-typedef struct NcPluginInfoV2 {
+typedef struct NcFactoryInfoV3 { NcInterfaceId interface; uint32_t threading; } NcFactoryInfoV3;
+typedef struct NcPluginInfoV3 {
     NcGuid plugin_id;
     NcUtf8View qualified_name, version, library_path;
-    NcFactoryInfoV2 factory;
+    NcFactoryInfoV3 factory;
     const NcGuid *dependencies;
     size_t dependency_count;
-} NcPluginInfoV2;
+} NcPluginInfoV3;
 
-/* Current runtime-family-2 layout; the first three callback signatures are
+/* Current runtime-family-3 layout; the first three callback signatures are
  * retained as opaque pointers here because this test invokes metadata only. */
-typedef struct NcRuntimeApiV2 {
+typedef struct NcRuntimeApiV3 {
     size_t size;
     uint32_t core_abi_version;
     int32_t (*register_plugin_descriptor)(const void *);
     void (*load_plugin_library_utf8)(void);
     void (*acquire_factory_plugin)(void);
-    NcStatus (*plugin_info)(NcGuid, NcPluginInfoV2 *);
+    NcStatus (*plugin_info)(NcGuid, NcPluginInfoV3 *);
     size_t (*plugin_count)(void);
-    NcStatus (*plugin_infos)(NcPluginInfoV2 *, size_t, size_t *);
+    NcStatus (*plugin_infos)(NcPluginInfoV3 *, size_t, size_t *);
     void (*inspect_plugin_library_utf8)(void);
-} NcRuntimeApiV2;
+} NcRuntimeApiV3;
 
-typedef struct NcDebugApiV2Prefix {
+typedef struct NcDebugApiV3Prefix {
     size_t size;
     void (*create_messenger)(void);
-} NcDebugApiV2Prefix;
+} NcDebugApiV3Prefix;
 
 /* Host access groups immutable tables; it owns no C registry allocation. */
-typedef struct NcPersistenceApiV2 NcPersistenceApiV2;
-typedef struct NcHostApiV2 {
+typedef struct NcPersistenceApiV3 NcPersistenceApiV3;
+typedef struct NcHostApiV3 {
     size_t size;
     uint32_t runtime_abi_version, core_abi_version;
-    const NcRuntimeApiV2 *runtime;
-    const NcDebugApiV2Prefix *debug;
-    const NcPersistenceApiV2 *persistence;
-} NcHostApiV2;
-/* The output capability is defined below; both parameters are part of ABI-v2. */
-typedef NcStatus (*NcAcquirePluginFactory)(const NcHostApiV2 *, IUnknown *);
-_Static_assert(offsetof(NcHostApiV2, runtime_abi_version) == sizeof(size_t), "host version prefix");
-_Static_assert(sizeof(NcHostApiV2) == (sizeof(void *) == 8 ? 40 : 24), "host C layout");
+    const NcRuntimeApiV3 *runtime;
+    const NcDebugApiV3Prefix *debug;
+    const NcPersistenceApiV3 *persistence;
+} NcHostApiV3;
+/* The output capability is defined below; both parameters are part of ABI-v3. */
+typedef NcStatus (*NcAcquirePluginFactory)(const NcHostApiV3 *, IUnknown *);
+_Static_assert(offsetof(NcHostApiV3, runtime_abi_version) == sizeof(size_t), "host version prefix");
+_Static_assert(sizeof(NcHostApiV3) == (sizeof(void *) == 8 ? 40 : 24), "host C layout");
 
 /* A raw borrowed/owned capability; ownership follows the enclosing operation. */
 struct IUnknown {
@@ -100,8 +101,7 @@ struct IUnknown {
 
 /* Common lifetime entry points receive a one-pointer token. C need not
  * interpret the atomic header to call the shared functions supplied by Rust. */
-typedef struct NcLifetimeState NcLifetimeState;
-typedef struct NcWeakRaw { NcLifetimeState *control; } NcWeakRaw;
+typedef struct NcWeakRaw { void *control; } NcWeakRaw;
 _Static_assert(sizeof(NcWeakRaw) == sizeof(void *), "weak token must be one pointer");
 
 struct IUnknownVTable {
@@ -260,12 +260,12 @@ _Static_assert(offsetof(NativeAggregate, value) == 8,
 _Static_assert(sizeof(NativeAggregate) == 16,
     "NativeAggregate ABI size changed");
 
-_Static_assert(offsetof(NcRuntimeApiV2, size) == 0,
-    "NcRuntimeApiV2 must begin with size");
-_Static_assert(offsetof(NcRuntimeApiV2, core_abi_version) == sizeof(size_t),
-    "NcRuntimeApiV2.core_abi_version prefix changed");
-_Static_assert(offsetof(NcDebugApiV2Prefix, create_messenger) == sizeof(size_t),
-    "NcDebugApiV2 prefix changed");
+_Static_assert(offsetof(NcRuntimeApiV3, size) == 0,
+    "NcRuntimeApiV3 must begin with size");
+_Static_assert(offsetof(NcRuntimeApiV3, core_abi_version) == sizeof(size_t),
+    "NcRuntimeApiV3.core_abi_version prefix changed");
+_Static_assert(offsetof(NcDebugApiV3Prefix, create_messenger) == sizeof(size_t),
+    "NcDebugApiV3 prefix changed");
 
 #if UINTPTR_MAX == UINT64_MAX
 _Static_assert(sizeof(NcInterfaceDescriptor) == 80,
@@ -274,8 +274,8 @@ _Static_assert(offsetof(NcInterfaceDescriptor, method_count) == 64,
     "64-bit NcInterfaceDescriptor.method_count ABI offset changed");
 _Static_assert(offsetof(NcInterfaceDescriptor, methods) == 72,
     "64-bit NcInterfaceDescriptor.methods ABI offset changed");
-_Static_assert(offsetof(NcRuntimeApiV2, register_plugin_descriptor) == 16,
-    "64-bit NcRuntimeApiV2 registration prefix changed");
+_Static_assert(offsetof(NcRuntimeApiV3, register_plugin_descriptor) == 16,
+    "64-bit NcRuntimeApiV3 registration prefix changed");
 #elif UINTPTR_MAX == UINT32_MAX
 _Static_assert(sizeof(NcInterfaceDescriptor) == 56,
     "32-bit NcInterfaceDescriptor ABI size changed");
@@ -283,8 +283,8 @@ _Static_assert(offsetof(NcInterfaceDescriptor, method_count) == 48,
     "32-bit NcInterfaceDescriptor.method_count ABI offset changed");
 _Static_assert(offsetof(NcInterfaceDescriptor, methods) == 52,
     "32-bit NcInterfaceDescriptor.methods ABI offset changed");
-_Static_assert(offsetof(NcRuntimeApiV2, register_plugin_descriptor) == 8,
-    "32-bit NcRuntimeApiV2 registration prefix changed");
+_Static_assert(offsetof(NcRuntimeApiV3, register_plugin_descriptor) == 8,
+    "32-bit NcRuntimeApiV3 registration prefix changed");
 #else
 #error "native C ABI fixture supports only 32-bit and 64-bit targets"
 #endif
@@ -299,23 +299,23 @@ int32_t nc_c_validate_abi_layouts(const NativeAbiLayouts *layouts) {
         layouts->interface_qualified_name_offset == offsetof(NcInterfaceDescriptor, qualified_name) &&
         layouts->interface_method_count_offset == offsetof(NcInterfaceDescriptor, method_count) &&
         layouts->interface_methods_offset == offsetof(NcInterfaceDescriptor, methods) &&
-        layouts->runtime_core_abi_version_offset == offsetof(NcRuntimeApiV2, core_abi_version) &&
-        layouts->runtime_plugin_register_offset == offsetof(NcRuntimeApiV2, register_plugin_descriptor) &&
-        layouts->runtime_plugin_count_offset == offsetof(NcRuntimeApiV2, plugin_count) &&
-        layouts->runtime_plugin_info_offset == offsetof(NcRuntimeApiV2, plugin_info) &&
-        layouts->runtime_size == sizeof(NcRuntimeApiV2) &&
-        layouts->runtime_plugin_infos_offset == offsetof(NcRuntimeApiV2, plugin_infos) &&
-        layouts->plugin_info_size == sizeof(NcPluginInfoV2) &&
-        layouts->plugin_factory_offset == offsetof(NcPluginInfoV2, factory) &&
-        layouts->plugin_dependencies_offset == offsetof(NcPluginInfoV2, dependencies) &&
-        layouts->plugin_dependency_count_offset == offsetof(NcPluginInfoV2, dependency_count) &&
-        layouts->debug_first_function_offset == offsetof(NcDebugApiV2Prefix, create_messenger) &&
-        layouts->host_size == sizeof(NcHostApiV2) &&
-        layouts->host_runtime_version_offset == offsetof(NcHostApiV2, runtime_abi_version) &&
-        layouts->host_core_version_offset == offsetof(NcHostApiV2, core_abi_version) &&
-        layouts->host_runtime_offset == offsetof(NcHostApiV2, runtime) &&
-        layouts->host_debug_offset == offsetof(NcHostApiV2, debug) &&
-        layouts->host_persistence_offset == offsetof(NcHostApiV2, persistence) &&
+        layouts->runtime_core_abi_version_offset == offsetof(NcRuntimeApiV3, core_abi_version) &&
+        layouts->runtime_plugin_register_offset == offsetof(NcRuntimeApiV3, register_plugin_descriptor) &&
+        layouts->runtime_plugin_count_offset == offsetof(NcRuntimeApiV3, plugin_count) &&
+        layouts->runtime_plugin_info_offset == offsetof(NcRuntimeApiV3, plugin_info) &&
+        layouts->runtime_size == sizeof(NcRuntimeApiV3) &&
+        layouts->runtime_plugin_infos_offset == offsetof(NcRuntimeApiV3, plugin_infos) &&
+        layouts->plugin_info_size == sizeof(NcPluginInfoV3) &&
+        layouts->plugin_factory_offset == offsetof(NcPluginInfoV3, factory) &&
+        layouts->plugin_dependencies_offset == offsetof(NcPluginInfoV3, dependencies) &&
+        layouts->plugin_dependency_count_offset == offsetof(NcPluginInfoV3, dependency_count) &&
+        layouts->debug_first_function_offset == offsetof(NcDebugApiV3Prefix, create_messenger) &&
+        layouts->host_size == sizeof(NcHostApiV3) &&
+        layouts->host_runtime_version_offset == offsetof(NcHostApiV3, runtime_abi_version) &&
+        layouts->host_core_version_offset == offsetof(NcHostApiV3, core_abi_version) &&
+        layouts->host_runtime_offset == offsetof(NcHostApiV3, runtime) &&
+        layouts->host_debug_offset == offsetof(NcHostApiV3, debug) &&
+        layouts->host_persistence_offset == offsetof(NcHostApiV3, persistence) &&
         layouts->aggregate_size == sizeof(NativeAggregate) &&
         layouts->aggregate_align == _Alignof(NativeAggregate) &&
         layouts->aggregate_count_offset == offsetof(NativeAggregate, count) &&
@@ -515,8 +515,8 @@ release_calculator:
 
 /* Consumes one sole strong owner and checks the full weak protocol from plain C. */
 int nc_c_exercise_weak(IUnknown owned, const NcInterfaceId *requested, NcStatus dropped_status,
-    void (*retain)(NcLifetimeState *), void (*release)(NcLifetimeState *),
-    NcStatus (*upgrade)(NcLifetimeState *, const NcInterfaceId *, IUnknown *)) {
+    void (*retain)(void *), void (*release)(void *),
+    NcStatus (*upgrade)(void *, const NcInterfaceId *, IUnknown *)) {
     NcWeakRaw weak = {0};
     if (!owned.vtable->downgrade || owned.vtable->downgrade(owned.object, &weak) != 0) return 0;
     if ((void *)weak.control != owned.object) return 0;
@@ -594,10 +594,120 @@ int32_t nc_c_exercise_choice_output(void *object, NativeChoiceOutput output,
 }
 
 /* This checks a real typed bootstrap call, not merely function-pointer size. */
-int32_t nc_c_exercise_host_bootstrap(const NcHostApiV2 *host, NcAcquirePluginFactory acquire, NcStatus expected) {
+int32_t nc_c_exercise_host_bootstrap(const NcHostApiV3 *host, NcAcquirePluginFactory acquire, NcStatus expected) {
     if (!host || host->size != sizeof(*host) || host->runtime_abi_version != NC_COM_RUNTIME_ABI_VERSION ||
         host->core_abi_version != NC_COM_CORE_ABI_VERSION || !host->runtime || !host->debug || !host->persistence) return 0;
     IUnknown out = {0};
     NcStatus status = acquire(host, &out);
     return status == expected && out.object == NULL && out.vtable == NULL && host->runtime->plugin_count() == 17;
+}
+
+
+/* Independent policy-specific provider storage. These fields are initialized
+ * before publication and are accessed atomically only by the supplied Rust
+ * lifetime operations; this fixture makes no concurrent plain C accesses. */
+typedef struct NcObjectTypeInfo {
+    uint32_t ownership;
+    void (*destroy_value)(void *);
+    void (*deallocate)(void *);
+    const IUnknownVTable *const *interfaces;
+    size_t interface_count;
+} NcObjectTypeInfo;
+typedef struct NcSharedLifetimeState {
+    const NcObjectTypeInfo *type_info;
+    uintptr_t strong_count;
+    uintptr_t weak_count;
+} NcSharedLifetimeState;
+typedef struct NcBoxedLifetimeState {
+    const NcObjectTypeInfo *type_info;
+    uintptr_t owner_and_borrows;
+    uintptr_t weak_count;
+} NcBoxedLifetimeState;
+_Static_assert(sizeof(NcObjectTypeInfo) == 5 * sizeof(void *), "object type information size");
+_Static_assert(offsetof(NcObjectTypeInfo, destroy_value) == sizeof(void *), "object cleanup callback offset");
+_Static_assert(sizeof(NcSharedLifetimeState) == 3 * sizeof(void *), "shared lifetime size");
+_Static_assert(sizeof(NcBoxedLifetimeState) == 3 * sizeof(void *), "boxed lifetime size");
+_Static_assert(offsetof(NcSharedLifetimeState, type_info) == 0, "shared metadata prefix");
+_Static_assert(offsetof(NcBoxedLifetimeState, type_info) == 0, "boxed metadata prefix");
+_Static_assert(offsetof(NcSharedLifetimeState, strong_count) == sizeof(void *), "strong count offset");
+_Static_assert(offsetof(NcBoxedLifetimeState, owner_and_borrows) == sizeof(void *), "boxed access offset");
+_Static_assert(offsetof(NcSharedLifetimeState, weak_count) == 2 * sizeof(void *), "shared weak offset");
+_Static_assert(offsetof(NcBoxedLifetimeState, weak_count) == 2 * sizeof(void *), "boxed weak offset");
+
+typedef struct NcLifecycleCounters { unsigned destroyed, freed; } NcLifecycleCounters;
+typedef struct NcSharedCAllocation {
+    NcSharedLifetimeState lifetime;
+    NcLifecycleCounters *counters;
+} NcSharedCAllocation;
+typedef struct NcBoxedCAllocation {
+    NcBoxedLifetimeState lifetime;
+    NcLifecycleCounters *counters;
+} NcBoxedCAllocation;
+
+/* Destruction and allocation release remain distinct, provider-local callbacks. */
+static void nc_c_shared_destroy(void *object) {
+    ((NcSharedCAllocation *)object)->counters->destroyed += 1;
+}
+static void nc_c_shared_free(void *object) {
+    NcSharedCAllocation *storage = (NcSharedCAllocation *)object;
+    storage->counters->freed += 1;
+    free(storage);
+}
+static void nc_c_boxed_destroy(void *object) {
+    ((NcBoxedCAllocation *)object)->counters->destroyed += 1;
+}
+static void nc_c_boxed_free(void *object) {
+    NcBoxedCAllocation *storage = (NcBoxedCAllocation *)object;
+    storage->counters->freed += 1;
+    free(storage);
+}
+
+/* Exercises both independently declared headers, including expired boxed kind
+ * rejection: its zero access word must never become an expired shared counter. */
+int nc_c_exercise_split_lifetimes(
+    const IUnknownVTable *root, NcStatus dropped, NcStatus invalid,
+    uint32_t (*retain)(void *), uint32_t (*release)(void *),
+    void (*weak_retain)(void *), void (*weak_release)(void *),
+    NcStatus (*upgrade)(void *, const NcInterfaceId *, IUnknown *)) {
+    const IUnknownVTable *tables[1] = {root};
+    const NcObjectTypeInfo shared_info = {1, nc_c_shared_destroy, nc_c_shared_free, tables, 1};
+    const NcObjectTypeInfo boxed_info = {2, nc_c_boxed_destroy, nc_c_boxed_free, tables, 1};
+    NcLifecycleCounters shared_counts = {0, 0}, boxed_counts = {0, 0};
+    NcSharedCAllocation *shared = (NcSharedCAllocation *)malloc(sizeof(*shared));
+    NcBoxedCAllocation *boxed = (NcBoxedCAllocation *)malloc(sizeof(*boxed));
+    if (!shared || !boxed) { free(shared); free(boxed); return 0; }
+    shared->lifetime.type_info = &shared_info;
+    shared->lifetime.strong_count = 1;
+    shared->lifetime.weak_count = 1;
+    shared->counters = &shared_counts;
+    boxed->lifetime.type_info = &boxed_info;
+    boxed->lifetime.owner_and_borrows = ((uintptr_t)1) << (8 * sizeof(uintptr_t) - 1);
+    boxed->lifetime.weak_count = 1;
+    boxed->counters = &boxed_counts;
+
+    weak_retain(shared);
+    if (retain(shared) != 2 || shared->lifetime.strong_count != 2) return 0;
+    if (release(shared) != 1) return 0;
+    IUnknown output = {0};
+    if (upgrade(shared, root->interface_id, &output) != 0 ||
+        output.object != shared || output.vtable != root) return 0;
+    if (release(output.object) != 1) return 0;
+    if (release(shared) != 0 || shared_counts.destroyed != 1 || shared_counts.freed != 0) return 0;
+    if (shared->lifetime.strong_count != 0 || shared->lifetime.weak_count != 1) return 0;
+    if (upgrade(shared, root->interface_id, &output) != dropped ||
+        output.object || output.vtable) return 0;
+    weak_release(shared);
+    if (shared_counts.freed != 1) return 0;
+
+    weak_retain(boxed);
+    uintptr_t owner = boxed->lifetime.owner_and_borrows;
+    if (retain(boxed) != 0 || boxed->lifetime.owner_and_borrows != owner) return 0;
+    if (upgrade(boxed, root->interface_id, &output) != invalid ||
+        output.object || output.vtable) return 0;
+    if (release(boxed) != 0 || boxed_counts.destroyed != 1 || boxed_counts.freed != 0) return 0;
+    if (boxed->lifetime.owner_and_borrows != 0 || boxed->lifetime.weak_count != 1) return 0;
+    if (upgrade(boxed, root->interface_id, &output) != invalid ||
+        output.object || output.vtable) return 0;
+    weak_release(boxed);
+    return boxed_counts.freed == 1 && shared_counts.destroyed == 1 && boxed_counts.destroyed == 1;
 }

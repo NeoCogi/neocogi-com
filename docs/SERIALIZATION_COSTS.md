@@ -38,7 +38,7 @@ including the checkout's rebuilt target std and deployment flags. Array repair
 alone left the dylib byte-identical: most affected constructors are instantiated
 in their typed caller. The diagnostic correction adds 144 file bytes to each
 measured artifact; the combined static example remains 2,336 bytes smaller.
-The dylib exports only `nc_get_plugin_descriptor_v2` and needs only `libc.so.6`.
+The dylib exports only `nc_get_plugin_descriptor_v3` and needs only `libc.so.6`.
 Version-string metadata changes after this comparison are separate from these
 same-version implementation measurements.
 
@@ -117,7 +117,7 @@ ordinary build and confirms NCB remains default. No new throughput benchmark
 was run for this packaging change; the codec algorithms and prior workload
 measurements below are unchanged.
 
-## Historical ABI-v2 alpha.1 direct-width numeric repair — 2026-11-12
+## Historical ABI-v3 alpha.1 direct-width numeric repair — 2026-11-12
 
 Measured on Linux x86_64, Intel Core Ultra 7 155H, with rolling `nightly`
 resolving to rustc 1.101.0-nightly (`c1070d693`, LLVM 23.1.1). Baseline and repair
@@ -133,7 +133,7 @@ Both measured revisions kept NCB unconditional, optional JSON and the same nativ
 | NCB-only static example | 77,144 / 61,305 | 77,144 / 61,305 | 0 |
 | NCB + JSON static example | 151,208 / 117,157 | 152,840 / 118,751 | +1,632 |
 
-The plugin exports only `nc_get_plugin_descriptor_v2` and needs only `libc.so.6`.
+The plugin exports only `nc_get_plugin_descriptor_v3` and needs only `libc.so.6`.
 These are actual stripped ELF files and GNU `size -A` sections, not type-size or
 source-size estimates. No runtime parser/framework dependency was added.
 
@@ -216,7 +216,7 @@ platform-style workflow uses `nightly-2026-09-29` (Rust 1.101.0-nightly,
 `c1070d693`, LLVM 23.1.1) and rebuilt target std. NCB is unconditional; JSON is our
 own parser/writer and adds no runtime parser/framework dependency. YAML is removed.
 These measurements describe the pre-alpha ABI v1 checkout; they are historical
-size/throughput evidence rather than qualification of the ABI v2 alpha candidate.
+size/throughput evidence rather than qualification of the ABI v2 release or ABI v3 development sources.
 
 ## Complete deployment configuration
 
@@ -232,7 +232,7 @@ The measurements below retain the exact compiler revision used for that run.
 The earlier 428,928-byte JSON file was built with precompiled std and retained
 panic/backtrace symbolization. Those measurements did not use this complete
 workflow and are superseded by the table below. The deployed library now needs
-only `libc.so.6`; it exports only `nc_get_plugin_descriptor_v2`.
+only `libc.so.6`; it exports only `nc_get_plugin_descriptor_v3`.
 
 ## Artifact sizes
 

@@ -87,7 +87,7 @@ impl INativeChoice for Choice {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use neocogi_com::{ComInterface, IUnknown, NC_E_POINTER, NC_OK, NcDebugApiV2, NcInterfaceDescriptor, NcInterfaceId, NcRuntimeApiV2, NcPluginInfoV2};
+    use neocogi_com::{ComInterface, IUnknown, NC_E_POINTER, NC_OK, NcDebugApiV3, NcInterfaceDescriptor, NcInterfaceId, NcRuntimeApiV3, NcPluginInfoV3};
 
     #[repr(C)]
     struct NativeCResults {
@@ -158,16 +158,51 @@ mod tests {
         ) -> NcStatus;
 
         fn nc_c_validate_abi_layouts(layouts: *const NativeAbiLayouts) -> i32;
+        /// C supplies both concrete lifetime layouts and its own allocation callbacks.
+        fn nc_c_exercise_split_lifetimes(
+            root: *const neocogi_com::IUnknownVTable,
+            dropped: NcStatus,
+            invalid: NcStatus,
+            retain: unsafe extern "C" fn(*mut core::ffi::c_void) -> u32,
+            release: unsafe extern "C" fn(*mut core::ffi::c_void) -> u32,
+            weak_retain: unsafe extern "C" fn(*mut core::ffi::c_void),
+            weak_release: unsafe extern "C" fn(*mut core::ffi::c_void),
+            upgrade: unsafe extern "C" fn(*mut core::ffi::c_void, *const NcInterfaceId, *mut neocogi_com::ComRaw<IUnknown>) -> NcStatus,
+        ) -> i32;
+
         /// Consumes the supplied sole owner and verifies weak expiration in C.
         fn nc_c_exercise_weak(
             owned: neocogi_com::ComRaw<IUnknown>,
             requested: *const NcInterfaceId,
             dropped: NcStatus,
-            retain: unsafe extern "C" fn(*mut neocogi_com::lifetime::NcLifetimeState),
-            release: unsafe extern "C" fn(*mut neocogi_com::lifetime::NcLifetimeState),
-            upgrade: unsafe extern "C" fn(*mut neocogi_com::lifetime::NcLifetimeState, *const NcInterfaceId, *mut neocogi_com::ComRaw<IUnknown>) -> NcStatus,
+            retain: unsafe extern "C" fn(*mut core::ffi::c_void),
+            release: unsafe extern "C" fn(*mut core::ffi::c_void),
+            upgrade: unsafe extern "C" fn(*mut core::ffi::c_void, *const NcInterfaceId, *mut neocogi_com::ComRaw<IUnknown>) -> NcStatus,
         ) -> i32;
 
+    }
+
+    /// Independent C allocation declarations exercise both policies and expired-kind checks.
+    #[test]
+    fn native_c_uses_distinct_shared_and_boxed_lifetime_states() {
+        use neocogi_com::lifetime::{self, CANONICAL_UNKNOWN_VTABLE};
+        // SAFETY: C retains every allocation, immutable metadata and output for the
+        // complete call and frees both C-owned allocations through its callbacks.
+        assert_eq!(
+            unsafe {
+                nc_c_exercise_split_lifetimes(
+                    &CANONICAL_UNKNOWN_VTABLE,
+                    neocogi_com::NC_E_DROPPED,
+                    neocogi_com::NC_E_INVALID_ARG,
+                    lifetime::nc_strong_retain,
+                    lifetime::nc_strong_release,
+                    lifetime::nc_weak_retain,
+                    lifetime::nc_weak_release,
+                    lifetime::nc_weak_upgrade,
+                )
+            },
+            1
+        );
     }
 
     /// An independent C caller can negotiate using its own fixed-width digest.
@@ -235,23 +270,23 @@ mod tests {
             interface_qualified_name_offset: core::mem::offset_of!(NcInterfaceDescriptor, qualified_name),
             interface_method_count_offset: core::mem::offset_of!(NcInterfaceDescriptor, method_count),
             interface_methods_offset: core::mem::offset_of!(NcInterfaceDescriptor, methods),
-            runtime_core_abi_version_offset: core::mem::offset_of!(NcRuntimeApiV2, core_abi_version),
-            runtime_plugin_register_offset: core::mem::offset_of!(NcRuntimeApiV2, register_plugin_descriptor),
-            runtime_plugin_count_offset: core::mem::offset_of!(NcRuntimeApiV2, plugin_count),
-            runtime_plugin_info_offset: core::mem::offset_of!(NcRuntimeApiV2, plugin_info),
-            runtime_size: core::mem::size_of::<NcRuntimeApiV2>(),
-            runtime_plugin_infos_offset: core::mem::offset_of!(NcRuntimeApiV2, plugin_infos),
-            plugin_info_size: core::mem::size_of::<NcPluginInfoV2>(),
-            plugin_factory_offset: core::mem::offset_of!(NcPluginInfoV2, factory),
-            plugin_dependencies_offset: core::mem::offset_of!(NcPluginInfoV2, dependencies),
-            plugin_dependency_count_offset: core::mem::offset_of!(NcPluginInfoV2, dependency_count),
-            debug_first_function_offset: core::mem::offset_of!(NcDebugApiV2, create_messenger),
-            host_size: core::mem::size_of::<neocogi_com::NcHostApiV2>(),
-            host_runtime_version_offset: core::mem::offset_of!(neocogi_com::NcHostApiV2, runtime_abi_version),
-            host_core_version_offset: core::mem::offset_of!(neocogi_com::NcHostApiV2, core_abi_version),
-            host_runtime_offset: core::mem::offset_of!(neocogi_com::NcHostApiV2, runtime),
-            host_debug_offset: core::mem::offset_of!(neocogi_com::NcHostApiV2, debug),
-            host_persistence_offset: core::mem::offset_of!(neocogi_com::NcHostApiV2, persistence),
+            runtime_core_abi_version_offset: core::mem::offset_of!(NcRuntimeApiV3, core_abi_version),
+            runtime_plugin_register_offset: core::mem::offset_of!(NcRuntimeApiV3, register_plugin_descriptor),
+            runtime_plugin_count_offset: core::mem::offset_of!(NcRuntimeApiV3, plugin_count),
+            runtime_plugin_info_offset: core::mem::offset_of!(NcRuntimeApiV3, plugin_info),
+            runtime_size: core::mem::size_of::<NcRuntimeApiV3>(),
+            runtime_plugin_infos_offset: core::mem::offset_of!(NcRuntimeApiV3, plugin_infos),
+            plugin_info_size: core::mem::size_of::<NcPluginInfoV3>(),
+            plugin_factory_offset: core::mem::offset_of!(NcPluginInfoV3, factory),
+            plugin_dependencies_offset: core::mem::offset_of!(NcPluginInfoV3, dependencies),
+            plugin_dependency_count_offset: core::mem::offset_of!(NcPluginInfoV3, dependency_count),
+            debug_first_function_offset: core::mem::offset_of!(NcDebugApiV3, create_messenger),
+            host_size: core::mem::size_of::<neocogi_com::NcHostApiV3>(),
+            host_runtime_version_offset: core::mem::offset_of!(neocogi_com::NcHostApiV3, runtime_abi_version),
+            host_core_version_offset: core::mem::offset_of!(neocogi_com::NcHostApiV3, core_abi_version),
+            host_runtime_offset: core::mem::offset_of!(neocogi_com::NcHostApiV3, runtime),
+            host_debug_offset: core::mem::offset_of!(neocogi_com::NcHostApiV3, debug),
+            host_persistence_offset: core::mem::offset_of!(neocogi_com::NcHostApiV3, persistence),
             aggregate_size: core::mem::size_of::<<NativeAggregate as neocogi_com::ComValue>::Wire>(),
             aggregate_align: core::mem::align_of::<<NativeAggregate as neocogi_com::ComValue>::Wire>(),
             aggregate_count_offset: core::mem::offset_of!(<NativeAggregate as neocogi_com::ComValue>::Wire, count),

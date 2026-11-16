@@ -1,5 +1,9 @@
 # NeoCogi COM
 
+Development sources on this branch use unreleased **ABI v3/core generation 20**.
+Published 0.3.0 packages retain ABI v2/core generation 19; use their release-tag
+documentation for that contract.
+
 [![Crates.io](https://img.shields.io/crates/v/neocogi-com.svg)](https://crates.io/crates/neocogi-com)
 
 NeoCogi COM helps you build Rust applications with plugins compiled separately
@@ -11,8 +15,9 @@ This is experimental software. Build the host, plugins and generated interfaces
 with the same SDK release. Loaded plugins stay mapped until the process exits.
 
 The current release is **[0.3.0](https://crates.io/crates/neocogi-com/0.3.0)**.
-All eight packages listed below are published on crates.io. The SDK uses
-[ABI v2](docs/abi-v2.md), with core generation 19.
+All eight packages listed below are published on crates.io with ABI v2/core
+generation 19. The development contract is [ABI v3](docs/abi-v3.md), with core
+generation 20.
 Persistence applications explicitly supply their selected serialization provider;
 see [host persistence](crates/host/PERSISTENCE.md).
 
@@ -36,7 +41,8 @@ Development on `0.4.0-wip` additionally includes
 bootstrap shim. It is unreleased. Applications choose one static or dynamic host
 owner and supply that owner's runtime access to every plugin.
 The approved [Rust API renames](docs/COM.md#rust-names-in-040-development) are
-recorded with migration names; ABI v2/core generation 19 remains unchanged.
+recorded with migration names. The lifetime-policy split introduces distinct
+shared and boxed headers and advances the development binary contract to ABI v3.
 
 A **host** is the final application that owns one runtime implementation. An
 **interface caller** calls a COM interface; a **provider** implements one. These
@@ -87,7 +93,7 @@ a downstream consumer using only those extracted packages. Install that compiler
 registry inputs; run `cargo fetch --locked` first on a fresh machine.
 
 Read the [component guide](docs/COM.md),
-[ABI specification](docs/abi-v2.md),
+[ABI specification](docs/abi-v3.md),
 [IDL reference](docs/contracts/IDL_MODULES.md), and
 [dynamic/static example](examples/com-plugin/README.md).
 

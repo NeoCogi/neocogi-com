@@ -59,7 +59,7 @@ the value once, while its implicit weak owner keeps storage valid through that
 destructor. The final weak reference frees storage through the allocating
 provider. Each callback remains paired with the exact generated allocation.
 
-Runtime and plugin descriptor discovery use family 2; core uses generation 19. Handle layouts,
+Runtime and plugin descriptor discovery use family 3; core uses generation 20. Handle layouts,
 threading and process-wide runtime authority are unchanged by typed storage.
 The compiler owns the separate [canonical signature encoding](IDL_MODULES.md#canonical-signatures).
 Earlier descriptions of cyclic construction are superseded by this pre-release
@@ -74,9 +74,10 @@ a separately named storage companion or implement `ComAbiObject` and
 `ThreadSafeComObject`. Both primary-interface and explicit-list providers prove
 threading through the same mode-dependent bound, including generic specializations.
 
-Facade support owns `Storage<T, Access>`: shared providers select the existing
-call gate; exclusive providers select zero-sized access and the common header's
-combined owner/borrow state. The macro emits only bindings, small typed borrow
+Facade support owns `__ComStorage<T, Lifetime, Access>`: shared providers select
+NcSharedLifetimeState and the existing call gate; exclusive providers select
+NcBoxedLifetimeState and zero-sized access. The boxed header combines owner
+presence and borrowing without a shared strong counter. The macro emits only bindings, small typed borrow
 adapters and the selected ownership family's two constructors. Constructor support
 is unsafe because the generated adapters and allocation must select exactly the
 same concrete layout. This is construction proof, never a foreign-object downcast.

@@ -16,9 +16,9 @@ fn example<'a>(document: &'a str, label: &str) -> &'a str {
 /// The current checkout carries only the ABI specification selected by its runtime.
 #[test]
 fn current_abi_specification_matches_the_runtime_generation() {
-    assert_eq!(neocogi_com_core::NC_COM_CORE_ABI_VERSION, 19);
-    assert_eq!(neocogi_com_core::NC_COM_RUNTIME_ABI_VERSION, 2);
-    assert_eq!(neocogi_com_core::NC_PLUGIN_DESCRIPTOR_ABI_VERSION, 2);
+    assert_eq!(neocogi_com_core::NC_COM_CORE_ABI_VERSION, 20);
+    assert_eq!(neocogi_com_core::NC_COM_RUNTIME_ABI_VERSION, 3);
+    assert_eq!(neocogi_com_core::NC_PLUGIN_DESCRIPTOR_ABI_VERSION, 3);
     let directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs");
     let mut specifications = fs::read_dir(&directory)
         .unwrap()
@@ -28,14 +28,14 @@ fn current_abi_specification_matches_the_runtime_generation() {
         })
         .collect::<Vec<_>>();
     specifications.sort();
-    assert_eq!(specifications, [directory.join("abi-v2.md")]);
-    let document = include_str!("../../../docs/abi-v2.md");
-    assert!(document.starts_with("# COM ABI v2 (0.3.0)\n"));
-    assert!(document.contains("plugin descriptor discovery use family **2**, with core generation **19**"));
+    assert_eq!(specifications, [directory.join("abi-v3.md")]);
+    let document = include_str!("../../../docs/abi-v3.md");
+    assert!(document.starts_with("# COM ABI v3 (development)\n"));
+    assert!(document.contains("plugin descriptor discovery use family **3**, with core generation **20**"));
 }
 
 /// Current guidance consumes the actual compiler encoding and Cargo name policy.
-/// Runtime/descriptor family 2 remains independent from the IDL encoding revision.
+/// Runtime/descriptor family 3 remains independent from the IDL encoding revision.
 #[test]
 fn authoring_guides_match_current_encoding_and_module_mangling() {
     let domain = std::str::from_utf8(neocogi_idl::MODULE_ABI_ENCODING_DOMAIN).unwrap().trim_end_matches('\0');
@@ -47,8 +47,8 @@ fn authoring_guides_match_current_encoding_and_module_mangling() {
     let setup = include_str!("../README.md");
     let links = setup.lines().find_map(|line| line.strip_prefix("links = ")).unwrap().trim_matches('"');
     assert_eq!(links, neocogi_idl::cargo::contract_links_name("example.widgets"));
-    assert_eq!(neocogi_com_core::NC_COM_RUNTIME_ABI_VERSION, 2);
-    assert_eq!(neocogi_com_core::NC_PLUGIN_DESCRIPTOR_ABI_VERSION, 2);
+    assert_eq!(neocogi_com_core::NC_COM_RUNTIME_ABI_VERSION, 3);
+    assert_eq!(neocogi_com_core::NC_PLUGIN_DESCRIPTOR_ABI_VERSION, 3);
     for keyword in ["class", "factory"] {
         let invalid = format!("{keyword} Removed {{}}");
         assert!(neocogi_idl::parse_module(Path::new("example/removed.ncidl"), &invalid).is_err());

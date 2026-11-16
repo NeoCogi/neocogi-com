@@ -1,24 +1,27 @@
 //! Provider-local storage for generated objects. No registry state lives here.
 //!
-//! The common C header stays at offset zero. The finite access choices preserve
-//! the existing layouts: a separate gate for shared ownership, no extra state
+//! The policy-specific C header stays at offset zero. The access choices retain
+//! their separate roles: a separate gate for shared ownership, no extra state
 //! for exclusive ownership. Weak owners may retain this allocation after T dies.
 
 use crate::__alloc::boxed::Box;
 use core::{cell::UnsafeCell, ffi::c_void, mem::MaybeUninit};
 use crate::{ComBox, ComObject, ComPtr, ComRaw, IUnknown, NcStatus, NC_E_POINTER};
-use crate::lifetime::{BoxRead, BoxWrite, NcObjectTypeInfo, NcLifetimeState, CANONICAL_UNKNOWN_VTABLE};
+use crate::lifetime::{
+    BoxRead, BoxWrite, NcObjectTypeInfo, NcSharedLifetimeState, NcBoxedLifetimeState, NC_OWNERSHIP_SHARED, NC_OWNERSHIP_BOXED, CANONICAL_UNKNOWN_VTABLE,
+};
 use super::{ComBorrowState, ComReadGuard, ComWriteGuard, __ComExclusiveCall, __ComSharedCall};
 
-/// Hidden typed allocation shared by the two generated ownership families.
+/// Typed allocation parameterized by one concrete lifetime policy and access gate.
 ///
-/// `Access` is either the shared call gate or `()`. It is selected statically;
-/// neither it nor the concrete Rust layout crosses an interface call boundary.
+/// Lifetime is the concrete shared or boxed header. Access is the shared gate
+/// or unit, selected statically; neither policy nor the concrete Rust layout
+/// crosses an interface call boundary.
 #[doc(hidden)]
 #[repr(C)]
-pub struct __ComStorage<T, Access> {
-    /// Canonical allocation identity and lifetime authority at offset zero.
-    control: NcLifetimeState,
+pub struct __ComStorage<T, Lifetime, Access> {
+    /// Concrete shared or boxed lifetime header, selected statically at offset zero.
+    control: Lifetime,
     /// Shared classes' call gate; exclusive classes borrow through `control`.
     access: Access,
     /// Initialized until owner destruction; retained storage never drops T twice.
@@ -27,24 +30,27 @@ pub struct __ComStorage<T, Access> {
 
 /// Allocation layout for a shared provider with its own Rust borrow gate.
 #[doc(hidden)]
-pub type __ComSharedStorage<T> = __ComStorage<T, ComBorrowState>;
+pub type __ComSharedStorage<T> = __ComStorage<T, NcSharedLifetimeState, ComBorrowState>;
 
 /// Allocation layout for an exclusive provider using common-header admission.
 #[doc(hidden)]
-pub type __ComBoxStorage<T> = __ComStorage<T, ()>;
+pub type __ComBoxStorage<T> = __ComStorage<T, NcBoxedLifetimeState, ()>;
 
-impl<T: ComObject, Access: 'static> __ComStorage<T, Access> {
-    /// Only concrete cleanup and compact interface bindings vary by provider.
-    const CLASS: NcObjectTypeInfo = NcObjectTypeInfo {
-        destroy_value: Self::destroy_value,
-        deallocate: Self::deallocate,
-        interfaces: T::VTABLES.as_ptr(),
-        interface_count: T::VTABLES.len(),
-    };
+impl<T: ComObject, Lifetime: 'static, Access: 'static> __ComStorage<T, Lifetime, Access> {
+    /// Builds immutable policy admission and callbacks for this exact storage layout.
+    const fn type_info(ownership: u32) -> NcObjectTypeInfo {
+        NcObjectTypeInfo {
+            ownership,
+            destroy_value: Self::destroy_value,
+            deallocate: Self::deallocate,
+            interfaces: T::VTABLES.as_ptr(),
+            interface_count: T::VTABLES.len(),
+        }
+    }
 
     /// Allocates one initialized value; only the matching ownership constructor
     /// can select the control state and convert the result into a safe owner.
-    fn allocate(value: T, control: NcLifetimeState, access: Access) -> ComRaw<IUnknown> {
+    fn allocate(value: T, control: Lifetime, access: Access) -> ComRaw<IUnknown> {
         let storage = Box::into_raw(Box::new(Self {
             control,
             access,
@@ -57,7 +63,7 @@ impl<T: ComObject, Access: 'static> __ComStorage<T, Access> {
     }
 
     /// Destroys only T while the implicit weak owner still retains the header.
-    unsafe extern "C" fn destroy_value(control: *mut NcLifetimeState) {
+    unsafe extern "C" fn destroy_value(control: *mut c_void) {
         let storage = control.cast::<Self>();
         // SAFETY: the class descriptor belongs to this exact layout. The common
         // lifetime engine has excluded future value access and admitted calls.
@@ -65,7 +71,7 @@ impl<T: ComObject, Access: 'static> __ComStorage<T, Access> {
     }
 
     /// Frees the exact provider allocation after value destruction and final weak release.
-    unsafe extern "C" fn deallocate(control: *mut NcLifetimeState) {
+    unsafe extern "C" fn deallocate(control: *mut c_void) {
         // SAFETY: the final weak owner transfers this allocation once. MaybeUninit
         // suppresses a second T destructor, and Box preserves concrete alignment.
         unsafe { drop(Box::from_raw(control.cast::<Self>())) };
@@ -73,13 +79,16 @@ impl<T: ComObject, Access: 'static> __ComStorage<T, Access> {
 }
 
 impl<T: ComObject> __ComSharedStorage<T> {
+    /// Shared metadata admits the numeric strong counter before raw operations.
+    const CLASS: NcObjectTypeInfo = Self::type_info(NC_OWNERSHIP_SHARED);
+
     /// Allocates shared storage and transfers its initial strong owner.
     ///
     /// # Safety
     /// T's ComObject implementation and every paired table must recover exactly
     /// this storage layout and use its gate. T's threading proof must hold.
     pub unsafe fn into_shared(value: T) -> ComPtr<IUnknown, T::Threading> {
-        let raw = Self::allocate(value, NcLifetimeState::new(&Self::CLASS), ComBorrowState::new());
+        let raw = Self::allocate(value, NcSharedLifetimeState::new(&Self::CLASS), ComBorrowState::new());
         // SAFETY: allocation initialized one strong reference and its canonical table.
         unsafe { ComPtr::from_raw_owned(raw) }.expect("new shared object is present")
     }
@@ -109,13 +118,16 @@ impl<T: ComObject> __ComSharedStorage<T> {
 }
 
 impl<T: ComObject> __ComBoxStorage<T> {
+    /// Boxed metadata admits owner/access bits without interpreting them as a count.
+    const CLASS: NcObjectTypeInfo = Self::type_info(NC_OWNERSHIP_BOXED);
+
     /// Allocates exclusive storage and transfers its sole owner.
     ///
     /// # Safety
     /// T's ComObject implementation and paired tables must recover exactly this
     /// layout and admit calls through the header before accessing T. Threading must match.
     pub unsafe fn into_exclusive(value: T) -> ComBox<IUnknown, T::Threading> {
-        let raw = Self::allocate(value, NcLifetimeState::boxed(&Self::CLASS), ());
+        let raw = Self::allocate(value, NcBoxedLifetimeState::new(&Self::CLASS), ());
         // SAFETY: allocation initialized and transfers exactly one exclusive owner.
         unsafe { ComBox::from_raw_owned(raw) }.expect("new exclusive object is present")
     }

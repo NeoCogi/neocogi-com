@@ -2,18 +2,18 @@
 //! Registration, loading, factory acquisition, lookup, enumeration and unregistered
 //! inspection share this table. Diagnostics and persistence have independent
 //! lifecycles and tables. Callers admit this immutable size-prefixed table through
-//! the host-supplied API description. Runtime discovery stays family 2;
+//! the host-supplied API description. Runtime discovery stays family 3;
 //! the separately checked core generation freezes compatible table layouts and
 //! callbacks. Deploy all participants from the same published SDK release.
 
 use core::ffi::c_void;
 use crate::{IUnknown, NcPluginDescriptor, NcGuid, NcInterfaceId, NcStatus};
-use super::{NcInspectPluginDescriptorCallbackV2, NcPluginInfoV2};
+use super::{NcInspectPluginDescriptorCallbackV3, NcPluginInfoV3};
 
-/// Process-global runtime operations for runtime ABI v2.
+/// Process-global runtime operations for runtime ABI v3.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct NcRuntimeApiV2 {
+pub struct NcRuntimeApiV3 {
     /// Size of this table in bytes.
     pub size: usize,
     /// Core descriptor/object ABI understood by this runtime.
@@ -29,7 +29,7 @@ pub struct NcRuntimeApiV2 {
     /// cleared to the nil GUID before validation and initialized on success.
     /// The path is nonempty UTF-8 without interior NUL bytes.
     ///
-    /// The library must export `nc_get_plugin_descriptor_v2`. Class-table
+    /// The library must export `nc_get_plugin_descriptor_v3`. Class-table
     /// descriptor exports are not a loading mechanism. After argument
     /// validation, any native loading, description, dependency, or registration
     /// failure emits diagnostics and aborts the entire application. There is no
@@ -50,7 +50,7 @@ pub struct NcRuntimeApiV2 {
     /// `out` must be writable and aligned for one record. Null returns
     /// `NC_E_POINTER`; an unknown GUID returns `NC_E_NOT_FOUND`. Failure leaves
     /// storage untouched. Successful borrowed views remain process-lived.
-    pub plugin_info: unsafe extern "C" fn(plugin_id: NcGuid, out: *mut NcPluginInfoV2) -> NcStatus,
+    pub plugin_info: unsafe extern "C" fn(plugin_id: NcGuid, out: *mut NcPluginInfoV3) -> NcStatus,
     /// Returns a snapshot count of registered plugins, including static ones.
     /// Registration can grow the count before the subsequent fill.
     pub plugin_count: unsafe extern "C" fn() -> usize,
@@ -61,7 +61,7 @@ pub struct NcRuntimeApiV2 {
     /// null `out`; nonempty fills require aligned storage for `capacity` records.
     /// Outputs must not overlap. One fill holds one catalog read guard, giving
     /// a coherent snapshot; returned views survive the guard and catalog growth.
-    pub plugin_infos: unsafe extern "C" fn(out: *mut NcPluginInfoV2, capacity: usize, out_len: *mut usize) -> NcStatus,
+    pub plugin_infos: unsafe extern "C" fn(out: *mut NcPluginInfoV3, capacity: usize, out_len: *mut usize) -> NcStatus,
     /// Opens a trusted library without registration or factory acquisition.
     /// `path` is readable for `path_len` nonempty UTF-8 bytes without NUL.
     /// A nonnull callback obeys its synchronous borrow/no-unwind contract;
@@ -71,7 +71,7 @@ pub struct NcRuntimeApiV2 {
     /// returning its status unchanged. Once opened, mappings remain pinned even
     /// on subsequent failure. Opening may execute platform loader code.
     pub inspect_plugin_library_utf8:
-        unsafe extern "C" fn(path: *const u8, path_len: usize, callback: Option<NcInspectPluginDescriptorCallbackV2>, user_data: *mut c_void) -> NcStatus,
+        unsafe extern "C" fn(path: *const u8, path_len: usize, callback: Option<NcInspectPluginDescriptorCallbackV3>, user_data: *mut c_void) -> NcStatus,
 }
 
 #[cfg(test)]
@@ -80,10 +80,10 @@ mod tests {
     #[test]
     #[cfg(target_pointer_width = "64")]
     fn unified_runtime_table_has_explicit_c_layout() {
-        assert_eq!(core::mem::size_of::<NcRuntimeApiV2>(), 72);
-        assert_eq!(core::mem::offset_of!(NcRuntimeApiV2, plugin_info), 40);
-        assert_eq!(core::mem::offset_of!(NcRuntimeApiV2, plugin_count), 48);
-        assert_eq!(core::mem::offset_of!(NcRuntimeApiV2, plugin_infos), 56);
-        assert_eq!(core::mem::offset_of!(NcRuntimeApiV2, inspect_plugin_library_utf8), 64);
+        assert_eq!(core::mem::size_of::<NcRuntimeApiV3>(), 72);
+        assert_eq!(core::mem::offset_of!(NcRuntimeApiV3, plugin_info), 40);
+        assert_eq!(core::mem::offset_of!(NcRuntimeApiV3, plugin_count), 48);
+        assert_eq!(core::mem::offset_of!(NcRuntimeApiV3, plugin_infos), 56);
+        assert_eq!(core::mem::offset_of!(NcRuntimeApiV3, inspect_plugin_library_utf8), 64);
     }
 }

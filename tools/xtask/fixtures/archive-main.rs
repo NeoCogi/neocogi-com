@@ -32,8 +32,8 @@ fn main() {
     unsafe { runtime.register_plugin_descriptor(plugin_descriptor()) }.unwrap();
     let counter = runtime.acquire_plugin_root::<CounterAbi>(plugin_descriptor().plugin_id).unwrap();
     assert_eq!(counter.read(), Ok(42));
-    assert_eq!(neocogi_com::NC_COM_RUNTIME_ABI_VERSION, 2);
-    assert_eq!(neocogi_com::NC_PLUGIN_DESCRIPTOR_ABI_VERSION, 2);
+    assert_eq!(neocogi_com::NC_COM_RUNTIME_ABI_VERSION, 3);
+    assert_eq!(neocogi_com::NC_PLUGIN_DESCRIPTOR_ABI_VERSION, 3);
     assert_eq!(host_runtime().plugins().unwrap().len(), 1);
     assert_eq!(counter.read(), Ok(42));
     println!("archive host: value=42; plugins=1");

@@ -6,7 +6,7 @@
 #![deny(missing_docs)]
 #![deny(unsafe_op_in_unsafe_fn)]
 
-use neocogi_com_core::{NC_E_POINTER, NC_OK, NcHostApiV2, NcStatus};
+use neocogi_com_core::{NC_E_POINTER, NC_OK, NcHostApiV3, NcStatus};
 
 /// Lends this image's canonical host API after idempotent initialization.
 ///
@@ -19,7 +19,7 @@ use neocogi_com_core::{NC_E_POINTER, NC_OK, NcHostApiV2, NcStatus};
 /// A nonnull `output` is aligned and writable for one host pointer. The caller
 /// keeps this runtime image mapped for process lifetime before adopting access.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn nc_get_host_api_v2(output: *mut *const NcHostApiV2) -> NcStatus {
+pub unsafe extern "C" fn nc_get_host_api_v3(output: *mut *const NcHostApiV3) -> NcStatus {
     if output.is_null() {
         return NC_E_POINTER;
     }
@@ -37,13 +37,13 @@ mod tests {
     #[test]
     fn bootstrap_lends_one_valid_canonical_host() {
         // SAFETY: null is rejected before initialization or output access.
-        assert_eq!(unsafe { nc_get_host_api_v2(core::ptr::null_mut()) }, NC_E_POINTER);
+        assert_eq!(unsafe { nc_get_host_api_v3(core::ptr::null_mut()) }, NC_E_POINTER);
         let mut first = core::ptr::null();
         let mut second = core::ptr::null();
         // SAFETY: both output slots are writable and the test image remains live.
         unsafe {
-            assert_eq!(nc_get_host_api_v2(&mut first), NC_OK);
-            assert_eq!(nc_get_host_api_v2(&mut second), NC_OK);
+            assert_eq!(nc_get_host_api_v3(&mut first), NC_OK);
+            assert_eq!(nc_get_host_api_v3(&mut second), NC_OK);
             assert_eq!(neocogi_com_core::validate_host_api(first), NC_OK);
         }
         assert_eq!(first, second);

@@ -26,10 +26,13 @@ replace stored CI tokens for later releases.
 
 The compatibility rule is separate from Cargo versions. The current published
 release is `0.3.0`, using ABI v2: runtime and descriptor family 2, core generation
-19, and `nc_get_plugin_descriptor_v2`. Deploy hosts, providers and generated
-bindings from one SDK release. ABI v1 libraries are rejected before bootstrap;
-there is no compatibility export. Interface signatures, IDL encoding and NCB
-persistence format have their own authorities in the [ABI contract](../abi-v2.md).
+19, and `nc_get_plugin_descriptor_v2`. The unreleased development branch uses
+ABI v3: runtime and descriptor family 3, core generation 20, and
+`nc_get_plugin_descriptor_v3`. Deploy hosts, providers and generated bindings
+from one SDK release. Development hosts reject ABI v1/v2 libraries before
+bootstrap; there is no compatibility export. Interface signatures, IDL encoding
+and NCB persistence format have their own authorities in the
+[development ABI contract](../abi-v3.md).
 
 
 Prepare a user-facing changelog entry with features, migration instructions,
@@ -56,7 +59,9 @@ This release does not promise Rust dependency compatibility with the published
 `0.2.0` SDK. Move downstream UI and platform compositions to the new COM cohort
 together; do not combine COM Rust types from different package versions. ABI
 family 2, core generation 19, IDL encoding v14 and NCB-v1 bytes retain their
-independent authorities.
+independent authorities in that published release. The development lifetime split
+advances discovery to family 3 and core to generation 20 without changing IDL v14
+or NCB-v1.
 
 Merge the candidate to master and push for native CI before publication. Publish
 only after every required job for that exact commit passes. Historical prototype

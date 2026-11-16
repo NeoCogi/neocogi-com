@@ -1,4 +1,4 @@
-//! Real native admission separates the published core from retired callbacks.
+//! Real native admission rejects published/retired cores before callbacks.
 #![cfg(any(unix, windows))]
 
 use std::{
@@ -35,16 +35,16 @@ struct RejectedHostPrefix {
     core: u32,
 }
 
-/// ABI v1 host access is rejected before reading children or running authored code.
+/// Retired host families/cores are rejected before children or authored code.
 #[test]
-fn abi_v1_host_prefix_is_rejected_before_authored_acquisition() {
+fn retired_host_prefixes_are_rejected_before_authored_acquisition() {
     use std::sync::atomic::Ordering;
-    use neocogi_com::{ComRaw, IUnknown, IUnknownVTable, NcHostApiV2, NC_E_CLOSED};
+    use neocogi_com::{ComRaw, IUnknown, IUnknownVTable, NcHostApiV3, NC_E_CLOSED};
     let acquire = host_admission::plugin_descriptor().acquire.unwrap();
     host_admission::CALLS.store(0, Ordering::SeqCst);
-    for (runtime, core) in [(1, 18), (1, 19), (2, 18)] {
+    for (runtime, core) in [(1, 18), (1, 19), (2, 18), (2, 19), (3, 19)] {
         let prefix = RejectedHostPrefix {
-            size: core::mem::size_of::<NcHostApiV2>(),
+            size: core::mem::size_of::<NcHostApiV3>(),
             runtime,
             core,
         };
@@ -169,7 +169,7 @@ fn retired_bootstrap_is_rejected_before_its_callback() {
     assert_eq!(std::fs::read(marker).unwrap(), b"current", "current callback must actually execute");
 }
 
-/// Family 2 never falls back to an ABI v1 getter, even before reading metadata.
+/// Family 3 never falls back to an ABI v1 getter, even before reading metadata.
 #[test]
 fn abi_v1_discovery_is_rejected_without_bootstrap() {
     let legacy = provider(Some("legacy-symbol"));
@@ -179,14 +179,24 @@ fn abi_v1_discovery_is_rejected_without_bootstrap() {
     assert!(!marker.exists(), "ABI v1 bootstrap must never execute");
 }
 
+/// Published ABI-v2 discovery is never used as a fallback for the new family.
+#[test]
+fn abi_v2_discovery_is_rejected_without_bootstrap() {
+    let legacy = provider(Some("legacy-v2-symbol"));
+    let marker = legacy.path().join("v2-bootstrap.marker");
+    let inspected = child("v2-symbol", legacy.path(), &marker);
+    assert!(inspected.status.success(), "{}", String::from_utf8_lossy(&inspected.stderr));
+    assert!(!marker.exists(), "ABI-v2 bootstrap must never execute");
+}
+
 /// Child entry: current control makes real calls; rejected legacy code never runs.
 #[test]
 fn generation_child() {
     let Ok(mode) = std::env::var(MODE) else { return };
     let path = PathBuf::from(std::env::var_os(LIBRARY).expect("provider path"));
-    if mode == "v1-symbol" {
+    if mode == "v1-symbol" || mode == "v2-symbol" {
         // SAFETY: Parent supplies a trusted fixture exposing only the old getter.
-        let error = unsafe { neocogi_com_host::inspect_plugin_library(path) }.expect_err("ABI v1 getter must be absent from family 2");
+        let error = unsafe { neocogi_com_host::inspect_plugin_library(path) }.expect_err("retired getter must be absent from family 3");
         assert_eq!(error.kind(), neocogi_com_host::PluginLoadErrorKind::FindSymbol);
         return;
     }

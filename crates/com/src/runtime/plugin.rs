@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use std::string::String;
 use std::vec::Vec;
 
-use crate::{NC_E_INVALID_ARG, NC_E_NOT_FOUND, NC_E_POINTER, NC_OK, NcPluginDescriptor, NcGuid, NcInterfaceId, NcPluginInfoV2, NcStatus};
+use crate::{NC_E_INVALID_ARG, NC_E_NOT_FOUND, NC_E_POINTER, NC_OK, NcPluginDescriptor, NcGuid, NcInterfaceId, NcPluginInfoV3, NcStatus};
 
 use super::{RuntimeHandle, read_utf8_view, read_vec, status_to_result};
 
@@ -154,7 +154,7 @@ impl RuntimeHandle {
 
     /// Retrieves the complete borrowed record without allocating owned metadata.
     /// Generic acquisition uses this to select the exact factory interface.
-    pub(super) fn raw_plugin_info(&self, plugin_id: NcGuid) -> Result<Option<NcPluginInfoV2>, NcStatus> {
+    pub(super) fn raw_plugin_info(&self, plugin_id: NcGuid) -> Result<Option<NcPluginInfoV3>, NcStatus> {
         let mut out = core::mem::MaybeUninit::uninit();
         // SAFETY: `out` is writable and initialized by a successful lookup.
         let status = unsafe { (self.runtime_api().plugin_info)(plugin_id, out.as_mut_ptr()) };
@@ -169,7 +169,7 @@ impl RuntimeHandle {
 
 /// Validates scalar/array shape and copies the runtime's process-lived views.
 /// Pointer readability comes from the admitted host-service contract, not these checks.
-fn owned_plugin_info(info: NcPluginInfoV2) -> Result<PluginInfo, NcStatus> {
+fn owned_plugin_info(info: NcPluginInfoV3) -> Result<PluginInfo, NcStatus> {
     let threading = crate::NcAbiThreadingMode::from_raw(info.factory.threading).ok_or(NC_E_INVALID_ARG)?;
     let count = super::checked_enumeration_capacity(info.dependency_count)?;
     if count != 0 && info.dependencies.is_null() {
@@ -208,12 +208,12 @@ mod tests {
     /// empty arrays accept null. These checks do not validate arbitrary pointers.
     #[test]
     fn owned_records_validate_dependency_and_threading_shapes() {
-        let mut raw = NcPluginInfoV2 {
+        let mut raw = NcPluginInfoV3 {
             plugin_id: NcGuid::nil(),
             qualified_name: crate::NcUtf8View::EMPTY,
             version: crate::NcUtf8View::EMPTY,
             library_path: crate::NcUtf8View::EMPTY,
-            factory: crate::NcFactoryInfoV2 {
+            factory: crate::NcFactoryInfoV3 {
                 interface: crate::IUnknown::INTERFACE_ID,
                 threading: crate::NC_ABI_THREADING_THREAD_LOCAL,
             },
