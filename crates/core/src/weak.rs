@@ -79,7 +79,7 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> WeakComPtr<T, M> {
         let control = NonNull::new(raw.control).ok_or(NC_E_POINTER)?;
         // SAFETY: the transferred token retains valid header/class storage even
         // when it proves the wrong ownership kind or target interface.
-        if let Err(status) = unsafe { crate::lifetime::shared_weak_projection(raw.control, &T::INTERFACE_ID) } {
+        if let Err(status) = unsafe { crate::lifetime::check_shared_weak_cast(raw.control, &T::INTERFACE_ID) } {
             // SAFETY: failure consumes exactly the transferred weak reference;
             // common weak release works for both shared and exclusive headers.
             unsafe { nc_weak_release(raw.control) };
@@ -132,7 +132,7 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> WeakComPtr<T, M> {
     /// Expired sources retain their immutable class metadata through this observer.
     pub fn query<U: ComInterface>(&self) -> Result<WeakComPtr<U, M>, NcStatus> {
         // SAFETY: this observer retains the common shared header and class tables.
-        unsafe { crate::lifetime::shared_weak_projection(self.control.as_ptr(), &U::INTERFACE_ID) }?;
+        unsafe { crate::lifetime::check_shared_weak_cast(self.control.as_ptr(), &U::INTERFACE_ID) }?;
         // SAFETY: validation precedes acquisition and this token remains alive.
         unsafe { nc_weak_retain(self.control.as_ptr()) };
         Ok(WeakComPtr {

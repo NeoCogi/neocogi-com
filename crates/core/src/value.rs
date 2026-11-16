@@ -703,7 +703,7 @@ unsafe impl<T: crate::ComInterface + 'static, M: crate::ThreadingModel> ComValue
         budget.value(|_| {
             // SAFETY: the caller lends valid header/class storage; null, ownership
             // kind and exact interface identity are checked before acquisition.
-            unsafe { crate::lifetime::shared_weak_projection(wire.control, &T::INTERFACE_ID) }?;
+            unsafe { crate::lifetime::check_shared_weak_cast(wire.control, &T::INTERFACE_ID) }?;
             // SAFETY: successful validation proves a present retained header.
             unsafe { crate::lifetime::nc_weak_retain(wire.control) };
             // SAFETY: this function just acquired the exact validated weak owner.
@@ -731,7 +731,7 @@ unsafe impl<T: crate::ComInterface + 'static, M: crate::ThreadingModel> ComValue
             let control = wire.object.cast();
             // SAFETY: the valid borrowed header survives this call; projection
             // rejects shared ownership and mismatched interface metadata.
-            let table = unsafe { crate::lifetime::box_projection(control, &T::INTERFACE_ID) }?;
+            let table = unsafe { crate::lifetime::try_box_cast(control, &T::INTERFACE_ID) }?;
             // SAFETY: successful validation proves live weak bookkeeping. Only
             // the canonical provider table is retained, never the caller's table.
             unsafe { crate::lifetime::nc_weak_retain(control) };

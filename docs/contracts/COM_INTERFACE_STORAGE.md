@@ -126,6 +126,14 @@ inherited method entries still occur in derived tables: eliminating object heade
 does **not** deduplicate those entries. Any proposal to change that is separate
 and must preserve inherited dispatch and inspection.
 
+Core storage uses checked interface casts without changing ownership.
+`try_box_cast` returns the exact interface table for retained exclusive storage,
+including an expired exclusive observer. `check_shared_weak_cast` checks a shared
+weak token's exact interface and returns its precise failure status without
+promoting the value. Both use the private `try_cast` table lookup; callers decide
+whether to retain, move or borrow a handle after successful validation. These Rust
+helper names do not change the C interface query or promotion protocols.
+
 Explicit interface metadata exposes physical method descriptors and exact
 signatures. Ordinary construction and dispatch need not retain their descriptive
 names. The [release-link regression](../../tests/com/integration-tests/projection_metadata.rs)

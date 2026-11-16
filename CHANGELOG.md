@@ -6,6 +6,13 @@ Historical draft numbers do not define additional supported COM baselines.
 
 ## Unreleased
 
+- Rename checked interface-cast helpers: `box_projection` becomes `try_box_cast`,
+  `shared_weak_projection` becomes `check_shared_weak_cast`, and the private
+  metadata lookup becomes `try_cast`. Update owner, weak-token and value-wire
+  callers without aliases. Casts retain exact interface checks and existing
+  ownership/error semantics; C layouts, callback signatures, interface digests
+  and ABI v2/core generation 19 are unchanged.
+
 - Clarify Rust ownership and representation names: `Runtime` becomes
   `RuntimeHandle`, `NcClassLifetime` becomes `NcObjectTypeInfo`, and
   `NcAbiSignature` becomes `NcAbiDigest`. Runtime diagnostics use

@@ -184,25 +184,25 @@ pub unsafe extern "C" fn nc_downgrade(object: *mut c_void, out: *mut crate::NcWe
     NC_OK
 }
 
-/// Resolves an exact projection without altering ownership.
+/// Tries an exact interface cast by selecting its table without altering ownership.
 ///
 /// # Safety
 /// Header, class metadata and requested identity must be live and valid.
-unsafe fn projection(control: &NcWeakControl, requested: &NcInterfaceId) -> Result<*const IUnknownVTable, NcStatus> {
+unsafe fn try_cast(control: &NcWeakControl, requested: &NcInterfaceId) -> Result<*const IUnknownVTable, NcStatus> {
     // SAFETY: the class contract supplies a permanent nonempty table array.
     let class = unsafe { &*control.class };
     let tables = unsafe { core::slice::from_raw_parts(class.interfaces, class.interface_count) };
     unsafe { crate::__nc_find_interface(tables, requested) }
 }
 
-/// Checks a shared weak token's exact interface without promoting its value.
-/// Expired tokens retain immutable class metadata and remain valid
-/// weak values. The permanent ownership tag rejects exclusive control blocks.
+/// Checks whether retained shared weak storage supports an exact interface cast.
+/// Expired tokens retain immutable metadata; this never promotes or touches the value.
+/// Rejects exclusive storage and preserves precise lookup failures in NcStatus.
 ///
 /// # Safety
 /// A non-null control must be retained by a weak or strong owner with valid class
 /// metadata/code through this call. The requested identity must be readable.
-pub(crate) unsafe fn shared_weak_projection(control: *mut NcWeakControl, requested: &NcInterfaceId) -> Result<(), NcStatus> {
+pub(crate) unsafe fn check_shared_weak_cast(control: *mut NcWeakControl, requested: &NcInterfaceId) -> Result<(), NcStatus> {
     let control = core::ptr::NonNull::new(control).ok_or(NC_E_POINTER)?;
     // SAFETY: the caller retains this header, including after value destruction.
     let header = unsafe { control.as_ref() };
@@ -210,7 +210,7 @@ pub(crate) unsafe fn shared_weak_projection(control: *mut NcWeakControl, request
         return Err(NC_E_INVALID_ARG);
     }
     // SAFETY: metadata outlives all weak references; no value access is performed.
-    unsafe { projection(header, requested) }.map(|_| ())
+    unsafe { try_cast(header, requested) }.map(|_| ())
 }
 
 /// Queries a live allocation and transfers exactly one new strong reference.
@@ -233,7 +233,7 @@ pub unsafe extern "C" fn nc_query_interface(object: *mut c_void, requested: *con
     if control.state.load(Ordering::Acquire) & BOXED != 0 {
         return NC_E_INVALID_ARG;
     }
-    match unsafe { projection(control, &*requested) } {
+    match unsafe { try_cast(control, &*requested) } {
         Ok(vtable) => {
             unsafe {
                 nc_strong_retain(object);
@@ -288,7 +288,7 @@ pub unsafe extern "C" fn nc_weak_upgrade(control: *mut NcWeakControl, requested:
             }
         }
     }
-    match unsafe { projection(header, &*requested) } {
+    match unsafe { try_cast(header, &*requested) } {
         Ok(vtable) => {
             unsafe {
                 *out = ComRaw { object: control.cast(), vtable };
@@ -455,17 +455,17 @@ pub unsafe extern "C" fn nc_box_release(control: *mut NcWeakControl) {
     }
 }
 
-/// Resolves a boxed interface without creating ownership or touching its value.
-/// Class metadata stays available until the final weak reference is released.
+/// Tries an exclusive interface cast, returning its table without retaining ownership.
+/// Retained class metadata permits this cast even after the value is destroyed.
 ///
 /// # Safety
 /// The common header and requested contract are readable and retained for this call.
-pub unsafe fn box_projection(control: *mut NcWeakControl, requested: &NcInterfaceId) -> Result<*const IUnknownVTable, NcStatus> {
+pub unsafe fn try_box_cast(control: *mut NcWeakControl, requested: &NcInterfaceId) -> Result<*const IUnknownVTable, NcStatus> {
     let header = unsafe { control.as_ref() }.ok_or(NC_E_POINTER)?;
     if header.state.load(Ordering::Acquire) & BOXED == 0 {
         return Err(NC_E_INVALID_ARG);
     }
-    unsafe { projection(header, requested) }
+    unsafe { try_cast(header, requested) }
 }
 
 #[cfg(test)]

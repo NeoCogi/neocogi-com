@@ -14,7 +14,7 @@ use core::{
 };
 use crate::{ComInterface, ComClientInterface, ComRaw, ComRef, NcStatus, ThreadLocal, ThreadSafe, ThreadingModel, NC_E_POINTER};
 use crate::ptr::LiveInterface;
-use crate::lifetime::{box_projection, nc_box_release, nc_weak_retain, nc_weak_release};
+use crate::lifetime::{try_box_cast, nc_box_release, nc_weak_retain, nc_weak_release};
 
 /// The sole transferable owner of an object exposing typed C ABI interfaces.
 ///
@@ -66,7 +66,7 @@ pub struct WeakComBox<T: ComInterface + ?Sized, M: ThreadingModel = ThreadLocal>
 /// `control` is retained common exclusive storage with immutable provider
 /// metadata, and its declared threading capability permits M.
 unsafe fn observe_projection<T: ComInterface, M: ThreadingModel>(control: *mut crate::lifetime::NcWeakControl) -> Result<WeakComBox<T, M>, NcStatus> {
-    let table = unsafe { box_projection(control, &T::INTERFACE_ID) }?;
+    let table = unsafe { try_box_cast(control, &T::INTERFACE_ID) }?;
     // Validation precedes retention, so failure creates no token to release.
     unsafe { nc_weak_retain(control) };
     Ok(unsafe {
@@ -91,7 +91,7 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> ComBox<T, M> {
     pub unsafe fn __nc_validate_raw_input(slot: *mut ComRaw<T>) -> Result<(), NcStatus> {
         let raw = unsafe { slot.as_ref() }.ok_or(NC_E_POINTER)?;
         unsafe { crate::raw::validate_interface(*raw) }?;
-        unsafe { box_projection(raw.object.cast(), &T::INTERFACE_ID) }?;
+        unsafe { try_box_cast(raw.object.cast(), &T::INTERFACE_ID) }?;
         Ok(())
     }
 
@@ -118,7 +118,7 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> ComBox<T, M> {
     pub unsafe fn __nc_from_raw_owned_checked(raw: ComRaw<T>) -> Result<Self, NcStatus> {
         // The common release slot can balance either lifetime policy when a
         // foreign result has a mismatched interface or ownership mode.
-        let checked = unsafe { crate::raw::validate_interface(raw) }.and_then(|()| unsafe { box_projection(raw.object.cast(), &T::INTERFACE_ID) }.map(|_| ()));
+        let checked = unsafe { crate::raw::validate_interface(raw) }.and_then(|()| unsafe { try_box_cast(raw.object.cast(), &T::INTERFACE_ID) }.map(|_| ()));
         if let Err(error) = checked {
             unsafe { crate::raw::release(raw) };
             return Err(error);
@@ -174,7 +174,7 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> ComBox<T, M> {
         };
         let table = match identical {
             true => self.as_raw().vtable.cast(),
-            false => match unsafe { box_projection(self.as_raw().object.cast(), &U::INTERFACE_ID) } {
+            false => match unsafe { try_box_cast(self.as_raw().object.cast(), &U::INTERFACE_ID) } {
                 Ok(table) => table,
                 Err(status) => return Err((status, self)),
             },
@@ -195,7 +195,7 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> ComBox<T, M> {
         let object = self.as_raw().object;
         // SAFETY: this owner retains common exclusive storage and immutable class
         // tables. Lookup checks U's exact identity without changing ownership.
-        let vtable = unsafe { box_projection(object.cast(), &U::INTERFACE_ID) }?;
+        let vtable = unsafe { try_box_cast(object.cast(), &U::INTERFACE_ID) }?;
         // SAFETY: lookup certifies the table, and borrowing self retains the
         // matching storage and initialized value for the returned Rust lifetime.
         unsafe { ComRef::from_raw_borrowed(ComRaw { object, vtable: vtable.cast() }) }.ok_or(NC_E_POINTER)
@@ -267,7 +267,7 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> WeakComBox<T, M> {
         let expected = crate::NcInterfaceId::new(iid, crate::NcAbiDigest::from_borrowed(signature));
         // SAFETY: this weak token retains the immutable class table even after
         // the value expires; projection validates the complete interface digest.
-        unsafe { box_projection(self.as_raw().object.cast(), &expected) }.map(|_| ())
+        unsafe { try_box_cast(self.as_raw().object.cast(), &expected) }.map(|_| ())
     }
 
     /// Erases only the selected interface while preserving stable object identity.
@@ -368,7 +368,7 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> WeakComBox<T, M> {
     pub unsafe fn __nc_from_raw_owned_checked(raw: ComRaw<T>) -> Result<Self, NcStatus> {
         let weak = unsafe { Self::from_raw_owned(raw) }.ok_or(NC_E_POINTER)?;
         unsafe { crate::raw::validate_interface(raw) }?;
-        unsafe { box_projection(raw.object.cast(), &T::INTERFACE_ID) }?;
+        unsafe { try_box_cast(raw.object.cast(), &T::INTERFACE_ID) }?;
         Ok(weak)
     }
 }
