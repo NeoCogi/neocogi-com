@@ -163,9 +163,9 @@ mod tests {
             owned: neocogi_com::ComRaw<IUnknown>,
             requested: *const NcInterfaceId,
             dropped: NcStatus,
-            retain: unsafe extern "C" fn(*mut neocogi_com::lifetime::NcWeakControl),
-            release: unsafe extern "C" fn(*mut neocogi_com::lifetime::NcWeakControl),
-            upgrade: unsafe extern "C" fn(*mut neocogi_com::lifetime::NcWeakControl, *const NcInterfaceId, *mut neocogi_com::ComRaw<IUnknown>) -> NcStatus,
+            retain: unsafe extern "C" fn(*mut neocogi_com::lifetime::NcLifetimeState),
+            release: unsafe extern "C" fn(*mut neocogi_com::lifetime::NcLifetimeState),
+            upgrade: unsafe extern "C" fn(*mut neocogi_com::lifetime::NcLifetimeState, *const NcInterfaceId, *mut neocogi_com::ComRaw<IUnknown>) -> NcStatus,
         ) -> i32;
 
     }

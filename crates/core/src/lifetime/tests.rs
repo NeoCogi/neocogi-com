@@ -16,7 +16,7 @@ struct Value {
     /// External counters avoid reading memory after final release.
     observations: Arc<Observations>,
     /// Optional explicit weak owner released from inside value destruction.
-    self_weak: Option<*mut NcWeakControl>,
+    self_weak: Option<*mut NcLifetimeState>,
 }
 impl Drop for Value {
     /// Reentrant weak release must not free the header before this destructor returns.
@@ -34,20 +34,20 @@ impl Drop for Value {
 #[repr(C)]
 struct Allocation {
     /// Common prefix used without knowing this concrete storage type.
-    control: NcWeakControl,
+    control: NcLifetimeState,
     /// Destroyed once on final strong release; never dropped by Box<Allocation>.
     value: MaybeUninit<Value>,
     /// Allocation-only observer remains available after value destruction.
     observations: Arc<Observations>,
 }
 /// Provider-specific destruction knows the exact value layout.
-unsafe extern "C" fn destroy(control: *mut NcWeakControl) {
+unsafe extern "C" fn destroy(control: *mut NcLifetimeState) {
     unsafe {
         (*control.cast::<Allocation>()).value.assume_init_drop();
     }
 }
 /// Provider-specific freeing never runs the concrete value destructor twice.
-unsafe extern "C" fn free(control: *mut NcWeakControl) {
+unsafe extern "C" fn free(control: *mut NcLifetimeState) {
     let allocation = unsafe { Box::from_raw(control.cast::<Allocation>()) };
     allocation.observations.freed.fetch_add(1, Ordering::SeqCst);
     drop(allocation);
@@ -68,10 +68,10 @@ static CLASS: NcObjectTypeInfo = NcObjectTypeInfo {
     interface_count: 1,
 };
 /// Allocates a fully initialized provider object with one shared owner.
-fn allocation() -> (*mut NcWeakControl, Arc<Observations>) {
+fn allocation() -> (*mut NcLifetimeState, Arc<Observations>) {
     let observations = Arc::new(Observations::default());
     let storage = Box::new(Allocation {
-        control: NcWeakControl::new(&CLASS),
+        control: NcLifetimeState::new(&CLASS),
         value: MaybeUninit::new(Value {
             observations: observations.clone(),
             self_weak: None,
@@ -217,7 +217,7 @@ fn exclusive_destruction_is_immediate_and_storage_release_is_separate() {
 /// A full reader count must reject admission without wrapping into the writer bit.
 #[test]
 fn exclusive_reader_overflow_and_writer_conflicts_preserve_header_state() {
-    let header = NcWeakControl::boxed(&CLASS);
+    let header = NcLifetimeState::boxed(&CLASS);
     let raw = core::ptr::from_ref(&header).cast_mut();
     header.state.store(BOXED | BOX_OWNER | BOX_READERS, Ordering::Relaxed);
     // SAFETY: both attempts reject before granting access; the test header is

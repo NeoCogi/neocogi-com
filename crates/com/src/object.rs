@@ -110,7 +110,7 @@ impl<'a, T> ComReadGuard<'a, T, crate::lifetime::BoxRead> {
     /// `control` and `value` belong to this retained exclusive allocation; all
     /// implementation access participates in its common borrowing protocol.
     /// Storage must outlive the complete guard/drop call, not only gate release.
-    pub unsafe fn acquire_box(control: *mut crate::lifetime::NcWeakControl, value: &'a UnsafeCell<MaybeUninit<T>>) -> Result<Self, NcStatus> {
+    pub unsafe fn acquire_box(control: *mut crate::lifetime::NcLifetimeState, value: &'a UnsafeCell<MaybeUninit<T>>) -> Result<Self, NcStatus> {
         // SAFETY: the caller retains the matching control and value slot. A
         // successful admission guarantees initialized T until the guard releases.
         let call = unsafe { crate::lifetime::BoxRead::enter(control) }?;
@@ -166,7 +166,7 @@ impl<'a, T> ComWriteGuard<'a, T, crate::lifetime::BoxWrite> {
     /// `control` and `value` belong to this retained exclusive allocation; all
     /// implementation access participates in its common borrowing protocol.
     /// Storage must outlive the complete guard/drop call, not only gate release.
-    pub unsafe fn acquire_box(control: *mut crate::lifetime::NcWeakControl, value: &'a UnsafeCell<MaybeUninit<T>>) -> Result<Self, NcStatus> {
+    pub unsafe fn acquire_box(control: *mut crate::lifetime::NcLifetimeState, value: &'a UnsafeCell<MaybeUninit<T>>) -> Result<Self, NcStatus> {
         // SAFETY: the caller retains matching storage; admission excludes every
         // competing value access before Deref/DerefMut may create a T loan.
         let call = unsafe { crate::lifetime::BoxWrite::enter(control) }?;
@@ -249,7 +249,7 @@ pub use neocogi_com_core::{__com_add_ref_count, __com_release_ref_count};
 ///
 /// Implementors must map opaque generated storage pointers back to the exact
 /// allocation and Rust value that produced them. Every allocation must begin with
-/// `lifetime::NcWeakControl`, whose permanent class descriptor lists its matching
+/// `lifetime::NcLifetimeState`, whose permanent class descriptor lists its matching
 /// projections and concrete destruction/deallocation callbacks. Shared lifetime operations must
 /// keep the allocation alive until the final `Release`, and `QueryInterface`
 /// must only return tables paired with that same allocation address. Every

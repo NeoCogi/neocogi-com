@@ -6,6 +6,13 @@ Historical draft numbers do not define additional supported COM baselines.
 
 ## Unreleased
 
+- Rename the common allocation header from `NcWeakControl` to `NcLifetimeState`
+  across shared/exclusive ownership, weak tokens, provider storage and native C
+  mirrors. The name covers strong ownership and exclusive call admission as well
+  as weak storage retention. Remove the old Rust/C type names without aliases;
+  field order, atomic state transitions, callback ABI, interface digests and
+  ABI v2/core generation 19 are unchanged.
+
 - Rename checked interface-cast helpers: `box_projection` becomes `try_box_cast`,
   `shared_weak_projection` becomes `check_shared_weak_cast`, and the private
   metadata lookup becomes `try_cast`. Update owner, weak-token and value-wire

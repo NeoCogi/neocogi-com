@@ -100,8 +100,8 @@ struct IUnknown {
 
 /* Common lifetime entry points receive a one-pointer token. C need not
  * interpret the atomic header to call the shared functions supplied by Rust. */
-typedef struct NcWeakControl NcWeakControl;
-typedef struct NcWeakRaw { NcWeakControl *control; } NcWeakRaw;
+typedef struct NcLifetimeState NcLifetimeState;
+typedef struct NcWeakRaw { NcLifetimeState *control; } NcWeakRaw;
 _Static_assert(sizeof(NcWeakRaw) == sizeof(void *), "weak token must be one pointer");
 
 struct IUnknownVTable {
@@ -515,8 +515,8 @@ release_calculator:
 
 /* Consumes one sole strong owner and checks the full weak protocol from plain C. */
 int nc_c_exercise_weak(IUnknown owned, const NcInterfaceId *requested, NcStatus dropped_status,
-    void (*retain)(NcWeakControl *), void (*release)(NcWeakControl *),
-    NcStatus (*upgrade)(NcWeakControl *, const NcInterfaceId *, IUnknown *)) {
+    void (*retain)(NcLifetimeState *), void (*release)(NcLifetimeState *),
+    NcStatus (*upgrade)(NcLifetimeState *, const NcInterfaceId *, IUnknown *)) {
     NcWeakRaw weak = {0};
     if (!owned.vtable->downgrade || owned.vtable->downgrade(owned.object, &weak) != 0) return 0;
     if ((void *)weak.control != owned.object) return 0;

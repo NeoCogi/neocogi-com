@@ -23,10 +23,10 @@ pub struct NcObjectTypeInfo {
     /// Destroys only the initialized Rust/foreign value, exactly once. The header
     /// and allocation remain valid throughout this call, including reentrant
     /// release of weak fields. Strong promotion has already become impossible.
-    pub destroy_value: unsafe extern "C" fn(*mut NcWeakControl),
+    pub destroy_value: unsafe extern "C" fn(*mut NcLifetimeState),
     /// Frees the storage through its allocating provider, after value destruction
     /// has completed. Must not attempt to destroy the value again.
-    pub deallocate: unsafe extern "C" fn(*mut NcWeakControl),
+    pub deallocate: unsafe extern "C" fn(*mut NcLifetimeState),
     /// Static array of matching class interface tables, including IUnknown.
     pub interfaces: *const *const IUnknownVTable,
     /// Number of initialized entries in `interfaces`; must be nonzero.
@@ -35,13 +35,15 @@ pub struct NcObjectTypeInfo {
 // SAFETY: immutable metadata carries no permission to access any object value.
 unsafe impl Sync for NcObjectTypeInfo {}
 
-/// Common C-shaped allocation header; the concrete value follows at its own alignment.
+/// Common C-shaped lifetime state at allocation offset zero; the value follows at its own alignment.
 ///
+/// Shared allocations count strong owners; exclusive allocations combine owner
+/// presence and reader/writer admission. Both retain weak storage and type information.
 /// A live allocation owns one implicit weak reference until destruction completes.
-/// Objects are fully initialized before any handle escapes construction. Zero
-/// strong owners is terminal: weak promotion can never resurrect the value.
+/// Objects are fully initialized before any handle escapes construction. A zero
+/// shared strong count cannot be revived; a cleared exclusive owner rejects new calls.
 #[repr(C)]
-pub struct NcWeakControl {
+pub struct NcLifetimeState {
     /// Shared allocations count strong owners. Exclusive allocations pack their
     /// ownership bit and reader/writer access into this same word, so checked
     /// entry and destruction cannot race through separate lifetime/borrow gates.
@@ -52,7 +54,7 @@ pub struct NcWeakControl {
     /// Provider-owned class metadata, stable through the final weak release.
     class: *const NcObjectTypeInfo,
 }
-impl NcWeakControl {
+impl NcLifetimeState {
     /// Starts a fully initialized allocation with one strong and one implicit weak owner.
     /// The caller must initialize the complete concrete value before publishing it.
     pub const fn new(class: &'static NcObjectTypeInfo) -> Self {
@@ -85,7 +87,7 @@ fn retain(counter: &AtomicUsize) -> usize {
 /// throughout the call. This operation cannot resurrect a zero strong count.
 #[inline(never)]
 pub unsafe extern "C" fn nc_strong_retain(object: *mut c_void) -> u32 {
-    let Some(control) = (unsafe { object.cast::<NcWeakControl>().as_ref() }) else {
+    let Some(control) = (unsafe { object.cast::<NcLifetimeState>().as_ref() }) else {
         return 0;
     };
     // Exclusive objects never manufacture a second owner, including through
@@ -103,7 +105,7 @@ pub unsafe extern "C" fn nc_strong_retain(object: *mut c_void) -> u32 {
 /// The caller must not access the allocation after transferring that reference.
 #[inline(never)]
 pub unsafe extern "C" fn nc_strong_release(object: *mut c_void) -> u32 {
-    let pointer = object.cast::<NcWeakControl>();
+    let pointer = object.cast::<NcLifetimeState>();
     let Some(control) = (unsafe { pointer.as_ref() }) else { return 0 };
     if control.state.load(Ordering::Relaxed) & BOXED != 0 {
         // SAFETY: the caller transfers the allocation's sole owner.
@@ -133,7 +135,7 @@ pub unsafe extern "C" fn nc_strong_release(object: *mut c_void) -> u32 {
 /// A non-null control must remain weak-owned or strongly owned during this call.
 /// Null is accepted as a no-op for foreign cleanup paths.
 #[inline(never)]
-pub unsafe extern "C" fn nc_weak_retain(control: *mut NcWeakControl) {
+pub unsafe extern "C" fn nc_weak_retain(control: *mut NcLifetimeState) {
     if let Some(control) = unsafe { control.as_ref() } {
         retain(&control.weak);
     }
@@ -145,7 +147,7 @@ pub unsafe extern "C" fn nc_weak_retain(control: *mut NcWeakControl) {
 /// A non-null control transfers exactly one weak owner. Its value must already
 /// be destroyed if this is the final owner. Null is a no-op.
 #[inline(never)]
-pub unsafe extern "C" fn nc_weak_release(control: *mut NcWeakControl) {
+pub unsafe extern "C" fn nc_weak_release(control: *mut NcLifetimeState) {
     let Some(header) = (unsafe { control.as_ref() }) else { return };
     let previous = header.weak.fetch_sub(1, Ordering::Release);
     assert!(previous > 0, "COM weak release without an owner");
@@ -173,7 +175,7 @@ pub unsafe extern "C" fn nc_downgrade(object: *mut c_void, out: *mut crate::NcWe
     if object.is_null() {
         return NC_E_POINTER;
     }
-    let control = object.cast::<NcWeakControl>();
+    let control = object.cast::<NcLifetimeState>();
     if unsafe { (*control).state.load(Ordering::Acquire) } & BOXED != 0 {
         return NC_E_INVALID_ARG;
     }
@@ -188,7 +190,7 @@ pub unsafe extern "C" fn nc_downgrade(object: *mut c_void, out: *mut crate::NcWe
 ///
 /// # Safety
 /// Header, class metadata and requested identity must be live and valid.
-unsafe fn try_cast(control: &NcWeakControl, requested: &NcInterfaceId) -> Result<*const IUnknownVTable, NcStatus> {
+unsafe fn try_cast(control: &NcLifetimeState, requested: &NcInterfaceId) -> Result<*const IUnknownVTable, NcStatus> {
     // SAFETY: the class contract supplies a permanent nonempty table array.
     let class = unsafe { &*control.class };
     let tables = unsafe { core::slice::from_raw_parts(class.interfaces, class.interface_count) };
@@ -202,7 +204,7 @@ unsafe fn try_cast(control: &NcWeakControl, requested: &NcInterfaceId) -> Result
 /// # Safety
 /// A non-null control must be retained by a weak or strong owner with valid class
 /// metadata/code through this call. The requested identity must be readable.
-pub(crate) unsafe fn check_shared_weak_cast(control: *mut NcWeakControl, requested: &NcInterfaceId) -> Result<(), NcStatus> {
+pub(crate) unsafe fn check_shared_weak_cast(control: *mut NcLifetimeState, requested: &NcInterfaceId) -> Result<(), NcStatus> {
     let control = core::ptr::NonNull::new(control).ok_or(NC_E_POINTER)?;
     // SAFETY: the caller retains this header, including after value destruction.
     let header = unsafe { control.as_ref() };
@@ -229,7 +231,7 @@ pub unsafe extern "C" fn nc_query_interface(object: *mut c_void, requested: *con
     if object.is_null() || requested.is_null() {
         return NC_E_POINTER;
     }
-    let control = unsafe { &*object.cast::<NcWeakControl>() };
+    let control = unsafe { &*object.cast::<NcLifetimeState>() };
     if control.state.load(Ordering::Acquire) & BOXED != 0 {
         return NC_E_INVALID_ARG;
     }
@@ -245,7 +247,7 @@ pub unsafe extern "C" fn nc_query_interface(object: *mut c_void, requested: *con
     }
 }
 
-/// Canonical strong root table, shared across all standard COM objects using `NcWeakControl`.
+/// Canonical strong root table, shared across all standard COM objects using `NcLifetimeState`.
 pub static CANONICAL_UNKNOWN_VTABLE: IUnknownVTable = IUnknownVTable {
     interface_id: &IUnknown::INTERFACE_ID,
     query_interface: nc_query_interface,
@@ -261,7 +263,7 @@ pub static CANONICAL_UNKNOWN_VTABLE: IUnknownVTable = IUnknownVTable {
 /// records are valid and distinct. Success transfers one strong owner; every
 /// failure clears output. Expiration takes precedence over interface negotiation.
 #[inline(never)]
-pub unsafe extern "C" fn nc_weak_upgrade(control: *mut NcWeakControl, requested: *const NcInterfaceId, out: *mut ComRaw<IUnknown>) -> NcStatus {
+pub unsafe extern "C" fn nc_weak_upgrade(control: *mut NcLifetimeState, requested: *const NcInterfaceId, out: *mut ComRaw<IUnknown>) -> NcStatus {
     if out.is_null() {
         return NC_E_POINTER;
     }
@@ -319,7 +321,7 @@ const BOX_READERS: usize = BOX_WRITER - 1;
 /// Either borrow keeps Drop waiting after owner presence has already been cleared.
 const BOX_BORROWS: usize = BOX_WRITER | BOX_READERS;
 
-impl NcWeakControl {
+impl NcLifetimeState {
     /// Constructs an exclusive owner with the same stable C header as shared COM.
     /// Publication must happen only after the provider has initialized its value.
     pub const fn boxed(class: &'static NcObjectTypeInfo) -> Self {
@@ -336,13 +338,13 @@ impl NcWeakControl {
 /// releases access; it never destroys the implementation or takes ownership.
 pub struct BoxRead {
     /// Retained header whose reader count includes this guard.
-    control: NonNull<NcWeakControl>,
+    control: NonNull<NcLifetimeState>,
 }
 
 /// One exclusive implementation borrow, using the same state as readers and Drop.
 pub struct BoxWrite {
     /// Retained header whose writer bit belongs to this guard.
-    control: NonNull<NcWeakControl>,
+    control: NonNull<NcLifetimeState>,
 }
 
 /// Atomically admits one reader or the unique writer before any T reference exists.
@@ -351,7 +353,7 @@ pub struct BoxWrite {
 /// The caller retains exclusive-class allocation storage throughout acquisition
 /// and through the returned borrow. Null is rejected without accessing storage.
 #[inline(never)]
-unsafe fn borrow_box(control: *mut NcWeakControl, writer: bool) -> Result<NonNull<NcWeakControl>, NcStatus> {
+unsafe fn borrow_box(control: *mut NcLifetimeState, writer: bool) -> Result<NonNull<NcLifetimeState>, NcStatus> {
     let control = NonNull::new(control).ok_or(NC_E_POINTER)?;
     let header = unsafe { control.as_ref() };
     let mut state = header.state.load(Ordering::Acquire);
@@ -376,7 +378,7 @@ impl BoxRead {
     ///
     /// # Safety
     /// `control` obeys the retained exclusive storage contract of `borrow_box`.
-    pub unsafe fn enter(control: *mut NcWeakControl) -> Result<Self, NcStatus> {
+    pub unsafe fn enter(control: *mut NcLifetimeState) -> Result<Self, NcStatus> {
         Ok(Self {
             control: unsafe { borrow_box(control, false) }?,
         })
@@ -387,7 +389,7 @@ impl BoxWrite {
     ///
     /// # Safety
     /// `control` obeys the retained exclusive storage contract of `borrow_box`.
-    pub unsafe fn enter(control: *mut NcWeakControl) -> Result<Self, NcStatus> {
+    pub unsafe fn enter(control: *mut NcLifetimeState) -> Result<Self, NcStatus> {
         Ok(Self {
             control: unsafe { borrow_box(control, true) }?,
         })
@@ -412,7 +414,7 @@ impl Drop for BoxWrite {
     }
 }
 
-impl NcWeakControl {
+impl NcLifetimeState {
     /// Observes whether an exclusive owner still accepts calls. This is a snapshot,
     /// not a borrow: provider entry must independently acquire checked access.
     pub fn box_is_alive(&self) -> bool {
@@ -438,7 +440,7 @@ impl NcWeakControl {
 /// method/borrow of this object, or hold a resource required by an active call:
 /// waiting on such a call would deadlock. Defer destruction until that call returns.
 #[inline(never)]
-pub unsafe extern "C" fn nc_box_release(control: *mut NcWeakControl) {
+pub unsafe extern "C" fn nc_box_release(control: *mut NcLifetimeState) {
     let Some(header) = (unsafe { control.as_ref() }) else { return };
     let previous = header.state.fetch_and(!BOX_OWNER, Ordering::AcqRel);
     assert!(previous & (BOXED | BOX_OWNER) == BOXED | BOX_OWNER, "exclusive owner released twice");
@@ -460,7 +462,7 @@ pub unsafe extern "C" fn nc_box_release(control: *mut NcWeakControl) {
 ///
 /// # Safety
 /// The common header and requested contract are readable and retained for this call.
-pub unsafe fn try_box_cast(control: *mut NcWeakControl, requested: &NcInterfaceId) -> Result<*const IUnknownVTable, NcStatus> {
+pub unsafe fn try_box_cast(control: *mut NcLifetimeState, requested: &NcInterfaceId) -> Result<*const IUnknownVTable, NcStatus> {
     let header = unsafe { control.as_ref() }.ok_or(NC_E_POINTER)?;
     if header.state.load(Ordering::Acquire) & BOXED == 0 {
         return Err(NC_E_INVALID_ARG);

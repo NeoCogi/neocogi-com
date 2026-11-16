@@ -85,7 +85,7 @@ fn repeated_diamond_adds_no_per_object_interface_storage() {
     assert_eq!(Diamond::<()>::COM_INTERFACE_COUNT, 16); // Includes canonical IUnknown.
     assert_eq!(
         payload_offset(&Diamond::into_local(Diamond { value: 0, _lifetime: () })),
-        core::mem::size_of::<neocogi_com::lifetime::NcWeakControl>() + core::mem::size_of::<usize>()
+        core::mem::size_of::<neocogi_com::lifetime::NcLifetimeState>() + core::mem::size_of::<usize>()
     );
     // A second state specialization must use exactly the same contract set.
     assert_eq!(
@@ -93,7 +93,7 @@ fn repeated_diamond_adds_no_per_object_interface_storage() {
             value: 0,
             _lifetime: Lifetime { drops: Arc::new(AtomicUsize::new(0)) }
         })),
-        core::mem::size_of::<neocogi_com::lifetime::NcWeakControl>() + core::mem::size_of::<usize>()
+        core::mem::size_of::<neocogi_com::lifetime::NcLifetimeState>() + core::mem::size_of::<usize>()
     );
     let object = Diamond::from_value(Diamond { value: 7, _lifetime: () });
     let top = object.query::<ITopAbi>().unwrap();
@@ -263,7 +263,7 @@ fn unknown_only_generic_owner_has_no_interface_storage() {
     assert!(matches!(unknown.query::<IA0Abi>(), Err(NC_E_NOINTERFACE)));
     assert_eq!(
         payload_offset(&owner),
-        core::mem::size_of::<neocogi_com::lifetime::NcWeakControl>() + core::mem::size_of::<usize>()
+        core::mem::size_of::<neocogi_com::lifetime::NcLifetimeState>() + core::mem::size_of::<usize>()
     );
 }
 
@@ -299,7 +299,7 @@ fn explicit_roots_reuse_their_inherited_contracts() {
     assert_eq!(OverlappingRoots::COM_INTERFACE_COUNT, 4);
     assert_eq!(
         payload_offset(&OverlappingRoots::into_local(OverlappingRoots { value: 0 })),
-        core::mem::size_of::<neocogi_com::lifetime::NcWeakControl>() + core::mem::size_of::<usize>()
+        core::mem::size_of::<neocogi_com::lifetime::NcLifetimeState>() + core::mem::size_of::<usize>()
     );
 }
 

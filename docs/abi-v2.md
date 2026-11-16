@@ -224,11 +224,11 @@ address. Failure clears its output. Handwritten providers opting in implement
 the common header and lifetime protocol, not an opaque Rust Weak token.
 
 ```c
-typedef struct NcWeakControl NcWeakControl;
-typedef struct NcWeakRaw { NcWeakControl *control; } NcWeakRaw;
+typedef struct NcLifetimeState NcLifetimeState;
+typedef struct NcWeakRaw { NcLifetimeState *control; } NcWeakRaw;
 ```
 
-The [common lifetime engine](../crates/core/src/lifetime.rs) defines `NcWeakControl`
+The [common lifetime engine](../crates/core/src/lifetime.rs) defines `NcLifetimeState`
 in this field order: `state: AtomicUsize`, `weak: AtomicUsize`, and
 `class: *const NcObjectTypeInfo`. Its immutable class metadata contains provider-local
 `destroy_value` and `deallocate` C callbacks followed by the interface-table
@@ -257,7 +257,7 @@ facts remain readable after their weak source expires.
 
 ## Allocation and borrowing
 
-`NcWeakControl` is the common header, at offset zero of one provider allocation.
+`NcLifetimeState` is the common header, at offset zero of one provider allocation.
 Its first atomic word counts strong references for shared objects. Exclusive
 objects instead use the highest bit for exclusive mode, the next bit for owner
 presence, the next bit for mutable borrowing, and the remaining bits for readers.

@@ -177,7 +177,7 @@ fn strong_handles_keep_two_words_and_weak_handles_use_one() {
     assert_eq!(std::mem::size_of::<WeakComPtr<IUnknown>>(), std::mem::size_of::<usize>());
     assert_eq!(std::mem::size_of::<Option<WeakComPtr<IUnknown>>>(), std::mem::size_of::<usize>());
     assert_eq!(std::mem::size_of::<neocogi_com::NcWeakRaw>(), std::mem::size_of::<usize>());
-    assert_eq!(std::mem::size_of::<neocogi_com::lifetime::NcWeakControl>(), 3 * std::mem::size_of::<usize>());
+    assert_eq!(std::mem::size_of::<neocogi_com::lifetime::NcLifetimeState>(), 3 * std::mem::size_of::<usize>());
     assert_eq!(std::mem::size_of::<neocogi_com::lifetime::NcObjectTypeInfo>(), 4 * std::mem::size_of::<usize>());
 }
 

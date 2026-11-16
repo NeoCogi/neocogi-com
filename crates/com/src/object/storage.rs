@@ -7,7 +7,7 @@
 use crate::__alloc::boxed::Box;
 use core::{cell::UnsafeCell, ffi::c_void, mem::MaybeUninit};
 use crate::{ComBox, ComObject, ComPtr, ComRaw, IUnknown, NcStatus, NC_E_POINTER};
-use crate::lifetime::{BoxRead, BoxWrite, NcObjectTypeInfo, NcWeakControl, CANONICAL_UNKNOWN_VTABLE};
+use crate::lifetime::{BoxRead, BoxWrite, NcObjectTypeInfo, NcLifetimeState, CANONICAL_UNKNOWN_VTABLE};
 use super::{ComBorrowState, ComReadGuard, ComWriteGuard, __ComExclusiveCall, __ComSharedCall};
 
 /// Hidden typed allocation shared by the two generated ownership families.
@@ -18,7 +18,7 @@ use super::{ComBorrowState, ComReadGuard, ComWriteGuard, __ComExclusiveCall, __C
 #[repr(C)]
 pub struct __ComStorage<T, Access> {
     /// Canonical allocation identity and lifetime authority at offset zero.
-    control: NcWeakControl,
+    control: NcLifetimeState,
     /// Shared classes' call gate; exclusive classes borrow through `control`.
     access: Access,
     /// Initialized until owner destruction; retained storage never drops T twice.
@@ -44,7 +44,7 @@ impl<T: ComObject, Access: 'static> __ComStorage<T, Access> {
 
     /// Allocates one initialized value; only the matching ownership constructor
     /// can select the control state and convert the result into a safe owner.
-    fn allocate(value: T, control: NcWeakControl, access: Access) -> ComRaw<IUnknown> {
+    fn allocate(value: T, control: NcLifetimeState, access: Access) -> ComRaw<IUnknown> {
         let storage = Box::into_raw(Box::new(Self {
             control,
             access,
@@ -57,7 +57,7 @@ impl<T: ComObject, Access: 'static> __ComStorage<T, Access> {
     }
 
     /// Destroys only T while the implicit weak owner still retains the header.
-    unsafe extern "C" fn destroy_value(control: *mut NcWeakControl) {
+    unsafe extern "C" fn destroy_value(control: *mut NcLifetimeState) {
         let storage = control.cast::<Self>();
         // SAFETY: the class descriptor belongs to this exact layout. The common
         // lifetime engine has excluded future value access and admitted calls.
@@ -65,7 +65,7 @@ impl<T: ComObject, Access: 'static> __ComStorage<T, Access> {
     }
 
     /// Frees the exact provider allocation after value destruction and final weak release.
-    unsafe extern "C" fn deallocate(control: *mut NcWeakControl) {
+    unsafe extern "C" fn deallocate(control: *mut NcLifetimeState) {
         // SAFETY: the final weak owner transfers this allocation once. MaybeUninit
         // suppresses a second T destructor, and Box preserves concrete alignment.
         unsafe { drop(Box::from_raw(control.cast::<Self>())) };
@@ -79,7 +79,7 @@ impl<T: ComObject> __ComSharedStorage<T> {
     /// T's ComObject implementation and every paired table must recover exactly
     /// this storage layout and use its gate. T's threading proof must hold.
     pub unsafe fn into_shared(value: T) -> ComPtr<IUnknown, T::Threading> {
-        let raw = Self::allocate(value, NcWeakControl::new(&Self::CLASS), ComBorrowState::new());
+        let raw = Self::allocate(value, NcLifetimeState::new(&Self::CLASS), ComBorrowState::new());
         // SAFETY: allocation initialized one strong reference and its canonical table.
         unsafe { ComPtr::from_raw_owned(raw) }.expect("new shared object is present")
     }
@@ -115,7 +115,7 @@ impl<T: ComObject> __ComBoxStorage<T> {
     /// T's ComObject implementation and paired tables must recover exactly this
     /// layout and admit calls through the header before accessing T. Threading must match.
     pub unsafe fn into_exclusive(value: T) -> ComBox<IUnknown, T::Threading> {
-        let raw = Self::allocate(value, NcWeakControl::boxed(&Self::CLASS), ());
+        let raw = Self::allocate(value, NcLifetimeState::boxed(&Self::CLASS), ());
         // SAFETY: allocation initialized and transfers exactly one exclusive owner.
         unsafe { ComBox::from_raw_owned(raw) }.expect("new exclusive object is present")
     }

@@ -4,7 +4,7 @@
 //! reference before exposing any object state, and never resurrects a destroyed
 //! value. Logical domain closure is deliberately independent of this protocol.
 use core::{marker::PhantomData, ptr::NonNull};
-use crate::lifetime::{NcWeakControl, nc_weak_retain, nc_weak_release, nc_weak_upgrade};
+use crate::lifetime::{NcLifetimeState, nc_weak_retain, nc_weak_release, nc_weak_upgrade};
 use crate::{
     ComInterface, ComPtr, ComRaw, IUnknown, NcInterfaceId, NcStatus, ThreadLocal, ThreadSafe, ThreadingModel, NC_E_DROPPED, NC_E_NOINTERFACE, NC_E_POINTER,
 };
@@ -16,7 +16,7 @@ use crate::{
 pub struct NcWeakRaw {
     /// Header at the allocation's canonical object address, retained through
     /// shared weak operations even after the concrete value is destroyed.
-    pub control: *mut NcWeakControl,
+    pub control: *mut NcLifetimeState,
 }
 impl NcWeakRaw {
     /// Empty output initialized before every fallible lifetime operation.
@@ -50,7 +50,7 @@ impl NcWeakRaw {
 #[repr(transparent)]
 pub struct WeakComPtr<T: ComInterface + ?Sized, M: ThreadingModel = ThreadLocal> {
     /// Exactly one provider-owned weak reference; safe construction requires presence.
-    control: NonNull<NcWeakControl>,
+    control: NonNull<NcLifetimeState>,
     /// Keeps the requested interface and threading permissions in the static type.
     marker: PhantomData<(*const T, M)>,
 }
