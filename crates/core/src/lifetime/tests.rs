@@ -503,3 +503,5 @@ fn raw_promotion_balances_success_and_all_rejection_paths() {
     }
     assert_eq!(observed.freed.load(Ordering::SeqCst), 1);
 }
+
+mod admission;

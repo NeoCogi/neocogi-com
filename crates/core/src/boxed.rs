@@ -362,13 +362,26 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> WeakComBox<T, M> {
     /// Adopts a weak output after exact cached-interface validation.
     ///
     /// # Safety
-    /// The returned pair transfers one weak reference to exclusive common storage,
-    /// including when the value has expired. The provider establishes threading M.
+    /// A present pair transfers one weak reference to a complete shared or boxed
+    /// header with matching known-policy metadata and a readable matching-provider
+    /// table. Metadata/code remain retained, including after value destruction.
+    /// The provider establishes threading M. Rejection consumes exactly that weak
+    /// reference; unknown-kind prefixes are not owned tokens that can be cleaned up.
     #[doc(hidden)]
     pub unsafe fn __nc_from_raw_owned_checked(raw: ComRaw<T>) -> Result<Self, NcStatus> {
-        let weak = unsafe { Self::from_raw_owned(raw) }.ok_or(NC_E_POINTER)?;
-        unsafe { crate::raw::validate_interface(raw) }?;
-        unsafe { try_box_cast(raw.object.cast(), &T::INTERFACE_ID) }?;
-        Ok(weak)
+        // The supplied table and canonical allocation metadata are independent
+        // authorities. Neither check may publish an unadmitted typed owner.
+        let checked = unsafe { crate::raw::validate_interface(raw) }.and_then(|()| unsafe { try_box_cast(raw.object.cast(), &T::INTERFACE_ID) });
+        let table = match checked {
+            Ok(table) => table,
+            Err(status) => {
+                // SAFETY: the raw token owns one weak under its actual known
+                // policy. Never use a strong release slot or a premature boxed Drop.
+                unsafe { weak_release(raw.object) };
+                return Err(status);
+            }
+        };
+        // SAFETY: both identity authorities and boxed policy are now established.
+        unsafe { Self::from_raw_owned(ComRaw { object: raw.object, vtable: table.cast() }) }.ok_or(NC_E_POINTER)
     }
 }
