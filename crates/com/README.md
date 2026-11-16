@@ -5,7 +5,7 @@ component ABI. It provides typed COM pointers, generated interface/object
 support, typed plugin roots, and optional clients for
 host-supplied runtime services.
 
-These development sources use **WIP ABI v3/core generation 20**, not a frozen
+These development sources use **WIP ABI v3/core generation 21**, not a frozen
 release contract. Published
 0.3.0 retains ABI v2/core generation 19; the first-use tutorial below targets that
 released SDK.

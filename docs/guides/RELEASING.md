@@ -27,7 +27,7 @@ replace stored CI tokens for later releases.
 The compatibility rule is separate from Cargo versions. The current published
 release is `0.3.0`, using ABI v2: runtime and descriptor family 2, core generation
 19, and `nc_get_plugin_descriptor_v2`. The unreleased development branch uses
-ABI v3: runtime and descriptor family 3, core generation 20, and
+ABI v3: runtime and descriptor family 3, core generation 21, and
 `nc_get_plugin_descriptor_v3`. Deploy hosts, providers and generated bindings
 from one SDK release. Development hosts reject ABI v1/v2 libraries before
 bootstrap; there is no compatibility export. Interface signatures, IDL encoding

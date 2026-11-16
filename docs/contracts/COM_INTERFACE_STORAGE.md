@@ -106,7 +106,7 @@ generated `PROJECTIONS` constant. The composition/extraction helpers are now
 `__nc_interface_table` and `__nc_interface_vtables`. Regenerate bindings and
 update Rust code that names the previous helpers together. This is a Rust
 source API rename; the C layouts, calling convention, interface signatures,
-ownership behavior and ABI v3/core generation 20 are unchanged.
+ownership behavior and ABI v3/core generation 21 are unchanged.
 
 A successful shared-owner query transfers exactly one reference and returns the same object
 address with the requested table. An absent IID returns `NC_E_NOINTERFACE`; a
@@ -131,8 +131,8 @@ Core storage uses exact interface casts without changing ownership.
 including after value destruction. Shared typed lookup uses the corresponding
 shared state's metadata. Both share one private IID/full-digest search; callers
 decide whether to retain, move or borrow a handle. These trusted operations do not
-rediscover policy. Checked raw adoption/decoding validates policy before creating
-typed owners. See [lifetime admission](COM_LIFETIME_ADMISSION.md) for unsafe proofs,
+rediscover policy. Raw ABI inputs already guarantee their declared policy; checked adoption/decoding
+validates presence and exact interfaces before creating typed owners. See [lifetime admission](COM_LIFETIME_ADMISSION.md) for unsafe proofs,
 owned rejection cleanup, borrowed acquisition and the two raw identity authorities.
 Local shared promotion returns one Rust result, acquiring a strong owner before
 lookup and releasing it on failure; no foreign callback result is being rechecked.
@@ -159,13 +159,13 @@ There is no fused NcLifetimeState or mutable ownership-kind bit.
 | NcSharedLifetimeState | Immutable type_info pointer | Numeric strong_count | weak_count |
 | NcBoxedLifetimeState | Immutable type_info pointer | owner_and_borrows | weak_count |
 
-Both are three pointer-width words. NcObjectTypeInfo owns the immutable shared
-or boxed kind, cleanup callbacks and interface tables. Mixed-policy checked raw
-admission checks that kind before constructing a complete policy-specific header
-borrow. Established owners and matching provider callbacks instead trust policy;
-typed boxed entry still atomically checks owner presence and reader/writer access.
-A boxed owner/access mask is therefore never interpreted as a strong count,
-including after owner removal. Counts and access state carry no BOXED type tag.
+Both are three pointer-width words. NcObjectTypeInfo contains only cleanup
+callbacks and interface tables/count, now four words under core 21. Construction
+and each declared ABI ownership position establish the matching header. There is
+no immutable or mutable allocation-kind discriminator, raw policy-admission
+function or erased weak cleanup. Boxed entry still atomically checks owner
+presence and reader/writer access. A wrong-policy allocation violates the ABI
+producer contract rather than requiring a counter interpretation at runtime.
 
 Ownership policy is fixed at construction. It controls the condition that ends
 the live value; it is not a second lifecycle running alongside another one:
@@ -223,7 +223,7 @@ ownership policy is never encoded by reusing a strong count.
 The shared and boxed declarations are in
 [lifetime.rs](../../crates/core/src/lifetime.rs). The
 [core regressions](../../crates/core/src/lifetime/tests.rs) cover prefix-only
-admission, cross-policy rejection before and after expiration, terminal counts,
+admission, exact-interface rejection before and after expiration, terminal counts,
 reentrant weak destruction, compact layouts and immediate final deallocation.
 [Generated boxed calls](../../tests/com/integration-tests/exclusive_com.rs) cover
 owner removal racing admitted readers/writers; the
@@ -499,8 +499,9 @@ the [ABI specification](../abi-v3.md#weak-lifetime-references) defines both poli
 
 The strong object/table handle remains two words; a weak handle now contains one
 control pointer. Generated allocations use the shared or boxed COM header in
-place of private Arc storage. One immutable class descriptor supplies ownership
-kind, typed destruction, allocator-local freeing and interface projections.
+place of private Arc storage. One immutable class descriptor supplies typed
+destruction, allocator-local freeing and interface projections; construction
+and ABI contracts supply ownership policy.
 ComObject::UNKNOWN_VTABLE selects one canonical shared or exclusive prefix. Every
 projection copies that policy's callbacks, so release never dispatches between
 shared and boxed ownership. The C adapters are private; typed ownership operations

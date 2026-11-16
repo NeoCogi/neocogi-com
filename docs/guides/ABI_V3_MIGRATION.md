@@ -54,12 +54,10 @@ with `type_info`, then their own ownership field, then `weak_count`: three
 pointer-width words on the supported 32/64-bit layouts. The pointer moved from
 the last word to the first, so unchanged total size does not imply compatibility.
 
-`NcObjectTypeInfo` now starts with integer `ownership`: `NC_OWNERSHIP_SHARED`
-(value 1) or `NC_OWNERSHIP_BOXED` (value 2). Match the constructor to that metadata;
-safe Rust constructors reject a mismatch. Keep metadata immutable through the
-last weak release. The record also retains provider-local cleanup callbacks and
-its exact interface table array/count; its size is now five pointer-width words.
-Unknown kinds are invalid, including when a boxed owner has already expired.
+`NcObjectTypeInfo` contains only destroy/deallocate callbacks and the interface
+array/count: four pointer-width words. Core 21 removes core 20's ownership field
+and `NC_OWNERSHIP_*` constants. Rebuild all participants: older metadata layouts
+are rejected by core admission, while ABI family 3 remains WIP.
 
 The `destroy_value` and `deallocate` callbacks receive the canonical allocation
 address as `*mut c_void`. Recover the exact concrete provider allocation type
@@ -68,24 +66,20 @@ free its storage only after final weak release, using the allocating provider.
 The SDK uses concrete `__ComStorage<T, Lifetime, Access>` instantiations; the ABI
 address does not introduce an application payload registry or dynamic downcast.
 
-`NcWeakRaw.control` transports that allocation address as `*mut c_void`.
-Checked mixed-policy raw entry points inspect the leading metadata pointer/kind
-before constructing a policy-specific header reference. Checked shared and boxed
-weak adoption accept complete retained tokens of either known policy, validate
-before typed construction, and consume exactly the rejected actual weak reference.
-Borrowed weak decoding retains only after successful admission; rejection leaves
-the source unchanged. Unknown-kind prefixes can be rejected without a complete
-header, but cannot be consumed as owned references with an invented cleanup rule.
+`NcWeakRaw.control` is now `*mut NcSharedLifetimeState`, with the same one-word
+C pointer representation. Its ABI producer guarantees genuine shared backing.
+Boxed owner/weak ABI positions likewise guarantee boxed backing before adoption.
+Checked constructors/decoders check shape and exact interfaces, then retain or
+consume only that declared policy. Wrong-policy tokens are producer contract
+violations; there is no cross-policy rejection/cleanup promise, runtime kind tag,
+expected-kind argument or erased weak dispatcher.
 
-Typed handles, matching vtable callbacks, BoxRead::enter, BoxWrite::enter and
-try_box_cast now trust their established shared/boxed allocation proof. The latter
-three unsafe support APIs deliberately require genuine boxed storage instead of
-promising mixed-policy rejection. Move raw callers to checked admission first;
-casting a raw pointer does not establish its backing. Numeric count and live/
-reader/writer admission checks remain. No public checked/trusted wrapper twins or
-standalone erased weak helpers are retained. See the [boundary contract](../contracts/COM_LIFETIME_ADMISSION.md).
-Unsafe backing, alignment, storage retention and threading obligations still
-apply; admission does not make an arbitrary pointer readable.
+`BoxRead::enter`, `BoxWrite::enter` and `try_box_cast` require genuine boxed
+storage. Caller contracts or construction establish backing; a raw `.cast()` does
+not inspect it. Numeric reference limits, terminal expiration, reader/writer
+admission, exact IID/digest checks and provider-local cleanup remain. Generic
+strong/scoped interfaces retain their actual vtable contracts and need no header.
+See [lifetime contracts](../contracts/COM_LIFETIME_ADMISSION.md).
 
 ## Select the provider's lifetime prefix
 
@@ -120,8 +114,9 @@ convention. Weak bookkeeping/promotion are crate-private Rust functions; there
 is no standalone SDK weak C-helper surface. A foreign binding needing weak C
 calls supplies its own adapter over typed handles, as the native C fixture does.
 
-This support-API change keeps WIP ABI v3/core 20: header and C table layouts,
-slot signatures, interface identities and ownership/error behavior are unchanged.
+This support-API change remains WIP ABI v3, now core 21. Provider metadata is
+four words and raw inputs require their declared ownership policy. Header sizes,
+C interface slots and interface identities remain unchanged.
 
 ## Keep counts, access and storage lifetime distinct
 
@@ -154,7 +149,7 @@ keep their own vtable lifecycle; do not cast arbitrary COM objects to these head
 Use the [independent C fixture](../../tests/com/integration-tests/fixtures/native-c-abi/native/caller.c)
 as an exercised layout/callback example. Match atomic width, alignment and
 synchronization on each target; C declarations alone do not prove compatibility.
-Verify live and expired cross-policy rejection, owner destruction before final
+Verify exact-contract rejection on live and expired matching-policy inputs, owner destruction before final
 weak deallocation, binding-owned C adapter output clearing and exact contract
 mismatch. Local Rust promotion returns Result<Option<_>, NcStatus> directly;
 zero precedes lookup and failed negotiation releases its acquired strong owner.

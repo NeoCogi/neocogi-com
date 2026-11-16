@@ -15,3 +15,13 @@ Published SDK `0.3.0` remains ABI v2/core generation 19. Keep its released
 contract distinct from the evolving v3 candidate.
 
 Review reports remain local and ignored; never commit them or put them in Git history.
+
+# Lifetime ownership contract
+
+Ownership policy is established by construction and the declared ABI input/result
+contract. Shared raw weak inputs point to NcSharedLifetimeState; boxed ABI inputs
+require boxed backing. Provider metadata has no ownership tag. Do not reintroduce
+raw expected-kind checks or mixed-policy rejection/cleanup dispatch: a wrong-policy
+input violates its producer contract. Keep shape/interface checks, reference bounds,
+terminal expiration and actual reader/writer admission. Core 21 supersedes core 20
+inside WIP ABI v3 because type information shrank to four words.

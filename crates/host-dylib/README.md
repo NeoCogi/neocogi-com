@@ -19,6 +19,6 @@ Plugin libraries continue receiving host access during factory acquisition;
 they do not load or initialize another host. This runtime image is not a plugin
 and is not opened with `RuntimeHandle::load_plugin_library`.
 
-This development shim uses ABI v3/core generation 20, matching the supplied
+This development shim uses ABI v3/core generation 21, matching the supplied
 plugin acquisition ABI. No Rust ABI crosses this bootstrap boundary. Static and Wasm
 applications continue selecting the ordinary host rlib.

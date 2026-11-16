@@ -247,7 +247,7 @@ The format interfaces themselves add no global registry, filesystem access,
 loader policy or automatic object-memory capture.
 
 Published `0.3.0` uses ABI v2 discovery. This branch uses unreleased ABI v3
-discovery and core generation 20, documented in the [development ABI
+discovery and core generation 21, documented in the [development ABI
 specification](../abi-v3.md). The format interfaces and NCB format version 1
 are unchanged by the lifetime-policy split.
 

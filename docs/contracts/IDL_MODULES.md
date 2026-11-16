@@ -222,7 +222,7 @@ described above.
 Interfaces have no implementation-role discriminator in their canonical encoding.
 Canonical encoding v14 contains ordinary value and callable-interface contracts;
 IDL has no event-reference slots. Rebuild affected contracts, providers and hosts
-together, including built-in persistence bindings. Nominal IDs, core generation 20,
+together, including built-in persistence bindings. Nominal IDs, core generation 21,
 source-graph schema and the host-owned runtime registry are separate contracts;
 runtime discovery uses ABI v3. Closed generic interfaces work as object
 contracts and plugin roots; open templates have no callable ABI.
@@ -643,7 +643,7 @@ UUID overrides remain errors.
 
 Generated nominal IDs and signatures change: rebuild contracts, providers and
 hosts together. Compiler encoding v14 records the versionless contract; COM
-discovery uses ABI v2 for the 0.3.0 release and ABI v3/core generation 20 on
+discovery uses ABI v2 for the 0.3.0 release and ABI v3/core generation 21 on
 this development branch. The lifetime-policy split does not change encoding v14.
 
 ### Module names and dependencies
@@ -1031,7 +1031,8 @@ binary; IDL names only its interface projection as `WeakComPtr<Interface>`.
 For example, a contract can return `Result<WeakComPtr<Service>>`, or borrow a
 record containing `observer: WeakComPtr<Service>`. Nested records, arrays,
 sequences, options and closed generic fields preserve weak ownership. Acquisition
-checks the exact interface and shared ownership kind without promotion, so expired
+checks presence and exact interface on producer-guaranteed shared backing without
+promotion, so expired
 observers remain valid transported values. Calling their target requires a
 successful `upgrade`. Direct weak inputs, copied weak aggregate parameters/results,
 and implicit persistence of weak references are unsupported. Borrow a named

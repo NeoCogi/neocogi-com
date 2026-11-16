@@ -34,7 +34,7 @@ The core `AbiType` trait and Rust's `std::fmt::Debug` trait retain their names.
 The interface schemas, GUIDs, canonical digest bytes and encoding domains are
 unchanged by these renames; the renames alone are Rust source API changes.
 The separate lifetime-policy split changes C headers and type information,
-requiring ABI v3/core generation 20. Its ownership records are
+requiring ABI v3/core generation 21. Its ownership records are
 `NcSharedLifetimeState` and `NcBoxedLifetimeState`; there is no fused
 `NcLifetimeState` compatibility alias.
 

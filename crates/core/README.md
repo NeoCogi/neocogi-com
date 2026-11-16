@@ -5,7 +5,7 @@ runtime. Its default configuration is allocation-free; optional `alloc` helpers
 own decoded values and binary documents. Most authors use the `neocogi-com`
 facade. The [current object ABI](../../docs/abi-v3.md) remains experimental.
 
-These development sources use **WIP ABI v3/core generation 20**, not a frozen
+These development sources use **WIP ABI v3/core generation 21**, not a frozen
 release contract; published
 0.3.0 retains ABI v2/core generation 19.
 
@@ -18,8 +18,10 @@ initializes private object state without separate bootstrap or role traits.
 Common-lifetime providers choose `NcSharedLifetimeState` or
 `NcBoxedLifetimeState`. The shared header has a numeric `strong_count`; the boxed
 header has `owner_and_borrows`. Each has its own `weak_count` and leading immutable
-`NcObjectTypeInfo` pointer. Metadata fixes the ownership kind before raw operations
-interpret either header. Cleanup remains in the allocating provider.
+`NcObjectTypeInfo` pointer. Construction and ABI ownership contracts establish the
+matching header; the four-word metadata record has no ownership tag. Checked raw
+adoption validates interfaces and releases only that declared policy. Cleanup
+remains in the allocating provider.
 
 Consumers generate Rust bindings and fixed signatures from shared IDL sources
 in their own crates. They can instead import bindings exposed by an existing
