@@ -668,7 +668,8 @@ int nc_c_exercise_split_lifetimes(
     const IUnknownVTable *shared_root, const IUnknownVTable *exclusive_root,
     NcStatus dropped, NcStatus invalid,
     void (*weak_retain)(void *), void (*weak_release)(void *),
-    NcStatus (*upgrade)(void *, const NcInterfaceId *, IUnknown *)) {
+    NcStatus (*upgrade)(void *, const NcInterfaceId *, IUnknown *),
+    NcStatus (*reject_shared_as_boxed)(void *)) {
     if (shared_root->release == exclusive_root->release ||
         shared_root->add_ref == exclusive_root->add_ref) return 0;
     const IUnknownVTable *shared_tables[1] = {shared_root};
@@ -689,6 +690,10 @@ int nc_c_exercise_split_lifetimes(
     boxed->counters = &boxed_counts;
 
     weak_retain(shared);
+    /* Checked boxed-weak adoption rejects and consumes its temporary shared
+     * clone. The C lender's weak reference and live owner remain untouched. */
+    if (reject_shared_as_boxed(shared) != invalid ||
+        shared->lifetime.weak_count != 2 || shared_counts.destroyed != 0) return 0;
     if (shared_root->add_ref(shared) != 2 || shared->lifetime.strong_count != 2) return 0;
     if (shared_root->release(shared) != 1) return 0;
     IUnknown output = {0};
@@ -697,6 +702,8 @@ int nc_c_exercise_split_lifetimes(
     if (output.vtable->release(output.object) != 1) return 0;
     if (shared_root->release(shared) != 0 || shared_counts.destroyed != 1 || shared_counts.freed != 0) return 0;
     if (shared->lifetime.strong_count != 0 || shared->lifetime.weak_count != 1) return 0;
+    if (reject_shared_as_boxed(shared) != invalid ||
+        shared->lifetime.weak_count != 1 || shared_counts.freed != 0) return 0;
     if (upgrade(shared, shared_root->interface_id, &output) != dropped ||
         output.object || output.vtable) return 0;
     weak_release(shared);

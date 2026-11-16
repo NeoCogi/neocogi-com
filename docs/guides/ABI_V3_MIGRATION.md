@@ -69,11 +69,21 @@ The SDK uses concrete `__ComStorage<T, Lifetime, Access>` instantiations; the AB
 address does not introduce an application payload registry or dynamic downcast.
 
 `NcWeakRaw.control` transports that allocation address as `*mut c_void`.
-Fallible raw entry points inspect the leading immutable metadata pointer/kind
-before constructing a policy-specific header reference. Valid shared weak tokens
-become typed `WeakComPtr`; a checked shared-weak adoption rejects boxed storage
-and releases the transferred weak owner exactly once. Common weak retain/release
-accept either known policy so cleanup does not depend on a strong-count tag.
+Checked mixed-policy raw entry points inspect the leading metadata pointer/kind
+before constructing a policy-specific header reference. Checked shared and boxed
+weak adoption accept complete retained tokens of either known policy, validate
+before typed construction, and consume exactly the rejected actual weak reference.
+Borrowed weak decoding retains only after successful admission; rejection leaves
+the source unchanged. Unknown-kind prefixes can be rejected without a complete
+header, but cannot be consumed as owned references with an invented cleanup rule.
+
+Typed handles, matching vtable callbacks, BoxRead::enter, BoxWrite::enter and
+try_box_cast now trust their established shared/boxed allocation proof. The latter
+three unsafe support APIs deliberately require genuine boxed storage instead of
+promising mixed-policy rejection. Move raw callers to checked admission first;
+casting a raw pointer does not establish its backing. Numeric count and live/
+reader/writer admission checks remain. No public checked/trusted wrapper twins or
+standalone erased weak helpers are retained. See the [boundary contract](../contracts/COM_LIFETIME_ADMISSION.md).
 Unsafe backing, alignment, storage retention and threading obligations still
 apply; admission does not make an arbitrary pointer readable.
 
@@ -145,7 +155,9 @@ Use the [independent C fixture](../../tests/com/integration-tests/fixtures/nativ
 as an exercised layout/callback example. Match atomic width, alignment and
 synchronization on each target; C declarations alone do not prove compatibility.
 Verify live and expired cross-policy rejection, owner destruction before final
-weak deallocation, failed-promotion output clearing and exact contract mismatch.
+weak deallocation, binding-owned C adapter output clearing and exact contract
+mismatch. Local Rust promotion returns Result<Option<_>, NcStatus> directly;
+zero precedes lookup and failed negotiation releases its acquired strong owner.
 The [core regressions](../../crates/core/src/lifetime/tests.rs) and
 [generated boxed-call tests](../../tests/com/integration-tests/exclusive_com.rs)
 cover these boundaries and owner removal racing admitted readers/writers.

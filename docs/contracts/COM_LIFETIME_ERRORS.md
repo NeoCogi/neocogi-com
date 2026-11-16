@@ -29,9 +29,9 @@ that an in-progress destructor has completed. Returning from owner Drop still
 proves synchronous value/descendant destruction. Weak tokens retain bookkeeping,
 not object values, and do not postpone that destruction.
 
-Shared weak promotion returns `NC_E_DROPPED` when no strong owner remains and
-leaves its output empty. The Rust `WeakComPtr::upgrade` maps that result to
-`Ok(None)`. A logically closed but strongly owned object still upgrades to
+Shared weak promotion is an internal typed Rust operation returning `Ok(None)`
+when no strong owner remains, before interface negotiation. Binding-owned C
+adapters map that result to `NC_E_DROPPED` and leave their output empty. A logically closed but strongly owned object still upgrades to
 `Some`; its methods can then return `NC_E_CLOSED`. Interface-negotiation and other
 failures remain errors. Neither status changes handle or vtable layout.
 

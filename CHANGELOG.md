@@ -6,6 +6,15 @@ Historical draft numbers do not define additional supported COM baselines.
 
 ## Unreleased
 
+- Trust established shared/boxed lifetime policy in typed handles and matching
+  callbacks. Admit policy at mixed raw boundaries, validate before typed weak
+  construction, and balance rejected owned weak tokens under their actual policy.
+  Keep borrowed rejection unchanged and preserve both incoming-table identity and
+  canonical allocation lookup. Narrow the WIP boxed support safety contracts;
+  remove erased normal weak helpers and local promotion's obsolete C-shaped
+  handshake/revalidation. Preserve layouts, core 20, exact interface signatures,
+  reader/writer admission and synchronous destruction.
+
 - Select separate shared/exclusive canonical lifetime prefixes through
   ComObject::UNKNOWN_VTABLE. Move retain/release into typed Rust header operations,
   remove universal ownership dispatch, and keep C adapters private to actual slots.
@@ -561,6 +570,15 @@ prefixes and full explicit inspection remain supported.
   allocation savings and linked deployment changes are measured separately.
 
 ## Unreleased
+
+- Trust established shared/boxed lifetime policy in typed handles and matching
+  callbacks. Admit policy at mixed raw boundaries, validate before typed weak
+  construction, and balance rejected owned weak tokens under their actual policy.
+  Keep borrowed rejection unchanged and preserve both incoming-table identity and
+  canonical allocation lookup. Narrow the WIP boxed support safety contracts;
+  remove erased normal weak helpers and local promotion's obsolete C-shaped
+  handshake/revalidation. Preserve layouts, core 20, exact interface signatures,
+  reader/writer admission and synchronous destruction.
 
 - Make IDL collection ownership explicit with `Vec<T>`, `Slice<T>` / `[T]`, and
   `Array<T, N>` / `[T; N]`. Support recursively copied arrays in methods and

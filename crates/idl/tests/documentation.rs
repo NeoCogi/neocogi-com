@@ -225,9 +225,11 @@ fn provider_lifetime_prefix_guide_executes_with_private_helpers() {
     // Each deliberately named import must fail for its own expected visibility
     // reason; an unrelated compile error cannot stand in for a missing rejection.
     let rejected = [
-        ("weak_retain", "E0603"),
-        ("weak_release", "E0603"),
-        ("weak_upgrade", "E0603"),
+        ("weak_retain", "E0432"),
+        ("weak_release", "E0432"),
+        ("weak_upgrade", "E0432"),
+        ("admit_interface", "E0603"),
+        ("release_rejected_weak", "E0603"),
         ("nc_shared_release", "E0603"),
         ("nc_exclusive_release", "E0603"),
         ("nc_strong_release", "E0432"),

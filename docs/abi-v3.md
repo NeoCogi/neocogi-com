@@ -229,9 +229,14 @@ Fallible raw admission rejects unknown/wrong kinds before interpreting a full
 policy-specific record. Foreign implementations match target atomic width,
 alignment and synchronization; no Rust Arc representation is inspected.
 
-Weak retain/release and promotion are private ordinary Rust helpers used by the
-SDK handles. Promotion admits shared metadata before reading strong_count; weak
-cleanup selects only the matching weak_count. The SDK exposes no standalone weak
+Weak retain/release and promotion are private ordinary Rust operations on the
+matching concrete state. Established typed handles and matching policy-specific
+callbacks trust their allocation policy; they do not rediscover the metadata kind.
+Only checked mixed-policy raw adoption/decoding admits that kind. Rejected owned
+weak tokens release their actual known policy; borrowed rejection changes no count.
+See [lifetime admission](contracts/COM_LIFETIME_ADMISSION.md) for the boundary matrix.
+Promotion returns a Rust result directly after acquiring the numeric strong count;
+there is no internal raw output handshake or repeated validation of its own lookup. The SDK exposes no standalone weak
 C-helper API or promised weak function addresses. Foreign callers can use a
 binding-owned C adapter over the typed handles, or implement the documented common
 header/atomic protocol. The native C fixture supplies its own adapters. Metadata
@@ -241,8 +246,10 @@ weak operation table.
 A shared `WeakComPtr<T>` owns one weak reference and occupies one pointer word.
 Cloning changes only weak ownership. Promotion acquires a strong owner before
 selecting the exact requested interface, and never resurrects a destroyed value.
-Failure clears both strong output words; contract negotiation errors remain errors.
-An expired value reports `NC_E_DROPPED`, mapped by Rust `upgrade()` to `Ok(None)`.
+Rust `upgrade()` returns `Ok(None)` when the strong count is zero, before exact
+interface negotiation. Negotiation errors remain errors and release the acquired
+strong owner, which can itself be the final release. Binding-owned C adapters
+translate this result to their status/output protocol and clear failed outputs.
 Canonical control addresses remain unique while weak owners prevent storage reuse.
 
 Objects are constructed from completely initialized values. Generated construction
@@ -267,7 +274,11 @@ NcSharedLifetimeState owns ordinary Rust retain/release operations.
 NcBoxedLifetimeState owns ordinary Rust sole-owner release. Release consumes a raw
 typed pointer so final deallocation does not invalidate a protected &self argument.
 The private nc_shared_retain/nc_shared_release and nc_exclusive_release C adapters
-serve the existing IUnknown slots; no universal release selects an ownership policy.
+serve the existing IUnknown slots and require their matching object/prefix policy;
+no universal release selects an ownership policy. Unsafe provider support
+BoxRead::enter, BoxWrite::enter and try_box_cast likewise require genuine retained
+boxed storage. A pointer cast alone is no proof. Raw checked callers admit policy
+before calling typed operations; typed borrow entry still checks liveness/conflicts.
 Exclusive AddRef returns zero, and shared query/downgrade clear outputs and reject
 with NC_E_INVALID_ARG (null argument/output rejection remains NC_E_POINTER).
 

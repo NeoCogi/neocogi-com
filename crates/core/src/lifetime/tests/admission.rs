@@ -136,3 +136,48 @@ fn boxed_weak_wire_preserves_both_identity_authorities_without_retaining_errors(
     assert_eq!(observed.destroyed.load(Ordering::SeqCst), 1);
     assert_eq!(observed.freed.load(Ordering::SeqCst), 1);
 }
+
+/// A rejected borrowed owner slot stays intact; rejecting that same transferred
+/// shared owner as a boxed result releases its actual lifecycle exactly once.
+#[test]
+fn boxed_owner_admission_preserves_inputs_and_releases_actual_rejected_outputs() {
+    let (control, observed) = allocation();
+    let mut raw = ComRaw::<IUnknown> { object: control.cast(), vtable: &ROOT };
+    let original = raw;
+    // SAFETY: matching complete shared storage and table with one actual owner.
+    // The checked boxed boundary accepts it for rejection, never boxed adoption.
+    unsafe {
+        assert_eq!(crate::ComBox::<IUnknown>::__nc_validate_raw_input(&mut raw), Err(NC_E_INVALID_ARG));
+        assert_eq!(raw, original);
+        assert_eq!((*control).strong_count.load(Ordering::Relaxed), 1);
+        assert_eq!((*control).weak_count.load(Ordering::Relaxed), 1);
+        assert_eq!(observed.destroyed.load(Ordering::SeqCst), 0);
+        assert_eq!(crate::ComBox::<IUnknown>::__nc_from_raw_owned_checked(raw).unwrap_err(), NC_E_INVALID_ARG);
+    }
+    assert_eq!(observed.destroyed.load(Ordering::SeqCst), 1);
+    assert_eq!(observed.freed.load(Ordering::SeqCst), 1);
+}
+
+/// Non-present two-word shapes transfer no token, so neither dangling component
+/// may be inspected while returning the precise pointer error.
+#[test]
+fn absent_and_half_null_boxed_weak_shapes_never_read_either_pointer() {
+    let object = core::ptr::NonNull::<u8>::dangling().as_ptr().cast::<c_void>();
+    let table = core::ptr::NonNull::<IUnknownVTable>::dangling().as_ptr();
+    for raw in [
+        ComRaw::null(),
+        ComRaw { object, vtable: core::ptr::null() },
+        ComRaw {
+            object: core::ptr::null_mut(),
+            vtable: table,
+        },
+    ] {
+        // SAFETY: malformed non-present shapes explicitly transfer nothing.
+        // The initialized records are readable; their components are never read.
+        assert_eq!(unsafe { WeakComBox::<IUnknown>::__nc_from_raw_owned_checked(raw) }.unwrap_err(), NC_E_POINTER);
+        assert_eq!(
+            unsafe { WeakComBox::<IUnknown>::decode_value(&raw, &mut ValueBudget::default()) }.unwrap_err(),
+            NC_E_POINTER
+        );
+    }
+}

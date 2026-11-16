@@ -167,6 +167,7 @@ mod tests {
             weak_retain: unsafe extern "C" fn(*mut core::ffi::c_void),
             weak_release: unsafe extern "C" fn(*mut core::ffi::c_void),
             upgrade: unsafe extern "C" fn(*mut core::ffi::c_void, *const NcInterfaceId, *mut neocogi_com::ComRaw<IUnknown>) -> NcStatus,
+            reject_shared_as_boxed: unsafe extern "C" fn(*mut core::ffi::c_void) -> NcStatus,
         ) -> i32;
 
         /// Consumes the supplied sole owner and verifies weak expiration in C.
@@ -270,6 +271,18 @@ mod tests {
         }
     }
 
+    /// Binding-owned negative-admission adapter consumes a newly cloned shared
+    /// weak through the checked boxed boundary. The original C token is borrowed.
+    unsafe extern "C" fn fixture_reject_shared_as_boxed(object: *mut core::ffi::c_void) -> NcStatus {
+        use neocogi_com::{ComRaw, WeakComBox, NC_OK};
+        let token = unsafe { clone_fixture_weak(object) };
+        let raw = ComRaw::<IUnknown> { object: token.control, vtable: &neocogi_com::lifetime::SHARED_UNKNOWN_VTABLE };
+        match unsafe { WeakComBox::<IUnknown>::__nc_from_raw_owned_checked(raw) } {
+            Ok(weak) => { drop(weak); NC_OK }
+            Err(status) => status,
+        }
+    }
+
     /// Independent C allocation declarations exercise both policies and expired-kind checks.
     #[test]
     fn native_c_uses_distinct_shared_and_boxed_lifetime_states() {
@@ -286,6 +299,7 @@ mod tests {
                     fixture_weak_retain,
                     fixture_weak_release,
                     fixture_weak_upgrade,
+                    fixture_reject_shared_as_boxed,
                 )
             },
             1

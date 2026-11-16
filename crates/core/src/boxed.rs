@@ -14,7 +14,7 @@ use core::{
 };
 use crate::{ComInterface, ComClientInterface, ComRaw, ComRef, NcStatus, ThreadLocal, ThreadSafe, ThreadingModel, NC_E_POINTER};
 use crate::ptr::LiveInterface;
-use crate::lifetime::{try_box_cast, NcBoxedLifetimeState, weak_retain, weak_release};
+use crate::lifetime::{admit_interface, release_rejected_weak, try_box_cast, NcBoxedLifetimeState, NC_OWNERSHIP_BOXED};
 
 /// The sole transferable owner of an object exposing typed C ABI interfaces.
 ///
@@ -68,7 +68,7 @@ pub struct WeakComBox<T: ComInterface + ?Sized, M: ThreadingModel = ThreadLocal>
 unsafe fn observe_projection<T: ComInterface, M: ThreadingModel>(control: *mut crate::lifetime::NcBoxedLifetimeState) -> Result<WeakComBox<T, M>, NcStatus> {
     let table = unsafe { try_box_cast(control, &T::INTERFACE_ID) }?;
     // Validation precedes retention, so failure creates no token to release.
-    unsafe { weak_retain(control.cast()) };
+    unsafe { (*control).weak_retain() };
     Ok(unsafe {
         WeakComBox::from_raw_owned(ComRaw {
             object: control.cast(),
@@ -85,13 +85,15 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> ComBox<T, M> {
     ///
     /// # Safety
     /// `slot` is writable, properly aligned call-scoped storage containing the
-    /// sole live owner, with the provider's threading guarantee M. Its object
-    /// and table must satisfy the common COM header's readable-storage contract.
+    /// actual transferable owner (one shared reference or the sole boxed owner),
+    /// with the provider's threading guarantee M and a matching readable lifecycle
+    /// table/common-lifetime header. Rejection leaves that actual owner untouched;
+    /// successful adoption requires boxed policy.
     #[doc(hidden)]
     pub unsafe fn __nc_validate_raw_input(slot: *mut ComRaw<T>) -> Result<(), NcStatus> {
         let raw = unsafe { slot.as_ref() }.ok_or(NC_E_POINTER)?;
         unsafe { crate::raw::validate_interface(*raw) }?;
-        unsafe { try_box_cast(raw.object.cast(), &T::INTERFACE_ID) }?;
+        unsafe { admit_interface(raw.object, NC_OWNERSHIP_BOXED, &T::INTERFACE_ID) }?;
         Ok(())
     }
 
@@ -111,14 +113,17 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> ComBox<T, M> {
     /// Checks a transferred factory result before adopting its exclusive owner.
     ///
     /// # Safety
-    /// A present pair transfers exclusive storage under the common lifetime ABI.
+    /// A present pair transfers one actual shared reference or the sole boxed
+    /// owner under the common lifetime ABI, with its matching readable lifecycle
+    /// table. Rejection consumes that actual owner; only boxed policy is adopted.
     /// The provider establishes its threading promise; readable metadata alone
     /// cannot prove that foreign code obeys ownership or call-access obligations.
     #[doc(hidden)]
     pub unsafe fn __nc_from_raw_owned_checked(raw: ComRaw<T>) -> Result<Self, NcStatus> {
         // The common release slot can balance either lifetime policy when a
         // foreign result has a mismatched interface or ownership mode.
-        let checked = unsafe { crate::raw::validate_interface(raw) }.and_then(|()| unsafe { try_box_cast(raw.object.cast(), &T::INTERFACE_ID) }.map(|_| ()));
+        let checked = unsafe { crate::raw::validate_interface(raw) }
+            .and_then(|()| unsafe { admit_interface(raw.object, NC_OWNERSHIP_BOXED, &T::INTERFACE_ID) }.map(|_| ()));
         if let Err(error) = checked {
             unsafe { crate::raw::release(raw) };
             return Err(error);
@@ -212,7 +217,7 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> ComBox<T, M> {
     pub fn downgrade(&self) -> WeakComBox<T, M> {
         let raw = self.as_raw();
         // SAFETY: owner keeps the control initialized while a new weak token is retained.
-        unsafe { weak_retain(raw.object.cast()) };
+        unsafe { (*raw.object.cast::<NcBoxedLifetimeState>()).weak_retain() };
         unsafe { WeakComBox::from_raw_owned(raw) }.expect("present owner")
     }
 }
@@ -301,14 +306,14 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> WeakComBox<T, M> {
 impl<T: ComInterface + ?Sized, M: ThreadingModel> Clone for WeakComBox<T, M> {
     /// Retains only control storage; no value or owner reference is acquired.
     fn clone(&self) -> Self {
-        unsafe { weak_retain(self.as_raw().object.cast()) };
+        unsafe { (*self.as_raw().object.cast::<NcBoxedLifetimeState>()).weak_retain() };
         Self { raw: self.raw, mode: PhantomData }
     }
 }
 impl<T: ComInterface + ?Sized, M: ThreadingModel> Drop for WeakComBox<T, M> {
     /// Frees expired storage through its original provider at final weak release.
     fn drop(&mut self) {
-        unsafe { weak_release(self.as_raw().object.cast()) };
+        unsafe { NcBoxedLifetimeState::weak_release(self.as_raw().object.cast()) };
     }
 }
 
@@ -367,17 +372,23 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> WeakComBox<T, M> {
     /// table. Metadata/code remain retained, including after value destruction.
     /// The provider establishes threading M. Rejection consumes exactly that weak
     /// reference; unknown-kind prefixes are not owned tokens that can be cleaned up.
+    /// Both-null and half-null shapes transfer nothing and reject without reading
+    /// either component. Only a present pair carries a cleanup obligation.
     #[doc(hidden)]
     pub unsafe fn __nc_from_raw_owned_checked(raw: ComRaw<T>) -> Result<Self, NcStatus> {
+        if !raw.is_present() {
+            return Err(NC_E_POINTER);
+        }
         // The supplied table and canonical allocation metadata are independent
         // authorities. Neither check may publish an unadmitted typed owner.
-        let checked = unsafe { crate::raw::validate_interface(raw) }.and_then(|()| unsafe { try_box_cast(raw.object.cast(), &T::INTERFACE_ID) });
+        let checked =
+            unsafe { crate::raw::validate_interface(raw) }.and_then(|()| unsafe { admit_interface(raw.object, NC_OWNERSHIP_BOXED, &T::INTERFACE_ID) });
         let table = match checked {
             Ok(table) => table,
             Err(status) => {
                 // SAFETY: the raw token owns one weak under its actual known
                 // policy. Never use a strong release slot or a premature boxed Drop.
-                unsafe { weak_release(raw.object) };
+                unsafe { release_rejected_weak(raw.object) };
                 return Err(status);
             }
         };

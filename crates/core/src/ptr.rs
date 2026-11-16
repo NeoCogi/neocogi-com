@@ -280,8 +280,10 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> ComPtr<T, M> {
     /// Validates a returned contract before adopting its transferred reference.
     ///
     /// # Safety
-    /// Present pointers must be readable/live and support their common lifecycle
-    /// prefix under this core ABI. Even a wrong typed identity must be releasable.
+    /// A present pair transfers an actual shared reference with readable matching
+    /// lifecycle storage under this core ABI; no common allocation header is assumed.
+    /// This checks interface identity, not the provider's ownership implementation.
+    /// Even a wrong typed identity must be releasable through its selected table.
     /// The raw caller establishes threading mode M. Null shapes need no dereference.
     #[doc(hidden)]
     pub unsafe fn __nc_from_raw_owned_checked(raw: ComRaw<T>) -> Result<Self, NcStatus> {

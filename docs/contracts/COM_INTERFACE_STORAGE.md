@@ -126,13 +126,16 @@ inherited method entries still occur in derived tables: eliminating object heade
 does **not** deduplicate those entries. Any proposal to change that is separate
 and must preserve inherited dispatch and inspection.
 
-Core storage uses checked interface casts without changing ownership.
-`try_box_cast` returns the exact interface table for retained exclusive storage,
-including an expired exclusive observer. `check_shared_weak_cast` checks a shared
-weak token's exact interface and returns its precise failure status without
-promoting the value. Both use the private `try_cast` table lookup; callers decide
-whether to retain, move or borrow a handle after successful validation. These Rust
-helper names do not change the C interface query or promotion protocols.
+Core storage uses exact interface casts without changing ownership.
+`try_box_cast` requires genuine retained boxed storage and returns its exact table,
+including after value destruction. Shared typed lookup uses the corresponding
+shared state's metadata. Both share one private IID/full-digest search; callers
+decide whether to retain, move or borrow a handle. These trusted operations do not
+rediscover policy. Checked raw adoption/decoding validates policy before creating
+typed owners. See [lifetime admission](COM_LIFETIME_ADMISSION.md) for unsafe proofs,
+owned rejection cleanup, borrowed acquisition and the two raw identity authorities.
+Local shared promotion returns one Rust result, acquiring a strong owner before
+lookup and releasing it on failure; no foreign callback result is being rechecked.
 
 Explicit interface metadata exposes physical method descriptors and exact
 signatures. Ordinary construction and dispatch need not retain their descriptive
@@ -157,8 +160,10 @@ There is no fused NcLifetimeState or mutable ownership-kind bit.
 | NcBoxedLifetimeState | Immutable type_info pointer | owner_and_borrows | weak_count |
 
 Both are three pointer-width words. NcObjectTypeInfo owns the immutable shared
-or boxed kind, cleanup callbacks and interface tables. Raw entry points check
-the metadata kind before constructing a complete policy-specific header borrow.
+or boxed kind, cleanup callbacks and interface tables. Mixed-policy checked raw
+admission checks that kind before constructing a complete policy-specific header
+borrow. Established owners and matching provider callbacks instead trust policy;
+typed boxed entry still atomically checks owner presence and reader/writer access.
 A boxed owner/access mask is therefore never interpreted as a strong count,
 including after owner removal. Counts and access state carry no BOXED type tag.
 

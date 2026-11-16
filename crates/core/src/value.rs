@@ -703,9 +703,9 @@ unsafe impl<T: crate::ComInterface + 'static, M: crate::ThreadingModel> ComValue
         budget.value(|_| {
             // SAFETY: the caller lends valid header/class storage; null, ownership
             // kind and exact interface identity are checked before acquisition.
-            unsafe { crate::lifetime::check_shared_weak_cast(wire.control, &T::INTERFACE_ID) }?;
+            unsafe { crate::lifetime::admit_interface(wire.control, crate::lifetime::NC_OWNERSHIP_SHARED, &T::INTERFACE_ID) }?;
             // SAFETY: successful validation proves a present retained header.
-            unsafe { crate::lifetime::weak_retain(wire.control) };
+            unsafe { (*wire.control.cast::<crate::lifetime::NcSharedLifetimeState>()).weak_retain() };
             // SAFETY: this function just acquired the exact validated weak owner.
             Ok(unsafe { Self::from_raw_owned(*wire) }.expect("validated weak token is present"))
         })
@@ -728,13 +728,13 @@ unsafe impl<T: crate::ComInterface + 'static, M: crate::ThreadingModel> ComValue
             // SAFETY: the caller lends initialized common header/table storage.
             // Validate the supplied pair before finding the canonical projection.
             unsafe { crate::raw::validate_interface(*wire) }?;
-            let control = wire.object.cast();
+            let control = wire.object.cast::<crate::lifetime::NcBoxedLifetimeState>();
             // SAFETY: the valid borrowed header survives this call; projection
             // rejects shared ownership and mismatched interface metadata.
-            let table = unsafe { crate::lifetime::try_box_cast(control, &T::INTERFACE_ID) }?;
+            let table = unsafe { crate::lifetime::admit_interface(control.cast(), crate::lifetime::NC_OWNERSHIP_BOXED, &T::INTERFACE_ID) }?;
             // SAFETY: successful validation proves live weak bookkeeping. Only
             // the canonical provider table is retained, never the caller's table.
-            unsafe { crate::lifetime::weak_retain(control.cast()) };
+            unsafe { (*control).weak_retain() };
             Ok(unsafe {
                 Self::from_raw_owned(crate::ComRaw {
                     object: wire.object,

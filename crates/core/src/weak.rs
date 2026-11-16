@@ -4,10 +4,8 @@
 //! reference before exposing any object state, and never resurrects a destroyed
 //! value. Logical domain closure is deliberately independent of this protocol.
 use core::{marker::PhantomData, ptr::NonNull};
-use crate::lifetime::{NcSharedLifetimeState, weak_retain, weak_release, weak_upgrade};
-use crate::{
-    ComInterface, ComPtr, ComRaw, IUnknown, NcInterfaceId, NcStatus, ThreadLocal, ThreadSafe, ThreadingModel, NC_E_DROPPED, NC_E_NOINTERFACE, NC_E_POINTER,
-};
+use crate::lifetime::{admit_interface, release_rejected_weak, NcSharedLifetimeState, NC_OWNERSHIP_SHARED};
+use crate::{ComInterface, ComPtr, ComRaw, IUnknown, NcStatus, ThreadLocal, ThreadSafe, ThreadingModel, NC_E_NOINTERFACE, NC_E_POINTER};
 
 /// One nullable allocation address admitted through immutable ownership metadata. Success transfers
 /// one weak reference; a null pointer represents absence and owns nothing.
@@ -80,10 +78,10 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> WeakComPtr<T, M> {
         let control = NonNull::new(raw.control.cast()).ok_or(NC_E_POINTER)?;
         // SAFETY: the transferred token retains valid header/class storage even
         // when it proves the wrong ownership kind or target interface.
-        if let Err(status) = unsafe { crate::lifetime::check_shared_weak_cast(raw.control, &T::INTERFACE_ID) } {
+        if let Err(status) = unsafe { admit_interface(raw.control, NC_OWNERSHIP_SHARED, &T::INTERFACE_ID) } {
             // SAFETY: failure consumes exactly the transferred weak reference;
-            // common weak release works for both shared and exclusive headers.
-            unsafe { weak_release(raw.control) };
+            // boundary cleanup selects the actual shared or exclusive header.
+            unsafe { release_rejected_weak(raw.control) };
             return Err(status);
         }
         // Only validated tokens acquire the typed shared-weak invariant.
@@ -103,7 +101,7 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> WeakComPtr<T, M> {
     /// Destruction returns None; interface/signature/provider errors remain errors.
     pub fn upgrade(&self) -> Result<Option<ComPtr<T, M>>, NcStatus> {
         // SAFETY: self retains the provider token and its original threading mode.
-        let raw = unsafe { upgrade(self.as_raw(), &T::INTERFACE_ID) }?;
+        let raw = unsafe { NcSharedLifetimeState::upgrade(self.control.as_ptr(), &T::INTERFACE_ID) }?;
         match raw {
             Some(raw) => {
                 // SAFETY: the shared helper validated T and transfers one strong owner.
@@ -133,9 +131,9 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> WeakComPtr<T, M> {
     /// Expired sources retain their immutable class metadata through this observer.
     pub fn query<U: ComInterface>(&self) -> Result<WeakComPtr<U, M>, NcStatus> {
         // SAFETY: this observer retains the common shared header and class tables.
-        unsafe { crate::lifetime::check_shared_weak_cast(self.control.as_ptr().cast(), &U::INTERFACE_ID) }?;
+        unsafe { self.control.as_ref().try_cast(&U::INTERFACE_ID) }?;
         // SAFETY: validation precedes acquisition and this token remains alive.
-        unsafe { weak_retain(self.control.as_ptr().cast()) };
+        unsafe { self.control.as_ref().weak_retain() };
         Ok(WeakComPtr {
             control: self.control,
             marker: PhantomData,
@@ -159,7 +157,7 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> Clone for WeakComPtr<T, M> {
     /// Retains the same weak control identity, without affecting the strong lifetime.
     fn clone(&self) -> Self {
         // SAFETY: this handle owns a live token while its provider retains another.
-        unsafe { weak_retain(self.control.as_ptr().cast()) };
+        unsafe { self.control.as_ref().weak_retain() };
         Self {
             control: self.control,
             marker: PhantomData,
@@ -170,7 +168,7 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> Drop for WeakComPtr<T, M> {
     /// Releases exactly this weak reference through the allocating provider.
     fn drop(&mut self) {
         // SAFETY: the owned token is consumed once and never accessed afterwards.
-        unsafe { weak_release(self.control.as_ptr().cast()) };
+        unsafe { NcSharedLifetimeState::weak_release(self.control.as_ptr()) };
     }
 }
 impl<T: ComInterface + ?Sized, M: ThreadingModel> core::fmt::Debug for WeakComPtr<T, M> {
@@ -184,32 +182,6 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> core::fmt::Debug for WeakComPt
 unsafe impl<T: ComInterface + ?Sized> Send for WeakComPtr<T, ThreadSafe> {}
 // SAFETY: as above; immutable sharing only invokes the provider's atomic weak protocol.
 unsafe impl<T: ComInterface + ?Sized> Sync for WeakComPtr<T, ThreadSafe> {}
-
-/// Shares provider validation across all typed weak handles instead of duplicating it.
-///
-/// # Safety
-/// Source must be a valid borrowed weak token; expected identity must be readable.
-#[inline(never)]
-unsafe fn upgrade(source: NcWeakRaw, expected: &NcInterfaceId) -> Result<Option<ComRaw<IUnknown>>, NcStatus> {
-    let mut out = ComRaw::null();
-    // SAFETY: caller retains the weak token; both argument records are live and distinct.
-    let status = unsafe { weak_upgrade(source.control, expected, &mut out) };
-    match status {
-        NC_E_DROPPED => Ok(None),
-        status if status.is_err() => Err(status),
-        _ => {
-            // SAFETY: successful provider calls transfer a readable common strong pair.
-            match unsafe { crate::raw::__nc_validate_iunknown_interface(out, expected) } {
-                Ok(()) => Ok(Some(out)),
-                Err(error) => {
-                    // SAFETY: reject a successful transfer without leaking its strong owner.
-                    unsafe { crate::raw::release(out) };
-                    Err(error)
-                }
-            }
-        }
-    }
-}
 
 /// Obtains a provider weak token while a strong reference keeps its source alive.
 ///
