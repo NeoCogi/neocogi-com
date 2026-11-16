@@ -22,6 +22,10 @@ pub const NC_OWNERSHIP_BOXED: u32 = 2;
 /// inspect that pointer and the integer ownership tag before borrowing the
 /// complete policy-specific header. Unknown tags are rejected by fallible
 /// admission; valid owned lifetime tokens always have one of the two known tags.
+/// A raw object address must be aligned/readable for its leading metadata pointer,
+/// whose nonnull target is a readable current-core record. A known ownership kind
+/// promises its matching complete header. Storage, metadata and code remain
+/// retained for each operation and any borrow it returns.
 ///
 /// Metadata and code remain live through the final weak release. Cleanup
 /// callbacks receive the allocation address, whose concrete type their provider
@@ -181,8 +185,9 @@ fn retain(counter: &AtomicUsize) -> usize {
 /// Retains a shared owner. Null and boxed ownership return zero.
 ///
 /// # Safety
-/// A nonnull allocation has current-core metadata and remains strongly owned
-/// throughout this operation. A zero shared strong count cannot be resurrected.
+/// A nonnull address follows the raw admission contract of [`NcObjectTypeInfo`].
+/// Accepted shared storage must have a retained strong owner; zero cannot be
+/// resurrected. Unsupported kinds are rejected before any count is accessed.
 #[inline(never)]
 pub unsafe extern "C" fn nc_strong_retain(object: *mut c_void) -> u32 {
     let Ok(header) = (unsafe { shared_state(object) }) else { return 0 };
@@ -294,8 +299,9 @@ pub(crate) unsafe fn check_shared_weak_cast(object: *mut c_void, requested: &NcI
 /// Selects a shared interface and transfers exactly one strong owner.
 ///
 /// # Safety
-/// Nonnull object is retained and request/output records are valid and distinct.
-/// Boxed allocations are rejected without acquiring another owner.
+/// Nonnull object follows [`NcObjectTypeInfo`] raw admission; accepted
+/// shared storage has a retained strong owner. Request/output records are valid
+/// and distinct. Other policies are rejected without acquiring an owner.
 #[inline(never)]
 pub unsafe extern "C" fn nc_query_interface(object: *mut c_void, requested: *const NcInterfaceId, out: *mut ComRaw<IUnknown>) -> NcStatus {
     if out.is_null() {
@@ -400,8 +406,10 @@ pub struct BoxWrite {
 /// Atomically admits one reader or the unique writer before any T reference exists.
 ///
 /// # Safety
-/// The caller retains exclusive-class allocation storage throughout acquisition
-/// and through the returned borrow. Null is rejected without accessing storage.
+/// A nonnull address and metadata satisfy object_type_info. A known kind
+/// promises its matching complete header, even if it is rejected as non-boxed.
+/// On successful boxed admission the caller retains storage through the complete
+/// returned guard/drop call. Null is rejected without accessing storage.
 #[inline(never)]
 unsafe fn borrow_box(control: *mut NcBoxedLifetimeState, writer: bool) -> Result<NonNull<NcBoxedLifetimeState>, NcStatus> {
     // Admit immutable ownership metadata before interpreting boxed access bits.
@@ -431,7 +439,8 @@ impl BoxRead {
     /// Acquires shared access, rejecting destruction and conflicting mutable calls.
     ///
     /// # Safety
-    /// `control` obeys the retained exclusive storage contract of `borrow_box`.
+    /// `control` follows [`NcObjectTypeInfo`] raw admission. Retain matching storage
+    /// through the complete returned guard/drop call after successful admission.
     pub unsafe fn enter(control: *mut NcBoxedLifetimeState) -> Result<Self, NcStatus> {
         Ok(Self {
             control: unsafe { borrow_box(control, false) }?,
@@ -442,7 +451,8 @@ impl BoxWrite {
     /// Acquires mutable access only when the live object has no active borrowers.
     ///
     /// # Safety
-    /// `control` obeys the retained exclusive storage contract of `borrow_box`.
+    /// `control` follows [`NcObjectTypeInfo`] raw admission. Retain matching storage
+    /// through the complete returned guard/drop call after successful admission.
     pub unsafe fn enter(control: *mut NcBoxedLifetimeState) -> Result<Self, NcStatus> {
         Ok(Self {
             control: unsafe { borrow_box(control, true) }?,
@@ -519,7 +529,9 @@ pub unsafe extern "C" fn nc_box_release(control: *mut NcBoxedLifetimeState) {
 /// Retained class metadata permits this cast even after the value is destroyed.
 ///
 /// # Safety
-/// The common header and requested contract are readable and retained for this call.
+/// Object follows [`NcObjectTypeInfo`] raw admission; the request is readable.
+/// Retain storage/metadata through the call, including for expired boxed values.
+/// Non-boxed kinds are rejected before a complete boxed header is borrowed.
 pub unsafe fn try_box_cast(control: *mut NcBoxedLifetimeState, requested: &NcInterfaceId) -> Result<*const IUnknownVTable, NcStatus> {
     // SAFETY: only the common immutable pointer is read before ownership admission.
     let header = unsafe { boxed_state(control.cast()) }?;

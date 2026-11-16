@@ -6,7 +6,13 @@ dependencies, descriptor/core ABI versions, and full factory IID/signature and
 threading capability. There are no contract libraries or module graphs to load.
 Opened libraries remain pinned until the short-lived process exits.
 
-Install the released `0.3.0` inspector:
+These development sources inspect ABI v3/core generation 20. Build the matching
+CLI from this checkout with `cargo build -p neocogi-inspect` when inspecting
+development providers. The published `0.3.0` inspector expects ABI v2/core
+generation 19 and cannot inspect these incompatible providers. See the
+[provider migration guide](../../docs/guides/ABI_V3_MIGRATION.md).
+
+For published ABI-v2 providers, install the released `0.3.0` inspector:
 
 ```sh
 cargo install neocogi-inspect --version '=0.3.0' --locked

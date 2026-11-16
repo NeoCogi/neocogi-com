@@ -38,6 +38,9 @@ lifetime-policy split. No Rust trait object, container layout, application value
 or unwinding crosses a C boundary. The application still selects one static or
 dynamic host owner and supplies its tables through nested plugins.
 
+The [provider migration guide](guides/ABI_V3_MIGRATION.md) maps earlier headers,
+metadata, raw tokens and bootstrap names to this development contract.
+
 ## Interface identity and calls
 
 Every generated interface has a Rust marker, a `#[repr(C)]` method table,

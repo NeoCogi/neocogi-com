@@ -43,6 +43,7 @@ owner and supply that owner's runtime access to every plugin.
 The approved [Rust API renames](docs/COM.md#rust-names-in-040-development) are
 recorded with migration names. The lifetime-policy split introduces distinct
 shared and boxed headers and advances the development binary contract to ABI v3.
+See the [provider migration guide](docs/guides/ABI_V3_MIGRATION.md) when adopting it.
 
 A **host** is the final application that owns one runtime implementation. An
 **interface caller** calls a COM interface; a **provider** implements one. These

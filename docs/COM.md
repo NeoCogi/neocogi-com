@@ -8,6 +8,8 @@ factory.
 This development branch uses unreleased [ABI v3](abi-v3.md) discovery and core
 generation 20. Published 0.3.0 uses ABI v2/core generation 19. Rebuild hosts,
 providers and generated bindings together when adopting the development contract.
+Follow the [provider migration guide](guides/ABI_V3_MIGRATION.md) for header,
+metadata and discovery changes.
 
 ## Rust names in 0.4.0 development
 
