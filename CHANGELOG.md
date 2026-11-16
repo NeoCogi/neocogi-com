@@ -6,6 +6,11 @@ Historical draft numbers do not define additional supported COM baselines.
 
 ## Unreleased
 
+- Make consuming boxed weak interface erasure move its existing token after exact
+  canonical IUnknown lookup. Preserve live/expired operation and threading without
+  a transient weak retain/release, including at the weak counter limit. Borrowed
+  queries and clones still retain independent observers. No ABI change.
+
 - Remove runtime allocation-policy classification throughout raw weak transport,
   adoption, value decoding, provider construction and native bindings. Shared raw
   weak pointers name NcSharedLifetimeState; every ABI ownership position requires

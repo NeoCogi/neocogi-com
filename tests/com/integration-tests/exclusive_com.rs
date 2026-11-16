@@ -93,6 +93,56 @@ fn container_owner_destruction_expires_all_cached_interfaces() {
     assert_eq!(drops.load(Ordering::SeqCst), 1);
 }
 
+/// Consuming weak erasure preserves canonical dispatch, expiration and both threading modes.
+#[test]
+fn weak_erasure_reprojects_live_and_expired_generated_interfaces() {
+    for expired in [false, true] {
+        let state = value();
+        let drops = state.drops.clone();
+        let root = Value::into_box(state);
+        let canonical_unknown = root.as_raw().vtable;
+        let owner = root.query::<IValueAbi>().unwrap();
+        let source = owner.downgrade();
+        let object = source.as_raw().object;
+        let owner = match expired {
+            true => {
+                drop(owner);
+                None
+            }
+            false => Some(owner),
+        };
+        let erased: WeakComBox<IUnknown, neocogi_com::ThreadSafe> = source.into_unknown();
+        assert_eq!(erased.as_raw().object, object);
+        assert_eq!(erased.as_raw().vtable, canonical_unknown);
+        assert_eq!(erased.is_alive(), !expired);
+        let mut projected = erased.query::<IValueAbi>().unwrap();
+        assert!(erased.same_object(&projected));
+        let expected = if expired { Err(NC_E_DROPPED) } else { Ok(42) };
+        std::thread::scope(|scope| {
+            // The erased/reprojected handle retains the provider's ThreadSafe permission.
+            assert_eq!(scope.spawn(|| projected.value()).join().unwrap(), expected);
+        });
+        assert_eq!(projected.set(57), if expired { Err(NC_E_DROPPED) } else { Ok(()) });
+        if let Some(owner) = &owner {
+            assert_eq!(owner.value(), Ok(57));
+        }
+        let local: WeakComBox<IValueAbi, neocogi_com::ThreadLocal> = projected.clone().into_thread_local();
+        let local_root: WeakComBox<IUnknown, neocogi_com::ThreadLocal> = local.into_unknown();
+        assert!(erased.same_object(&local_root));
+        assert_eq!(local_root.as_raw().vtable, canonical_unknown);
+        let local_projection = local_root.query::<IValueAbi>().unwrap();
+        assert_eq!(local_projection.value(), if expired { Err(NC_E_DROPPED) } else { Ok(57) });
+        assert_eq!(drops.load(Ordering::SeqCst), usize::from(expired));
+        drop(owner);
+        assert_eq!(drops.load(Ordering::SeqCst), 1);
+        assert_eq!(projected.value(), Err(NC_E_DROPPED));
+        assert_eq!(projected.set(91), Err(NC_E_DROPPED));
+        assert_eq!(local_projection.value(), Err(NC_E_DROPPED));
+        drop((projected, local_projection, local_root, erased));
+        assert_eq!(drops.load(Ordering::SeqCst), 1);
+    }
+}
+
 /// Existing shared-ownership protocols must not bypass the exclusive owner.
 #[test]
 fn borrowed_arguments_and_raw_queries_cannot_create_shared_owners() {
