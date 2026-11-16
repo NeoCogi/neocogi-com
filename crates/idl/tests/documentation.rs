@@ -168,3 +168,116 @@ fn active_guides_do_not_reintroduce_retired_protocol_prescriptions() {
         }
     }
 }
+
+/// The public guide composes real policy prefixes; private/retired helpers cannot
+/// be imported by an independent consumer merely because callbacks use the C ABI.
+#[test]
+fn provider_lifetime_prefix_guide_executes_with_private_helpers() {
+    let guide = include_str!("../../../docs/guides/ABI_V3_MIGRATION.md");
+    let contract = neocogi_idl::parse_module(Path::new("proof/lifetime.ncidl"), "interface Probe { fn value(&self) -> Result<u32>; }").unwrap();
+    let graph = neocogi_idl::resolve_modules(vec![contract]).unwrap();
+    let bindings = neocogi_idl::generate_rust(&graph, "proof.lifetime").unwrap();
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize().unwrap();
+    let project = tempfile::tempdir().unwrap();
+    fs::create_dir(project.path().join("src")).unwrap();
+    fs::write(project.path().join("Cargo.toml"), format!(
+        "[package]\nname='documented-lifetime-prefix'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\n[[bin]]\nname='private-support'\npath='src/private.rs'\n",
+        root.join("crates/com"),
+    )).unwrap();
+    let implementation = r#"
+        static DROPS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        #[neocogi_com::com_object(Probe)] struct Shared;
+        #[neocogi_com::com_object(Probe, ownership = exclusive)] struct Exclusive;
+        impl Probe for Shared { fn value(&self) -> Result<u32, neocogi_com::NcStatus> { Ok(1) } }
+        impl Probe for Exclusive { fn value(&self) -> Result<u32, neocogi_com::NcStatus> { Ok(2) } }
+        impl Drop for Shared { fn drop(&mut self) { DROPS.fetch_add(1, std::sync::atomic::Ordering::SeqCst); } }
+        impl Drop for Exclusive { fn drop(&mut self) { DROPS.fetch_add(1, std::sync::atomic::Ordering::SeqCst); } }
+        const SHARED: IUnknownVTable = interface_prefix::<Shared>(&<ProbeAbi as neocogi_com::ComInterface>::INTERFACE_ID);
+        const EXCLUSIVE: IUnknownVTable = interface_prefix::<Exclusive>(&<ProbeAbi as neocogi_com::ComInterface>::INTERFACE_ID);
+        #[test] fn selected_prefixes_release_the_matching_policy() {
+            use neocogi_com::{ComRaw, IUnknown, NC_E_INVALID_ARG, NC_OK};
+            let shared = Shared::from_value(Shared);
+            let exclusive = Exclusive::into_box(Exclusive);
+            assert_eq!(shared.query::<ProbeAbi>().unwrap().value(), Ok(1));
+            assert_eq!(exclusive.query_ref::<ProbeAbi>().unwrap().value(), Ok(2));
+            let mut out = ComRaw::<IUnknown>::null();
+            unsafe {
+                assert_eq!((SHARED.add_ref)(shared.as_raw().object), 2);
+                assert_eq!((SHARED.release)(shared.as_raw().object), 1);
+                assert_eq!((SHARED.query_interface)(shared.as_raw().object, &<ProbeAbi as neocogi_com::ComInterface>::INTERFACE_ID, &mut out), NC_OK);
+                assert_eq!(neocogi_com::raw::validate_interface(out.cast::<ProbeAbi>()), Ok(()));
+                assert_eq!(neocogi_com::raw::release(out), 1);
+                assert_eq!((EXCLUSIVE.add_ref)(exclusive.as_raw().object), 0);
+                assert_eq!((EXCLUSIVE.query_interface)(exclusive.as_raw().object, &<ProbeAbi as neocogi_com::ComInterface>::INTERFACE_ID, &mut out), NC_E_INVALID_ARG);
+                assert!(!out.is_present());
+                let raw = exclusive.into_raw();
+                assert_eq!((EXCLUSIVE.release)(raw.object), 0);
+            }
+            drop(shared);
+            assert_eq!(DROPS.load(std::sync::atomic::Ordering::SeqCst), 2);
+        }
+    "#;
+    fs::write(
+        project.path().join("src/lib.rs"),
+        format!("#![allow(dead_code)]\n{bindings}\n{}\n{implementation}", example(guide, "lifetime-prefix")),
+    )
+    .unwrap();
+    // Each deliberately named import must fail for its own expected visibility
+    // reason; an unrelated compile error cannot stand in for a missing rejection.
+    let rejected = [
+        ("weak_retain", "E0603"),
+        ("weak_release", "E0603"),
+        ("weak_upgrade", "E0603"),
+        ("nc_shared_release", "E0603"),
+        ("nc_exclusive_release", "E0603"),
+        ("nc_strong_release", "E0432"),
+        ("CANONICAL_UNKNOWN_VTABLE", "E0432"),
+    ];
+    let private = rejected
+        .iter()
+        .map(|(name, _)| format!("use neocogi_com::lifetime::{name};\n"))
+        .collect::<String>()
+        + "fn main() {}\n";
+    fs::write(project.path().join("src/private.rs"), private).unwrap();
+    let target = std::env::var_os("CARGO_TARGET_DIR").unwrap_or_else(|| root.join("target").into_os_string());
+    let output = Command::new("cargo")
+        .current_dir(project.path())
+        .args(["test", "--lib", "--offline"])
+        .env("CARGO_TARGET_DIR", &target)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(String::from_utf8_lossy(&output.stdout).contains("test selected_prefixes_release_the_matching_policy ... ok"));
+    let output = Command::new("cargo")
+        .current_dir(project.path())
+        .args(["check", "--bin", "private-support", "--offline", "--message-format=json"])
+        .env("CARGO_TARGET_DIR", &target)
+        .output()
+        .unwrap();
+    assert!(!output.status.success(), "private lifetime support unexpectedly became public");
+    let errors = String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+        .filter(|record| record["reason"] == "compiler-message" && record["message"]["level"] == "error")
+        .map(|record| record["message"].clone())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        errors.len(),
+        rejected.len(),
+        "unexpected diagnostics: {errors:?}\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    for (name, code) in rejected {
+        assert!(
+            errors
+                .iter()
+                .any(|error| error["code"]["code"] == code && error["message"].as_str().unwrap().contains(name)),
+            "missing {code} for {name}: {errors:?}"
+        );
+    }
+}

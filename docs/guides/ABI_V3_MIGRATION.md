@@ -77,6 +77,42 @@ accept either known policy so cleanup does not depend on a strong-count tag.
 Unsafe backing, alignment, storage retention and threading obligations still
 apply; admission does not make an arbitrary pointer readable.
 
+## Select the provider's lifetime prefix
+
+`ComObject::UNKNOWN_VTABLE` pairs the implementation's storage policy with either
+`SHARED_UNKNOWN_VTABLE` or `EXCLUSIVE_UNKNOWN_VTABLE`. The object macro selects it;
+the interface compiler copies its callbacks into root and inherited projections.
+Handwritten interface support can use the same constant construction:
+
+<!-- checked-example: lifetime-prefix -->
+```rust
+use neocogi_com::{ComObject, IUnknownVTable, NcInterfaceId};
+
+pub const fn interface_prefix<T: ComObject>(id: &'static NcInterfaceId) -> IUnknownVTable {
+    IUnknownVTable {
+        interface_id: id,
+        ..*T::UNKNOWN_VTABLE
+    }
+}
+```
+
+Pair the result with a matching complete method table and allocation before
+publishing it. Copying a prefix neither validates foreign storage nor acquires
+ownership. The compiler emits this construction for ordinary providers.
+
+Replace direct imports of the retired `nc_strong_*`, `nc_weak_*`,
+`nc_box_release` and `CANONICAL_UNKNOWN_VTABLE` support names. Ownership operations
+live on the concrete header types inside core. C adapters such as
+`nc_shared_release` and `nc_exclusive_release` are private; generated code uses
+the selected prefix, and safe callers use `ComPtr`, `ComBox` and their weak handles.
+Only actual vtable slots and provider cleanup callbacks retain a C calling
+convention. Weak bookkeeping/promotion are crate-private Rust functions; there
+is no standalone SDK weak C-helper surface. A foreign binding needing weak C
+calls supplies its own adapter over typed handles, as the native C fixture does.
+
+This support-API change keeps WIP ABI v3/core 20: header and C table layouts,
+slot signatures, interface identities and ownership/error behavior are unchanged.
+
 ## Keep counts, access and storage lifetime distinct
 
 A shared `strong_count` contains only a number. Positive counts retain the value;
