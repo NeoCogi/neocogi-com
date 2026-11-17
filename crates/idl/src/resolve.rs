@@ -2558,3 +2558,6 @@ mod reference_encoding_tests {
         }
     }
 }
+
+#[cfg(test)]
+mod persistence_tests;

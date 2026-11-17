@@ -154,9 +154,11 @@ The operation contracts are deliberately separate:
 The executable diamond regression independently generates both peers, checks
 preorder identities versus postorder methods and sorted reachable definitions,
 and makes real inherited/value COM calls. Existing graph regressions freeze
-fingerprint bytes and finite/cyclic resolver behavior. At this migration stage,
-the diagnostic and metadata discovery consumers still require conversion; their
-small-stack regressions and closure inventory accompany that implementation.
+fingerprint bytes and finite/cyclic resolver behavior. Persistence explanations now use borrowed field-iterator frames and a per-query
+visited-name set; unary public capability predicates use loops even for detached
+inputs. The first unsupported leaf and requested field labels remain unchanged.
+Metadata discovery consumers still require conversion at this migration stage;
+their small-stack regressions and closure inventory accompany that implementation.
 
 ## Closed generic values and interfaces
 

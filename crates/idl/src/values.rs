@@ -86,61 +86,90 @@ impl ValueGraph {
 
     /// Checks format-neutral construction, independently of the COM wire codec.
     /// Guid and Status use explicit scalar/array recipes, never native-memory copies.
-    pub fn can_persist(&self, ty: &ValueType) -> bool {
-        match ty {
-            ValueType::Unit | ValueType::Text => true,
-            ValueType::Scalar(name) => matches!(
-                name.as_str(),
-                "bool" | "u8" | "u16" | "u32" | "u64" | "i8" | "i16" | "i32" | "i64" | "f32" | "f64" | "Guid" | "Status"
-            ),
-            ValueType::Named(name) => self.definitions.get(name).is_some_and(|value| value.persistence == Persistence::Supported),
-            ValueType::Object(_) | ValueType::WeakObject(_) | ValueType::WeakBoxObject(_) => false,
-            ValueType::Sequence(value) | ValueType::Array(value, _) => self.can_persist(value),
+    /// Unary wrappers are walked iteratively, including detached public inputs;
+    /// named leaves read cached facts without expanding their definitions.
+    pub fn can_persist(&self, mut ty: &ValueType) -> bool {
+        // Public detached expressions need not have passed compiler admission.
+        // Unary wrappers therefore use constant native stack even for those inputs.
+        loop {
+            match ty {
+                ValueType::Unit | ValueType::Text => return true,
+                ValueType::Scalar(name) => {
+                    return matches!(
+                        name.as_str(),
+                        "bool" | "u8" | "u16" | "u32" | "u64" | "i8" | "i16" | "i32" | "i64" | "f32" | "f64" | "Guid" | "Status"
+                    );
+                }
+                ValueType::Named(name) => return self.definitions.get(name).is_some_and(|value| value.persistence == Persistence::Supported),
+                ValueType::Object(_) | ValueType::WeakObject(_) | ValueType::WeakBoxObject(_) => return false,
+                ValueType::Sequence(value) | ValueType::Array(value, _) => ty = value,
+            }
         }
     }
 
-    /// Finds an unsupported reachable leaf for a source-located format-policy diagnostic.
-    /// A visited set prevents recursive records from hiding a later failing sibling.
+    /// Finds the first unsupported leaf in declaration/variant DFS order.
+    /// Borrowed field iterators own nominal descent on the heap; unary wrappers
+    /// are peeled locally. Visited names last for this entire search, preventing
+    /// cycles from hiding later siblings without caching a root-independent witness.
     pub(crate) fn persistence_failure(&self, ty: &ValueType) -> Option<String> {
-        /// Walks unsupported dependencies only; revisited edges do not consume the sibling search.
-        fn visit(graph: &ValueGraph, ty: &ValueType, visited: &mut BTreeSet<String>) -> Option<String> {
-            if graph.can_persist(ty) {
-                return None;
+        let mut visited = BTreeSet::new();
+        let mut fields = vec![std::slice::from_ref(ty).iter()];
+        while let Some(frame) = fields.last_mut() {
+            let Some(mut ty) = frame.next() else {
+                fields.pop();
+                continue;
+            };
+            if self.can_persist(ty) {
+                continue;
             }
-            match ty {
-                ValueType::Object(name) => Some(format!(
-                    "ComPtr<{name}> transports an existing object; persistence requires an explicit object reconstruction contract"
-                )),
-                ValueType::WeakObject(name) => Some(format!(
-                    "WeakComPtr<{name}> transports lifetime bookkeeping; persistence requires an explicit object reconstruction contract"
-                )),
-                ValueType::WeakBoxObject(name) => Some(format!(
-                    "WeakComBox<{name}> transports exclusive lifetime bookkeeping; persistence requires an explicit object reconstruction contract"
-                )),
-                ValueType::Scalar(name) => Some(format!("{name} has no format-neutral ComDeserialize implementation")),
-                ValueType::Named(name) => {
-                    let Some(value) = graph.definitions.get(name) else {
-                        return Some(format!("{name} has no resolved value definition"));
-                    };
-                    match value.persistence {
-                        Persistence::Unsupported if visited.insert(name.clone()) => value.fields.iter().find_map(|field| visit(graph, field, visited)),
-                        Persistence::Unsupported | Persistence::Supported => None,
+            loop {
+                match ty {
+                    ValueType::Object(name) => {
+                        return Some(format!(
+                            "ComPtr<{name}> transports an existing object; persistence requires an explicit object reconstruction contract"
+                        ));
                     }
+                    ValueType::WeakObject(name) => {
+                        return Some(format!(
+                            "WeakComPtr<{name}> transports lifetime bookkeeping; persistence requires an explicit object reconstruction contract"
+                        ));
+                    }
+                    ValueType::WeakBoxObject(name) => {
+                        return Some(format!(
+                            "WeakComBox<{name}> transports exclusive lifetime bookkeeping; persistence requires an explicit object reconstruction contract"
+                        ));
+                    }
+                    ValueType::Scalar(name) => return Some(format!("{name} has no format-neutral ComDeserialize implementation")),
+                    ValueType::Named(name) => {
+                        let Some(value) = self.definitions.get(name) else {
+                            return Some(format!("{name} has no resolved value definition"));
+                        };
+                        if value.persistence == Persistence::Unsupported && visited.insert(name.as_str()) {
+                            // Enter once, then finish these fields before any later sibling.
+                            // Iterators retain only active ancestry, not a wide sibling frontier.
+                            fields.push(value.fields.iter());
+                        }
+                        break;
+                    }
+                    ValueType::Sequence(value) | ValueType::Array(value, _) => ty = value,
+                    ValueType::Unit | ValueType::Text => break,
                 }
-                ValueType::Sequence(value) | ValueType::Array(value, _) => visit(graph, value, visited),
-                ValueType::Unit | ValueType::Text => None,
             }
         }
-        visit(self, ty, &mut BTreeSet::new())
+        None
     }
 
     /// Reports implemented copied lowering, rather than merely finite Rust size.
-    pub fn is_copied(&self, ty: &ValueType) -> bool {
-        match ty {
-            ValueType::Unit | ValueType::Scalar(_) => true,
-            ValueType::Array(element, _) => self.is_copied(element),
-            ValueType::Named(name) => self.definitions.get(name).is_some_and(|value| value.copied),
-            ValueType::Text | ValueType::Object(_) | ValueType::WeakObject(_) | ValueType::WeakBoxObject(_) | ValueType::Sequence(_) => false,
+    /// Only arrays unwrap; sequences remain owned values regardless of their leaf.
+    /// The borrowed query does not require detached inputs to have admitted height.
+    pub fn is_copied(&self, mut ty: &ValueType) -> bool {
+        loop {
+            match ty {
+                ValueType::Unit | ValueType::Scalar(_) => return true,
+                ValueType::Array(element, _) => ty = element,
+                ValueType::Named(name) => return self.definitions.get(name).is_some_and(|value| value.copied),
+                ValueType::Text | ValueType::Object(_) | ValueType::WeakObject(_) | ValueType::WeakBoxObject(_) | ValueType::Sequence(_) => return false,
+            }
         }
     }
 }
@@ -148,17 +177,18 @@ impl ValueGraph {
 impl ValueDefinition {
     /// Returns only edges contributing to inline layout; sequences and objects break cycles.
     pub(crate) fn inline_references(&self) -> Vec<&str> {
-        fn visit<'a>(ty: &'a ValueType, names: &mut Vec<&'a str>) {
-            match ty {
-                ValueType::Named(name) => names.push(name),
-                ValueType::Array(value, _) => visit(value, names),
-                _ => {}
-            }
-        }
         let mut names = Vec::new();
-        for field in &self.fields {
-            visit(field, &mut names);
+        for mut ty in &self.fields {
+            while let ValueType::Array(child, _) = ty {
+                ty = child;
+            }
+            if let ValueType::Named(name) = ty {
+                names.push(name.as_str());
+            }
         }
         names
     }
 }
+
+#[cfg(test)]
+mod tests;
