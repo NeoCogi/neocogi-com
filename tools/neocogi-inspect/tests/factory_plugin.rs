@@ -157,6 +157,99 @@ fn assert_native_output_paths(inspector: &Path, plugin: &Path, intended: &Path, 
     }
 }
 
+/// Checks actual source-path identity and render-before-publication with the
+/// same relocated provider used for profile/native-destination qualification.
+fn assert_native_source_paths(inspector: &Path, plugin: &Path, directory: &Path) {
+    let unicode = directory.join(format!("source-é{}", std::env::consts::DLL_SUFFIX));
+    std::fs::copy(plugin, &unicode).unwrap();
+    let result = Command::new(inspector)
+        .arg("plan")
+        .arg(&unicode)
+        .env_remove("LD_LIBRARY_PATH")
+        .env_remove("DYLD_LIBRARY_PATH")
+        .output()
+        .unwrap();
+    assert_success("Unicode source plan", &result);
+    let value: serde_json::Value = serde_json::from_slice(&result.stdout).unwrap();
+    assert_eq!(value["plugins"][0]["path"], unicode.to_str().unwrap());
+    assert_eq!(value["load_order"][0]["path"], unicode.to_str().unwrap());
+
+    #[cfg(target_os = "linux")]
+    {
+        use std::os::unix::ffi::OsStringExt;
+        let mut name = b"source-\xff".to_vec();
+        name.extend_from_slice(std::env::consts::DLL_SUFFIX.as_bytes());
+        let native = directory.join(std::ffi::OsString::from_vec(name));
+        assert!(native.to_str().is_none());
+        std::fs::copy(plugin, &native).unwrap();
+        for command in ["check", "dump"] {
+            let result = Command::new(inspector)
+                .arg(command)
+                .arg(&native)
+                .env_remove("LD_LIBRARY_PATH")
+                .env_remove("DYLD_LIBRARY_PATH")
+                .output()
+                .unwrap();
+            assert_success("native source inspection", &result);
+        }
+        let result = Command::new(inspector)
+            .arg("plan")
+            .arg(&native)
+            .args(["--format", "text"])
+            .env_remove("LD_LIBRARY_PATH")
+            .env_remove("DYLD_LIBRARY_PATH")
+            .output()
+            .unwrap();
+        assert_success("native source text plan", &result);
+        assert!(String::from_utf8(result.stdout).unwrap().contains("nc.examples.factory_plugin_component"));
+
+        let existing = directory.join("source-plan-existing-é.json");
+        let absent = directory.join("source-plan-absent.json");
+        let neighbor = directory.join("source-plan-neighbor.json");
+        assert!(!absent.exists());
+        for explicit_format in [false, true] {
+            for output in [None, Some(existing.as_path()), Some(absent.as_path())] {
+                std::fs::write(&existing, b"existing sentinel").unwrap();
+                std::fs::write(&neighbor, b"neighbor sentinel").unwrap();
+                let mut command = Command::new(inspector);
+                command.arg("plan").arg(&native).env_remove("LD_LIBRARY_PATH").env_remove("DYLD_LIBRARY_PATH");
+                if explicit_format {
+                    command.args(["--format", "json"]);
+                }
+                if let Some(output) = output {
+                    command.arg("--output").arg(output);
+                }
+                let result = command.output().unwrap();
+                let errors = String::from_utf8(result.stderr).unwrap();
+                assert_eq!(result.status.code(), Some(1), "{errors}");
+                assert!(result.stdout.is_empty());
+                assert!(errors.contains("path contains invalid UTF-8"), "{errors}");
+                assert_eq!(std::fs::read(&existing).unwrap(), b"existing sentinel");
+                assert_eq!(std::fs::read(&neighbor).unwrap(), b"neighbor sentinel");
+                assert!(!absent.exists());
+            }
+        }
+        // Renderer validation must not replace existing inspection/planner errors.
+        let missing = directory.join("missing-source-plugin.so");
+        assert!(!missing.exists());
+        for (other, expected) in [(&native, "multiple artifacts claim plugin"), (&missing, "OpenLibrary")] {
+            let result = Command::new(inspector)
+                .arg("plan")
+                .arg(&native)
+                .arg(other)
+                .env_remove("LD_LIBRARY_PATH")
+                .env_remove("DYLD_LIBRARY_PATH")
+                .output()
+                .unwrap();
+            let errors = String::from_utf8(result.stderr).unwrap();
+            assert_eq!(result.status.code(), Some(1), "{errors}");
+            assert!(result.stdout.is_empty());
+            assert!(errors.contains(expected), "{errors}");
+            assert!(!errors.contains("invalid UTF-8"), "{errors}");
+        }
+    }
+}
+
 /// Compare real command output across profiles, including valid and rejected
 /// snapshots. Classification and concrete evidence must survive Debug stripping.
 fn snapshot_diagnostics(inspector: &Path, base: &serde_json::Value, directory: &Path) -> Vec<(i32, String, String)> {
@@ -362,6 +455,9 @@ fn inspects_a_standalone_plugin_and_its_exact_factory_signature() {
         native_load_diagnostics(&min_size_inspector, &rejected, staging.path()),
         default_load_diagnostics
     );
+
+    assert_native_source_paths(&inspector, &plugin, staging.path());
+    assert_native_source_paths(&min_size_inspector, &plugin, staging.path());
 
     assert_native_output_paths(
         &inspector,
