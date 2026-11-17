@@ -1,8 +1,9 @@
 //! Runtime-selectable format COM objects and typed value traversal.
 //!
-//! The interfaces and value traits are shared with core. NCB objects own their
-//! buffers; binary convenience functions also support nonretainable scoped
-//! objects for allocation-free fixed buffers. No host runtime is required.
+//! The interfaces and value traits are shared with core; this facade provides
+//! format clients and provider thunks. Concrete codecs, owning NCB/JSON session
+//! state and NCB conveniences live in `neocogi-com-serialization`. Its scoped NCB
+//! objects support allocation-free fixed buffers without a host runtime.
 
 pub use neocogi_com_core::serialization::*;
 #[rustfmt::skip]

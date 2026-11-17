@@ -34,8 +34,9 @@ neocogi-inspect diff old.nccom.json new.nccom.json --compat
 Pass values to `--output` / `-o` and `--format` / `-f` as separate arguments.
 Output files use the exact supplied native path.
 
-JSON uses strict schema 9 and plugin descriptor ABI 2. The core object ABI
-is checked against the current COM runtime contract.
+Inspection JSON uses strict schema 9. Live inspection checks descriptor and core
+compatibility against the [current WIP ABI identities](../../docs/abi-v3.md#abi-identities-and-versions).
+Saved artifacts record both ABI versions; `diff` compares those recorded values.
 Unknown fields and unsupported schema versions are rejected. The artifact records
 the plugin and its root factory. Source-level method and value definitions belong
 to [local IDL metadata](https://docs.rs/neocogi-com/0.3.0/neocogi_com/idl_metadata/index.html).

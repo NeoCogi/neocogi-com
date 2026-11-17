@@ -356,7 +356,7 @@ See [persistence semantics and ownership](https://github.com/NeoCogi/neocogi-com
 | Selection | Available behavior |
 | --- | --- |
 | `default-features = false` | `no_std` core ABI, pointer/client support, persistence contracts, and serialization traits; no runtime linkage |
-| `alloc` | Heap-backed object helpers, owned string/byte objects, the binary codec, and `ObjectRecord` |
+| `alloc` | Heap-backed object helpers, owned string/byte objects, and `ObjectRecord` |
 | `macros` | Implementation macro/derive re-exports |
 | `std` | `alloc` plus standard-library integrations; no runtime linkage by itself |
 | Defaults: `std`, `macros` | Local objects, owned data, and implementation macros; no runtime linkage |

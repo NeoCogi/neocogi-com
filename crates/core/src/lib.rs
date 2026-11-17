@@ -15,8 +15,9 @@
 //!
 //! [`ComDeserialize`] constructs local typed values through COM format objects.
 //! [`serialization`] owns their checked interfaces and traversal facades;
-//! Format implementations live in the serialization plugin crate. Owned document
-//! objects live in the facade. Wire layouts and application storage remain separate.
+//! Concrete codecs and owning document-session implementations live in the
+//! explicit `neocogi-com-serialization` crate. Wire layouts and application
+//! storage remain separate.
 //!
 //! ABI v3 is WORK IN PROGRESS (WIP), unreleased and not frozen.
 //! [`NC_COM_CORE_ABI_VERSION`] selects the current candidate generation, 21;
