@@ -61,7 +61,7 @@ interface ICalculator {
 
 `neocogi-idl` binds references, computes canonical identity/signature bytes, and
 passes typed method/value plans to its own `codegen` module. That shared backend emits the
-complete trait, C vtable, checked codecs, clients and provider thunks directly.
+complete trait, C vtable, checked codecs, method wrappers and provider thunks directly.
 There are no handwritten interface/value declaration attributes or signature
 options. The checkout [calculator example](https://github.com/NeoCogi/neocogi-com/blob/v0.3.0/tests/com/examples/calculator.rs) and its
 [contract source](https://github.com/NeoCogi/neocogi-com/blob/v0.3.0/tests/com/examples/schemas/nc/examples/calculator.ncidl) show the complete path.
@@ -97,9 +97,9 @@ drop(owner);
 assert!(!observed.is_alive());
 ```
 
-Generated `ComPtr<IFooAbi>` and `ComRef<'_, IFooAbi>` lend one `IFooClient` method
+Generated `ComPtr<IFooAbi>` and `ComRef<'_, IFooAbi>` lend one `IFooWrapper` method
 view, so calls use `pointer.method()` without an interface-specific trait import.
-Derived clients lend their physical base client for inherited lookup. Owned
+Derived wrappers lend their physical base wrapper for inherited lookup. Owned
 base projections require checked `QueryInterface`.
 
 IDL rejects method names occupied by handle operations, such as `clone`, `as_raw`
@@ -355,7 +355,7 @@ See [persistence semantics and ownership](https://github.com/NeoCogi/neocogi-com
 
 | Selection | Available behavior |
 | --- | --- |
-| `default-features = false` | `no_std` core ABI, pointer/client support, persistence contracts, and serialization traits; no runtime linkage |
+| `default-features = false` | `no_std` core ABI, pointer/method-wrapper support, persistence contracts, and serialization traits; no runtime linkage |
 | `alloc` | Heap-backed object helpers, owned string/byte objects, and `ObjectRecord` |
 | `macros` | Implementation macro/derive re-exports |
 | `std` | `alloc` plus standard-library integrations; no runtime linkage by itself |

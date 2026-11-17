@@ -34,7 +34,7 @@ there is no separate message declaration category.
 
 ## One Rust generation backend
 
-`neocogi_idl::codegen` emits interface traits, clients, physical vtables and
+`neocogi_idl::codegen` emits interface traits, Rust method wrappers, physical vtables and
 provider thunks from resolved plans. The same backend supplies checked value
 conversion, persistence and Rust object/plugin/host-entry expansion. Its method
 plans retain authored documentation, ownership and physical argument/result
@@ -134,14 +134,14 @@ local bindings or explicitly import the helper library's definitions. Changing
 a Rust path never changes the ABI. Every selected external Rust value/interface
 must prove its own resolved declaration identity during compilation; module
 constants alone cannot certify a facade's reexports. Inheritance uses the checked
-marker's associated client and table. A stale or differently named generated
+marker's associated wrapper and table. A stale or differently named generated
 definition therefore fails compilation before it can supply an incompatible codec
 or table. The [binding contract](https://github.com/NeoCogi/neocogi-com/blob/v0.3.0/docs/contracts/IDL_MODULES.md#shared-idl-sources)
 also defines semantic-only templates and unused mappings, which require no
 compiled owner.
 
 An authored IDL import of a closed interface reexports its complete existing Rust
-family: trait, `Abi`, `VTable`, `VtblFor` and `Client`. The consuming module can
+family: trait, `Abi`, `VTable`, `VtblFor` and `Wrapper`. The consuming module can
 therefore be used directly in `#[com_object(consumer::IBase)]` and
 `ComPtr<consumer::IBaseAbi>`/`ComRef<'_, consumer::IBaseAbi>`. No new interface
 types, signatures or tables are created. Import generation, source-aware name
@@ -152,7 +152,7 @@ A custom supplying Rust route must expose all five names, including on unused
 interface imports. Add missing original exports to partial supplying facades.
 This is separate from compatibility: the compiler checks the selected marker's
 identity and uses its associated inherited representations. It does not certify
-arbitrary separately authored Client/VTable aliases merely from their names.
+arbitrary separately authored Wrapper/VTable aliases merely from their names.
 
 Source maps retain authored shared-file paths;
 output filenames use existing module UUIDs so case and separator variants remain
@@ -313,7 +313,7 @@ generation. Only wholly fieldless enums may assign values; payload enums use
 zero-based declaration-order tags and reject assignments on every variant,
 including unit cases and unused generic templates.
 
-The resolver reserves interface ABI, vtable, client, and provider companion
+The resolver reserves interface ABI, vtable, wrapper, and provider companion
 names before code generation. Collisions receive source-located diagnostics.
 Payload enums use their native Rust type in copied fields, methods and buffers.
 They do not emit public `FooAbi`, `FooTag`, `FooPayload` or per-variant application

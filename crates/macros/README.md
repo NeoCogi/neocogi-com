@@ -25,7 +25,7 @@ struct ButtonObject {
 An interface imported by another IDL module can be implemented through that
 module's path, for example `#[com_object(consumer::Button)]` with
 `impl consumer::Button for ButtonObject`. Generated IDL imports reexport the
-original trait and its complete `Abi`/`VTable`/`VtblFor`/`Client` family; typed
+original trait and its complete `Abi`/`VTable`/`VtblFor`/`Wrapper` family; typed
 queries and borrowed calls can use `consumer::ButtonAbi`. A handwritten Rust
 trait-only alias does not provide those siblings automatically: an object macro
 derives its marker/provider names beside the supplied trait path. Custom Rust
@@ -103,7 +103,7 @@ arguments. No bootstrap traits, object role markers or constructor tables exist.
 
 IDL owns interface identity, signatures, required projections and copied/owning
 value classification. The typed backend generates explicit C wires, one borrowed
-client view and checked provider thunks without parsing Rust wrappers to recover
+Rust method wrapper and checked provider thunks without parsing Rust wrappers to recover
 that information. Native records/enums have ordinary Rust application layout;
 associated `ComValue::Wire` and `Storage` are their raw integration boundary.
 The recursive identity-borrow proof checks size, alignment, field offsets and
@@ -133,7 +133,7 @@ Use `<Value as neocogi_com::ComValue>::Wire` or `::Storage` for explicit raw-slo
 integration; private sibling helper spellings are no longer generated APIs.
 Codec proofs and conversions select their trait explicitly, independently of
 same-named application methods/constants. Signature literals need no sibling static.
-Provider/client generics and executable bindings are allocated against authored
+Provider/wrapper generics and executable bindings are allocated against authored
 syntax. Anonymous implementation scopes protect pattern lookup from ambient
 constants even after printing. Plugin helper items stay behind `plugin_descriptor()`;
 object tables live directly in `ComObject::VTABLES`. Intentional public companion

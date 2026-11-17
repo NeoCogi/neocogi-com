@@ -38,6 +38,21 @@ host shim. Forward its supplied `RuntimeHandle` through nested acquisition.
 Copying access does not create another registry. Persistence still requires
 explicit registration/loading of `nc.serialization` and selects named `ncb`.
 
+## Update Rust method-wrapper names
+
+Regenerate bindings and replace `ComClientInterface` with `ComRustInterface`,
+`NcClientPointer` with `ComInterfacePointer`, the associated `Client<M>` with
+`Wrapper<M>`, and generated `IFooClient` names with `IFooWrapper`.
+The hooks are `__nc_wrapper_ref`/`__nc_wrapper_mut`; no old-name aliases remain.
+The generated `Wrapper` suffix is reserved by IDL admission; the old `Client`
+suffix is available to authored declarations. An authored interface literally
+named `Client` keeps its name and generates `ClientAbi`/`ClientWrapper` normally.
+
+This rename preserves borrowed lookup, threading, lifetime/call admission and
+checked owned-base queries. It changes the Rust API and generated names, not
+C record layouts, method signatures, IID/digest bytes or the current ABI/core
+versions. WIP ABI v3/core21 remains the current candidate.
+
 ## Choose one concrete ownership header
 
 Ordinary `#[com_object]` users keep their shared/exclusive declaration and

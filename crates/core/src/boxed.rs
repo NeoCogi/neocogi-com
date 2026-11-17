@@ -12,7 +12,7 @@ use core::{
     marker::PhantomData,
     ops::{Deref, DerefMut},
 };
-use crate::{ComInterface, ComClientInterface, ComRaw, ComRef, NcStatus, ThreadLocal, ThreadSafe, ThreadingModel, NC_E_POINTER};
+use crate::{ComInterface, ComRustInterface, ComRaw, ComRef, NcStatus, ThreadLocal, ThreadSafe, ThreadingModel, NC_E_POINTER};
 use crate::ptr::LiveInterface;
 use crate::lifetime::{try_box_cast, NcBoxedLifetimeState};
 
@@ -336,31 +336,31 @@ unsafe impl<T: ComInterface + ?Sized> Sync for ComBox<T, ThreadSafe> {}
 unsafe impl<T: ComInterface + ?Sized> Send for WeakComBox<T, ThreadSafe> {}
 unsafe impl<T: ComInterface + ?Sized> Sync for WeakComBox<T, ThreadSafe> {}
 
-/// Shares the generated client body across unique owners and cached weak views.
+/// Shares the generated wrapper body across unique owners and cached weak views.
 /// No method body, vtable, or erased implementation payload is duplicated here.
-macro_rules! client_view {
+macro_rules! wrapper_view {
     ($handle:ident) => {
-        impl<T: ComClientInterface, M: ThreadingModel> Deref for $handle<T, M> {
-            type Target = T::Client<M>;
+        impl<T: ComRustInterface, M: ThreadingModel> Deref for $handle<T, M> {
+            type Target = T::Wrapper<M>;
             /// Lends the transparent method view; checked provider entry protects execution.
             fn deref(&self) -> &Self::Target {
                 // SAFETY: the owner or retained weak token keeps control/table
                 // storage live; provider entry checks exclusive value lifetime.
-                T::__nc_client_ref(unsafe { crate::NcClientPointer::borrow_live(&self.raw) })
+                T::__nc_wrapper_ref(unsafe { crate::ComInterfacePointer::borrow_live(&self.raw) })
             }
         }
-        impl<T: ComClientInterface, M: ThreadingModel> DerefMut for $handle<T, M> {
+        impl<T: ComRustInterface, M: ThreadingModel> DerefMut for $handle<T, M> {
             /// Mutable lookup still uses the provider's common exclusive borrow gate.
             fn deref_mut(&mut self) -> &mut Self::Target {
                 // SAFETY: the source borrow bounds this nonreplaceable view;
                 // it grants no stronger token or object access than the handle.
-                T::__nc_client_mut(unsafe { crate::NcClientPointer::borrow_live_mut(&mut self.raw) })
+                T::__nc_wrapper_mut(unsafe { crate::ComInterfacePointer::borrow_live_mut(&mut self.raw) })
             }
         }
     };
 }
-client_view!(ComBox);
-client_view!(WeakComBox);
+wrapper_view!(ComBox);
+wrapper_view!(WeakComBox);
 
 impl<T: ComInterface + ?Sized, M: ThreadingModel> core::fmt::Debug for ComBox<T, M> {
     /// Prints stable identity without invoking provider code or reading the value.

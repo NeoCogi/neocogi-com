@@ -14,7 +14,7 @@ mod predicate {
     #[allow(unused_imports)]
     pub use fixture_inheritance::{
         PredicateIPredicateAbi as IPredicateAbi, PredicateIPredicateVTable as IPredicateVTable, PredicateIPredicateVtblFor as IPredicateVtblFor,
-        PredicateIPredicateClient as IPredicateClient, PredicateIPredicate as IPredicate,
+        PredicateIPredicateWrapper as IPredicateWrapper, PredicateIPredicate as IPredicate,
     };
 
     #[com_object(IPredicate)]
@@ -43,7 +43,7 @@ mod contract {
     #[allow(unused_imports)]
     pub use fixture_inheritance::{
         ContractIWidgetAbi as IWidgetAbi, ContractIWidgetVTable as IWidgetVTable, ContractIWidgetVtblFor as IWidgetVtblFor,
-        ContractIWidgetClient as IWidgetClient, ContractIWidget as IWidget,
+        ContractIWidgetWrapper as IWidgetWrapper, ContractIWidget as IWidget,
     };
 }
 
@@ -238,7 +238,7 @@ mod pair_inputs {
     #[allow(unused_imports)]
     pub use fixture_inheritance::{
         PairInputsIAcceptPairAbi as IAcceptPairAbi, PairInputsIAcceptPairVTable as IAcceptPairVTable, PairInputsIAcceptPairVtblFor as IAcceptPairVtblFor,
-        PairInputsIAcceptPairClient as IAcceptPairClient, PairInputsIAcceptPair as IAcceptPair,
+        PairInputsIAcceptPairWrapper as IAcceptPairWrapper, PairInputsIAcceptPair as IAcceptPair,
     };
 
     #[com_object(IAcceptPair)]

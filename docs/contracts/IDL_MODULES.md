@@ -768,7 +768,7 @@ and never rewrites the logical module identity.
 
 An authored import of a closed interface also exposes its complete generated
 Rust family: `ITexture`, `ITextureAbi`, `ITextureVTable`, `ITextureVtblFor` and
-`ITextureClient`. The importing module reexports the existing items from its
+`ITextureWrapper`. The importing module reexports the existing items from its
 selected supplying Rust route; it creates no replacement interface identity or
 table. For coherent generated bindings, both owner and imported paths name the
 same Rust types. Providers can use `#[com_object(consumer::ITexture)]`, implement
@@ -918,12 +918,12 @@ contract that differs from its codec. No runtime registry entry or extra object
 state is created, and canonical ABI signatures are unchanged.
 
 Inherited physical table fields use `<BaseAbi as ComInterface>::VTable` and
-borrowed inherited clients use `<BaseAbi as ComClientInterface>::Client<M>`.
+borrowed inherited wrappers use `<BaseAbi as ComRustInterface>::Wrapper<M>`.
 The checked marker therefore selects both representations, even if a facade
-also exposes an unrelated old `BaseVTable` or `BaseClient` convenience name.
+also exposes an unrelated old `BaseVTable` or `BaseWrapper` convenience name.
 The selected `BaseVtblFor<T>` constructor must type-check against that associated
 table; existing typed provider-projection identity/ancestry checks still apply.
-Public trait/Abi/VTable/VtblFor/Client names remain available. No extra query,
+Public trait/Abi/VTable/VtblFor/Wrapper names remain available. No extra query,
 reference-count operation, core/compiler dependency or runtime graph is added.
 
 A custom Rust facade selected to supply an authored closed-interface import must
@@ -935,7 +935,7 @@ it. The IDL compiler does not resolve arbitrary Rust aliases or inspect missing
 Rust items; unavailable supplying names cause Rust compilation errors.
 
 Availability does not certify arbitrary sibling aliases. A handwritten facade
-may expose a current checked marker alongside older unused named Client/VTable
+may expose a current checked marker alongside older unused named Wrapper/VTable
 items. Those aliases are forwarded as supplied; inherited code still uses the
 checked marker's associated representations. Marker identity checks do not
 claim that every independently authored sibling is coherent. Whole-family Rust
@@ -1167,7 +1167,7 @@ and uses the same acquisition operation against the one implementation explicitl
 ## Tool ownership and migration
 
 The compiler lowers the bound graph directly into typed method and value plans.
-The same library's `neocogi_idl::codegen` module emits provider traits, C wires/vtables, clients, thunks,
+The same library's `neocogi_idl::codegen` module emits provider traits, C wires/vtables, method wrappers, thunks,
 metadata and persistence implementations from those plans. Generated contracts
 contain complete Rust instead of interface/value attributes whose expansions
 would have to recover ownership by parsing Rust types again. Core depends on

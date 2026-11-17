@@ -1,18 +1,18 @@
 //! Compile-time admission policy for the Rust surface of COM interfaces.
 //!
-//! Handles lend generated clients through Deref. A handle's own receiver methods
+//! Handles lend generated wrappers through Deref. A handle's own receiver methods
 //! take precedence, so public contract names must exclude those operations. IDL
 //! and handwritten macro declarations consume this one inventory; private field
 //! and parameter names impose no such restriction.
 
-/// Names occupied by supported client-bearing COM handles and their helper traits.
+/// Names occupied by supported method-bearing COM handles and their helper traits.
 ///
 /// This is the union for `ComPtr`, `ComRef`, `ComBox` and `WeakComBox`, plus native
 /// lifecycle slots. It includes default `Clone::clone_from`; associated functions
-/// without a receiver do not shadow client method lookup. New public receiver
+/// without a receiver do not shadow wrapper method lookup. New public receiver
 /// helpers must extend this inventory. Standard-prelude blanket methods are part
 /// of this receiver surface even though their impls live outside this crate.
-/// Arbitrarily imported extension traits can require qualified client calls.
+/// Arbitrarily imported extension traits can require qualified wrapper calls.
 /// Recheck the prelude surface on compiler/edition changes. This is build-time
 /// policy, not wire metadata.
 pub const NC_COM_HANDLE_METHOD_NAMES: &[&str] = &[
@@ -21,7 +21,7 @@ pub const NC_COM_HANDLE_METHOD_NAMES: &[&str] = &[
     "release",
     "clone",
     "clone_from",
-    // Standard-prelude blanket operations also precede the Deref client.
+    // Standard-prelude blanket operations also precede the Deref wrapper.
     "into",       // core::convert::Into
     "try_into",   // core::convert::TryInto
     "to_owned",   // alloc::borrow::ToOwned

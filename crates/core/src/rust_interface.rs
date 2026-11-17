@@ -7,7 +7,7 @@
 use core::marker::PhantomData;
 use crate::{ComInterface, ThreadLocal, ThreadSafe, ThreadingModel};
 
-/// Optional static method-view support generated for a COM interface.
+/// Associates a COM ABI marker with its generated borrowed Rust method wrapper.
 ///
 /// Ordinary foreign interface adapters need only implement ComInterface. This
 /// additional unsafe trait enables Deref-based method lookup without changing
@@ -15,28 +15,29 @@ use crate::{ComInterface, ThreadLocal, ThreadSafe, ThreadingModel};
 ///
 /// # Safety
 ///
-/// `Client<M>` must be an unsized `repr(transparent)` wrapper around
-/// `NcClientPointer<Self, M>`. Its safe operations may only borrow the live
-/// interface and may not manufacture an owning reference or an escaping
-/// ComRef. Inherited views must preserve the exact base vtable prefix and the
-/// supplied threading capability. Both hooks must lend exactly their input
+/// `Wrapper<M>` must be an unsized `repr(transparent)` wrapper around
+/// `ComInterfacePointer<Self, M>`. Its safe operations use the retained
+/// interface/control/table storage and may not manufacture an owning reference
+/// or an escaping ComRef. A boxed weak wrapper may outlive the concrete value:
+/// every provider entry must admit liveness before accessing it. Inherited
+/// wrappers preserve the exact base vtable prefix and threading capability. Both hooks must lend exactly their input
 /// storage, preserving its lifetime, zero-length metadata and threading marker.
 /// The opaque unsized field prevents safe replacement of the underlying pair,
 /// including generic `mem::swap` from the generated type's own module.
-pub unsafe trait ComClientInterface: ComInterface + Sized {
-    /// Borrowed method surface whose reference lifetime is tied to its pointer owner.
-    type Client<M: ThreadingModel>: ?Sized;
+pub unsafe trait ComRustInterface: ComInterface + Sized {
+    /// Generated method wrapper whose lifetime is tied to its lending handle.
+    type Wrapper<M: ThreadingModel>: ?Sized;
 
     /// Reconstructs the concrete shared method facade from core-owned opaque storage.
     #[doc(hidden)]
-    fn __nc_client_ref<M: ThreadingModel>(pointer: &NcClientPointer<Self, M>) -> &Self::Client<M>;
+    fn __nc_wrapper_ref<M: ThreadingModel>(pointer: &ComInterfacePointer<Self, M>) -> &Self::Wrapper<M>;
 
     /// Reconstructs the concrete mutable facade without exposing replaceable pair storage.
     #[doc(hidden)]
-    fn __nc_client_mut<M: ThreadingModel>(pointer: &mut NcClientPointer<Self, M>) -> &mut Self::Client<M>;
+    fn __nc_wrapper_mut<M: ThreadingModel>(pointer: &mut ComInterfacePointer<Self, M>) -> &mut Self::Wrapper<M>;
 }
 
-/// Pointer storage for generated, non-owning method views.
+/// Opaque borrowed object/table pointer for generated Rust interface methods.
 ///
 /// This type has no public constructor, Clone, Copy, or ownership conversion.
 /// A view is tied to a live owner/borrow or a retained exclusive weak token.
@@ -47,8 +48,8 @@ pub unsafe trait ComClientInterface: ComInterface + Sized {
 /// Its unsized tail always has length zero: the dynamic extent is exactly the
 /// pair's two words. References are fat, while all stored handles remain two words.
 #[repr(C)]
-pub struct NcClientPointer<T: ComInterface, M: ThreadingModel = ThreadLocal> {
-    /// Same live object/table pair stored by the lending COM owner or borrow.
+pub struct ComInterfacePointer<T: ComInterface, M: ThreadingModel = ThreadLocal> {
+    /// Same object/table pair kept valid by the lending owner, borrow or weak token.
     pointer: crate::ComRaw<T>,
     /// Preserves the handle's thread-affinity restriction in the borrowed view.
     mode: PhantomData<M>,
@@ -56,7 +57,7 @@ pub struct NcClientPointer<T: ComInterface, M: ThreadingModel = ThreadLocal> {
     tail: [()],
 }
 
-impl<T: ComInterface, M: ThreadingModel> NcClientPointer<T, M> {
+impl<T: ComInterface, M: ThreadingModel> ComInterfacePointer<T, M> {
     /// Lends a zero-tail facade over the enclosing handle's proven-present pair.
     ///
     /// # Safety
@@ -90,10 +91,10 @@ impl<T: ComInterface, M: ThreadingModel> NcClientPointer<T, M> {
     /// U's complete vtable must be a physical prefix of this table. This does
     /// not certify U's separately queried identity or transfer any ownership.
     #[doc(hidden)]
-    pub unsafe fn prefix<U: ComInterface>(&self) -> &NcClientPointer<U, M> {
+    pub unsafe fn prefix<U: ComInterface>(&self) -> &ComInterfacePointer<U, M> {
         // SAFETY: all opaque facades have the same pair layout and zero tail;
         // only the table's static pointee type changes under the caller's proof.
-        unsafe { &*(core::ptr::from_ref(self) as *const NcClientPointer<U, M>) }
+        unsafe { &*(core::ptr::from_ref(self) as *const ComInterfacePointer<U, M>) }
     }
 
     /// Lends mutable base lookup within this facade's exclusive source borrow.
@@ -102,9 +103,9 @@ impl<T: ComInterface, M: ThreadingModel> NcClientPointer<T, M> {
     /// U must satisfy prefix's physical table proof. M and the source borrow
     /// lifetime are preserved; provider call gates still arbitrate object access.
     #[doc(hidden)]
-    pub unsafe fn prefix_mut<U: ComInterface>(&mut self) -> &mut NcClientPointer<U, M> {
+    pub unsafe fn prefix_mut<U: ComInterface>(&mut self) -> &mut ComInterfacePointer<U, M> {
         // SAFETY: same zero-tail prefix proof, preserving the exclusive reborrow.
-        unsafe { &mut *(core::ptr::from_mut(self) as *mut NcClientPointer<U, M>) }
+        unsafe { &mut *(core::ptr::from_mut(self) as *mut ComInterfacePointer<U, M>) }
     }
 
     /// Returns the raw object/table pair used by generated synchronous calls.
@@ -119,7 +120,7 @@ impl<T: ComInterface, M: ThreadingModel> NcClientPointer<T, M> {
 
 // SAFETY: A ThreadSafe view can only be lent by a handle whose construction
 // guarantees concurrent method calls are supported. The view has no ownership.
-unsafe impl<T: ComInterface> Send for NcClientPointer<T, ThreadSafe> {}
+unsafe impl<T: ComInterface> Send for ComInterfacePointer<T, ThreadSafe> {}
 // SAFETY: Sharing the view grants the same synchronous call permission as its
 // ThreadSafe owner; it does not extend the owner's lifetime.
-unsafe impl<T: ComInterface> Sync for NcClientPointer<T, ThreadSafe> {}
+unsafe impl<T: ComInterface> Sync for ComInterfacePointer<T, ThreadSafe> {}

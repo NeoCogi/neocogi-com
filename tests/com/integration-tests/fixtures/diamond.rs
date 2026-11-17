@@ -212,7 +212,7 @@ fn every_projection_uses_the_same_exclusive_borrow_gate() {
 mod first {
     #[allow(unused_imports)]
     pub use super::{
-        FirstIValueAbi as IValueAbi, FirstIValueVTable as IValueVTable, FirstIValueVtblFor as IValueVtblFor, FirstIValueClient as IValueClient,
+        FirstIValueAbi as IValueAbi, FirstIValueVTable as IValueVTable, FirstIValueVtblFor as IValueVtblFor, FirstIValueWrapper as IValueWrapper,
         FirstIValue as IValue,
     };
 }
@@ -220,7 +220,7 @@ mod first {
 mod second {
     #[allow(unused_imports)]
     pub use super::{
-        SecondIValueAbi as IValueAbi, SecondIValueVTable as IValueVTable, SecondIValueVtblFor as IValueVtblFor, SecondIValueClient as IValueClient,
+        SecondIValueAbi as IValueAbi, SecondIValueVTable as IValueVTable, SecondIValueVtblFor as IValueVtblFor, SecondIValueWrapper as IValueWrapper,
         SecondIValue as IValue,
     };
 }

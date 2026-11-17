@@ -112,7 +112,7 @@ mod sealed {
 
 /// Proven-present representation shared by safe owners and borrowed views.
 /// NonNull preserves the two-word niche for Option<ComPtr>, unlike storing the
-/// nullable C record directly. Its repr(C) fields match ComRaw for borrowed clients.
+/// nullable C record directly. Its repr(C) fields match ComRaw for borrowed wrappers.
 #[repr(C)]
 pub(crate) struct LiveInterface<T: ComInterface + ?Sized> {
     /// Allocation retained or borrowed by the enclosing safe handle.
@@ -233,34 +233,34 @@ unsafe impl<T: ComInterface + ?Sized> Send for ComRef<'_, T, ThreadSafe> {}
 // SAFETY: concurrent access follows that same producer guarantee.
 unsafe impl<T: ComInterface + ?Sized> Sync for ComRef<'_, T, ThreadSafe> {}
 
-impl<T: crate::ComClientInterface, M: ThreadingModel> core::ops::Deref for ComPtr<T, M> {
-    type Target = T::Client<M>;
+impl<T: crate::ComRustInterface, M: ThreadingModel> core::ops::Deref for ComPtr<T, M> {
+    type Target = T::Wrapper<M>;
     /// Lends a transparent method view over this pair without allocating or retaining.
     fn deref(&self) -> &Self::Target {
         // SAFETY: this owner retains the pair/table and its threading evidence.
-        T::__nc_client_ref(unsafe { crate::NcClientPointer::borrow_live(&self.raw) })
+        T::__nc_wrapper_ref(unsafe { crate::ComInterfacePointer::borrow_live(&self.raw) })
     }
 }
-impl<T: crate::ComClientInterface, M: ThreadingModel> core::ops::DerefMut for ComPtr<T, M> {
+impl<T: crate::ComRustInterface, M: ThreadingModel> core::ops::DerefMut for ComPtr<T, M> {
     /// Lends mutable method lookup; the object-wide gate arbitrates aliased callers.
     fn deref_mut(&mut self) -> &mut Self::Target {
         // SAFETY: the exclusive handle borrow bounds the opaque facade borrow.
-        T::__nc_client_mut(unsafe { crate::NcClientPointer::borrow_live_mut(&mut self.raw) })
+        T::__nc_wrapper_mut(unsafe { crate::ComInterfacePointer::borrow_live_mut(&mut self.raw) })
     }
 }
-impl<T: crate::ComClientInterface, M: ThreadingModel> core::ops::Deref for ComRef<'_, T, M> {
-    type Target = T::Client<M>;
+impl<T: crate::ComRustInterface, M: ThreadingModel> core::ops::Deref for ComRef<'_, T, M> {
+    type Target = T::Wrapper<M>;
     /// Lends method access within the existing borrowed lifetime.
     fn deref(&self) -> &Self::Target {
         // SAFETY: the existing source borrow certifies this table and call lifetime.
-        T::__nc_client_ref(unsafe { crate::NcClientPointer::borrow_live(&self.raw) })
+        T::__nc_wrapper_ref(unsafe { crate::ComInterfacePointer::borrow_live(&self.raw) })
     }
 }
-impl<T: crate::ComClientInterface, M: ThreadingModel> core::ops::DerefMut for ComRef<'_, T, M> {
+impl<T: crate::ComRustInterface, M: ThreadingModel> core::ops::DerefMut for ComRef<'_, T, M> {
     /// Lends mutable lookup without asserting unique ownership of the COM object.
     fn deref_mut(&mut self) -> &mut Self::Target {
         // SAFETY: mutable lookup cannot replace the opaque unsized pair storage.
-        T::__nc_client_mut(unsafe { crate::NcClientPointer::borrow_live_mut(&mut self.raw) })
+        T::__nc_wrapper_mut(unsafe { crate::ComInterfacePointer::borrow_live_mut(&mut self.raw) })
     }
 }
 impl<T: ComInterface + ?Sized, M: ThreadingModel> ComPtr<T, M> {

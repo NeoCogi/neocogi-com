@@ -102,31 +102,31 @@ unsafe impl ::neocogi_com::ComInterface for IObjectChildrenAbi {
     type Threading = ::neocogi_com::ThreadLocal;
 }
 #[repr(transparent)]
-///Borrowed static method view for [`IObjectChildren`].
-pub struct IObjectChildrenClient<
+///Borrowed Rust method wrapper for [`IObjectChildren`].
+pub struct IObjectChildrenWrapper<
     __NcThreading: ::neocogi_com::ThreadingModel = ::neocogi_com::ThreadLocal,
 > {
-    /// Certified transparent storage supplied only by a live COM pointer borrow.
-    __nc_pointer: ::neocogi_com::NcClientPointer<IObjectChildrenAbi, __NcThreading>,
+    /// Opaque pointer borrowed from retained interface/control storage; provider entry admits value access.
+    __nc_pointer: ::neocogi_com::ComInterfacePointer<IObjectChildrenAbi, __NcThreading>,
 }
-unsafe impl ::neocogi_com::ComClientInterface for IObjectChildrenAbi {
-    type Client<__NcThreading: ::neocogi_com::ThreadingModel> = IObjectChildrenClient<
+unsafe impl ::neocogi_com::ComRustInterface for IObjectChildrenAbi {
+    type Wrapper<__NcThreading: ::neocogi_com::ThreadingModel> = IObjectChildrenWrapper<
         __NcThreading,
     >;
-    fn __nc_client_ref<__NcThreading: ::neocogi_com::ThreadingModel>(
-        pointer: &::neocogi_com::NcClientPointer<Self, __NcThreading>,
-    ) -> &Self::Client<__NcThreading> {
+    fn __nc_wrapper_ref<__NcThreading: ::neocogi_com::ThreadingModel>(
+        pointer: &::neocogi_com::ComInterfacePointer<Self, __NcThreading>,
+    ) -> &Self::Wrapper<__NcThreading> {
         unsafe {
             &*(::core::ptr::from_ref(pointer)
-                as *const IObjectChildrenClient<__NcThreading>)
+                as *const IObjectChildrenWrapper<__NcThreading>)
         }
     }
-    fn __nc_client_mut<__NcThreading: ::neocogi_com::ThreadingModel>(
-        pointer: &mut ::neocogi_com::NcClientPointer<Self, __NcThreading>,
-    ) -> &mut Self::Client<__NcThreading> {
+    fn __nc_wrapper_mut<__NcThreading: ::neocogi_com::ThreadingModel>(
+        pointer: &mut ::neocogi_com::ComInterfacePointer<Self, __NcThreading>,
+    ) -> &mut Self::Wrapper<__NcThreading> {
         unsafe {
             &mut *(::core::ptr::from_mut(pointer)
-                as *mut IObjectChildrenClient<__NcThreading>)
+                as *mut IObjectChildrenWrapper<__NcThreading>)
         }
     }
 }
@@ -148,7 +148,7 @@ const _: () = {
     };
     impl<
         __NcThreading: ::neocogi_com::ThreadingModel,
-    > IObjectChildrenClient<__NcThreading> {
+    > IObjectChildrenWrapper<__NcThreading> {
         /// Returns the number of fully initialized child objects.
         /// IDL source: `neocogi/com/persistence/objects.ncidl:4:8` (module `neocogi.com.persistence`).
         ///
@@ -442,31 +442,31 @@ unsafe impl ::neocogi_com::ComInterface for IPersistableAbi {
     type Threading = ::neocogi_com::ThreadLocal;
 }
 #[repr(transparent)]
-///Borrowed static method view for [`IPersistable`].
-pub struct IPersistableClient<
+///Borrowed Rust method wrapper for [`IPersistable`].
+pub struct IPersistableWrapper<
     __NcThreading: ::neocogi_com::ThreadingModel = ::neocogi_com::ThreadLocal,
 > {
-    /// Certified transparent storage supplied only by a live COM pointer borrow.
-    __nc_pointer: ::neocogi_com::NcClientPointer<IPersistableAbi, __NcThreading>,
+    /// Opaque pointer borrowed from retained interface/control storage; provider entry admits value access.
+    __nc_pointer: ::neocogi_com::ComInterfacePointer<IPersistableAbi, __NcThreading>,
 }
-unsafe impl ::neocogi_com::ComClientInterface for IPersistableAbi {
-    type Client<__NcThreading: ::neocogi_com::ThreadingModel> = IPersistableClient<
+unsafe impl ::neocogi_com::ComRustInterface for IPersistableAbi {
+    type Wrapper<__NcThreading: ::neocogi_com::ThreadingModel> = IPersistableWrapper<
         __NcThreading,
     >;
-    fn __nc_client_ref<__NcThreading: ::neocogi_com::ThreadingModel>(
-        pointer: &::neocogi_com::NcClientPointer<Self, __NcThreading>,
-    ) -> &Self::Client<__NcThreading> {
+    fn __nc_wrapper_ref<__NcThreading: ::neocogi_com::ThreadingModel>(
+        pointer: &::neocogi_com::ComInterfacePointer<Self, __NcThreading>,
+    ) -> &Self::Wrapper<__NcThreading> {
         unsafe {
             &*(::core::ptr::from_ref(pointer)
-                as *const IPersistableClient<__NcThreading>)
+                as *const IPersistableWrapper<__NcThreading>)
         }
     }
-    fn __nc_client_mut<__NcThreading: ::neocogi_com::ThreadingModel>(
-        pointer: &mut ::neocogi_com::NcClientPointer<Self, __NcThreading>,
-    ) -> &mut Self::Client<__NcThreading> {
+    fn __nc_wrapper_mut<__NcThreading: ::neocogi_com::ThreadingModel>(
+        pointer: &mut ::neocogi_com::ComInterfacePointer<Self, __NcThreading>,
+    ) -> &mut Self::Wrapper<__NcThreading> {
         unsafe {
             &mut *(::core::ptr::from_mut(pointer)
-                as *mut IPersistableClient<__NcThreading>)
+                as *mut IPersistableWrapper<__NcThreading>)
         }
     }
 }
@@ -494,7 +494,7 @@ const _: () = {
     };
     impl<
         __NcThreading: ::neocogi_com::ThreadingModel,
-    > IPersistableClient<__NcThreading> {
+    > IPersistableWrapper<__NcThreading> {
         /// Identifies the registered construction recipe, not this object instance.
         /// IDL source: `neocogi/com/persistence/objects.ncidl:12:8` (module `neocogi.com.persistence`).
         ///
@@ -868,31 +868,34 @@ unsafe impl ::neocogi_com::ComInterface for IPersistenceFactoryAbi {
     type Threading = ::neocogi_com::ThreadLocal;
 }
 #[repr(transparent)]
-///Borrowed static method view for [`IPersistenceFactory`].
-pub struct IPersistenceFactoryClient<
+///Borrowed Rust method wrapper for [`IPersistenceFactory`].
+pub struct IPersistenceFactoryWrapper<
     __NcThreading: ::neocogi_com::ThreadingModel = ::neocogi_com::ThreadLocal,
 > {
-    /// Certified transparent storage supplied only by a live COM pointer borrow.
-    __nc_pointer: ::neocogi_com::NcClientPointer<IPersistenceFactoryAbi, __NcThreading>,
+    /// Opaque pointer borrowed from retained interface/control storage; provider entry admits value access.
+    __nc_pointer: ::neocogi_com::ComInterfacePointer<
+        IPersistenceFactoryAbi,
+        __NcThreading,
+    >,
 }
-unsafe impl ::neocogi_com::ComClientInterface for IPersistenceFactoryAbi {
-    type Client<__NcThreading: ::neocogi_com::ThreadingModel> = IPersistenceFactoryClient<
+unsafe impl ::neocogi_com::ComRustInterface for IPersistenceFactoryAbi {
+    type Wrapper<__NcThreading: ::neocogi_com::ThreadingModel> = IPersistenceFactoryWrapper<
         __NcThreading,
     >;
-    fn __nc_client_ref<__NcThreading: ::neocogi_com::ThreadingModel>(
-        pointer: &::neocogi_com::NcClientPointer<Self, __NcThreading>,
-    ) -> &Self::Client<__NcThreading> {
+    fn __nc_wrapper_ref<__NcThreading: ::neocogi_com::ThreadingModel>(
+        pointer: &::neocogi_com::ComInterfacePointer<Self, __NcThreading>,
+    ) -> &Self::Wrapper<__NcThreading> {
         unsafe {
             &*(::core::ptr::from_ref(pointer)
-                as *const IPersistenceFactoryClient<__NcThreading>)
+                as *const IPersistenceFactoryWrapper<__NcThreading>)
         }
     }
-    fn __nc_client_mut<__NcThreading: ::neocogi_com::ThreadingModel>(
-        pointer: &mut ::neocogi_com::NcClientPointer<Self, __NcThreading>,
-    ) -> &mut Self::Client<__NcThreading> {
+    fn __nc_wrapper_mut<__NcThreading: ::neocogi_com::ThreadingModel>(
+        pointer: &mut ::neocogi_com::ComInterfacePointer<Self, __NcThreading>,
+    ) -> &mut Self::Wrapper<__NcThreading> {
         unsafe {
             &mut *(::core::ptr::from_mut(pointer)
-                as *mut IPersistenceFactoryClient<__NcThreading>)
+                as *mut IPersistenceFactoryWrapper<__NcThreading>)
         }
     }
 }
@@ -937,7 +940,7 @@ const _: () = {
     };
     impl<
         __NcThreading: ::neocogi_com::ThreadingModel,
-    > IPersistenceFactoryClient<__NcThreading> {
+    > IPersistenceFactoryWrapper<__NcThreading> {
         /// Rejects unsupported revisions before any child object is constructed.
         /// IDL source: `neocogi/com/persistence/objects.ncidl:26:8` (module `neocogi.com.persistence`).
         ///

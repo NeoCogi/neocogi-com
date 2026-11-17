@@ -2,3 +2,6 @@
 interface INoncollidingGeneratedNames {
     fn write(&self, object: &[u8], nc_out: u64, result: u64, status: u64) -> Result<()>;
 }
+
+// Former generated method-wrapper spelling is available to authored values.
+struct INoncollidingGeneratedNamesClient { value: u32 }

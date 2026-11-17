@@ -159,7 +159,7 @@ mod service_root {
     #[allow(unused_imports)]
     pub use fixture_factory_plugin_runtime::{
         ServiceRootIServiceAbi as IServiceAbi, ServiceRootIServiceVTable as IServiceVTable, ServiceRootIServiceVtblFor as IServiceVtblFor,
-        ServiceRootIServiceClient as IServiceClient, ServiceRootIService as IService,
+        ServiceRootIServiceWrapper as IServiceWrapper, ServiceRootIService as IService,
     };
 
     #[com_object(IService)]

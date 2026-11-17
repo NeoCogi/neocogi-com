@@ -6,6 +6,13 @@ Historical draft numbers do not define additional supported COM baselines.
 
 ## Unreleased
 
+- Name generated Rust method access with `ComRustInterface`,
+  `ComInterfacePointer`, and `IFooWrapper`/`Wrapper<M>`. Regenerate checked-in
+  bindings and migrate imported families, collision admission and Rust consumers;
+  release the old generated `Client` suffix without compatibility aliases.
+  Preserve C layouts, exact identities/signatures, canonical IDL encoding and
+  WIP ABI v3/core21; this is a Rust API/generated-name change.
+
 - Resolve persistence diagnostics and discover interface/value metadata without
   recursive nominal graph traversal. Preserve first-leaf reasons, source labels,
   derived-first ancestry, base-first methods and actual supplying projections;

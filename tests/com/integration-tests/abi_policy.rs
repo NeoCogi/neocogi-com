@@ -45,7 +45,7 @@ mod external_fields {
     #[allow(unused_imports)]
     pub use fixture_abi_policy::{
         ExternalFieldsIExternalFieldsAbi as IExternalFieldsAbi, ExternalFieldsIExternalFieldsVTable as IExternalFieldsVTable,
-        ExternalFieldsIExternalFieldsVtblFor as IExternalFieldsVtblFor, ExternalFieldsIExternalFieldsClient as IExternalFieldsClient,
+        ExternalFieldsIExternalFieldsVtblFor as IExternalFieldsVtblFor, ExternalFieldsIExternalFieldsWrapper as IExternalFieldsWrapper,
         ExternalFieldsIExternalFields as IExternalFields,
     };
 

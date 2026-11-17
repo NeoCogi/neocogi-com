@@ -518,14 +518,14 @@ fn rejects_recursive_and_weakened_required_interfaces() {
 /// Interface companions remain reserved; native value enums emit no public companions.
 #[test]
 fn reserves_all_visible_macro_companions() {
-    for suffix in ["Abi", "VTable", "VtblFor", "Client"] {
+    for suffix in ["Abi", "VTable", "VtblFor", "Wrapper"] {
         let name = format!("IFoo{suffix}");
         let source = format!("interface IFoo {{}} struct {name} {{ value: u32 }}");
         let error = resolve_modules(vec![module("example/interfaces.ncidl", &source)]).unwrap_err().to_string();
         assert!(error.contains("error[EIDL021]") && error.contains(&name), "{error}");
     }
 
-    for suffix in ["Abi", "VTable", "VtblFor", "Client"] {
+    for suffix in ["Abi", "VTable", "VtblFor", "Wrapper"] {
         let name = format!("Editor{suffix}");
         let source = format!(
             r#"
@@ -537,6 +537,10 @@ fn reserves_all_visible_macro_companions() {
         let error = resolve_modules(vec![module("example/observers.ncidl", &source)]).unwrap_err().to_string();
         assert!(error.contains("error[EIDL021]") && error.contains(&name), "{error}");
     }
+
+    // The former method-wrapper suffix is now an ordinary authored type name.
+    let source = "interface IFoo {} struct IFooClient { value: u32 }";
+    resolve_modules(vec![module("example/retired_suffix.ncidl", source)]).unwrap();
 
     // Copied and owned enums both leave the obsolete public companion names
     // available to authored values; only internal checked wire helpers remain.

@@ -61,7 +61,7 @@ fn client_views_cannot_replace_capability_storage() {
         fn calls(owner: &mut super::ComPtr<IDerivedAbi>) { let _=owner.value(); let _=owner.close(); }
         fn valid_swap(a: &mut super::ComPtr<IDerivedAbi>, b: &mut super::ComPtr<IDerivedAbi>) { std::mem::swap(a,b); }
         fn shared<T: ?Sized+Send+Sync>() {}
-        fn reference_proof() { shared::<ISharedClient<super::ThreadSafe>>(); }
+        fn reference_proof() { shared::<ISharedWrapper<super::ThreadSafe>>(); }
     "#,
     );
     assert!(positive.status.success(), "{}", String::from_utf8_lossy(&positive.stderr));
@@ -80,11 +80,11 @@ fn client_views_cannot_replace_capability_storage() {
         ),
         (
             "inherited/base",
-            "fn swap(a:&mut super::ComPtr<IDerivedAbi>,b:&mut super::ComPtr<IValueAbi>){let x:&mut IValueClient=&mut **a;std::mem::swap(x,&mut **b);}",
+            "fn swap(a:&mut super::ComPtr<IDerivedAbi>,b:&mut super::ComPtr<IValueAbi>){let x:&mut IValueWrapper=&mut **a;std::mem::swap(x,&mut **b);}",
         ),
         (
             "same-module inner storage",
-            "fn swap(a:&mut IDerivedClient,b:&mut IDerivedClient){std::mem::swap(&mut a.__nc_pointer,&mut b.__nc_pointer);}",
+            "fn swap(a:&mut IDerivedWrapper,b:&mut IDerivedWrapper){std::mem::swap(&mut a.__nc_pointer,&mut b.__nc_pointer);}",
         ),
     ] {
         let output = check(body);
@@ -92,10 +92,10 @@ fn client_views_cannot_replace_capability_storage() {
         assert!(!output.status.success(), "{label} replaced a borrowed capability");
         assert!(error.contains("error[E0277]") && error.contains("[()]"), "{label}: {error}");
     }
-    let output = check("fn send<T:?Sized+Send>(){} fn sync<T:?Sized+Sync>(){} fn local(){send::<IDerivedClient>();sync::<IDerivedClient>();}");
+    let output = check("fn send<T:?Sized+Send>(){} fn sync<T:?Sized+Sync>(){} fn local(){send::<IDerivedWrapper>();sync::<IDerivedWrapper>();}");
     let errors = String::from_utf8_lossy(&output.stderr);
     assert!(
-        !output.status.success() && errors.contains("error[E0277]") && errors.contains("NcClientPointer<IDerivedAbi>"),
+        !output.status.success() && errors.contains("error[E0277]") && errors.contains("ComInterfacePointer<IDerivedAbi>"),
         "{errors}"
     );
 }

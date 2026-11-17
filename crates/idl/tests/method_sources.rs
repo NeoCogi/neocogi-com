@@ -67,8 +67,8 @@ impl<'ast> Visit<'ast> for MethodPoints<'_> {
             let name = &path.path.segments.last().unwrap().ident;
             for member in &item.items {
                 if let syn::ImplItem::Fn(method) = member {
-                    if name == &format!("{}Client", self.owner) && method.sig.ident == self.method {
-                        self.body("client", method);
+                    if name == &format!("{}Wrapper", self.owner) && method.sig.ident == self.method {
+                        self.body("wrapper", method);
                     } else if name == &format!("{}VtblFor", self.owner) && method.sig.ident == format!("{}_thunk", self.method) {
                         self.body("thunk", method);
                     }
@@ -103,7 +103,7 @@ fn assert_method(generated: &GeneratedRust, method: &str, authored: &str, module
         points: Vec::new(),
     };
     query.visit_file(&syntax);
-    for label in ["trait", "slot", "client", "thunk"] {
+    for label in ["trait", "slot", "wrapper", "thunk"] {
         assert!(query.points.iter().any(|(found, _, _)| *found == label), "missing {owner}::{method} {label}");
     }
     let start = position(authored, &format!("{method}("));

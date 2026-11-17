@@ -14,12 +14,12 @@ pub enum NcComInterfaceCompanion {
     /// Concrete provider's static projection and thunk owner.
     Provider,
     /// Borrowed Rust method view.
-    Client,
+    Wrapper,
 }
 
 impl NcComInterfaceCompanion {
     /// Complete public type inventory, in declaration order.
-    pub const ALL: [Self; 4] = [Self::Abi, Self::VTable, Self::Provider, Self::Client];
+    pub const ALL: [Self; 4] = [Self::Abi, Self::VTable, Self::Provider, Self::Wrapper];
 
     /// Appended to the authored interface name by every Rust emitter.
     pub const fn suffix(self) -> &'static str {
@@ -27,7 +27,7 @@ impl NcComInterfaceCompanion {
             Self::Abi => "Abi",
             Self::VTable => "VTable",
             Self::Provider => "VtblFor",
-            Self::Client => "Client",
+            Self::Wrapper => "Wrapper",
         }
     }
 }

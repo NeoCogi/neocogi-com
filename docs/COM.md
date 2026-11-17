@@ -73,7 +73,7 @@ loading policy and host services. The Rust library is `neocogi_com_host`, built 
 an ordinary rlib; linking it into the final assembly supplies the implementation.
 
 An **interface caller** (also called a client) is any code that calls a COM
-interface through a generated client view, `ComPtr`, `ComRef` or another
+interface through a generated Rust interface wrapper, `ComPtr`, `ComRef` or another
 appropriate handle. It can live in the host, a plugin, or an ordinary library.
 Calling an object directly requires its
 interface contract and handle, not plugin registration or a runtime lookup on
@@ -87,7 +87,7 @@ that implements an observer callback is a provider of that callback interface.
 These are roles in an interaction, not mutually exclusive kinds of Rust crate.
 
 `neocogi-com` is the **shared SDK**, used by callers and providers. It supplies
-ownership handles, object implementation helpers, codecs, generated-client
+ownership handles, object implementation helpers, codecs, generated-wrapper
 support and optional host-service clients. `neocogi_com::RuntimeHandle` is a copyable
 access handle to the selected host's immutable service tables. Copying it creates
 no registry, loads no implementation and grants no ownership of the host state.
@@ -151,7 +151,7 @@ and [bootstrap contract](abi-v3.md#optional-native-host-bootstrap).
    The provider receives its `RuntimeHandle` and returns one owning root
    interface reference.
 4. The caller uses factory methods to create objects and calls their interfaces
-   directly through generated clients. Providers can retain supplied runtime
+   directly through generated method wrappers. Providers can retain supplied runtime
    access when they need host services or nested plugin acquisition; those calls
    return to the same host-owned tables.
 5. COM handles govern object lifetime independently of catalog registration.
@@ -354,14 +354,14 @@ without constructing objects. IDL tools retain build-time source inventories.
 - Compatibility requires both generated interface ID and exact ABI signature.
 - `ComPtr<T>` owns one reference; `ComRef<'a, T>` borrows a live interface for
   `'a`. Generated interface parameters restrict that borrow to the ABI call.
-- Both handle kinds lend the same generated client method view; derived client
-  views provide inherited lookup without generating another calling trait.
+- Both handle kinds lend the same generated Rust method wrapper; derived
+  wrappers provide inherited lookup without generating another calling trait.
   These views are unsized, with private core storage: mutable lookup permits
   declared mutable calls but cannot replace the lender's object/table pair.
-  Borrowing a view adds no lifecycle traffic. Client references carry zero-length
+  Borrowing a view adds no lifecycle traffic. Wrapper references carry zero-length
   slice metadata; stored handles and C ABI pairs remain two words. Inherited
   views retain the original pair and threading capability, and use the checked
-  base marker's client association. An owned base projection requires a query.
+  base marker's wrapper association. An owned base projection requires a query.
 - `Result<()>` lowers without an output slot; other successful returns write
   one explicit output slot.
 - Copied records and payload enums use generated checked wire layouts.

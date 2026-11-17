@@ -38,8 +38,8 @@ mod array;
 #[doc(hidden)]
 pub use abi_hash::__nc_abi_digest;
 mod buffer;
-mod client;
 mod method_names;
+mod rust_interface;
 pub mod serialization;
 pub use method_names::{NC_COM_HANDLE_METHOD_NAMES, is_reserved_com_method};
 mod generated_names;
@@ -89,7 +89,7 @@ pub use value::{
 #[cfg(feature = "alloc")]
 pub use value::{ValueSequenceStorage, encode_value_buffer, decode_value_buffer};
 pub use buffer::{NcCopyFromBufferOffset};
-pub use client::{ComClientInterface, NcClientPointer};
+pub use rust_interface::{ComRustInterface, ComInterfacePointer};
 pub use data::{IID_INC_BYTES, IID_INC_STRING, INcBytesAbi, INcBytesVTable, INcStringAbi, INcStringVTable, QUALIFIED_NAME_INC_BYTES, QUALIFIED_NAME_INC_STRING};
 pub use encode::ComSerialize;
 pub use decode::ComDeserialize;

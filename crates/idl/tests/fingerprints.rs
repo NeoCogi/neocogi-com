@@ -111,3 +111,96 @@ fn canonical_module_encoding_has_stable_golden_digest() {
         ]
     );
 }
+
+/// Rust method-wrapper companion names do not enter canonical interface identities.
+/// These pre-rename goldens include a generic imported base, mutable derived method,
+/// and the legitimate authored interface named Client.
+#[test]
+fn canonical_interfaces_keep_pre_wrapper_rename_identity() {
+    let sources = [
+        (
+            "proof/base.ncidl",
+            "struct Value { number: u32 } interface Base<T> { fn echo(&self, value: T) -> Result<T>; }",
+        ),
+        (
+            "proof/derived.ncidl",
+            "extern proof.base; interface Derived: proof::base::Base<u32> { fn set_value(&mut self, value: u32) -> Result<()>; } interface Client { fn call(&self) -> Result<u32>; }",
+        ),
+    ];
+    let graph = resolve_modules(
+        sources
+            .into_iter()
+            .map(|(path, source)| parse_module(Path::new(path), source).unwrap())
+            .collect(),
+    )
+    .unwrap();
+    assert_eq!(
+        graph.module("proof.base").unwrap().abi_fingerprint,
+        [
+            142, 14, 235, 13, 245, 26, 79, 200, 77, 118, 136, 67, 174, 97, 146, 88, 170, 173, 197, 198, 69, 151, 169, 68, 212, 77, 254, 11, 54, 214, 160, 70
+        ]
+    );
+    assert_eq!(
+        graph.module("proof.derived").unwrap().abi_fingerprint,
+        [
+            122, 58, 230, 147, 66, 224, 36, 247, 67, 167, 107, 54, 213, 4, 178, 184, 178, 230, 218, 82, 19, 107, 127, 226, 0, 156, 191, 124, 33, 91, 230, 34
+        ]
+    );
+    let declaration = graph
+        .module("proof.base")
+        .unwrap()
+        .declarations
+        .iter()
+        .find(|declaration| declaration.qualified_name == "proof.base.Value")
+        .unwrap();
+    assert_eq!(declaration.id.to_string(), "d5cbba42-a5b8-5fc5-bea5-6501f55276b3");
+    assert_eq!(
+        declaration.abi_signature,
+        [
+            28, 250, 113, 65, 251, 68, 154, 208, 83, 98, 45, 66, 248, 237, 154, 23, 252, 81, 178, 197, 131, 221, 67, 105, 253, 5, 63, 40, 239, 20, 36, 250
+        ]
+    );
+    let declaration = graph
+        .module("proof.derived")
+        .unwrap()
+        .declarations
+        .iter()
+        .find(|declaration| declaration.qualified_name == "proof.base.BaseInstance3d933e6484685ca6993bfb6bd7a4aedb")
+        .unwrap();
+    assert_eq!(declaration.id.to_string(), "3d933e64-8468-5ca6-993b-fb6bd7a4aedb");
+    assert_eq!(
+        declaration.abi_signature,
+        [
+            50, 254, 148, 1, 189, 75, 183, 186, 160, 218, 220, 12, 41, 73, 206, 76, 9, 19, 60, 159, 139, 19, 79, 220, 82, 62, 60, 36, 249, 229, 117, 205
+        ]
+    );
+    let declaration = graph
+        .module("proof.derived")
+        .unwrap()
+        .declarations
+        .iter()
+        .find(|declaration| declaration.qualified_name == "proof.derived.Client")
+        .unwrap();
+    assert_eq!(declaration.id.to_string(), "fb47ac05-e084-5081-8d76-45f013e6b236");
+    assert_eq!(
+        declaration.abi_signature,
+        [
+            113, 69, 231, 30, 5, 134, 11, 251, 32, 62, 65, 80, 61, 190, 209, 135, 74, 72, 187, 31, 247, 225, 202, 247, 141, 251, 113, 75, 47, 218, 75, 215
+        ]
+    );
+    let declaration = graph
+        .module("proof.derived")
+        .unwrap()
+        .declarations
+        .iter()
+        .find(|declaration| declaration.qualified_name == "proof.derived.Derived")
+        .unwrap();
+    assert_eq!(declaration.id.to_string(), "4648447b-8190-5503-a7bc-3137a4546be3");
+    assert_eq!(
+        declaration.abi_signature,
+        [
+            17, 83, 249, 232, 75, 206, 126, 213, 148, 106, 210, 60, 118, 179, 231, 91, 136, 187, 209, 194, 218, 201, 50, 115, 196, 159, 126, 146, 18, 145, 92,
+            58
+        ]
+    );
+}

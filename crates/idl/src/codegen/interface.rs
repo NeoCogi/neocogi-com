@@ -1,8 +1,8 @@
 //! Generation of interface markers, vtables, thunks, wrappers, and ABI metadata.
 //!
 //! A validated trait is lowered into an interface marker and `repr(C)` method table,
-//! per-implementor thunk table, one borrowed client method view, and immutable
-//! method descriptors. The client view is the sole safe Rust-to-ABI lowering
+//! per-implementor thunk table, one borrowed Rust method wrapper, and immutable
+//! method descriptors. The wrapper is the sole safe Rust-to-ABI lowering
 //! surface, so pointer ownership, buffer bounds, and documentation stay aligned.
 
 use quote::{format_ident, quote};
@@ -42,10 +42,10 @@ impl InterfaceVTablePrefix {
 
 /// Separately emitted contract and provider support for built-in interfaces.
 ///
-/// Core owns the ABI and safe clients. The facade owns generated object thunks,
+/// Core owns the ABI and safe wrappers. The facade owns generated object thunks,
 /// whose borrow gates and concrete object storage must not enter the core ABI.
 pub struct InterfaceExpansion {
-    /// Traits, markers, clients and metadata, using only allocation-free core types.
+    /// Traits, markers, wrappers and metadata, using only allocation-free core types.
     pub abi: proc_macro2::TokenStream,
     /// Concrete-provider projections and thunks, using facade object support.
     pub provider: proc_macro2::TokenStream,
@@ -108,7 +108,7 @@ fn expand_parts(plan: InterfacePlan, dispatch: ProviderDispatch) -> Result<Inter
         quote! { : #(#provider_bounds)+* }
     };
     let input = quote! { #(#docs)* #vis trait #name #supertraits { #(#declarations)* } };
-    // All authored syntax is known before introducing provider/client binders or
+    // All authored syntax is known before introducing provider/wrapper binders or
     // executable locals. The same spelling policy survives printing/reparsing.
     let mut names = PrivateNames::new(quote! { #input #nc });
     let provider = names.fresh("__NcProvider");
@@ -150,7 +150,7 @@ fn expand_parts(plan: InterfacePlan, dispatch: ProviderDispatch) -> Result<Inter
     let abi_ident = interface_companion_ident(trait_ident, Companion::Abi);
     let vtable_ident = interface_companion_ident(trait_ident, Companion::VTable);
     let vtable_for_ident = interface_companion_ident(trait_ident, Companion::Provider);
-    let client_ident = interface_companion_ident(trait_ident, Companion::Client);
+    let wrapper_ident = interface_companion_ident(trait_ident, Companion::Wrapper);
     let threading = match requirement {
         InterfaceThreading::Local => quote! { #nc::ThreadLocal },
         InterfaceThreading::Shared => quote! { #nc::ThreadSafe },
@@ -188,7 +188,7 @@ fn expand_parts(plan: InterfacePlan, dispatch: ProviderDispatch) -> Result<Inter
             },
         };
     }
-    let mut client_base = quote! {};
+    let mut wrapper_base = quote! {};
     if let Some(base) = base {
         let base_abi = generated_path(base, Companion::Abi);
         let base_vtable_for = generated_path(base, Companion::Provider);
@@ -199,24 +199,24 @@ fn expand_parts(plan: InterfacePlan, dispatch: ProviderDispatch) -> Result<Inter
             pub #prefix: <#base_abi as #nc::ComInterface>::VTable,
         };
         prefix_value = quote! { #prefix: #base_vtable_for::<#provider>::with_identity(#identity_local), };
-        client_base = quote! {
-            impl<#mode: #nc::ThreadingModel> ::core::ops::Deref for #client_ident<#mode> {
-                type Target = <#base_abi as #nc::ComClientInterface>::Client<#mode>;
+        wrapper_base = quote! {
+            impl<#mode: #nc::ThreadingModel> ::core::ops::Deref for #wrapper_ident<#mode> {
+                type Target = <#base_abi as #nc::ComRustInterface>::Wrapper<#mode>;
                 fn deref(&self) -> &Self::Target {
                     // SAFETY: the checked first base supplies the physical table
-                    // prefix. Its marker selects the client, independent of an
-                    // unrelated reexported BaseClient. No ownership is adopted.
-                    <#base_abi as #nc::ComClientInterface>::__nc_client_ref(
+                    // prefix. Its marker selects the wrapper, independent of an
+                    // unrelated reexported BaseWrapper. No ownership is adopted.
+                    <#base_abi as #nc::ComRustInterface>::__nc_wrapper_ref(
                         unsafe { self.__nc_pointer.prefix::<#base_abi>() }
                     )
                 }
             }
 
-            impl<#mode: #nc::ThreadingModel> ::core::ops::DerefMut for #client_ident<#mode> {
+            impl<#mode: #nc::ThreadingModel> ::core::ops::DerefMut for #wrapper_ident<#mode> {
                 fn deref_mut(&mut self) -> &mut Self::Target {
                     // SAFETY: the same checked prefix proof, retaining this
                     // exclusive reborrow and its original threading capability.
-                    <#base_abi as #nc::ComClientInterface>::__nc_client_mut(
+                    <#base_abi as #nc::ComRustInterface>::__nc_wrapper_mut(
                         unsafe { self.__nc_pointer.prefix_mut::<#base_abi>() }
                     )
                 }
@@ -598,14 +598,14 @@ fn expand_parts(plan: InterfacePlan, dispatch: ProviderDispatch) -> Result<Inter
     });
 
     // Generate one safe lowering for each source method. Both owning `ComPtr`
-    // and borrowed `ComRef` handles lend this client view, and a derived view
+    // and borrowed `ComRef` handles lend this wrapper, and a derived view
     // dereferences through its generated base views for inherited calls.
-    let client_methods = methods
+    let wrapper_methods = methods
         .iter()
         .map(|method| {
             let user_docs = &method.doc_attrs;
             let generated_docs = safe_method_docs(trait_ident, method);
-            let body = safe_client_method_body(&nc, method, &mut names);
+            let body = safe_wrapper_method_body(&nc, method, &mut names);
             quote! { #(#user_docs)* #(#generated_docs)* pub #body }
         })
         .collect::<Vec<_>>();
@@ -645,7 +645,7 @@ fn expand_parts(plan: InterfacePlan, dispatch: ProviderDispatch) -> Result<Inter
         trait_ident.span(),
     );
     let table_doc = literal_doc(format!("C-compatible vtable for [`{trait_ident}`]."), trait_ident.span());
-    let client_doc = literal_doc(format!("Borrowed static method view for [`{trait_ident}`]."), trait_ident.span());
+    let wrapper_doc = literal_doc(format!("Borrowed Rust method wrapper for [`{trait_ident}`]."), trait_ident.span());
     let abi = quote! {
         #input
 
@@ -684,39 +684,39 @@ fn expand_parts(plan: InterfacePlan, dispatch: ProviderDispatch) -> Result<Inter
         // Opaque core storage is itself unsized. Even code in this generated
         // module cannot swap its inner field and replace the lender's pair.
         #[repr(transparent)]
-        #client_doc
-        #vis struct #client_ident<#mode: #nc::ThreadingModel = #nc::ThreadLocal> {
-            /// Certified transparent storage supplied only by a live COM pointer borrow.
-            __nc_pointer: #nc::NcClientPointer<#abi_ident, #mode>,
+        #wrapper_doc
+        #vis struct #wrapper_ident<#mode: #nc::ThreadingModel = #nc::ThreadLocal> {
+            /// Opaque pointer borrowed from retained interface/control storage; provider entry admits value access.
+            __nc_pointer: #nc::ComInterfacePointer<#abi_ident, #mode>,
         }
 
         // SAFETY: the wrapper is transparent over the opaque zero-tail storage;
         // both hooks preserve its exact borrow, metadata and threading marker.
-        unsafe impl #nc::ComClientInterface for #abi_ident {
-            type Client<#mode: #nc::ThreadingModel> = #client_ident<#mode>;
+        unsafe impl #nc::ComRustInterface for #abi_ident {
+            type Wrapper<#mode: #nc::ThreadingModel> = #wrapper_ident<#mode>;
 
-            fn __nc_client_ref<#mode: #nc::ThreadingModel>(
-                pointer: &#nc::NcClientPointer<Self, #mode>,
-            ) -> &Self::Client<#mode> {
+            fn __nc_wrapper_ref<#mode: #nc::ThreadingModel>(
+                pointer: &#nc::ComInterfacePointer<Self, #mode>,
+            ) -> &Self::Wrapper<#mode> {
                 // SAFETY: concrete transparent DST wrappers share zero-tail metadata.
-                unsafe { &*(::core::ptr::from_ref(pointer) as *const #client_ident<#mode>) }
+                unsafe { &*(::core::ptr::from_ref(pointer) as *const #wrapper_ident<#mode>) }
             }
 
-            fn __nc_client_mut<#mode: #nc::ThreadingModel>(
-                pointer: &mut #nc::NcClientPointer<Self, #mode>,
-            ) -> &mut Self::Client<#mode> {
+            fn __nc_wrapper_mut<#mode: #nc::ThreadingModel>(
+                pointer: &mut #nc::ComInterfacePointer<Self, #mode>,
+            ) -> &mut Self::Wrapper<#mode> {
                 // SAFETY: same layout/metadata proof within the exclusive source borrow.
-                unsafe { &mut *(::core::ptr::from_mut(pointer) as *mut #client_ident<#mode>) }
+                unsafe { &mut *(::core::ptr::from_mut(pointer) as *mut #wrapper_ident<#mode>) }
             }
         }
 
         const _: () = {
         #binding_imports
-        impl<#mode: #nc::ThreadingModel> #client_ident<#mode> {
-            #(#client_methods)*
+        impl<#mode: #nc::ThreadingModel> #wrapper_ident<#mode> {
+            #(#wrapper_methods)*
         }
 
-        #client_base
+        #wrapper_base
         };
 
         impl #abi_ident {
@@ -805,10 +805,10 @@ fn expand_parts(plan: InterfacePlan, dispatch: ProviderDispatch) -> Result<Inter
 
 /// Emits the sole safe Rust-to-ABI body for one generated interface method.
 ///
-/// `ComPtr` and `ComRef` both dereference to the client view containing this
-/// body. Derived client views also dereference to their base client, so one
+/// `ComPtr` and `ComRef` both dereference to the wrapper containing this
+/// body. Derived wrappers also dereference to their base wrapper, so one
 /// emitted implementation serves owned, borrowed, and inherited calls.
-fn safe_client_method_body(nc: &syn::Path, method: &AbiMethod, names: &mut PrivateNames) -> proc_macro2::TokenStream {
+fn safe_wrapper_method_body(nc: &syn::Path, method: &AbiMethod, names: &mut PrivateNames) -> proc_macro2::TokenStream {
     // Private locals cannot capture authored const expressions in value types.
     let this_local = names.binding("__nc_this");
     let status_local = names.binding("__nc_status");

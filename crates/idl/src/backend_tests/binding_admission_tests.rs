@@ -262,7 +262,7 @@ fn imported_declaration_checks_cover_each_lowering_route() {
 #[test]
 fn imported_interface_identity_rejects_stale_markers() {
     let fixture = Fixture::new("binding-interface-proof", OLD_BASE, CURRENT_BASE);
-    fixture.select("pub use super::old::{Base, BaseAbi, BaseVTable, BaseVtblFor, BaseClient};");
+    fixture.select("pub use super::old::{Base, BaseAbi, BaseVTable, BaseVtblFor, BaseWrapper};");
     for (label, source) in [
         ("base", "use proof.value::Base; interface Service: Base {}"),
         ("borrowed", "interface Service { fn value(&self, value: &proof::value::Base) -> Result<()>; }"),
@@ -333,7 +333,7 @@ fn closed_specializations_check_free_types_without_requiring_open_rust_types() {
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
 }
 
-/// Checking BaseAbi alone is insufficient if a facade's unrelated BaseClient or
+/// Checking BaseAbi alone is insufficient if a facade's unrelated BaseWrapper or
 /// BaseVTable name still controls inherited unsafe casts/physical prefixes.
 /// Both normal and printed object expansion must use the checked associations.
 #[test]
@@ -399,9 +399,9 @@ fn inherited_calls_use_checked_marker_associations_instead_of_stale_names() {
             ),
         );
         for export in [
-            "pub use super::old::BaseClient;",
+            "pub use super::old::BaseWrapper;",
             "pub use super::old::BaseVTable;",
-            "pub use super::old::{BaseClient, BaseVTable};",
+            "pub use super::old::{BaseWrapper, BaseVTable};",
         ] {
             fixture.select(export);
             let output = fixture.cargo("test");
@@ -695,7 +695,7 @@ fn imported_provider_source(path: &str, printed: bool, witnesses: bool) -> Strin
     "#
     );
     if witnesses {
-        // PhantomData accepts unsized Client views and requires nominal type
+        // PhantomData accepts unsized Wrapper views and requires nominal type
         // equality, without allowing a reference-returning deref coercion.
         for companion in neocogi_com_core::NcComInterfaceCompanion::ALL {
             let name = format!("IBase{}", companion.suffix());
@@ -774,7 +774,7 @@ fn imported_interface_paths_construct_providers() {
 }
 
 /// Same-name incompatible exports expose missing wrapper precedence even when
-/// associated-type method calls never mention a named Client or VTable.
+/// associated-type method calls never mention a named Wrapper or VTable.
 fn imported_rival_source() -> String {
     let mut source = String::from(
         "#[allow(dead_code)] pub mod rival { pub const MODULE_NAME: &str = \"wrong\"; pub const MODULE_ID: () = (); pub const ABI_FINGERPRINT: () = ();\n",
@@ -783,7 +783,7 @@ fn imported_rival_source() -> String {
         let name = format!("IBase{}", companion.suffix());
         match companion {
             neocogi_com_core::NcComInterfaceCompanion::Provider => source.push_str(&format!("pub struct {name}<T>(core::marker::PhantomData<T>);\n")),
-            neocogi_com_core::NcComInterfaceCompanion::Client => {
+            neocogi_com_core::NcComInterfaceCompanion::Wrapper => {
                 source.push_str(&format!("pub struct {name}<M = neocogi_com::ThreadLocal>(core::marker::PhantomData<M>);\n"))
             }
             neocogi_com_core::NcComInterfaceCompanion::Abi | neocogi_com_core::NcComInterfaceCompanion::VTable => {

@@ -703,31 +703,31 @@ unsafe impl ::neocogi_com::ComInterface for IDeserializerAbi {
     type Threading = ::neocogi_com::ThreadLocal;
 }
 #[repr(transparent)]
-///Borrowed static method view for [`IDeserializer`].
-pub struct IDeserializerClient<
+///Borrowed Rust method wrapper for [`IDeserializer`].
+pub struct IDeserializerWrapper<
     __NcThreading: ::neocogi_com::ThreadingModel = ::neocogi_com::ThreadLocal,
 > {
-    /// Certified transparent storage supplied only by a live COM pointer borrow.
-    __nc_pointer: ::neocogi_com::NcClientPointer<IDeserializerAbi, __NcThreading>,
+    /// Opaque pointer borrowed from retained interface/control storage; provider entry admits value access.
+    __nc_pointer: ::neocogi_com::ComInterfacePointer<IDeserializerAbi, __NcThreading>,
 }
-unsafe impl ::neocogi_com::ComClientInterface for IDeserializerAbi {
-    type Client<__NcThreading: ::neocogi_com::ThreadingModel> = IDeserializerClient<
+unsafe impl ::neocogi_com::ComRustInterface for IDeserializerAbi {
+    type Wrapper<__NcThreading: ::neocogi_com::ThreadingModel> = IDeserializerWrapper<
         __NcThreading,
     >;
-    fn __nc_client_ref<__NcThreading: ::neocogi_com::ThreadingModel>(
-        pointer: &::neocogi_com::NcClientPointer<Self, __NcThreading>,
-    ) -> &Self::Client<__NcThreading> {
+    fn __nc_wrapper_ref<__NcThreading: ::neocogi_com::ThreadingModel>(
+        pointer: &::neocogi_com::ComInterfacePointer<Self, __NcThreading>,
+    ) -> &Self::Wrapper<__NcThreading> {
         unsafe {
             &*(::core::ptr::from_ref(pointer)
-                as *const IDeserializerClient<__NcThreading>)
+                as *const IDeserializerWrapper<__NcThreading>)
         }
     }
-    fn __nc_client_mut<__NcThreading: ::neocogi_com::ThreadingModel>(
-        pointer: &mut ::neocogi_com::NcClientPointer<Self, __NcThreading>,
-    ) -> &mut Self::Client<__NcThreading> {
+    fn __nc_wrapper_mut<__NcThreading: ::neocogi_com::ThreadingModel>(
+        pointer: &mut ::neocogi_com::ComInterfacePointer<Self, __NcThreading>,
+    ) -> &mut Self::Wrapper<__NcThreading> {
         unsafe {
             &mut *(::core::ptr::from_mut(pointer)
-                as *mut IDeserializerClient<__NcThreading>)
+                as *mut IDeserializerWrapper<__NcThreading>)
         }
     }
 }
@@ -822,7 +822,7 @@ const _: () = {
     };
     impl<
         __NcThreading: ::neocogi_com::ThreadingModel,
-    > IDeserializerClient<__NcThreading> {
+    > IDeserializerWrapper<__NcThreading> {
         /// Opens one typed value, charging nesting and construction limits.
         /// IDL source: `neocogi/com/serialization/formats.ncidl:60:8` (module `neocogi.com.serialization`).
         ///
@@ -2329,34 +2329,34 @@ unsafe impl ::neocogi_com::ComInterface for ISerializationDiagnosticsAbi {
     type Threading = ::neocogi_com::ThreadLocal;
 }
 #[repr(transparent)]
-///Borrowed static method view for [`ISerializationDiagnostics`].
-pub struct ISerializationDiagnosticsClient<
+///Borrowed Rust method wrapper for [`ISerializationDiagnostics`].
+pub struct ISerializationDiagnosticsWrapper<
     __NcThreading: ::neocogi_com::ThreadingModel = ::neocogi_com::ThreadLocal,
 > {
-    /// Certified transparent storage supplied only by a live COM pointer borrow.
-    __nc_pointer: ::neocogi_com::NcClientPointer<
+    /// Opaque pointer borrowed from retained interface/control storage; provider entry admits value access.
+    __nc_pointer: ::neocogi_com::ComInterfacePointer<
         ISerializationDiagnosticsAbi,
         __NcThreading,
     >,
 }
-unsafe impl ::neocogi_com::ComClientInterface for ISerializationDiagnosticsAbi {
-    type Client<__NcThreading: ::neocogi_com::ThreadingModel> = ISerializationDiagnosticsClient<
+unsafe impl ::neocogi_com::ComRustInterface for ISerializationDiagnosticsAbi {
+    type Wrapper<__NcThreading: ::neocogi_com::ThreadingModel> = ISerializationDiagnosticsWrapper<
         __NcThreading,
     >;
-    fn __nc_client_ref<__NcThreading: ::neocogi_com::ThreadingModel>(
-        pointer: &::neocogi_com::NcClientPointer<Self, __NcThreading>,
-    ) -> &Self::Client<__NcThreading> {
+    fn __nc_wrapper_ref<__NcThreading: ::neocogi_com::ThreadingModel>(
+        pointer: &::neocogi_com::ComInterfacePointer<Self, __NcThreading>,
+    ) -> &Self::Wrapper<__NcThreading> {
         unsafe {
             &*(::core::ptr::from_ref(pointer)
-                as *const ISerializationDiagnosticsClient<__NcThreading>)
+                as *const ISerializationDiagnosticsWrapper<__NcThreading>)
         }
     }
-    fn __nc_client_mut<__NcThreading: ::neocogi_com::ThreadingModel>(
-        pointer: &mut ::neocogi_com::NcClientPointer<Self, __NcThreading>,
-    ) -> &mut Self::Client<__NcThreading> {
+    fn __nc_wrapper_mut<__NcThreading: ::neocogi_com::ThreadingModel>(
+        pointer: &mut ::neocogi_com::ComInterfacePointer<Self, __NcThreading>,
+    ) -> &mut Self::Wrapper<__NcThreading> {
         unsafe {
             &mut *(::core::ptr::from_mut(pointer)
-                as *mut ISerializationDiagnosticsClient<__NcThreading>)
+                as *mut ISerializationDiagnosticsWrapper<__NcThreading>)
         }
     }
 }
@@ -2395,7 +2395,7 @@ const _: () = {
     };
     impl<
         __NcThreading: ::neocogi_com::ThreadingModel,
-    > ISerializationDiagnosticsClient<__NcThreading> {
+    > ISerializationDiagnosticsWrapper<__NcThreading> {
         /// Returns the original failed operation's status, as data.
         /// IDL source: `neocogi/com/serialization/formats.ncidl:143:8` (module `neocogi.com.serialization`).
         ///
@@ -2935,31 +2935,34 @@ unsafe impl ::neocogi_com::ComInterface for ISerializationFormatAbi {
     type Threading = ::neocogi_com::ThreadLocal;
 }
 #[repr(transparent)]
-///Borrowed static method view for [`ISerializationFormat`].
-pub struct ISerializationFormatClient<
+///Borrowed Rust method wrapper for [`ISerializationFormat`].
+pub struct ISerializationFormatWrapper<
     __NcThreading: ::neocogi_com::ThreadingModel = ::neocogi_com::ThreadLocal,
 > {
-    /// Certified transparent storage supplied only by a live COM pointer borrow.
-    __nc_pointer: ::neocogi_com::NcClientPointer<ISerializationFormatAbi, __NcThreading>,
+    /// Opaque pointer borrowed from retained interface/control storage; provider entry admits value access.
+    __nc_pointer: ::neocogi_com::ComInterfacePointer<
+        ISerializationFormatAbi,
+        __NcThreading,
+    >,
 }
-unsafe impl ::neocogi_com::ComClientInterface for ISerializationFormatAbi {
-    type Client<__NcThreading: ::neocogi_com::ThreadingModel> = ISerializationFormatClient<
+unsafe impl ::neocogi_com::ComRustInterface for ISerializationFormatAbi {
+    type Wrapper<__NcThreading: ::neocogi_com::ThreadingModel> = ISerializationFormatWrapper<
         __NcThreading,
     >;
-    fn __nc_client_ref<__NcThreading: ::neocogi_com::ThreadingModel>(
-        pointer: &::neocogi_com::NcClientPointer<Self, __NcThreading>,
-    ) -> &Self::Client<__NcThreading> {
+    fn __nc_wrapper_ref<__NcThreading: ::neocogi_com::ThreadingModel>(
+        pointer: &::neocogi_com::ComInterfacePointer<Self, __NcThreading>,
+    ) -> &Self::Wrapper<__NcThreading> {
         unsafe {
             &*(::core::ptr::from_ref(pointer)
-                as *const ISerializationFormatClient<__NcThreading>)
+                as *const ISerializationFormatWrapper<__NcThreading>)
         }
     }
-    fn __nc_client_mut<__NcThreading: ::neocogi_com::ThreadingModel>(
-        pointer: &mut ::neocogi_com::NcClientPointer<Self, __NcThreading>,
-    ) -> &mut Self::Client<__NcThreading> {
+    fn __nc_wrapper_mut<__NcThreading: ::neocogi_com::ThreadingModel>(
+        pointer: &mut ::neocogi_com::ComInterfacePointer<Self, __NcThreading>,
+    ) -> &mut Self::Wrapper<__NcThreading> {
         unsafe {
             &mut *(::core::ptr::from_mut(pointer)
-                as *mut ISerializationFormatClient<__NcThreading>)
+                as *mut ISerializationFormatWrapper<__NcThreading>)
         }
     }
 }
@@ -3017,7 +3020,7 @@ const _: () = {
     };
     impl<
         __NcThreading: ::neocogi_com::ThreadingModel,
-    > ISerializationFormatClient<__NcThreading> {
+    > ISerializationFormatWrapper<__NcThreading> {
         /// Creates a bounded serializer with format-owned output storage.
         /// IDL source: `neocogi/com/serialization/formats.ncidl:126:8` (module `neocogi.com.serialization`).
         ///
@@ -3357,31 +3360,34 @@ unsafe impl ::neocogi_com::ComInterface for ISerializationOutputAbi {
     type Threading = ::neocogi_com::ThreadLocal;
 }
 #[repr(transparent)]
-///Borrowed static method view for [`ISerializationOutput`].
-pub struct ISerializationOutputClient<
+///Borrowed Rust method wrapper for [`ISerializationOutput`].
+pub struct ISerializationOutputWrapper<
     __NcThreading: ::neocogi_com::ThreadingModel = ::neocogi_com::ThreadLocal,
 > {
-    /// Certified transparent storage supplied only by a live COM pointer borrow.
-    __nc_pointer: ::neocogi_com::NcClientPointer<ISerializationOutputAbi, __NcThreading>,
+    /// Opaque pointer borrowed from retained interface/control storage; provider entry admits value access.
+    __nc_pointer: ::neocogi_com::ComInterfacePointer<
+        ISerializationOutputAbi,
+        __NcThreading,
+    >,
 }
-unsafe impl ::neocogi_com::ComClientInterface for ISerializationOutputAbi {
-    type Client<__NcThreading: ::neocogi_com::ThreadingModel> = ISerializationOutputClient<
+unsafe impl ::neocogi_com::ComRustInterface for ISerializationOutputAbi {
+    type Wrapper<__NcThreading: ::neocogi_com::ThreadingModel> = ISerializationOutputWrapper<
         __NcThreading,
     >;
-    fn __nc_client_ref<__NcThreading: ::neocogi_com::ThreadingModel>(
-        pointer: &::neocogi_com::NcClientPointer<Self, __NcThreading>,
-    ) -> &Self::Client<__NcThreading> {
+    fn __nc_wrapper_ref<__NcThreading: ::neocogi_com::ThreadingModel>(
+        pointer: &::neocogi_com::ComInterfacePointer<Self, __NcThreading>,
+    ) -> &Self::Wrapper<__NcThreading> {
         unsafe {
             &*(::core::ptr::from_ref(pointer)
-                as *const ISerializationOutputClient<__NcThreading>)
+                as *const ISerializationOutputWrapper<__NcThreading>)
         }
     }
-    fn __nc_client_mut<__NcThreading: ::neocogi_com::ThreadingModel>(
-        pointer: &mut ::neocogi_com::NcClientPointer<Self, __NcThreading>,
-    ) -> &mut Self::Client<__NcThreading> {
+    fn __nc_wrapper_mut<__NcThreading: ::neocogi_com::ThreadingModel>(
+        pointer: &mut ::neocogi_com::ComInterfacePointer<Self, __NcThreading>,
+    ) -> &mut Self::Wrapper<__NcThreading> {
         unsafe {
             &mut *(::core::ptr::from_mut(pointer)
-                as *mut ISerializationOutputClient<__NcThreading>)
+                as *mut ISerializationOutputWrapper<__NcThreading>)
         }
     }
 }
@@ -3403,7 +3409,7 @@ const _: () = {
     };
     impl<
         __NcThreading: ::neocogi_com::ThreadingModel,
-    > ISerializationOutputClient<__NcThreading> {
+    > ISerializationOutputWrapper<__NcThreading> {
         /// Reports the complete document length after successful finish.
         /// IDL source: `neocogi/com/serialization/formats.ncidl:118:8` (module `neocogi.com.serialization`).
         ///
@@ -3633,31 +3639,34 @@ unsafe impl ::neocogi_com::ComInterface for ISerializationPluginAbi {
     type Threading = ::neocogi_com::ThreadLocal;
 }
 #[repr(transparent)]
-///Borrowed static method view for [`ISerializationPlugin`].
-pub struct ISerializationPluginClient<
+///Borrowed Rust method wrapper for [`ISerializationPlugin`].
+pub struct ISerializationPluginWrapper<
     __NcThreading: ::neocogi_com::ThreadingModel = ::neocogi_com::ThreadLocal,
 > {
-    /// Certified transparent storage supplied only by a live COM pointer borrow.
-    __nc_pointer: ::neocogi_com::NcClientPointer<ISerializationPluginAbi, __NcThreading>,
+    /// Opaque pointer borrowed from retained interface/control storage; provider entry admits value access.
+    __nc_pointer: ::neocogi_com::ComInterfacePointer<
+        ISerializationPluginAbi,
+        __NcThreading,
+    >,
 }
-unsafe impl ::neocogi_com::ComClientInterface for ISerializationPluginAbi {
-    type Client<__NcThreading: ::neocogi_com::ThreadingModel> = ISerializationPluginClient<
+unsafe impl ::neocogi_com::ComRustInterface for ISerializationPluginAbi {
+    type Wrapper<__NcThreading: ::neocogi_com::ThreadingModel> = ISerializationPluginWrapper<
         __NcThreading,
     >;
-    fn __nc_client_ref<__NcThreading: ::neocogi_com::ThreadingModel>(
-        pointer: &::neocogi_com::NcClientPointer<Self, __NcThreading>,
-    ) -> &Self::Client<__NcThreading> {
+    fn __nc_wrapper_ref<__NcThreading: ::neocogi_com::ThreadingModel>(
+        pointer: &::neocogi_com::ComInterfacePointer<Self, __NcThreading>,
+    ) -> &Self::Wrapper<__NcThreading> {
         unsafe {
             &*(::core::ptr::from_ref(pointer)
-                as *const ISerializationPluginClient<__NcThreading>)
+                as *const ISerializationPluginWrapper<__NcThreading>)
         }
     }
-    fn __nc_client_mut<__NcThreading: ::neocogi_com::ThreadingModel>(
-        pointer: &mut ::neocogi_com::NcClientPointer<Self, __NcThreading>,
-    ) -> &mut Self::Client<__NcThreading> {
+    fn __nc_wrapper_mut<__NcThreading: ::neocogi_com::ThreadingModel>(
+        pointer: &mut ::neocogi_com::ComInterfacePointer<Self, __NcThreading>,
+    ) -> &mut Self::Wrapper<__NcThreading> {
         unsafe {
             &mut *(::core::ptr::from_mut(pointer)
-                as *mut ISerializationPluginClient<__NcThreading>)
+                as *mut ISerializationPluginWrapper<__NcThreading>)
         }
     }
 }
@@ -3679,7 +3688,7 @@ const _: () = {
     };
     impl<
         __NcThreading: ::neocogi_com::ThreadingModel,
-    > ISerializationPluginClient<__NcThreading> {
+    > ISerializationPluginWrapper<__NcThreading> {
         /// Returns the unconditional default NCB format factory.
         /// IDL source: `neocogi/com/serialization/formats.ncidl:134:8` (module `neocogi.com.serialization`).
         ///
@@ -4505,30 +4514,31 @@ unsafe impl ::neocogi_com::ComInterface for ISerializerAbi {
     type Threading = ::neocogi_com::ThreadLocal;
 }
 #[repr(transparent)]
-///Borrowed static method view for [`ISerializer`].
-pub struct ISerializerClient<
+///Borrowed Rust method wrapper for [`ISerializer`].
+pub struct ISerializerWrapper<
     __NcThreading: ::neocogi_com::ThreadingModel = ::neocogi_com::ThreadLocal,
 > {
-    /// Certified transparent storage supplied only by a live COM pointer borrow.
-    __nc_pointer: ::neocogi_com::NcClientPointer<ISerializerAbi, __NcThreading>,
+    /// Opaque pointer borrowed from retained interface/control storage; provider entry admits value access.
+    __nc_pointer: ::neocogi_com::ComInterfacePointer<ISerializerAbi, __NcThreading>,
 }
-unsafe impl ::neocogi_com::ComClientInterface for ISerializerAbi {
-    type Client<__NcThreading: ::neocogi_com::ThreadingModel> = ISerializerClient<
+unsafe impl ::neocogi_com::ComRustInterface for ISerializerAbi {
+    type Wrapper<__NcThreading: ::neocogi_com::ThreadingModel> = ISerializerWrapper<
         __NcThreading,
     >;
-    fn __nc_client_ref<__NcThreading: ::neocogi_com::ThreadingModel>(
-        pointer: &::neocogi_com::NcClientPointer<Self, __NcThreading>,
-    ) -> &Self::Client<__NcThreading> {
+    fn __nc_wrapper_ref<__NcThreading: ::neocogi_com::ThreadingModel>(
+        pointer: &::neocogi_com::ComInterfacePointer<Self, __NcThreading>,
+    ) -> &Self::Wrapper<__NcThreading> {
         unsafe {
-            &*(::core::ptr::from_ref(pointer) as *const ISerializerClient<__NcThreading>)
+            &*(::core::ptr::from_ref(pointer)
+                as *const ISerializerWrapper<__NcThreading>)
         }
     }
-    fn __nc_client_mut<__NcThreading: ::neocogi_com::ThreadingModel>(
-        pointer: &mut ::neocogi_com::NcClientPointer<Self, __NcThreading>,
-    ) -> &mut Self::Client<__NcThreading> {
+    fn __nc_wrapper_mut<__NcThreading: ::neocogi_com::ThreadingModel>(
+        pointer: &mut ::neocogi_com::ComInterfacePointer<Self, __NcThreading>,
+    ) -> &mut Self::Wrapper<__NcThreading> {
         unsafe {
             &mut *(::core::ptr::from_mut(pointer)
-                as *mut ISerializerClient<__NcThreading>)
+                as *mut ISerializerWrapper<__NcThreading>)
         }
     }
 }
@@ -4682,7 +4692,9 @@ const _: () = {
         identity as __nc_status_25, identity as __nc_result_25,
         identity as __nc_prepared_24, identity as __nc_out_25,
     };
-    impl<__NcThreading: ::neocogi_com::ThreadingModel> ISerializerClient<__NcThreading> {
+    impl<
+        __NcThreading: ::neocogi_com::ThreadingModel,
+    > ISerializerWrapper<__NcThreading> {
         /// Writes a unit value.
         /// IDL source: `neocogi/com/serialization/formats.ncidl:4:8` (module `neocogi.com.serialization`).
         ///

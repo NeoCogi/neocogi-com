@@ -105,6 +105,21 @@ fields tests the selected view. Table addresses alone are not contract identitie
 GUID and signature are authoritative. Implementations may share or duplicate
 identical static tables without changing those contracts.
 
+Rust method lookup uses `ComRustInterface::Wrapper<M>`: generated
+`IFooWrapper<M>` borrows an opaque `ComInterfacePointer<IFooAbi, M>` from
+its existing handle. These Rust-only wrappers retain zero-length slice metadata;
+they do not cross the C ABI or change the two-word stored handle. Inherited
+lookup borrows the physical table prefix without retaining or querying; an
+owned base projection still requires checked `QueryInterface`. A retained boxed
+weak wrapper may outlive the value, so provider entry admits liveness before
+access and reports expiration through the existing status contract.
+
+The former `ComClientInterface`, `NcClientPointer`, associated `Client<M>` and
+`IFooClient` names have been replaced without compatibility aliases. This is a
+Rust source/generated-name change. C layouts, vtable slots, exact IID/signatures,
+canonical IDL encoding, NCB-v1 bytes and ABI v3/core21 identities are unchanged.
+Regenerate Rust bindings with the matching SDK; this does not finalize WIP v3.
+
 Discovery checks core generation 21 before dispatch. Exact interface signatures do
 not replace that global layout/behavior check. See the
 [storage rationale](contracts/COM_INTERFACE_STORAGE.md) for the

@@ -15,12 +15,12 @@ pub mod consumer {
     #[allow(unused_imports)]
     pub use fixture_recursive_consumer::{
         ConsumerIBaseValueAbi as IBaseValueAbi, ConsumerIBaseValueVTable as IBaseValueVTable, ConsumerIBaseValueVtblFor as IBaseValueVtblFor,
-        ConsumerIBaseValueClient as IBaseValueClient, ConsumerIBaseValue as IBaseValue,
+        ConsumerIBaseValueWrapper as IBaseValueWrapper, ConsumerIBaseValue as IBaseValue,
     };
 
     #[allow(unused_imports)]
     pub use fixture_recursive_consumer::{
-        ConsumerIValueAbi as IValueAbi, ConsumerIValueVTable as IValueVTable, ConsumerIValueVtblFor as IValueVtblFor, ConsumerIValueClient as IValueClient,
+        ConsumerIValueAbi as IValueAbi, ConsumerIValueVTable as IValueVTable, ConsumerIValueVtblFor as IValueVtblFor, ConsumerIValueWrapper as IValueWrapper,
         ConsumerIValue as IValue,
     };
     impl IValue for Value {}
@@ -28,7 +28,7 @@ pub mod consumer {
     #[allow(unused_imports)]
     pub use fixture_recursive_consumer::{
         ConsumerIExchangeAbi as IExchangeAbi, ConsumerIExchangeVTable as IExchangeVTable, ConsumerIExchangeVtblFor as IExchangeVtblFor,
-        ConsumerIExchangeClient as IExchangeClient, ConsumerIExchange as IExchange,
+        ConsumerIExchangeWrapper as IExchangeWrapper, ConsumerIExchange as IExchange,
     };
 
     #[com_object(interfaces(IValue))]
@@ -50,12 +50,12 @@ pub mod producer {
     #[allow(unused_imports)]
     pub use fixture_recursive_producer::{
         ProducerIBaseValueAbi as IBaseValueAbi, ProducerIBaseValueVTable as IBaseValueVTable, ProducerIBaseValueVtblFor as IBaseValueVtblFor,
-        ProducerIBaseValueClient as IBaseValueClient, ProducerIBaseValue as IBaseValue,
+        ProducerIBaseValueWrapper as IBaseValueWrapper, ProducerIBaseValue as IBaseValue,
     };
 
     #[allow(unused_imports)]
     pub use fixture_recursive_producer::{
-        ProducerIValueAbi as IValueAbi, ProducerIValueVTable as IValueVTable, ProducerIValueVtblFor as IValueVtblFor, ProducerIValueClient as IValueClient,
+        ProducerIValueAbi as IValueAbi, ProducerIValueVTable as IValueVTable, ProducerIValueVtblFor as IValueVtblFor, ProducerIValueWrapper as IValueWrapper,
         ProducerIValue as IValue,
     };
     impl IValue for Value {}
@@ -63,7 +63,7 @@ pub mod producer {
     #[allow(unused_imports)]
     pub use fixture_recursive_producer::{
         ProducerIExchangeAbi as IExchangeAbi, ProducerIExchangeVTable as IExchangeVTable, ProducerIExchangeVtblFor as IExchangeVtblFor,
-        ProducerIExchangeClient as IExchangeClient, ProducerIExchange as IExchange,
+        ProducerIExchangeWrapper as IExchangeWrapper, ProducerIExchange as IExchange,
     };
 
     #[com_object(interfaces(IValue))]

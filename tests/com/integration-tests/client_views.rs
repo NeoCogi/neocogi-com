@@ -230,9 +230,12 @@ fn method_view_reborrows_have_no_lifecycle_traffic() {
         )
     };
     let before = counts();
+    let wrapper: &<IDerivedAbi as neocogi_com::ComRustInterface>::Wrapper<neocogi_com::ThreadLocal> = &owner;
+    let named: &IDerivedWrapper = wrapper;
+    assert_eq!(named.value(), Ok(42));
     {
         let mut borrowed = owner.as_com_ref();
-        let base: &mut IValueClient = &mut borrowed;
+        let base: &mut IValueWrapper = &mut borrowed;
         assert_eq!(base.value(), Ok(42));
         base.close().unwrap();
         assert_eq!(borrowed.as_raw(), pair);
@@ -317,7 +320,7 @@ fn mutable_inherited_views_preserve_identity_and_lifecycle() {
 #[test]
 fn whole_owner_swaps_and_thread_safe_client_references_remain_valid() {
     fn shared<T: ?Sized + Send + Sync>() {}
-    shared::<ISharedClient<ThreadSafe>>();
+    shared::<ISharedWrapper<ThreadSafe>>();
     let shared_owner = SharedCapability::from_value(SharedCapability).query::<ISharedAbi>().unwrap();
     assert_eq!(shared_owner.value(), Ok(7));
 
