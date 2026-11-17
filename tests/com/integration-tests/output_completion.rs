@@ -110,10 +110,10 @@ fn caller_validates_later_output_before_publishing_earlier_buffer() {
     raw.vtable = &table;
     // SAFETY: the provider and substituted C-shaped table remain live throughout
     // this scoped borrow. Only the output-writing slot is deliberately malformed.
-    let mut client = unsafe { ComRef::<IOrdinaryOutputsAbi>::from_raw_borrowed(raw) }.unwrap();
+    let mut outputs = unsafe { ComRef::<IOrdinaryOutputsAbi>::from_raw_borrowed(raw) }.unwrap();
     let mut flags = generated_calls::seeded_output(true);
     let mut choices = generated_calls::seeded_output(Choice::Idle);
-    let status = client.buffers(flags.output(0, 1), choices.output(0, 1));
+    let status = outputs.buffers(flags.output(0, 1), choices.output(0, 1));
     assert_eq!(status, Err(NC_E_INVALID_TAG));
     assert!(flags.is_empty());
     assert!(choices.is_empty());

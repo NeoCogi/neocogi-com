@@ -431,8 +431,8 @@ mod semantic_primitive_shadow {
         assert_eq!(IShadowAbi::INTERFACE_ID, super::support_shadow::IShadowAbi::INTERFACE_ID);
         assert_eq!(ABI_FINGERPRINT, super::support_shadow::ABI_FINGERPRINT);
         assert_eq!(IShadowAbi::METHOD_DESCRIPTORS[0].returns.ty.tag, NC_ABI_TYPE_U32);
-        let client = Echo::from_value(Echo).query::<IShadowAbi>().unwrap();
-        let result: ::core::primitive::u32 = client.echo(0xf000_0049, true).unwrap();
+        let echo = Echo::from_value(Echo).query::<IShadowAbi>().unwrap();
+        let result: ::core::primitive::u32 = echo.echo(0xf000_0049, true).unwrap();
         assert_eq!(result, 0xf000_005a);
     }
 }
@@ -517,24 +517,24 @@ mod primitive_shadow {
                     assert_eq!(parameter.ty.tag, kind);
                     assert_eq!(parameter.passing.tag, passing);
                 }
-                let client = Echo::from_value(Echo).query::<IPrimitivesAbi>().unwrap();
-                assert!(client.boolean(true).unwrap());
-                assert_eq!(client.signed_byte(-101).unwrap(), -101);
-                assert_eq!(client.signed_short(-30001).unwrap(), -30001);
-                assert_eq!(client.signed_word(-2_000_000_001).unwrap(), -2_000_000_001);
-                assert_eq!(client.signed_wide(-9_000_000_000_000_001).unwrap(), -9_000_000_000_000_001);
-                assert_eq!(client.unsigned_byte(201).unwrap(), 201);
-                assert_eq!(client.unsigned_short(60001).unwrap(), 60001);
-                assert_eq!(client.unsigned_word(0xf000_0049).unwrap(), 0xf000_0049);
-                assert_eq!(client.unsigned_wide(0xf000_0000_0000_0049).unwrap(), 0xf000_0000_0000_0049);
-                assert_eq!(client.float_word(1.25).unwrap(), 1.25);
-                assert_eq!(client.float_wide(-9.5).unwrap(), -9.5);
+                let echo = Echo::from_value(Echo).query::<IPrimitivesAbi>().unwrap();
+                assert!(echo.boolean(true).unwrap());
+                assert_eq!(echo.signed_byte(-101).unwrap(), -101);
+                assert_eq!(echo.signed_short(-30001).unwrap(), -30001);
+                assert_eq!(echo.signed_word(-2_000_000_001).unwrap(), -2_000_000_001);
+                assert_eq!(echo.signed_wide(-9_000_000_000_000_001).unwrap(), -9_000_000_000_000_001);
+                assert_eq!(echo.unsigned_byte(201).unwrap(), 201);
+                assert_eq!(echo.unsigned_short(60001).unwrap(), 60001);
+                assert_eq!(echo.unsigned_word(0xf000_0049).unwrap(), 0xf000_0049);
+                assert_eq!(echo.unsigned_wide(0xf000_0000_0000_0049).unwrap(), 0xf000_0000_0000_0049);
+                assert_eq!(echo.float_word(1.25).unwrap(), 1.25);
+                assert_eq!(echo.float_wide(-9.5).unwrap(), -9.5);
                 let input = [true, false, true];
                 let mut output = NcOutputBuffer::new();
-                assert_eq!(client.buffers(NcCopyFromBufferOffset::new(7, b"COM"),
+                assert_eq!(echo.buffers(NcCopyFromBufferOffset::new(7, b"COM"),
                     NcCopyFromBufferOffset::new(11, &input), output.output(0, 3)).unwrap(), 0xf000_0049);
                 assert_eq!(output.as_slice(), input);
-                let record = client.record(PrimitiveRecord { enabled: true, value: 0xf000_0049 }).unwrap();
+                let record = echo.record(PrimitiveRecord { enabled: true, value: 0xf000_0049 }).unwrap();
                 assert!(record.enabled);
                 assert_eq!(record.value, 0xf000_0049);
                 let choices = [PrimitiveChoice::Named { value: 73 },
@@ -543,7 +543,7 @@ mod primitive_shadow {
                     let wire = encode_inline(&choice).unwrap();
                     let tag: p::i64 = wire.tag;
                     assert_eq!(tag, index as p::i64);
-                    match client.choice(choice).unwrap() {
+                    match echo.choice(choice).unwrap() {
                         PrimitiveChoice::Named { value } => assert_eq!(value, 73),
                         PrimitiveChoice::Tuple(value) => { assert!(value.enabled); assert_eq!(value.value, 91); }
                         PrimitiveChoice::Empty => assert_eq!(index, 2),

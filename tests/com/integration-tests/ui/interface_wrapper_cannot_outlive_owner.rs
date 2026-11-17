@@ -2,12 +2,12 @@
 mod test_contracts { include!(env!("NC_COM_TEST_CONTRACTS")); }
 use neocogi_com::{ComPtr, NcStatus};
 
-extern crate self as fixture_ui_interface_client_escape;
-test_contracts::ui_interface_client_escape!();
+extern crate self as fixture_ui_interface_wrapper_cannot_outlive_owner;
+test_contracts::ui_interface_wrapper_cannot_outlive_owner!();
 
 // A method view cannot survive the owner which lends it, including after
 // dereferencing through an inherited base view.
-fn escape(owner: ComPtr<IDerivedAbi>) -> &'static IBaseWrapper {
+fn outlive_owner(owner: ComPtr<IDerivedAbi>) -> &'static IBaseWrapper {
     &owner
 }
 

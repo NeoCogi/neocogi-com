@@ -70,8 +70,8 @@ name = "ui"
 path = "integration-tests/ui.rs"
 
 [[test]]
-name = "client_views"
-path = "integration-tests/client_views.rs"
+name = "interface_wrappers"
+path = "integration-tests/interface_wrappers.rs"
 required-features = ["macros", "std"]
 
 [[test]]
@@ -80,8 +80,8 @@ path = "integration-tests/windows_plugin_paths.rs"
 required-features = ["runtime"]
 
 [[test]]
-name = "client_view_admission"
-path = "integration-tests/client_view_admission.rs"
+name = "interface_wrapper_type_checks"
+path = "integration-tests/interface_wrapper_type_checks.rs"
 required-features = ["macros", "std"]
 
 [[test]]

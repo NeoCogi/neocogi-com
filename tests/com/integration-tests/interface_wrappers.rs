@@ -318,7 +318,7 @@ fn mutable_inherited_views_preserve_identity_and_lifecycle() {
 
 /// Swapping complete owners is still ordinary valid ownership transfer.
 #[test]
-fn whole_owner_swaps_and_thread_safe_client_references_remain_valid() {
+fn whole_owner_swaps_and_thread_safe_wrapper_references_remain_valid() {
     fn shared<T: ?Sized + Send + Sync>() {}
     shared::<ISharedWrapper<ThreadSafe>>();
     let shared_owner = SharedCapability::from_value(SharedCapability).query::<ISharedAbi>().unwrap();

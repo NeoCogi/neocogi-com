@@ -4,7 +4,7 @@ use std::{fs, path::Path, process::Command};
 
 /// Tests semantic rejection, so stable/MSRV diagnostic source snippets may differ.
 #[test]
-fn client_views_cannot_replace_capability_storage() {
+fn interface_wrappers_cannot_replace_pointer_pair() {
     let owner = Path::new(env!("CARGO_MANIFEST_DIR"));
     let facade = owner.join("../../crates/com");
     let compiler = owner.join("../../crates/idl");
@@ -12,7 +12,7 @@ fn client_views_cannot_replace_capability_storage() {
     let project = tempfile::tempdir().unwrap();
     fs::create_dir(project.path().join("src")).unwrap();
     fs::write(project.path().join("Cargo.toml"), format!(
-        "[package]\nname='client-view-admission'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={facade:?}}}\n[build-dependencies]\nneocogi-idl={{path={compiler:?}}}\n"
+        "[package]\nname='interface-wrapper-type-checks'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={facade:?}}}\n[build-dependencies]\nneocogi-idl={{path={compiler:?}}}\n"
     )).unwrap();
     fs::write(
         project.path().join("build.rs"),
@@ -32,7 +32,7 @@ fn client_views_cannot_replace_capability_storage() {
     let mut cargo = Command::new(env!("CARGO"));
     let version = cargo.arg("--version").output().unwrap();
     assert!(version.status.success());
-    println!("active admission compiler: {}", String::from_utf8_lossy(&version.stdout).trim());
+    println!("active wrapper type-check compiler: {}", String::from_utf8_lossy(&version.stdout).trim());
 
     let check = |body: &str| {
         fs::write(

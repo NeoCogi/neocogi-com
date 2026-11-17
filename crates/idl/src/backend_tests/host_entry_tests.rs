@@ -17,7 +17,7 @@ fn host_entry_runs_with_normal_printed_and_renamed_dependencies() {
                 .unwrap()
                 .lines()
                 .map(|line| {
-                    for (package, alias) in [("neocogi-com", "client"), ("neocogi-com-host", "owner")] {
+                    for (package, alias) in [("neocogi-com", "sdk"), ("neocogi-com-host", "owner")] {
                         if let Some(dependency) = line.strip_prefix(&format!("{package}=")) {
                             return match dependency.strip_prefix('{') {
                                 Some(fields) => format!("{alias}={{package={package:?},{fields}\n"),
@@ -29,7 +29,7 @@ fn host_entry_runs_with_normal_printed_and_renamed_dependencies() {
                 })
                 .collect::<String>();
             fs::write(&manifest, source).unwrap();
-            ("client", "owner", "neocogi_com = ::client, neocogi_com_host = ::owner")
+            ("sdk", "owner", "neocogi_com = ::sdk, neocogi_com_host = ::owner")
         } else {
             ("neocogi_com", "neocogi_com_host", "")
         };

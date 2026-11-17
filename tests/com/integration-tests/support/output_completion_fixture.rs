@@ -432,11 +432,11 @@ fn invalid_committed_output_is_a_contract_violation_not_an_owner_rejection() {
     table.complete = invalid_committed_output;
     raw.vtable = &table;
     // SAFETY: receiver and substituted table outlive this borrowed test caller.
-    let mut client = unsafe { ComRef::<ICompleteAbi>::from_raw_borrowed(raw) }.unwrap();
+    let mut outputs = unsafe { ComRef::<ICompleteAbi>::from_raw_borrowed(raw) }.unwrap();
     let mut choices = seeded_output(Choice::Idle);
     let mut flags = seeded_output(true);
     let failure = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        client.complete(
+        outputs.complete(
             first,
             second,
             choices.output(0, capacity),

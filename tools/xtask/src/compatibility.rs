@@ -21,7 +21,7 @@ pub(crate) const RUNTIME_TESTS: &[(&str, &str)] = &[
 pub(crate) const GENERATION_SENTINEL: &str = "retired_bootstrap_is_rejected_before_its_callback";
 /// Pure ABI targets do not enable unused native runtime API wrappers.
 pub(crate) const ABI_TESTS: &[(&str, &str)] = &[
-    ("client_views", "mutable_inherited_views_preserve_identity_and_lifecycle"),
+    ("interface_wrappers", "mutable_inherited_views_preserve_identity_and_lifecycle"),
     ("checked_values", "invalid_nested_bool_fails_copied_and_buffer_thunks"),
     (
         "array_construction",
@@ -697,7 +697,7 @@ fn safety(runner: &Runner) -> Result<Value> {
         // Keep the interpreter workload explicit: adding a native ABI target
         // must not silently introduce native-only work or inflate Miri's matrix.
         for name in [
-            "client_views",
+            "interface_wrappers",
             "checked_values",
             "array_construction",
             "output_buffers",

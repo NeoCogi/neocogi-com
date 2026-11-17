@@ -74,7 +74,7 @@ fn flag_metadata_conflict_is_source_local_and_other_public_names_stay_legal() {
 /// standard blanket operations on the outer handle. All four ownership views call
 /// accepted application methods; parameter spellings cannot affect dispatch.
 #[test]
-fn accepted_names_execute_through_shared_borrowed_exclusive_and_weak_clients() {
+fn accepted_names_execute_through_shared_borrowed_exclusive_and_weak_handles() {
     let bindings = super::name_ownership_tests::contract(
         r#"
         interface Parent {}
@@ -231,7 +231,7 @@ fn imported_template_conflicts_keep_the_definition_span() {
 
 /// no_std callers use the same method policy and keep ordinary conversion controls.
 #[test]
-fn accepted_client_and_prelude_controls_compile_without_std_or_alloc() {
+fn accepted_wrapper_and_prelude_controls_compile_without_std_or_alloc() {
     let consumer = super::test_consumer::Consumer::new("public-name-no-std-controls");
     let manifest = consumer.directory.path().join("Cargo.toml");
     fs::write(&manifest, format!("[package]\nname='public-name-no-std-controls'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?},default-features=false}}\n", consumer.facade)).unwrap();

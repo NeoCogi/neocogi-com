@@ -277,9 +277,9 @@ impl Client for Controller {{
 }}
 #[test] fn transitive_values_and_interfaces_call() {{
     let source = Source::from_value(Source).query::<ServiceAbi>().unwrap();
-    let client = Controller::from_value(Controller).query::<ClientAbi>().unwrap();
-    assert_eq!(client.read(source.as_com_ref(), 2).unwrap(), Fixed {{ count: 42 }});
-    assert_eq!(client.sum(Input {{ value: {combined} {{
+    let controller = Controller::from_value(Controller).query::<ClientAbi>().unwrap();
+    assert_eq!(controller.read(source.as_com_ref(), 2).unwrap(), Fixed {{ count: 42 }});
+    assert_eq!(controller.sum(Input {{ value: {combined} {{
         left: {wrapper} {{ fixed: Fixed {{ count: 10 }}, value: 3 }},
         right: {other} {{ fixed: Fixed {{ count: 20 }}, value: 9 }},
     }} }}), Ok(42));

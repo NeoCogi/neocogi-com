@@ -340,7 +340,7 @@ fn closed_specializations_check_free_types_without_requiring_open_rust_types() {
 fn inherited_calls_use_checked_marker_associations_instead_of_stale_names() {
     let old = OLD_BASE.replace("fn width", "fn set(&mut self, value: u32) -> Result<()>; fn width");
     let current = CURRENT_BASE.replace("fn width", "fn set(&mut self, value: u32) -> Result<()>; fn width");
-    let fixture = Fixture::new("binding-client-proof", &old, &current);
+    let fixture = Fixture::new("binding-wrapper-proof", &old, &current);
     let manifest = fixture.consumer.directory.path().join("Cargo.toml");
     let mut source = fs::read_to_string(&manifest).unwrap();
     source.push_str("binding-helper={path='helper'}\n");

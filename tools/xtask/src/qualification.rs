@@ -151,11 +151,11 @@ pub(crate) fn msrv(runner: &Runner) -> Result<()> {
 fn floor_semantics(runner: &Runner) -> Result<()> {
     let mut rows = vec![
         ("neocogi-com-tests", "plugin_abi_generation", vec![GENERATION_SENTINEL]),
-        ("neocogi-com-tests", "client_views", vec![abi_sentinel("client_views")]),
+        ("neocogi-com-tests", "interface_wrappers", vec![abi_sentinel("interface_wrappers")]),
         (
             "neocogi-com-tests",
-            "client_view_admission",
-            vec!["client_views_cannot_replace_capability_storage"],
+            "interface_wrapper_type_checks",
+            vec!["interface_wrappers_cannot_replace_pointer_pair"],
         ),
         (
             "neocogi-com-tests",

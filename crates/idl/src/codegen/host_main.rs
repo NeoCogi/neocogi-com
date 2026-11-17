@@ -118,7 +118,7 @@ mod tests {
     /// Path configuration is explicit and cannot silently select two owners.
     #[test]
     fn dependency_path_admission_is_unambiguous() {
-        assert!(syn::parse_str::<MainArgs>("neocogi_com = client, neocogi_com_host = owner,").is_ok());
+        assert!(syn::parse_str::<MainArgs>("neocogi_com = sdk, neocogi_com_host = owner,").is_ok());
         for source in [
             "nc_com = owner",
             "runtime = owner",

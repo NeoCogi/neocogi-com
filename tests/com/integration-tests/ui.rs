@@ -26,8 +26,8 @@ fn ui_errors_are_stable() {
     t.pass("integration-tests/ui/interface_noncolliding_generated_names.rs");
     t.pass("integration-tests/ui/interface_mut_receiver.rs");
     t.compile_fail("integration-tests/ui/interface_manual_safe_impl.rs");
-    t.pass("integration-tests/ui/interface_canonical_client.rs");
-    t.compile_fail("integration-tests/ui/interface_client_escape.rs");
+    t.pass("integration-tests/ui/interface_inherited_lookup.rs");
+    t.compile_fail("integration-tests/ui/interface_wrapper_cannot_outlive_owner.rs");
     t.compile_fail("integration-tests/ui/persistence_retired_policies.rs");
     t.compile_fail("integration-tests/ui/persistence_packed_record.rs");
 }

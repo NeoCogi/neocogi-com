@@ -144,7 +144,7 @@ fn borrowed_generated_calls_perform_no_lifecycle_operations() {
 }
 
 #[test]
-fn borrowed_builtin_clients_share_copy_and_utf8_validation() {
+fn borrowed_builtin_handles_share_copy_and_utf8_validation() {
     use neocogi_com::{NcString, INcStringComPtrExt, INcBytesComPtrExt, INcBytesAbi};
     let string = NcString::from_utf8_str("snowman: ☃");
     let borrowed = string.as_com_ref();

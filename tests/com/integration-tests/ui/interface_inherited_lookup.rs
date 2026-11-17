@@ -2,15 +2,15 @@
 mod test_contracts { include!(env!("NC_COM_TEST_CONTRACTS")); }
 use neocogi_com::{ComPtr, ComRef, NcStatus};
 
-extern crate self as fixture_ui_interface_canonical_client;
-test_contracts::ui_interface_canonical_client!();
+extern crate self as fixture_ui_interface_inherited_lookup;
+test_contracts::ui_interface_inherited_lookup!();
 
 /// Type-checks every canonical call shape without importing an extension trait.
 fn call_owned_and_borrowed(
-    mut owned: ComPtr<ICanonicalClientDerivedAbi>,
-    mut borrowed: ComRef<'_, ICanonicalClientDerivedAbi>,
-    source: ComRef<'_, ICanonicalClientBaseAbi>,
-) -> Result<ComPtr<ICanonicalClientBaseAbi>, NcStatus> {
+    mut owned: ComPtr<IDerivedLookupAbi>,
+    mut borrowed: ComRef<'_, IDerivedLookupAbi>,
+    source: ComRef<'_, IBaseLookupAbi>,
+) -> Result<ComPtr<IBaseLookupAbi>, NcStatus> {
     // `ComPtr` lends the derived wrapper, whose Deref chain supplies the base
     // method before the local mutable method is selected.
     let owned_value = owned.value()?;
