@@ -18,7 +18,7 @@ mod predicate {
     };
 
     #[com_object(IPredicate)]
-    /// Stateless provider reached through both owning and borrowed clients.
+    /// Stateless provider reached through both owning and borrowed callers.
     struct Predicate;
 
     impl IPredicate for Predicate {

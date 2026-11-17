@@ -215,7 +215,7 @@ struct Forwarded {
     source: ComPtr<IOneWayAbi>,
 }
 impl IOneWay for Forwarded {
-    /// The nested generated client validates its prefix before the outer thunk publishes.
+    /// The nested generated wrapper validates its prefix before the outer thunk publishes.
     fn get(&self, reject: bool, output: NcOutputWriter<'_, Choice>) -> Result<u32, NcStatus> {
         self.source.get(reject, output.forward()?)
     }

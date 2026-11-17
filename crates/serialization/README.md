@@ -19,7 +19,7 @@ interfaces as native loading. `default_format()` always returns NCB;
 Names cross COM using `NcCopyFromBufferOffset::new(0, name.as_bytes())`.
 
 Default features provide the static plugin and owned sessions using `alloc`.
-The implementation needs no `std` or runtime client feature. Without default
+The implementation needs no `std` or runtime API feature. Without default
 features, NCB fixed-buffer functions and measurement remain allocation-free and
 work with `no_std`. `alloc` adds owned NCB objects; `std` optionally enables SDK
 standard-library support; `plugin` supplies static registration. Optional JSON

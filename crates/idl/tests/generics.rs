@@ -161,7 +161,7 @@ fn closed_generic_calls_cross_generated_module_boundaries() {
         impl producer::{contract} for Counter {{
             /// Reads ordinary exclusively owned state through COM.
             fn get(&self) -> Result<u32, neocogi_com::NcStatus> {{ Ok(self.value) }}
-            /// Mutates the same state through either independently generated client.
+            /// Mutates the same state through either independently generated wrapper.
             fn set(&mut self, value: u32) -> Result<(), neocogi_com::NcStatus> {{ self.value = value; Ok(()) }}
         }}
         #[neocogi_com::plugin(name = "proof.closed.generic")]

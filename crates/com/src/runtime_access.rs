@@ -1,8 +1,8 @@
 //! Allocation-free access admitted from one host's immutable C service graph.
 //!
-//! The handle is available without std or the optional runtime client methods so
+//! The handle is available without std or the optional runtime API methods so
 //! a provider can receive/retain supplied access without discovering or owning an
-//! implementation. Rich runtime/persistence clients remain capability-gated.
+//! implementation. Rich runtime and persistence API wrappers remain capability-gated.
 
 use core::fmt;
 

@@ -26,7 +26,7 @@ impl Drop for State {
     }
 }
 
-/// Shared ownership lends the same unsized client as an ordinary call borrow.
+/// Shared ownership lends the same unsized wrapper as an ordinary call borrow.
 #[com_object(IDerived)]
 struct SharedValue {
     state: State,
@@ -251,7 +251,7 @@ fn method_view_reborrows_have_no_lifecycle_traffic() {
     assert_eq!(drops.load(Ordering::SeqCst), 1);
 }
 
-/// Positive cross-thread marker proof for direct unsized client references.
+/// Positive cross-thread marker proof for direct unsized wrapper references.
 #[com_object(IShared)]
 struct SharedCapability;
 impl IShared for SharedCapability {

@@ -1,4 +1,4 @@
-//! Typed std clients over the supplied host's immutable C service tables.
+//! Typed Rust API wrappers over the supplied host's immutable C service tables.
 //!
 //! Runtime access is admitted once under process-lived backing guarantees.
 //! Operations use those exact tables; no global lookup, implementation import

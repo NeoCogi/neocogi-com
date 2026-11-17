@@ -38,7 +38,7 @@ impl IScalars for Scalars {
     }
 }
 
-/// Every initialized byte is tested at both safe-client and raw-provider boundaries.
+/// Every initialized byte is tested at both safe-wrapper and raw-provider boundaries.
 #[test]
 fn every_byte_checks_the_enum_domain_and_known_flag_bits_before_dispatch() {
     let calls = Arc::new(AtomicUsize::new(0));

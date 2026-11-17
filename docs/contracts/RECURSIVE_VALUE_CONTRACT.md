@@ -124,7 +124,7 @@ the receiving method cannot retain its temporary wire or backing storage.
 | `NcValueRef<'_, T>` | A checked value's raw record and producer-owned backing storage | Acquire `T` with `to_owned()` before returning. |
 | `ComRef<'_, I>` | A live interface reference | Acquire shared ownership with `try_add_ref()?`; an exclusive borrow returns `NC_E_INVALID_ARG`. A threading marker does not grant ownership. |
 | `NcCopyFromBufferOffset<'_, T>` | Readable elements for this call | Copy needed contents into owned application storage during the call. |
-| `NcOutputWriter<'_, T>` | Fresh copied output on the provider | Encode directly into raw slots; never read old contents or retain the writer. Clients supply `NcOutput<'_, T>`. |
+| `NcOutputWriter<'_, T>` | Fresh copied output on the provider | Encode directly into raw slots; never read old contents or retain the writer. Callers supply `NcOutput<'_, T>`. |
 
 For example, a receiver may store an owned message, but never the borrowed guard:
 
@@ -336,7 +336,7 @@ fingerprints, lexical scope, nested types, and retained source names.
 `Vec<T>` is owned variable-length storage. `Slice<T>` and `[T]` describe an
 unsized sequence referent; `&Slice<T>` / `&[T]` borrow readable elements and
 `&mut Slice<T>` / `&mut [T]` are output-only: providers receive `NcOutputWriter`,
-clients supply `NcOutput`, and only a successfully reported initialized prefix
+callers supply `NcOutput`, and only a successfully reported initialized prefix
 becomes native values. Old destination values are not input.
 A record field cannot store either a slice or a borrowed slice. The old field
 spelling `items: &[T]` no longer implicitly creates an owned vector; write

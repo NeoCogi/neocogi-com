@@ -182,7 +182,7 @@ unsafe extern "C" fn foreign_produce(object: *mut core::ffi::c_void, output: *mu
     // writable. Success transfers one real producer reference into value.
     let status = unsafe { (producer::IExchangeVtblFor::<producer::Exchange>::VTABLE.produce)(object, &mut value) };
     // SAFETY: the generated caller grants this output slot. The marker changes
-    // no pointer/lifecycle representation; the client must reject and release it.
+    // no pointer/lifecycle representation; the caller must reject and release it.
     unsafe { output.write(value.cast()) };
     status
 }

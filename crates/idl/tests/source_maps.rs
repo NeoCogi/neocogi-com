@@ -494,7 +494,7 @@ fn imported_and_phantom_specializations_separate_definitions_from_use_sites() {
                 (declaration.span.end().line, declaration.span.end().column),
                 (start.line, start.column + application.len())
             );
-            // Root/client/wire definitions use the template cause as well; none
+            // Root/wrapper/wire definitions use the template cause as well; none
             // may fall back to the consumer's application expression.
             let fragment = generated
                 .source_map

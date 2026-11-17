@@ -72,7 +72,7 @@ select the rlib. It owns the plugin catalog,
 loading policy and host services. The Rust library is `neocogi_com_host`, built as
 an ordinary rlib; linking it into the final assembly supplies the implementation.
 
-An **interface caller** (also called a client) is any code that calls a COM
+An **interface caller** is any code that calls a COM
 interface through a generated Rust interface wrapper, `ComPtr`, `ComRef` or another
 appropriate handle. It can live in the host, a plugin, or an ordinary library.
 Calling an object directly requires its
@@ -88,7 +88,7 @@ These are roles in an interaction, not mutually exclusive kinds of Rust crate.
 
 `neocogi-com` is the **shared SDK**, used by callers and providers. It supplies
 ownership handles, object implementation helpers, codecs, generated-wrapper
-support and optional host-service clients. `neocogi_com::RuntimeHandle` is a copyable
+support and optional runtime API wrappers. `neocogi_com::RuntimeHandle` is a copyable
 access handle to the selected host's immutable service tables. Copying it creates
 no registry, loads no implementation and grants no ownership of the host state.
 
@@ -108,8 +108,8 @@ flowchart TD
 
 | Assembly or package | Dependencies and purpose |
 | --- | --- |
-| Host application | `neocogi-com` with `runtime` and `macros` for service clients and `com_main`, plus `neocogi-com-host` for the selected implementation. Static composition also adds the provider's rlib. |
-| Plugin/provider | `neocogi-com` with the features needed for its objects and values. `macros` exposes `com_object` and `plugin`; `runtime` is needed only when it calls the supplied host-service clients. It receives `RuntimeHandle` from bootstrap. |
+| Host application | `neocogi-com` with `runtime` and `macros` for runtime API wrappers and `com_main`, plus `neocogi-com-host` for the selected implementation. Static composition also adds the provider's rlib. |
+| Plugin/provider | `neocogi-com` with the features needed for its objects and values. `macros` exposes `com_object` and `plugin`; `runtime` is needed only when it calls the supplied runtime API wrappers. It receives `RuntimeHandle` from bootstrap. |
 | Ordinary interface caller | `neocogi-com` and its generated contract bindings, with `alloc`/`std` as its values require. Local interface calls do not need the host package or SDK `runtime` feature. |
 | `neocogi-com-host` | `neocogi-com` with `default-features = false, features = ["std"]` for shared ownership, persistence contracts and codecs; `neocogi-com-core` with `std` for raw service tables and validation. These dependencies identify one set of shared ABI types. |
 | `neocogi-com` | `neocogi-com-core`, plus optional `neocogi-com-macros`. It has no host dependency, including when `runtime` is enabled or its unit tests run. Host-dependent integration tests live in the unpublished `tests/com` package. |
@@ -155,7 +155,7 @@ and [bootstrap contract](abi-v3.md#optional-native-host-bootstrap).
    access when they need host services or nested plugin acquisition; those calls
    return to the same host-owned tables.
 5. COM handles govern object lifetime independently of catalog registration.
-   Dropping a client handle releases its ownership as defined by its interface
+   Dropping a typed interface handle releases its ownership as defined by its interface
    handle. Dynamically opened provider code remains pinned for process lifetime,
    and the host's service tables remain valid after main returns.
 
@@ -404,7 +404,7 @@ retains explicit reconstruction recipes and an NCB envelope by default.
 
 - `neocogi-com-core`: raw ABI layouts and traits (`no_std` by default).
 - `neocogi-com-macros`: thin procedural entrypoints over IDL's shared backend.
-- `neocogi-com`: typed object/data helpers and optional supplied-host service clients.
+- `neocogi-com`: typed object/data helpers and optional supplied runtime API wrappers.
 - `neocogi-com-serialization`: reusable NCB/JSON codecs and static plugin descriptor.
 - `neocogi-com-serialization-dylib`: thin native entry point for that rlib.
 - `neocogi-com-host`: plugin catalog, loader, and persistence implementation;
@@ -414,7 +414,7 @@ retains explicit reconstruction recipes and an NCB envelope by default.
   used directly by consuming libraries and applications.
 
 The facade's defaults (`std`, `macros`) support local objects without linking a
-runtime. `runtime` enables service clients; every final native/browser host
+runtime. `runtime` enables runtime API wrappers; every final native/browser host
 explicitly links the `neocogi_com_host` rlib and supplies access to reusable libraries/plugins.
 See the [feature and deployment table](../crates/com/README.md#features-and-scope).
 The [core data guide](../crates/core/README.md#text-bytes-and-borrowed-storage) distinguishes

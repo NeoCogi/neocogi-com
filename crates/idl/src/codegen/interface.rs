@@ -944,7 +944,7 @@ fn safe_wrapper_method_body(nc: &syn::Path, method: &AbiMethod, names: &mut Priv
     });
     let rust_ret = &method.ok.rust_ty;
     let receiver = safe_receiver(method.receiver);
-    // Output shape is the only return-specific part of a client call. Keep one
+    // Output shape is the only return-specific part of a caller call. Keep one
     // admission, ownership handshake and error path for every method shape.
     let (output_storage, output_argument, success) = match &method.ok.kind {
         AbiReturnKind::Void => (quote! {}, quote! {}, quote! { () }),

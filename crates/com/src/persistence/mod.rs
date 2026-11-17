@@ -21,6 +21,6 @@ mod providers;
 pub use providers::*;
 
 #[cfg(feature = "runtime")]
-mod client;
+mod runtime_api;
 #[cfg(feature = "runtime")]
-pub use client::{FactoryRegistry, snapshot, snapshot_with_limits};
+pub use runtime_api::{FactoryRegistry, snapshot, snapshot_with_limits};

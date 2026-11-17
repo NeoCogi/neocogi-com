@@ -1,7 +1,7 @@
 //! Runtime-selectable format COM objects and typed value traversal.
 //!
 //! The interfaces and value traits are shared with core; this facade provides
-//! format clients and provider thunks. Concrete codecs, owning NCB/JSON session
+//! format API wrappers and provider thunks. Concrete codecs, owning NCB/JSON session
 //! state and NCB conveniences live in `neocogi-com-serialization`. Its scoped NCB
 //! objects support allocation-free fixed buffers without a host runtime.
 

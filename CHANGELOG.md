@@ -168,7 +168,7 @@ Historical draft numbers do not define additional supported COM baselines.
   all required CI jobs passed for that exact tagged commit.
 
 - Make the explicit serialization-provider requirement normative in the ABI-v2
-  specification, raw persistence table docs and Rust client entry points. Keep
+  specification, raw persistence table docs and Rust caller entry points. Keep
   ABI family 2/core generation 19 and NCB v1; codec availability is an application
   deployment requirement, not a table-admission guarantee. Remove stale guidance
   suggesting frozen ABI-v2 tables can change in place. Provider absence/selection
@@ -432,7 +432,7 @@ The implementation is `neocogi-com-host` in `crates/host`, with Rust library
 `neocogi_com_host`. Host persistence code uses the shared SDK; raw host tables
 continue to use core. Update default/aliased `com_main` linkage, manifests,
 fixtures, archive admission, CI and documentation together. The `runtime` SDK
-feature remains a supplied-service client feature. Core/service ABI names and
+feature remains a supplied-runtime API feature. Core/service ABI names and
 versions are unchanged. Older entries below record historical package/artifact
 names and deployment models; they are not current linkage instructions.
 
@@ -448,7 +448,7 @@ Keep the process-wide registry, pinned provider code and caller-owned context
 lifetimes. Remove global/default discovery, named getters, the COM native-link
 bridge and the runtime cdylib; the runtime crate remains the host's ordinary rlib.
 Static and dynamic providers use the same supplied C service graph. Split the
-portable host/provider sample and update persistence clients, real applications,
+portable host/provider sample and update persistence API wrappers, real applications,
 C layout/bootstrap coverage and native/SDK qualification. Core/runtime/plugin
 stay unreleased ABI-v1; IDL v13, NCB v1 and fixed identities are unchanged.
 
@@ -480,7 +480,7 @@ their existing definitions. Checked-in persistence bindings use the new signatur
 ## Generated binding and public-name ownership (pre-release)
 
 Centralize generated-name allocation and public interface/dense-enum inventories.
-Protect provider/client binders, argument/helper families and const-expression
+Protect provider/wrapper binders, argument/helper families and const-expression
 references. Anonymous implementation scopes distinguish generated patterns from
 ambient constants through function-only imports that have no runtime state.
 Resolve field syntax at its application owner before using canonical typed
@@ -737,7 +737,7 @@ are core v1, plugin descriptor v1, and runtime v1; see the [ABI guide](https://g
 - Added typed `&mut self` call gating, generated thread-local/thread-safe pointer
   capabilities, bounded buffer lowering, ABI-safe records/enums, and
   format-neutral `ComDeserialize` without `Any` or erased value trees.
-- Made the inherited generated client view the sole safe interface calling
+- Made the inherited generated interface wrapper the sole safe interface calling
   layer. `ComPtr` and `ComRef` retain identical method syntax without generating
   parallel interface-specific extension traits.
 - Defined runtime resource ceilings of 1,024 retained dynamic modules and 64

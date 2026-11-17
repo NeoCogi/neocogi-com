@@ -112,7 +112,7 @@ impl<'a> Generation<'a> {
 /// Generated allocation-free interface contracts and their facade-owned providers.
 /// This explicit bootstrap keeps core independent of its own compiler/backend.
 pub struct BootstrapBindings {
-    /// Module constants, provider traits, raw ABI, clients and physical metadata.
+    /// Module constants, provider traits, raw ABI, wrappers and physical metadata.
     /// Core can resolve the canonical facade path to itself when checking in this half.
     pub abi: String,
     /// Concrete-object thunks and provider projection support, owned by the facade.

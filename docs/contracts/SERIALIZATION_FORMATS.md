@@ -2,7 +2,7 @@
 
 Serialization formats are ordinary COM providers. The canonical interfaces live
 in [formats.ncidl](../../crates/core/schemas/neocogi/com/serialization/formats.ncidl).
-Core owns their checked-in ABI, clients and scoped adapters; the SDK facade owns
+Core owns their checked-in ABI, wrappers and scoped adapters; the SDK facade owns
 ordinary provider thunks and the runtime-selectable `Format` convenience API.
 The bootstrap freshness test derives these halves from the single NCIDL source.
 The reusable `neocogi-com-serialization` rlib owns every codec. The separate
@@ -41,7 +41,7 @@ Rust trait objects, `String`, `Vec`, native field offsets or private object memo
 Text arguments use the ordinary readable byte-buffer ABI. They must have offset
 zero and valid UTF-8. Names and text are copied or consumed before the call
 returns. Source strings use a length-admission call followed by copying into a
-fresh output buffer; the client checks the exact reported and written lengths
+fresh output buffer; the caller checks the exact reported and written lengths
 and validates UTF-8 before constructing its own `String`.
 
 The format factory acquires borrowed input before returning an owning source.

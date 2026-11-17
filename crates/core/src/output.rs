@@ -79,7 +79,7 @@ impl<'a, T: ComInlineValue> NcOutputWriter<'a, T> {
 
     /// Lends this untouched destination to another synchronous COM provider.
     /// Forwarding uses the same raw slots without scratch allocation. The inner
-    /// client validates its reported prefix before updating this thunk's count.
+    /// caller validates its reported prefix before updating this thunk's count.
     /// A partially filled writer cannot be forwarded as a fresh whole output.
     pub fn forward(self) -> Result<NcOutput<'a, T>, NcStatus> {
         match *self.written {
@@ -199,7 +199,7 @@ impl<T: ComInlineValue> NcOutputBuffer<T> {
     /// Borrows this buffer for one getter with explicit source offset and capacity.
     /// Immediately discards previous results while retaining both allocations,
     /// even if this view is never prepared or the generated call fails earlier.
-    /// Storage and limit checks occur inside the generated client before owners
+    /// Storage and limit checks occur inside the generated wrapper before owners
     /// are lent to the provider. Constructing this argument does not allocate.
     pub fn output(&mut self, offset: u64, capacity: usize) -> NcOutput<'_, T> {
         self.values.clear();
@@ -229,7 +229,7 @@ impl<T: ComInlineValue> core::ops::Deref for NcOutputBuffer<T> {
     }
 }
 
-/// Exclusive client argument for one output-only getter; no Rust layout crosses COM.
+/// Exclusive call argument for one output-only getter; no Rust layout crosses COM.
 ///
 /// Acquiring this view clears the destination's previous published results, even
 /// if the view is abandoned or another argument fails before this one prepares.
@@ -277,7 +277,7 @@ enum Publication {
     Published,
 }
 
-/// Prepared client output, with all fallible allocation before provider entry.
+/// Prepared call output, with all fallible allocation before provider entry.
 #[doc(hidden)]
 pub struct PreparedOutput<'a, T: ComInlineValue> {
     /// Exclusive output argument and its retained capacity.
@@ -419,7 +419,7 @@ impl<T: ComInlineValue> PreparedOutput<'_, T> {
         self.publication = Publication::Acquired;
         Ok(())
     }
-    /// Publishes this acquisition only after the generated client validates all outputs.
+    /// Publishes this acquisition only after the generated wrapper validates all outputs.
     ///
     /// # Panics
     /// Publication requires a complete successful acquisition, never a partial prefix.

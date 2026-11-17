@@ -148,7 +148,7 @@ unsafe impl ComValue for StorageUnit {
 }
 
 #[cfg(not(miri))]
-/// Keep raw-test temporaries out of the caller while measuring the safe client.
+/// Keep raw-test temporaries out of the caller while measuring the safe caller.
 #[inline(never)]
 fn generated_safe_call(object: &ComPtr<IArraysAbi, ThreadSafe>) {
     assert_eq!(object.accept([(); 65536]).unwrap(), 65536);

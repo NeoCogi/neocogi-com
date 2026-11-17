@@ -1,6 +1,6 @@
 //! Imported Rust declarations must prove the exact resolved IDL contract.
 //!
-//! All unsafe codecs, tables and clients in these fixtures come from the real
+//! All unsafe codecs, tables and callers in these fixtures come from the real
 //! generator. Safe facade reexports reproduce ordinary stale/misplaced types;
 //! compile rejection and independently generated COM calls test the boundary.
 

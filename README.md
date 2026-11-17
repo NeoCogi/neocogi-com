@@ -33,7 +33,7 @@ Linux, macOS and Windows. It requires Rust 1.85 or newer and a native linker.
 | `neocogi-com-core` | Raw ABI types and traits; `no_std` by default |
 | `neocogi-idl` | Contract compiler, shared code generation, Cargo integration |
 | `neocogi-com-macros` | Object, plugin, persistence, and host entry macros |
-| `neocogi-com` | Shared SDK for interface callers and providers, ownership, values, and host-service clients |
+| `neocogi-com` | Shared SDK for interface callers and providers, ownership, values, and runtime API wrappers |
 | `neocogi-com-serialization` | Reusable serialization rlib; unconditional NCB and optional lightweight JSON |
 | `neocogi-com-serialization-dylib` | Thin native plugin with built-in NCB and JSON; NCB is default |
 | `neocogi-com-host` | Host-owned runtime and native plugin loader (`neocogi_com_host` rlib) |
@@ -52,7 +52,7 @@ A **host** is the final application that owns one runtime implementation. An
 **interface caller** calls a COM interface; a **provider** implements one. These
 roles can overlap: hosts can implement callbacks, and plugins can call other
 providers or host services. Both use the shared `neocogi-com` SDK. The host also
-links `neocogi-com-host`; the SDK's `runtime` feature supplies service clients
+links `neocogi-com-host`; the SDK's `runtime` feature supplies runtime API wrappers
 without selecting that implementation.
 
 The [host, caller and provider guide](docs/COM.md#hosts-callers-and-providers)
@@ -61,7 +61,7 @@ defines their responsibilities, dependency graph and call flow. The SDK lives in
 
 The [advanced example](examples/com-plugin/README.md) adds static deployment,
 callbacks and persistence to the same host/provider model. The host alone owns
-the implementation; the SDK's `runtime` feature supplies clients for its services.
+the implementation; the SDK's `runtime` feature supplies API wrappers for its operations.
 Default SDK features provide `std` and macros. Reduced-feature users can select
 `alloc` or use the core without standard-library support.
 

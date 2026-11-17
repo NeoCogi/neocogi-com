@@ -55,7 +55,7 @@ layout, vtable prefix, exact identity, lifetime, and shared lifecycle calls.
 Generated interfaces provide the normal implementation.
 
 Public interface methods must also avoid actual COM handle operations, because
-handle methods precede the generated Deref client in Rust method lookup. Core's
+handle methods precede the generated Deref wrapper in Rust method lookup. Core's
 `NC_COM_HANDLE_METHOD_NAMES` / `is_reserved_com_method` define one allocation-free
 admission policy for IDL and macro validation, including raw identifier spellings.
 This does not restrict private field/parameter names or alter the wire ABI. See
@@ -191,7 +191,7 @@ elements are successfully decoded, so malformed counts cannot force a large
 eager allocation before the first element is checked.
 
 Built-in persistence contracts live in `persistence`: provider traits, interface
-markers, clients and metadata require neither allocation nor a runtime. With
+markers, wrappers and metadata require neither allocation nor a runtime. With
 `alloc`, the module also provides the portable `ObjectRecord` schema and limits.
 The COM facade re-exports these contracts and supplies concrete-provider thunks.
 

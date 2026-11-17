@@ -29,7 +29,7 @@ interface IButton: ContractIWidget + IAudit {
 }
 
 #[id("220bfbc8-9bcb-5c0c-aed3-f6901a00c6c1")]
-/// A second level verifies recursive vtables and inherited client lookup.
+/// A second level verifies recursive vtables and inherited wrapper lookup.
 interface IToggle: IButton {
     /// Copies a base value through a checked borrowed argument.
     fn copy_value(&mut self, source: &ContractIWidget) -> Result<()>;

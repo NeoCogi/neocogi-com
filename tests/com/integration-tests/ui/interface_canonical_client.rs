@@ -11,12 +11,12 @@ fn call_owned_and_borrowed(
     mut borrowed: ComRef<'_, ICanonicalClientDerivedAbi>,
     source: ComRef<'_, ICanonicalClientBaseAbi>,
 ) -> Result<ComPtr<ICanonicalClientBaseAbi>, NcStatus> {
-    // `ComPtr` lends the derived client, whose Deref chain supplies the base
+    // `ComPtr` lends the derived wrapper, whose Deref chain supplies the base
     // method before the local mutable method is selected.
     let owned_value = owned.value()?;
     owned.set_value(owned_value)?;
 
-    // `ComRef` lends the same client hierarchy without acquiring ownership or
+    // `ComRef` lends the same wrapper hierarchy without acquiring ownership or
     // requiring a second generated calling trait.
     let borrowed_value = borrowed.value()?;
     borrowed.set_value(borrowed_value)?;

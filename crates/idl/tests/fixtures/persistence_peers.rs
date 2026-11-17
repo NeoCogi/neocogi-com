@@ -93,12 +93,12 @@ macro_rules! exercise {
     }};
 }
 
-/// Freshly generated clients must query every checked-in provider contract successfully.
+/// Handles using freshly generated bindings must query every checked-in provider contract successfully.
 #[test]
 fn fresh_clients_call_builtin_providers() {
     exercise!(Builtin::from_value(Builtin), peer);
 }
-/// Checked-in clients must likewise query and call providers implementing fresh declarations.
+/// Handles using checked-in bindings must likewise query and call providers implementing fresh declarations.
 #[test]
 fn builtin_clients_call_fresh_providers() {
     exercise!(Fresh::from_value(Fresh), builtin);

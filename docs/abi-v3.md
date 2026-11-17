@@ -152,7 +152,7 @@ graph at runtime. The IDL compiler computes those hashes during the Cargo build.
 When generation selects an external Rust definition, it emits a compile-time
 check of that actual type's identity against the resolved declaration. Module
 constants cannot establish which types an ordinary facade reexports. Inherited
-clients and physical table prefixes come from the checked ABI marker's associated
+wrappers and physical table prefixes come from the checked ABI marker's associated
 types, so a separately reexported companion cannot change their representation.
 These checks add no runtime discovery or registry state; the
 [IDL generation contract](contracts/IDL_MODULES.md#shared-idl-sources)
@@ -428,7 +428,7 @@ inputs, all transfer together or all return, in declaration order. Raw callers
 must provide distinct, properly aligned slots and valid unique owners; forged
 pointers and duplicate ownership tokens are not made safe by slot validation.
 
-The Rust provider and client use ordinary `ComBox` values:
+The Rust provider and caller use ordinary `ComBox` values:
 
 ```text
 fn insert(&mut self, child: ComBox<IWidgetAbi>)
@@ -444,7 +444,7 @@ The generated thunk validates every argument and admits the receiver before it
 adopts any input. It clears the raw slots, invokes the provider, releases the
 receiver borrow, then restores returned owners on failure. A forwarding provider
 propagates the complete error; it must not silently discard or substitute owners.
-Safe clients check the success/failure handshake before recovering Rust ownership.
+Safe callers check the success/failure handshake before recovering Rust ownership.
 
 Providers finish fallible validation and resource preparation before ownership
 commit. Failure leaves input values and destination topology unchanged. After
@@ -630,10 +630,10 @@ Provider declarations use `NcOutputWriter<'_, T>` for self-contained
 `ComInlineValue` elements. `push` encodes one native value into its raw slot;
 `extend_from_slice` preserves bulk copy for the recursive identity-wire proof.
 Writers cannot read old values, allocate conversion vectors, or retain storage.
-`forward` lends an untouched writer to another synchronous generated client
+`forward` lends an untouched writer to another synchronous generated wrapper
 using the same slots; the nested result is validated before its count propagates.
 
-Clients use `NcOutput<'_, T>` from `NcOutputBuffer<T>::output(offset, capacity)`.
+Callers use `NcOutput<'_, T>` from `NcOutputBuffer<T>::output(offset, capacity)`.
 Acquiring the view immediately discards previous results, even if preparation
 never reaches it or the view is abandoned. Retained capacity is unchanged.
 Converted results retain reusable native and wire allocations locally. Identity
@@ -650,7 +650,7 @@ validation. Consuming copied returns additionally require finite maximum cost.
 Thus valid successful output cannot exhaust conversion allocation or budget.
 
 Thunks publish counts only after implementation success and result encoding.
-Clients check counts, validate restricted fields into their reserved native
+Callers check counts, validate restricted fields into their reserved native
 storage, acquire *every* output, then publish the complete group. Any failed call
 leaves no new native results, even if an earlier output had already validated.
 This does not undo provider application mutations or restore previous snapshots.
@@ -671,7 +671,7 @@ mode; the return type descriptor supplies the exact interface identity and the
 passing descriptor preserves the threading capability. It is distinct from the
 two-word exclusive `WeakComBox` output (`0x0b`).
 
-A successful provider transfers one retained genuine shared weak token. The client
+A successful provider transfers one retained genuine shared weak token. The caller
 rejects null tokens, missing interfaces and wrong revisions, releasing a rejected
 present token exactly once through shared release. The producer guarantees shared
 backing; boxed storage is outside this ABI result contract. Errors transfer no result.
@@ -979,9 +979,9 @@ fn main(runtime: neocogi_com::RuntimeHandle) {
 }
 ```
 
-Its manifest enables `neocogi-com`'s `runtime` clients and directly depends on
+Its manifest enables `neocogi-com`'s `runtime` API wrappers and directly depends on
 `neocogi-com-host`. The handle itself is available without `std` or `runtime`;
-only richer clients require that feature. `com_main` supports safe synchronous
+only richer API wrappers require that feature. `com_main` supports safe synchronous
 nongeneric `fn main(runtime: RuntimeHandle)`, preserving normal `()`/`ExitCode`/`Result`
 returns, `?`, cfg and lint scopes. Explicit `neocogi_com = path, neocogi_com_host = path`
 arguments support renamed dependencies. It adds no executor.
@@ -995,7 +995,7 @@ selected host with the safe `neocogi_com_host::initialize_runtime()`;
 ordinary reusable libraries accept the resulting handle rather than initialize.
 
 `plugin_info` returns `None` only for an unknown GUID. `plugins` returns owned
-complete records in registration order; clients no longer enumerate IDs and then
+complete records in registration order; callers no longer enumerate IDs and then
 perform three extra metadata queries per plugin. Applications can use the factory
 contract to explain what the plugin supplies without creating a factory object.
 The generated factory example in the COM/IDL documentation tests exercises actual
@@ -1189,7 +1189,7 @@ children are static. Copy callback metadata needed after a callback. See the
 
 ## Native and static composition
 
-The facade provides typed clients and owns no implementation dependency, including
+The facade provides typed wrappers and owns no implementation dependency, including
 with all features. The final executable links the ordinary `neocogi_com_host` rlib. Native
 providers link contracts/facade only and export `nc_get_plugin_descriptor_v3`.
 Static composition registers a linked provider descriptor; dynamic composition
@@ -1240,7 +1240,7 @@ recursive-interface, output-completion and lifetime regressions, then the comple
 factory/persistence suites through the independent
 [`host-runtime` final fixture](../tests/com/integration-tests/fixtures/host-runtime/Cargo.toml).
 The same case files are reused by the ordinary test roots. Each final executable
-explicitly owns its implementation; pure ABI tests enable no unused service clients.
+explicitly owns its implementation; pure ABI tests enable no unused runtime API wrappers.
 
 On Windows, `linked` also requires the exact
 `windows_native_paths_and_dependency_search_are_explicit` case and then the full
@@ -1267,7 +1267,7 @@ cargo xtask msrv
 That suite checks all COM/IDL/inspector targets and features, library tests,
 normative ABI snippets, inspector binary tests, and the facade/core feature
 variants. It also discovers and executes exact required semantic cases and then
-the complete client-view and provider-threading targets, capability admission,
+the complete interface-wrapper and provider-threading targets, capability admission,
 checked values, output buffers/completion and generated unit values. Parser
 qualification additionally requires exact receiver-lifetime, unsupported-annotation,
 type/integer syntax rejection and multipart source-diagnostic cases before running

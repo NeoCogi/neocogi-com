@@ -1,4 +1,4 @@
-//! Public namespace rules are checked at authored inputs and through real COM clients.
+//! Public namespace rules are checked at authored inputs and through real COM callers.
 use std::{fs, path::Path, process::Command};
 
 /// Resolve a complete authored module without creating a Rust consumer first.
@@ -229,7 +229,7 @@ fn imported_template_conflicts_keep_the_definition_span() {
     }
 }
 
-/// no_std clients use the same method policy and keep ordinary conversion controls.
+/// no_std callers use the same method policy and keep ordinary conversion controls.
 #[test]
 fn accepted_client_and_prelude_controls_compile_without_std_or_alloc() {
     let consumer = super::test_consumer::Consumer::new("public-name-no-std-controls");

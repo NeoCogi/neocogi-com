@@ -16,7 +16,7 @@ interface tables/count and provider-local destroy/deallocate callbacks.
 
 Generated construction selects storage, callbacks and root prefix together.
 An ABI method/value position declares shared versus boxed ownership. Its producer
-must supply that matching backing, even when a client later rejects the interface.
+must supply that matching backing, even when a caller later rejects the interface.
 The unsafe raw constructor contract makes the same obligation explicit. A pointer
 `.cast()` changes a Rust pointer type; the surrounding contract proves its backing.
 

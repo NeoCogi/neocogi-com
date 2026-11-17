@@ -95,7 +95,7 @@ fn valid_calls_acquire_output_buffers_and_nested_return_values() {
     assert_eq!(check.input(NcCopyFromBufferOffset::new(0, &values)).unwrap(), 1);
 }
 
-/// A readable argument may reject before the generated client prepares a later output.
+/// A readable argument may reject before the generated wrapper prepares a later output.
 #[test]
 fn early_readable_input_rejection_discards_the_previous_output_result() {
     let check = Check::from_value(Check).query::<ICheckAbi>().unwrap();

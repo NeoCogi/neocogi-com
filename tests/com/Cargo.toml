@@ -11,7 +11,7 @@ description = "Checkout integration tests and executable COM examples"
 [dependencies]
 neocogi-com-serialization = { workspace = true, features = ["std", "json"] }
 # Trybuild copies dependencies independently of this package's feature forwarding.
-# Every fixture uses std/macro clients; runtime remains an explicit selection.
+# Every fixture uses std/macro callers; runtime remains an explicit selection.
 neocogi-com = { workspace = true, features = ["std", "macros"] }
 
 [build-dependencies]

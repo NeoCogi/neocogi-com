@@ -27,7 +27,7 @@ struct Values {
     /// A combined flag set checks its declared bit mask.
     flags: TestOptions,
 }
-/// Production generated clients and thunks exercise scalars through actual ABI slots.
+/// Production generated wrappers and thunks exercise scalars through actual ABI slots.
 interface IScalars {
     /// Preserves valid byte values and rejects all undeclared wire values.
     fn byte(&self, value: Byte) -> Result<Byte>;

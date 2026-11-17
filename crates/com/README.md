@@ -2,7 +2,7 @@
 
 `neocogi-com` is the user-facing Rust facade for NeoCogi's explicit C-shaped
 component ABI. It provides typed COM pointers, generated interface/object
-support, typed plugin roots, and optional clients for
+support, typed plugin roots, and optional API wrappers for
 host-supplied runtime services.
 
 These development sources use **WIP ABI v3/core generation 21**, not a frozen
@@ -14,7 +14,7 @@ Start with the complete [first application and plugin](https://github.com/NeoCog
 walkthrough. It includes both dependency manifests, the shared IDL source,
 build script, provider and host, and the commands to run and inspect them.
 The SDK enables `std` and implementation macros by default. A final host also
-selects `neocogi-com-host` and enables SDK `runtime` clients; a provider uses the
+selects `neocogi-com-host` and enables SDK `runtime` API wrappers; a provider uses the
 SDK and the host access supplied during acquisition.
 
 ## Hosts, callers and providers
@@ -26,7 +26,7 @@ shared SDK for all of them. The final host application additionally selects
 loading and host services.
 
 The SDK depends normally on core and optional implementation macros. Its
-`runtime` feature enables clients for supplied host-service tables; it creates no
+`runtime` feature enables API wrappers for supplied runtime tables; it creates no
 host state and adds no implementation dependency. A provider receives a copyable
 `RuntimeHandle` during bootstrap and uses that access for any service calls. The host
 implementation uses the SDK's shared ownership/contracts/codecs with `std`, while
@@ -360,7 +360,7 @@ See [persistence semantics and ownership](https://github.com/NeoCogi/neocogi-com
 | `macros` | Implementation macro/derive re-exports |
 | `std` | `alloc` plus standard-library integrations; no runtime linkage by itself |
 | Defaults: `std`, `macros` | Local objects, owned data, and implementation macros; no runtime linkage |
-| `runtime` | Implies `std`; enables runtime/persistence service clients. The host supplies admitted access. |
+| `runtime` | Implies `std`; enables runtime and persistence API wrappers. The host supplies admitted access. |
 
 The final native/browser executable directly depends on `neocogi-com-host`
 and initializes it through `#[neocogi_com::com_main]`. The facade has no

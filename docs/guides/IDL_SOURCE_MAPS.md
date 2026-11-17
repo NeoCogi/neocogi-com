@@ -42,7 +42,7 @@ same `BuildOutput` fields and use their per-package conventional filenames.
 The module entry was introduced when contract attribute expansion caused
 rust-analyzer navigation to stop at `include!`. Current IDL generation emits
 complete ordinary Rust definitions. Go to Definition reaches the actual emitted
-ABI, client, vtable, native value or scalar wrapper definition in that file.
+ABI, wrapper, vtable, native value or scalar wrapper definition in that file.
 For example, `ExampleObjectAbi` is an emitted interface marker; `ExtentReport` is a
 native Rust enum. Its `Current` variant and `extent` field have their own definitions.
 The adjacent map connects each definition to the authored IDL identifier.
@@ -102,9 +102,9 @@ methods, functions, fields, variants and helpers.
 | Copied struct or enum | Its declaration identifier |
 | Named field or enum alternative | Its authored field or variant identifier |
 | Integer enum or bit flag wrapper and associated constants | Its declaration and each authored member |
-| Interface method, client method, raw vtable slot and complete provider thunk body | The supplying authored method identifier |
+| Interface method, wrapper method, raw vtable slot and complete provider thunk body | The supplying authored method identifier |
 | Closed generic interface methods | The method in the generic template |
-| Closed generic roots, clients and wire helpers | The bound template's defining identifier, including imported and memberless templates |
+| Closed generic roots, wrappers and wire helpers | The bound template's defining identifier, including imported and memberless templates |
 | Value `IDL_TYPE` and interface `IDL_INTERFACE`, including initializer bodies | The owning value/interface declaration identifier |
 | `ITextChangedEvent::text` | The event interface getter declaration |
 | Value wire and codec helpers | The originating value declaration |
@@ -131,7 +131,7 @@ span for diagnostics. Authored members retain their more specific origins.
 The allocation-free core bootstrap deliberately omits facade authoring metadata.
 
 The map describes the final emitted `.rs` file, including complete Rust contract
-definitions and generated client methods. It does not describe a separately
+definitions and generated wrapper methods. It does not describe a separately
 expanded Rust dump. Application-owned object/serialization macros remain separate
 from direct IDL emission. Native values' associated checked wire and storage
 definitions are implementation details, not public tag/payload companions.

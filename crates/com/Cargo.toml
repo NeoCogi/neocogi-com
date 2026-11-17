@@ -8,7 +8,7 @@ license.workspace = true
 repository.workspace = true
 documentation = "https://docs.rs/neocogi-com"
 readme = "README.md"
-description = "Shared C-ABI COM SDK for interface callers, providers, and host-service clients"
+description = "Shared C-ABI COM SDK for interface callers, providers, and runtime API wrappers"
 keywords = ["com", "abi", "ffi", "plugin"]
 categories = ["api-bindings", "development-tools::ffi"]
 
@@ -25,5 +25,5 @@ default = ["macros", "std"]
 macros = ["dep:neocogi-com-macros"]
 std = ["alloc", "neocogi-com-core/std"]
 alloc = ["neocogi-com-core/alloc"]
-# Supplied-host service clients; this feature chooses no implementation.
+# Supplied-host runtime API wrappers; this feature chooses no implementation.
 runtime = ["std"]

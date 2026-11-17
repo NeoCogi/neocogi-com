@@ -74,7 +74,7 @@ fn mixed_record_and_sequence_permutations_retain_exact_boundaries() {
     }
 }
 
-/// The default-limit example crosses client, thunk and explicit owned acquisition.
+/// The default-limit example crosses wrapper, thunk and explicit owned acquisition.
 #[test]
 fn generated_calls_accept_fitting_values_in_both_sibling_orders() {
     let entries = Arc::new(AtomicUsize::new(0));

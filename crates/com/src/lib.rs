@@ -1,8 +1,8 @@
-//! Typed COM ownership, local implementation support and supplied-host service clients.
+//! Typed COM ownership, local implementation support and supplied runtime API wrappers.
 //!
 //! Cross-component contracts are `.ncidl` sources compiled by `neocogi-idl`.
 //! The resolver binds names and computes identities and signatures. A shared
-//! typed backend emits complete Rust traits, explicit C wires, codecs, client
+//! typed backend emits complete Rust traits, explicit C wires, codecs, interface-wrapper
 //! views, provider thunks and inspection metadata. No Rust declaration attribute
 //! accepts another contract schema or an author-assigned signature.
 //!
@@ -56,7 +56,7 @@
 //! [`NC_E_DROPPED`] reports lost ownership, while [`NC_E_CLOSED`] reports an
 //! explicitly closed live service. A dependency may propagate either status.
 //!
-//! Generated clients use the same `handle.method()` syntax for owned and borrowed
+//! Generated callers use the same `handle.method()` syntax for owned and borrowed
 //! handles, including inherited methods. Querying a projection compares its
 //! exact identity and signature. Public method names occupied by handle helpers
 //! are rejected by IDL using the core-owned member inventory.
@@ -87,7 +87,7 @@
 //! `neocogi-com-host` to own its runtime services. Hosts can provide callbacks,
 //! and plugins can call other providers: caller/provider roles describe calls.
 //! This crate's normal dependencies are core and optional implementation macros.
-//! The `runtime` feature adds clients for supplied service tables, not a host.
+//! The `runtime` feature adds API wrappers for supplied runtime tables, not a host.
 //!
 //! The host explicitly links `neocogi-com-host` and initializes its one catalog
 //! through `#[com_main]`. A copyable [`RuntimeHandle`] lends access to that host's immutable
@@ -98,9 +98,9 @@
 //!
 //! Default features are `std` and `macros`. `alloc` enables owned values and
 //! output buffers; `macros` exports implementation/persistence procedures.
-//! `runtime` enables service clients and implies `std`; the handle itself needs neither.
+//! `runtime` enables runtime API wrappers and implies `std`; the handle itself needs neither.
 //! With all defaults disabled, raw ABI types, persistence contracts and
-//! allocation-free pointer/client support remain available.
+//! allocation-free pointer/wrapper support remain available.
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #![deny(missing_docs)]

@@ -1,7 +1,7 @@
 //! Borrowed native-value views for readable interface arguments.
 //!
 //! This view groups a logical offset with an already-valid shared slice. Generated
-//! clients retain direct or converted wire storage in [`crate::EncodedInput`];
+//! callers retain direct or converted wire storage in [`crate::EncodedInput`];
 //! providers use [`crate::DecodedInput`] to validate raw input before lending its
 //! native values to an implementation. The guard remains alive throughout the call.
 //! Output uses the separate `NcOutput` and `NcOutputWriter` types.
@@ -50,7 +50,7 @@ impl<'a, T> NcCopyFromBufferOffset<'a, T> {
 
     /// Returns a pointer to the borrowed native elements.
     ///
-    /// This is not necessarily an ABI wire pointer. Generated clients obtain
+    /// This is not necessarily an ABI wire pointer. Generated callers obtain
     /// their wire pointer from [`crate::EncodedInput`] instead.
     pub const fn as_ptr(&self) -> *const T {
         self.data.as_ptr()

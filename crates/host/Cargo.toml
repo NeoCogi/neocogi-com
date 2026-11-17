@@ -20,7 +20,7 @@ crate-type = ["rlib"]
 [dependencies]
 neocogi-com-core = { workspace = true, default-features = false, features = ["std"] }
 
-# COM clients use this host's own tables; the application supplies the codec provider.
+# COM callers use this host's own tables; the application supplies the codec provider.
 neocogi-com = { workspace = true, default-features = false, features = ["std", "runtime"] }
 
 [dev-dependencies]

@@ -23,7 +23,7 @@ struct Counts {
 #[repr(C)]
 /// Heap-owned test object with a real reference-counted lifetime.
 struct Counter {
-    /// Strong references held by clients of this test object.
+    /// Strong references held by callers of this test object.
     references: Cell<u32>,
     /// Shared observations remain private to the test implementation binary.
     counts: Rc<Counts>,
@@ -67,7 +67,7 @@ unsafe extern "C" fn release(this: *mut c_void) -> u32 {
 
 /// Reads observations without touching COM ownership.
 unsafe extern "C" fn additions(this: *mut c_void, out: *mut u32) -> NcStatus {
-    // SAFETY: The generated client supplies a live allocation and writable output.
+    // SAFETY: The generated wrapper supplies a live allocation and writable output.
     unsafe { *out = storage(this.cast()).counts.additions.get() };
     NC_OK
 }

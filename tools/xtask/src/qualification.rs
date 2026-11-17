@@ -357,7 +357,7 @@ pub(crate) fn workspace(runner: &Runner) -> Result<()> {
             ],
         )?;
         if service_tree.contains("neocogi-com-host") {
-            return Err("SDK service clients or macros select a host implementation".into());
+            return Err("SDK runtime API wrappers or macros select a host implementation".into());
         }
         Ok(())
     })();

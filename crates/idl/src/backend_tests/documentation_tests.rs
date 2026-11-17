@@ -69,7 +69,7 @@ fn deeply_nested_duplicate_parameters_keep_their_source_after_worker_exit() {
     assert!(diagnostic.to_string().contains("first declared here"));
 }
 
-/// Collect actual doc values throughout traits, clients and raw tables.
+/// Collect actual doc values throughout traits, wrappers and raw tables.
 #[derive(Default)]
 struct Docs {
     /// Literal descriptions in emitted order; authored strings stay independent.

@@ -81,7 +81,7 @@ helper such as `downgrade`; use a name such as `weak_capability`.
 
 Interface companions and dense-enum public members also share core inventories
 between admission and emission. Private implementation names reserve no source
-namespace. Provider/client binders are allocated against the supplied typed plan;
+namespace. Provider/wrapper binders are allocated against the supplied typed plan;
 Rust object generics retain their authored names, defaults and where clauses.
 Construction takes complete native values; weak wiring follows ordinary
 allocation, so there is no cyclic-constructor binder or promotion state.
@@ -134,7 +134,7 @@ The backend's executable consumers exercise ordinary and printed object/plugin/
 persistence expansions, generated IDL codecs, same-typed wrong-value traps,
 wrong-return-type traps, ambient constants and actual C acquisition calls.
 Identifier fixtures execute owner rejection/retry, output publication and inherited
-client calls. Both the core persistence ABI and facade provider bootstrap are
+interface calls. Both the core persistence ABI and facade provider bootstrap are
 freshness-checked against this same typed backend; a change must regenerate both.
 
 Rust declaration-attribute fixtures were retired with their frontend. They are
@@ -162,7 +162,7 @@ Core's receiver inventory includes the supported standard-prelude blanket
 operations (`into`, `try_into`, `to_owned`, `clone_into`). Source audits cover
 local impls; executable generated consumers cover prelude lookup and provider
 entry/status. Recheck that surface when changing compiler or edition. Arbitrarily
-imported extension traits can require qualified generated-client calls.
+imported extension traits can require qualified generated-interface calls.
 
 ## Backend-created documentation and bootstrap roots
 

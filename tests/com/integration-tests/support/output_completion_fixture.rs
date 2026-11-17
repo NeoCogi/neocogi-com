@@ -117,7 +117,7 @@ pub(super) fn seeded_output<T: ComInlineValue>(value: T) -> NcOutputBuffer<T> {
 #[test]
 fn every_generated_preparation_failure_returns_both_original_owners() {
     let capacity = 2;
-    // Two client allocations per converted output; providers allocate no scratch.
+    // Two caller allocations per converted output; providers allocate no scratch.
     for ordinal in 1..=4 {
         let (mut receiver, calls) = receiver();
         let ([first, second], drops) = items();
@@ -431,7 +431,7 @@ fn invalid_committed_output_is_a_contract_violation_not_an_owner_rejection() {
     let mut table = unsafe { std::ptr::read(raw.vtable) };
     table.complete = invalid_committed_output;
     raw.vtable = &table;
-    // SAFETY: receiver and substituted table outlive this borrowed test client.
+    // SAFETY: receiver and substituted table outlive this borrowed test caller.
     let mut client = unsafe { ComRef::<ICompleteAbi>::from_raw_borrowed(raw) }.unwrap();
     let mut choices = seeded_output(Choice::Idle);
     let mut flags = seeded_output(true);

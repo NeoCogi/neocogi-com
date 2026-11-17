@@ -4,7 +4,7 @@ use crate::Parameter;
 use crate::codegen::model::{AbiArg, AbiArgKind, AbiMethod, AbiReceiver, AbiReturn, AbiReturnKind, InterfaceOwnership};
 use syn::parse::Parser;
 
-/// Lowers source methods once; traits, clients, thunks and metadata share this plan.
+/// Lowers source methods once; traits, wrappers, thunks and metadata share this plan.
 pub(super) fn methods(graph: &mut Generation<'_>, module: &ResolvedModule, methods: &[Method]) -> Result<Vec<AbiMethod>, GenerateError> {
     methods
         .iter()

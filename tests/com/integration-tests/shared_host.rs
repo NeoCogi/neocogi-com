@@ -1,4 +1,4 @@
-//! Independent native clients prove static/dynamic parity and one nested catalog.
+//! Independent native callers prove static/dynamic parity and one nested catalog.
 use std::{
     fs,
     path::{Path, PathBuf},

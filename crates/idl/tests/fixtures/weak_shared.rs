@@ -137,7 +137,7 @@ mod tests {
         assert!(store.get().unwrap().same_object(&weak));
     }
 
-    /// An ABI success with a null weak result is rejected by the generated client.
+    /// An ABI success with a null weak result is rejected by the generated wrapper.
     #[test]
     fn malformed_successful_weak_result_is_checked() {
         // SAFETY: this fixture supplies the required writable output record.

@@ -1,4 +1,4 @@
-//! Owned COM implementations and safe clients for byte strings and UTF-8 text.
+//! Owned COM implementations and safe methods for byte strings and UTF-8 text.
 //!
 //! [`NcBytes`] and [`NcString`] allocate immutable Rust values behind
 //! reference-counted object/table pairs. A string exposes both `INcStringAbi` and
@@ -188,9 +188,9 @@ pub trait INcBytesComPtrExt {
     fn to_i8_vec_bounded(&self, max_len: usize) -> Result<Vec<i8>, NcStatus>;
 }
 
-// Share the complete client lowering between owned and borrowed pointers.
+// Share the complete method lowering between owned and borrowed pointers.
 // Each pointer type already establishes a live interface for the call lifetime.
-macro_rules! impl_bytes_client {
+macro_rules! impl_bytes_methods {
     ($pointer:ty) => {
         impl<M: ThreadingModel> INcBytesComPtrExt for $pointer {
             /// Calls the raw `len` slot and reads its initialized output on success.
@@ -258,8 +258,8 @@ macro_rules! impl_bytes_client {
     };
 }
 
-impl_bytes_client!(ComPtr<INcBytesAbi, M>);
-impl_bytes_client!(ComRef<'_, INcBytesAbi, M>);
+impl_bytes_methods!(ComPtr<INcBytesAbi, M>);
+impl_bytes_methods!(ComRef<'_, INcBytesAbi, M>);
 
 /// Safe call helpers for owned and borrowed `INcStringAbi` pointers.
 pub trait INcStringComPtrExt {
@@ -297,9 +297,9 @@ pub trait INcStringComPtrExt {
     fn to_string_bounded(&self, max_len: usize) -> Result<String, NcStatus>;
 }
 
-// Share the complete client lowering between owned and borrowed pointers.
+// Share the complete method lowering between owned and borrowed pointers.
 // Each pointer type already establishes a live interface for the call lifetime.
-macro_rules! impl_string_client {
+macro_rules! impl_string_methods {
     ($pointer:ty) => {
         impl<M: ThreadingModel> INcStringComPtrExt for $pointer {
             /// Calls the raw byte-length slot and reads its output on success.
@@ -367,8 +367,8 @@ macro_rules! impl_string_client {
     };
 }
 
-impl_string_client!(ComPtr<INcStringAbi, M>);
-impl_string_client!(ComRef<'_, INcStringAbi, M>);
+impl_string_methods!(ComPtr<INcStringAbi, M>);
+impl_string_methods!(ComRef<'_, INcStringAbi, M>);
 
 /// Allocates an exactly sized byte vector and lets one ABI operation fill it.
 ///

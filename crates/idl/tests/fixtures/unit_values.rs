@@ -37,7 +37,7 @@ mod unit_tests {
     unsafe extern "C" fn malformed_finish(this:*mut core::ffi::c_void,offset:u64,count:u64,
         output:*mut <Completion as ComValue>::Wire,written:*mut u64,out:*mut ComRaw<IUnknown>)->NcStatus {
         // SAFETY: this table is paired only with Units; all storage is the
-        // generated client's real prepared output and return slots.
+        // generated wrapper's real prepared output and return slots.
         let status=unsafe { (IUnitsVtblFor::<Units>::VTABLE.finish)(this,offset,count,output,written,out) };
         if status==NC_OK {
             // SAFETY: successful finish wrote one Done wire in nonempty storage.

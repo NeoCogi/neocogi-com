@@ -1,5 +1,5 @@
 #[id("46ccd2af-1d70-58ed-984f-0a05d8fdfb83")]
-/// Base contract used to verify inherited lookup on the generated client view.
+/// Base contract used to verify inherited lookup on the generated interface wrapper.
 interface ICanonicalClientBase {
     /// Reads one plain value through the shared safe receiver.
     fn value(&self) -> Result<u32>;

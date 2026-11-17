@@ -31,7 +31,7 @@ impl IValueReceiver for Receiver {
     }
 }
 
-/// Construct a real COM object so calls cross generated clients and entry thunks.
+/// Construct a real COM object so calls cross generated wrappers and entry thunks.
 fn receiver() -> ComPtr<IValueReceiverAbi> {
     Receiver::from_value(Receiver { saved: None }).query::<IValueReceiverAbi>().unwrap()
 }

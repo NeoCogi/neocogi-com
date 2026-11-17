@@ -34,7 +34,7 @@ pub enum AbiReceiver {
 pub struct AbiArg {
     /// Source-level parameter identifier.
     pub ident: Ident,
-    /// Positional local used only by generated clients, vtable slots and thunks.
+    /// Positional local used only by generated wrappers, vtable slots and thunks.
     /// Separate from `ident` so source names never enter implementation scopes,
     /// including when expanded tokens are printed and reparsed without hygiene.
     pub binding: Ident,

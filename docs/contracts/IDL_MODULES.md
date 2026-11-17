@@ -824,7 +824,7 @@ Changing an ABI-significant member sequence still changes the fingerprint.
   uses the explicit `ComPtr<INcString>` capability.
 - `&[T]` is a borrowed contiguous input slice whose element type is ABI-safe.
 - `&mut [T]` is fresh caller-owned output storage filled synchronously by the callee;
-  old contents are never input. Providers receive `NcOutputWriter`, clients pass
+  old contents are never input. Providers receive `NcOutputWriter`, callers pass
   `NcOutputBuffer::output`, and only the reported prefix is acquired. A real
   transformation takes explicit readable input plus separate output. This does
   not grant mutable access to an object or retained collection. See

@@ -77,7 +77,7 @@ Local caller completion follows `Unacquired -> Acquired -> Published`. A guard
 that drops before publication clears native results or the stack/forwarded count.
 A malformed later output therefore discards an earlier successful acquisition.
 Only the reported prefix is read; unused capacity can remain uninitialized.
-The provider may have modified raw bytes on failure, but neither safe clients nor
+The provider may have modified raw bytes on failure, but neither safe callers nor
 raw callers may interpret those bytes as results after a failed status.
 
 A reusable converted buffer retains two local allocations: native result capacity
@@ -130,7 +130,7 @@ by its prepaid maximum cannot fail due to later allocation or budget exhaustion.
 - Preparation bounds failure: `NC_E_OUT_OF_RANGE`, same ownership behavior.
 - Implementation rejection: restores its returned owners; no output is published.
 - Invalid successful consuming output: provider contract violation; generated
-  clients panic rather than fabricate returned owners. An extern-C provider panic
+  callers panic rather than fabricate returned owners. An extern-C provider panic
   aborts. Owner commit cannot be rolled back from arbitrary implementation state.
 - Invalid ordinary output: a checked status error; every output result is discarded.
 

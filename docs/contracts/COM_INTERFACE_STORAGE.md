@@ -80,7 +80,7 @@ Erasing a raw table type to `ComRaw<IUnknown>` preserves the selected table's
 identity. It permits common lifecycle dispatch, but does not prove the pair is
 an IUnknown projection. This matters at plugin bootstrap: it transfers an erased
 interface view, the runtime validates/returns the factory view, and typed factory
-clients adopt it directly. Clients asking for IUnknown query that exact contract.
+callers adopt it directly. Callers asking for IUnknown query that exact contract.
 
 The [development COM ABI contract](../abi-v3.md) specifies this layout,
 calling convention and ownership behavior. Discovery checks that baseline before
@@ -111,7 +111,7 @@ ownership behavior and ABI v3/core generation 21 are unchanged.
 A successful shared-owner query transfers exactly one reference and returns the same object
 address with the requested table. An absent IID returns `NC_E_NOINTERFACE`; a
 matching IID with a different signature returns `NC_E_ABI_VERSION`. Failure clears
-both output words. Typed clients also reject a returned different object and
+both output words. Typed callers also reject a returned different object and
 release its transferred reference. For exclusive objects, `ComBox::query(self)`
 moves the sole owner, `query_ref(&self)` borrows a projection, and
 `query_weak(&self)` creates a weak observation. None duplicates the owner.
@@ -135,7 +135,7 @@ owner unchanged, and the thunk restores the caller's original object/table pair.
 The unchecked unsafe raw constructor preserves the matched pair supplied by its
 caller. See [canonical owner admission](COM_LIFETIME_ADMISSION.md#canonical-owner-admission-and-unchanged-rejected-inputs).
 
-A first-parent client can borrow the physical prefix of its derived vtable for
+A first-parent wrapper can borrow the physical prefix of its derived vtable for
 method lookup. It retains the derived pair and cannot convert that borrowed view
 into an owned base reference. Querying the base obtains its exact table. Static
 inherited method entries still occur in derived tables: eliminating object headers
@@ -366,7 +366,7 @@ The 1,504,520-byte result above was a real regression. It was premature to treat
 all of it as a cost of larger handles. A follow-up traced generated machine code
 and tested changes independently, retaining the object/table ABI and its checks.
 
-**Client query duplication.** `ComPtr<T>::query<U>` combined interface-specific
+**Typed query duplication.** `ComPtr<T>::query<U>` combined interface-specific
 constants with query execution, exact identity validation, same-object validation,
 and release on rejected ownership transfers. That made the common algorithm part
 of generic callers. The implementation now supplies the source pair and requested
@@ -404,7 +404,7 @@ and deployment path:
 | Change from the initial object/table build | Total bytes | Reduction |
 | --- | ---: | ---: |
 | Initial object/table ABI | 1,504,520 | — |
-| Share typed client query body only | 1,496,280 | 8,240 |
+| Share typed handle query body only | 1,496,280 | 8,240 |
 | Share generated object query body only | 1,498,136 | 6,384 |
 | Both changes | 1,489,912 | 14,608 |
 | Also reuse checked query for discovery and activation | **1,489,768** | **14,752** |
@@ -474,7 +474,7 @@ diamond queries, native C calls, dynamic factory loading and metadata isolation.
 **Measured speed cost.** Three interleaved runs of the host release query probe
 show a median increase from **19 to 30 ns** per raw query plus release. Remaining
 samples after warmup span 18–23 ns before and 29–32 after. This probe directly
-calls the object's raw query slot and bypasses typed client validation. Sharing
+calls the object's raw query slot and bypasses typed handle validation. Sharing
 the generated object query is therefore a size/performance tradeoff in this
 workload, not a free optimization. No application frame-time measurement was made.
 The code-size result must be assessed with this slowdown visible.

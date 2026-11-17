@@ -1,5 +1,5 @@
 #[id("99919feb-3792-5ced-a2d0-1e437ab649d3")]
-/// Fixed interface used by owning and borrowed generated clients.
+/// Fixed interface called through owning and borrowed handles.
 interface ICounter {
     /// Returns the number of AddRef calls observed so far.
     fn additions(&self) -> Result<u32>;

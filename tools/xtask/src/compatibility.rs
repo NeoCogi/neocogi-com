@@ -19,7 +19,7 @@ pub(crate) const RUNTIME_TESTS: &[(&str, &str)] = &[
 ];
 /// Real legacy/current native controls required by native and compiler-floor gates.
 pub(crate) const GENERATION_SENTINEL: &str = "retired_bootstrap_is_rejected_before_its_callback";
-/// Pure ABI targets do not enable unused native runtime service clients.
+/// Pure ABI targets do not enable unused native runtime API wrappers.
 pub(crate) const ABI_TESTS: &[(&str, &str)] = &[
     ("client_views", "mutable_inherited_views_preserve_identity_and_lifecycle"),
     ("checked_values", "invalid_nested_bool_fails_copied_and_buffer_thunks"),

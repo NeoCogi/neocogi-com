@@ -5,7 +5,7 @@ inputs, and no native mutable slice is reconstructed from old foreign contents.
 An actual transformation takes a readable input and a separate output. Persistence
 serialization remains independent of these live COM wire records.
 
-The provider receives `NcOutputWriter<'_, T>`; generated clients take
+The provider receives `NcOutputWriter<'_, T>`; generated wrappers take
 `NcOutput<'_, T>`. Both are local Rust views. The raw ABI passes source offset,
 wire pointer, capacity, and an initialized-prefix count pointer. `T` must implement
 `ComInlineValue`: its copied wire is self-contained, with no borrowed pointees or
@@ -38,13 +38,13 @@ fallible. Dropping the buffer frees both allocations locally.
 
 Allocation-free numeric callers can instead use `NcOutput::from_slots` with
 `MaybeUninit<T>` slots and a result count. This requires the identity-wire proof
-and preserves clients/providers without the `alloc` feature. Its count remains
+and preserves callers/providers without the `alloc` feature. Its count remains
 zero until the complete output group succeeds.
 
 After success, acquisition checks the reported count against requested capacity,
 then validates every active tag, boolean byte, and nested field. Only the reported
 prefix is read. Native results remain private through the exclusive call borrow.
-Generated clients acquire every output before publishing any. Rejecting,
+Generated callers acquire every output before publishing any. Rejecting,
 malformed, or unwinding calls discard every new result, including an earlier
 buffer acquired before a later buffer failed. There is no old-value rollback:
 an application needing it retains the old state separately until the new result
@@ -93,7 +93,7 @@ pre-release compatibility.
 
 `NcOutputWriter::forward` lends untouched raw storage through a synchronous
 provider-to-provider call, with no intermediate vector. Partial writers cannot
-be forwarded. The nested client validates every reported element before its
+be forwarded. The nested caller validates every reported element before its
 count reaches the outer thunk.
 
 The built-in `INcBytes` and `INcString` exact-range byte-copy methods retain

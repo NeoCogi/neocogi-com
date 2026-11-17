@@ -20,7 +20,7 @@ mod exclusive_tests {
         // SAFETY: only the matching Value allocation and valid raw output reach this table.
         unsafe { (IValueVtblFor::<Value>::VTABLE.value)(object, output) }
     }
-    /// Factory results deliberately use a distinct valid table to test checked clients.
+    /// Factory results deliberately use a distinct valid table to test checked callers.
     static COPIED_VALUE_TABLE: IValueVTable = IValueVTable {
         value: copied_value_call,
         ..IValueVtblFor::<Value>::VTABLE

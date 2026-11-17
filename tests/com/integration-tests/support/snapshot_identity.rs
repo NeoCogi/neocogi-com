@@ -185,7 +185,7 @@ unsafe extern "C" fn oversized_length(_: *mut core::ffi::c_void, out: *mut u64) 
         counts[0] += 1;
         value.set(counts);
     });
-    // SAFETY: The checked COM client lends a live, writable length output.
+    // SAFETY: The checked COM caller lends a live, writable length output.
     unsafe { out.write(isize::MAX as u64 + 1) };
     neocogi_com::NC_OK
 }
