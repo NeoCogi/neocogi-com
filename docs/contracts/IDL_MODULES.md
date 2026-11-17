@@ -121,6 +121,43 @@ bytes; this traversal change does not alter IDL encoding v14 or impose a new
 authored graph-depth limit. Syntax nesting and generated-specialization budgets
 remain separate policies.
 
+### Nominal traversal and bounded expression ownership
+
+Traversal of the already admitted/materialized nominal graph must use native
+call depth independent of its named-edge path length. This includes semantic
+diagnostics and metadata discovery, not just successful layout/fingerprint
+resolution. A visited set prevents repeated work or cycles; it does not bound
+native call depth along a finite chain. Traversal scratch borrows declarations
+and expressions rather than recursively copying their definitions.
+
+This rule is distinct from three existing ownership/admission domains:
+
+- Inline expressions stop at named identities and have admitted height 96.
+  Sealed `Module`/`ResolvedModules` ownership cannot install unchecked replacements;
+  detached public models and their ordinary Rust traits have no such guarantee.
+- New generic materialization retains combined descent, instance, work, storage
+  and prospective-height admission before reads/copies. It is not an arbitrary
+  walk through an already materialized graph.
+- Syntax parsing, token/AST construction, printing, mapping and destruction keep
+  their existing syntax-worker owner. A larger worker is not a nominal graph cap.
+
+The operation contracts are deliberately separate:
+
+| Consumer | Ordering, identity and scope obligation |
+| --- | --- |
+| Layout/projection and module fingerprints | Explicit ancestry/completion frames; source-located cycles and canonical digest order |
+| Persistence failure explanation | Per-request visited canonical value names; first unsupported leaf in field/variant DFS order; prune supported subgraphs |
+| Interface ancestry | Derived-first, authored base order; compare full signature before IID dedup |
+| Inherited methods | Base-first DFS completion order; mark IID on entry; keep each supplying type scope |
+| Reachable metadata | Interface visits use concrete supplying module-qualified declaration names; data uses canonical names after requesting-module local projection; resolve children lazily in authored order; emit canonical-name-sorted definitions |
+
+The executable diamond regression independently generates both peers, checks
+preorder identities versus postorder methods and sorted reachable definitions,
+and makes real inherited/value COM calls. Existing graph regressions freeze
+fingerprint bytes and finite/cyclic resolver behavior. At this migration stage,
+the diagnostic and metadata discovery consumers still require conversion; their
+small-stack regressions and closure inventory accompany that implementation.
+
 ## Closed generic values and interfaces
 
 Structs, enums, and interfaces can declare type parameters. Each use must supply all arguments:
