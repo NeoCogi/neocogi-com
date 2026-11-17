@@ -16,44 +16,51 @@ pub(super) fn identity(value: &DeclarationIdentity) -> TokenStream {
     }
 }
 
-/// Collects the derived-first query order, independent of base-first method order.
-/// The output vector preserves declaration order; the map only checks identities.
+/// Collects derived-first query order with lazy, borrowed base iterators.
+/// Full signatures are compared before IID deduplication. Heap frames retain
+/// active nominal ancestry; only bounded emitted syntax uses native recursion.
 pub(super) fn ancestry(graph: &Generation<'_>, module: &ResolvedModule, declaration: &Declaration) -> Result<Vec<TokenStream>, GenerateError> {
+    if !matches!(declaration.kind, DeclarationKind::Interface(_)) {
+        return Err(GenerateError::new("interface ancestry target is not an interface"));
+    }
+    let root = ResolvedDeclaration {
+        module,
+        declaration,
+        identity: module
+            .declaration(&declaration.name)
+            .ok_or_else(|| GenerateError::new("bound interface lost its identity"))?,
+    };
     let mut seen = HashMap::new();
     let mut chain = Vec::new();
-    collect(graph, module, declaration, &mut seen, &mut chain)?;
-    Ok(chain)
-}
-
-/// Visits bound bases in their supplying scope and checks signatures before dedup.
-/// The implicit IUnknown object projection is not part of this interface graph.
-fn collect(
-    graph: &Generation<'_>,
-    module: &ResolvedModule,
-    declaration: &Declaration,
-    seen: &mut HashMap<neocogi_com_core::NcGuid, [u8; 32]>,
-    chain: &mut Vec<TokenStream>,
-) -> Result<(), GenerateError> {
-    let DeclarationKind::Interface(interface) = &declaration.kind else {
-        return Err(GenerateError::new("interface ancestry target is not an interface"));
-    };
-    let value = module
-        .declaration(&declaration.name)
-        .ok_or_else(|| GenerateError::new("bound interface lost its identity"))?;
-    if let Some(previous) = seen.get(&value.id) {
-        if *previous != value.abi_signature {
-            return Err(GenerateError::new(format!(
-                "conflicting inherited interface contracts for {}",
-                value.qualified_name
-            )));
+    let mut current = Some(root);
+    let mut bases = Vec::new();
+    while let Some(value) = current {
+        let DeclarationKind::Interface(interface) = &value.declaration.kind else {
+            return Err(GenerateError::new("interface ancestry target is not an interface"));
+        };
+        if let Some(previous) = seen.get(&value.identity.id) {
+            if *previous != value.identity.abi_signature {
+                return Err(GenerateError::new(format!(
+                    "conflicting inherited interface contracts for {}",
+                    value.identity.qualified_name
+                )));
+            }
+        } else {
+            seen.insert(value.identity.id, value.identity.abi_signature);
+            chain.push(identity(value.identity));
+            bases.push((value.module, interface.bases.iter()));
         }
-        return Ok(());
+        // Resolve only the next visited edge, after the previous subtree ends.
+        // A seen diamond ancestor adds no frame and leaves pending siblings intact.
+        current = loop {
+            let Some((module, remaining)) = bases.last_mut() else {
+                break None;
+            };
+            if let Some(base) = remaining.next() {
+                break Some(resolve(graph, module, base)?);
+            }
+            bases.pop();
+        };
     }
-    seen.insert(value.id, value.abi_signature);
-    chain.push(identity(value));
-    for base in &interface.bases {
-        let bound = resolve(graph, module, base)?;
-        collect(graph, bound.module, bound.declaration, seen, chain)?;
-    }
-    Ok(())
+    Ok(chain)
 }

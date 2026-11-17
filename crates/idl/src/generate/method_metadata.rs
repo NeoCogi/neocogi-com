@@ -3,55 +3,57 @@
 use super::*;
 use std::collections::HashSet;
 
-/// Collects inherited methods in base-first order, preserving each supplying type scope.
+/// Collects methods in base-first DFS completion order, with IID entry dedup.
+/// Each borrowed frame retains its supplying declaration and next base index;
+/// emitting after that frame completes preserves diamond and sibling ordering.
 pub(super) fn descriptions(graph: &Generation<'_>, module: &ResolvedModule, declaration: &Declaration) -> Result<Vec<TokenStream>, GenerateError> {
-    let mut methods = Vec::new();
-    collect(graph, module, declaration, &mut HashSet::new(), &mut methods)?;
-    Ok(methods)
-}
-
-/// Visits each canonical ancestor once; distinct interfaces retain distinct methods.
-fn collect(
-    graph: &Generation<'_>,
-    module: &ResolvedModule,
-    declaration: &Declaration,
-    visited: &mut HashSet<neocogi_com_core::NcGuid>,
-    methods: &mut Vec<TokenStream>,
-) -> Result<(), GenerateError> {
-    let identity = module.declaration(&declaration.name).expect("resolved interface identity");
-    if !visited.insert(identity.id) {
-        return Ok(());
-    }
-    let DeclarationKind::Interface(interface) = &declaration.kind else {
-        return Err(GenerateError::new("method metadata target is not an interface"));
+    let root = ResolvedDeclaration {
+        module,
+        declaration,
+        identity: module.declaration(&declaration.name).expect("resolved interface identity"),
     };
-    for base in &interface.bases {
-        let base = resolve(graph, module, base)?;
-        collect(graph, base.module, base.declaration, visited, methods)?;
-    }
-    for method in &interface.methods {
-        let name = Literal::string(&method.name);
-        let receiver = match method.receiver {
-            Receiver::Shared => quote! { ::neocogi_com::NcAbiReceiver::Shared },
-            Receiver::Mutable => quote! { ::neocogi_com::NcAbiReceiver::Mutable },
+    let mut visited = HashSet::new();
+    visited.insert(root.identity.id);
+    let mut frames = vec![(root, 0usize)];
+    let mut methods = Vec::new();
+    while let Some((value, next_base)) = frames.last_mut() {
+        let value = *value;
+        let DeclarationKind::Interface(interface) = &value.declaration.kind else {
+            return Err(GenerateError::new("method metadata target is not an interface"));
         };
-        let parameters = method
-            .parameters
-            .iter()
-            .map(|parameter| {
-                let name = Literal::string(&parameter.name);
-                let ty = call_type(graph, module, &parameter.ty)?;
-                Ok(quote! { ::neocogi_com::idl_metadata::ParameterMetadata { name: #name, ty: #ty } })
-            })
-            .collect::<Result<Vec<_>, GenerateError>>()?;
-        let returns = call_type(graph, module, &method.output)?;
-        methods.push(quote! {
-            ::neocogi_com::idl_metadata::MethodMetadata {
-                name: #name, receiver: #receiver, parameters: &[#(#parameters),*], returns: #returns,
+        if let Some(base) = interface.bases.get(*next_base) {
+            *next_base += 1;
+            let base = resolve(graph, value.module, base)?;
+            if visited.insert(base.identity.id) {
+                frames.push((base, 0));
             }
-        });
+            continue;
+        }
+        frames.pop();
+        for method in &interface.methods {
+            let name = Literal::string(&method.name);
+            let receiver = match method.receiver {
+                Receiver::Shared => quote! { ::neocogi_com::NcAbiReceiver::Shared },
+                Receiver::Mutable => quote! { ::neocogi_com::NcAbiReceiver::Mutable },
+            };
+            let parameters = method
+                .parameters
+                .iter()
+                .map(|parameter| {
+                    let name = Literal::string(&parameter.name);
+                    let ty = call_type(graph, value.module, &parameter.ty)?;
+                    Ok(quote! { ::neocogi_com::idl_metadata::ParameterMetadata { name: #name, ty: #ty } })
+                })
+                .collect::<Result<Vec<_>, GenerateError>>()?;
+            let returns = call_type(graph, value.module, &method.output)?;
+            methods.push(quote! {
+                ::neocogi_com::idl_metadata::MethodMetadata {
+                    name: #name, receiver: #receiver, parameters: &[#(#parameters),*], returns: #returns,
+                }
+            });
+        }
     }
-    Ok(())
+    Ok(methods)
 }
 
 /// Retains call-only ownership instead of presenting borrowed/transferred values as data.

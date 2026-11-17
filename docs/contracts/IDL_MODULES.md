@@ -157,8 +157,12 @@ and makes real inherited/value COM calls. Existing graph regressions freeze
 fingerprint bytes and finite/cyclic resolver behavior. Persistence explanations now use borrowed field-iterator frames and a per-query
 visited-name set; unary public capability predicates use loops even for detached
 inputs. The first unsupported leaf and requested field labels remain unchanged.
-Metadata discovery consumers still require conversion at this migration stage;
-their small-stack regressions and closure inventory accompany that implementation.
+Interface ancestry and inherited-method collection likewise retain borrowed heap
+frames with their distinct preorder/completion and IID rules. A watchdog-isolated
+2,049-interface regression exercises both production collectors on a 1 MiB test
+thread; token creation, inspection and destruction stay on that thread with
+shallow inline syntax. Reachable-value discovery still requires conversion at
+this migration stage; its projection/closure qualification follows separately.
 
 ## Closed generic values and interfaces
 

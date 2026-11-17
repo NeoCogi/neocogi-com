@@ -787,3 +787,6 @@ fn owned_object_type(graph: &mut Generation<'_>, module: &ResolvedModule, ty: &I
     let wrapper = rust_ident(wrapper)?;
     Ok(quote! { ::neocogi_com::#wrapper<#interface #mode> })
 }
+
+#[cfg(all(test, not(miri)))]
+mod traversal_tests;
