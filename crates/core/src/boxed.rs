@@ -13,7 +13,7 @@ use core::{
     ops::{Deref, DerefMut},
 };
 use crate::{ComInterface, ComRustInterface, ComRaw, ComRef, NcStatus, ThreadLocal, ThreadSafe, ThreadingModel, NC_E_POINTER};
-use crate::ptr::LiveInterface;
+use crate::ptr::NonNullComRaw;
 use crate::lifetime::{try_box_cast, NcBoxedLifetimeState};
 
 /// The sole transferable owner of an object exposing typed C ABI interfaces.
@@ -32,7 +32,7 @@ use crate::lifetime::{try_box_cast, NcBoxedLifetimeState};
 #[repr(transparent)]
 pub struct ComBox<T: ComInterface + ?Sized, M: ThreadingModel = ThreadLocal> {
     /// Present object/table pair carrying the allocation's unique ownership token.
-    raw: LiveInterface<T>,
+    raw: NonNullComRaw<T>,
     /// Preserves the provider's thread-affinity guarantee after type erasure.
     mode: PhantomData<M>,
 }
@@ -53,7 +53,7 @@ pub struct ComBox<T: ComInterface + ?Sized, M: ThreadingModel = ThreadLocal> {
 #[repr(transparent)]
 pub struct WeakComBox<T: ComInterface + ?Sized, M: ThreadingModel = ThreadLocal> {
     /// One retained weak token paired with the exact cached interface table.
-    raw: LiveInterface<T>,
+    raw: NonNullComRaw<T>,
     /// Thread-local weak observers must remain on their originating thread.
     mode: PhantomData<M>,
 }
@@ -106,7 +106,7 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> ComBox<T, M> {
     /// Provider code must remain loaded through all weak tokens. Null is absence.
     pub unsafe fn from_raw_owned(raw: ComRaw<T>) -> Option<Self> {
         Some(Self {
-            raw: LiveInterface::new(raw)?,
+            raw: NonNullComRaw::new(raw)?,
             mode: PhantomData,
         })
     }
@@ -239,7 +239,7 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> WeakComBox<T, M> {
     /// outlive this token. The provider establishes exact T and threading M.
     pub unsafe fn from_raw_owned(raw: ComRaw<T>) -> Option<Self> {
         Some(Self {
-            raw: LiveInterface::new(raw)?,
+            raw: NonNullComRaw::new(raw)?,
             mode: PhantomData,
         })
     }
@@ -346,7 +346,7 @@ macro_rules! wrapper_view {
             fn deref(&self) -> &Self::Target {
                 // SAFETY: the owner or retained weak token keeps control/table
                 // storage live; provider entry checks exclusive value lifetime.
-                T::__nc_wrapper_ref(unsafe { crate::ComInterfacePointer::borrow_live(&self.raw) })
+                T::__nc_wrapper_ref(unsafe { crate::ComInterfacePointer::borrow_pair(&self.raw) })
             }
         }
         impl<T: ComRustInterface, M: ThreadingModel> DerefMut for $handle<T, M> {
@@ -354,7 +354,7 @@ macro_rules! wrapper_view {
             fn deref_mut(&mut self) -> &mut Self::Target {
                 // SAFETY: the source borrow bounds this nonreplaceable view;
                 // it grants no stronger token or object access than the handle.
-                T::__nc_wrapper_mut(unsafe { crate::ComInterfacePointer::borrow_live_mut(&mut self.raw) })
+                T::__nc_wrapper_mut(unsafe { crate::ComInterfacePointer::borrow_pair_mut(&mut self.raw) })
             }
         }
     };

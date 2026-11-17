@@ -89,6 +89,9 @@ before reading either pointer. Nullable raw records are distinct from safe
 `Option<ComPtr<T>>`; the latter's Rust niche is not the foreign representation.
 Safe owners, borrows, and their optional forms occupy two pointer words.
 `ComRaw` copying never acquires ownership by itself.
+The implementation's private `NonNullComRaw<T>` checks only presence of the pair;
+its name grants no live-value, ownership, interface-identity or threading proof.
+Those obligations remain with handle construction and provider call admission.
 
 Tables have the common prefix above. A derived table can embed its first base's
 full method table at offset zero. All nested prefixes advertise the actual

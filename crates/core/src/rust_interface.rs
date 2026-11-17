@@ -58,15 +58,15 @@ pub struct ComInterfacePointer<T: ComInterface, M: ThreadingModel = ThreadLocal>
 }
 
 impl<T: ComInterface, M: ThreadingModel> ComInterfacePointer<T, M> {
-    /// Lends a zero-tail facade over the enclosing handle's proven-present pair.
+    /// Lends a zero-tail method wrapper over a handle's non-null object/table pair.
     ///
     /// # Safety
     /// The pair's storage/table must remain valid for the borrow. It must permit
     /// T's calls under M; an expired exclusive weak view must still have live
     /// control storage and thunks which reject access before touching its value.
-    pub(crate) unsafe fn borrow_live(pair: &crate::ptr::LiveInterface<T>) -> &Self {
+    pub(crate) unsafe fn borrow_pair(pair: &crate::ptr::NonNullComRaw<T>) -> &Self {
         let pointer = core::ptr::slice_from_raw_parts(core::ptr::from_ref(pair).cast::<()>(), 0);
-        // SAFETY: LiveInterface and ComRaw are repr(C) pairs of matching thin
+        // SAFETY: NonNullComRaw and ComRaw are repr(C) pairs of matching thin
         // pointer fields. NonNull has the pointer's layout/validity; both source
         // fields are present. The trailing [()] has alignment one and zero
         // extent, so zero metadata lends exactly the source's aligned extent.
@@ -76,11 +76,11 @@ impl<T: ComInterface, M: ThreadingModel> ComInterfacePointer<T, M> {
     /// Lends mutable method lookup without granting mutable access to the pair.
     ///
     /// # Safety
-    /// The same obligations as borrow_live apply. The exclusive source borrow
+    /// The same obligations as borrow_pair apply. The exclusive source borrow
     /// must cover this entire facade borrow; it does not prove object uniqueness.
-    pub(crate) unsafe fn borrow_live_mut(pair: &mut crate::ptr::LiveInterface<T>) -> &mut Self {
+    pub(crate) unsafe fn borrow_pair_mut(pair: &mut crate::ptr::NonNullComRaw<T>) -> &mut Self {
         let pointer = core::ptr::slice_from_raw_parts_mut(core::ptr::from_mut(pair).cast::<()>(), 0);
-        // SAFETY: the same layout/extent proof as borrow_live, with an exclusive
+        // SAFETY: the same layout/extent proof as borrow_pair, with an exclusive
         // source reborrow. No safe method can move or mutate the private pair.
         unsafe { &mut *(pointer as *mut Self) }
     }

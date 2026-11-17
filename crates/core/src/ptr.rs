@@ -110,25 +110,28 @@ mod sealed {
     impl Sealed for super::ThreadSafe {}
 }
 
-/// Proven-present representation shared by safe owners and borrowed views.
+/// Private non-null object/table pair shared by Rust owners and borrowed wrappers.
 /// NonNull preserves the two-word niche for Option<ComPtr>, unlike storing the
 /// nullable C record directly. Its repr(C) fields match ComRaw for borrowed wrappers.
 #[repr(C)]
-pub(crate) struct LiveInterface<T: ComInterface + ?Sized> {
+pub(crate) struct NonNullComRaw<T: ComInterface + ?Sized> {
     /// Allocation retained or borrowed by the enclosing safe handle.
     object: core::ptr::NonNull<core::ffi::c_void>,
     /// Matching immutable selected method table.
     vtable: core::ptr::NonNull<T::VTable>,
 }
-impl<T: ComInterface + ?Sized> Copy for LiveInterface<T> {}
-impl<T: ComInterface + ?Sized> Clone for LiveInterface<T> {
+impl<T: ComInterface + ?Sized> Copy for NonNullComRaw<T> {}
+impl<T: ComInterface + ?Sized> Clone for NonNullComRaw<T> {
     /// Copies addresses without changing the enclosing handle's ownership policy.
     fn clone(&self) -> Self {
         *self
     }
 }
-impl<T: ComInterface + ?Sized> LiveInterface<T> {
+impl<T: ComInterface + ?Sized> NonNullComRaw<T> {
     /// Checks both pointers without reading foreign storage or proving identity.
+    /// Presence alone establishes no value liveness, callable table, ownership or
+    /// threading capability; the enclosing handle's construction supplies those
+    /// obligations. Expired boxed weak handles retain dispatch/control storage.
     pub(crate) fn new(raw: ComRaw<T>) -> Option<Self> {
         Some(Self {
             object: core::ptr::NonNull::new(raw.object)?,
@@ -186,7 +189,7 @@ impl<T: ComInterface + ?Sized> LiveInterface<T> {
 /// one common implementation without exposing application state or field offsets.
 pub struct ComPtr<T: ComInterface + ?Sized, M: ThreadingModel = ThreadLocal> {
     /// Present raw pair owning exactly one allocation-wide reference.
-    raw: LiveInterface<T>,
+    raw: NonNullComRaw<T>,
     /// Preserves the selected interface type without owning a Rust T value.
     _interface: PhantomData<T>,
     /// Carries the producer's statically established threading capability.
@@ -215,7 +218,7 @@ unsafe impl<T: ComInterface + ?Sized> Sync for ComPtr<T, ThreadSafe> {}
 /// ```
 pub struct ComRef<'a, T: ComInterface + ?Sized, M: ThreadingModel = ThreadLocal> {
     /// Present pair borrowed for the declared lifetime.
-    raw: LiveInterface<T>,
+    raw: NonNullComRaw<T>,
     /// Prevents the view from outliving its lending owner.
     _interface: PhantomData<&'a T>,
     /// Preserves thread affinity without changing the C representation.
@@ -238,14 +241,14 @@ impl<T: crate::ComRustInterface, M: ThreadingModel> core::ops::Deref for ComPtr<
     /// Lends a transparent method view over this pair without allocating or retaining.
     fn deref(&self) -> &Self::Target {
         // SAFETY: this owner retains the pair/table and its threading evidence.
-        T::__nc_wrapper_ref(unsafe { crate::ComInterfacePointer::borrow_live(&self.raw) })
+        T::__nc_wrapper_ref(unsafe { crate::ComInterfacePointer::borrow_pair(&self.raw) })
     }
 }
 impl<T: crate::ComRustInterface, M: ThreadingModel> core::ops::DerefMut for ComPtr<T, M> {
     /// Lends mutable method lookup; the object-wide gate arbitrates aliased callers.
     fn deref_mut(&mut self) -> &mut Self::Target {
         // SAFETY: the exclusive handle borrow bounds the opaque facade borrow.
-        T::__nc_wrapper_mut(unsafe { crate::ComInterfacePointer::borrow_live_mut(&mut self.raw) })
+        T::__nc_wrapper_mut(unsafe { crate::ComInterfacePointer::borrow_pair_mut(&mut self.raw) })
     }
 }
 impl<T: crate::ComRustInterface, M: ThreadingModel> core::ops::Deref for ComRef<'_, T, M> {
@@ -253,14 +256,14 @@ impl<T: crate::ComRustInterface, M: ThreadingModel> core::ops::Deref for ComRef<
     /// Lends method access within the existing borrowed lifetime.
     fn deref(&self) -> &Self::Target {
         // SAFETY: the existing source borrow certifies this table and call lifetime.
-        T::__nc_wrapper_ref(unsafe { crate::ComInterfacePointer::borrow_live(&self.raw) })
+        T::__nc_wrapper_ref(unsafe { crate::ComInterfacePointer::borrow_pair(&self.raw) })
     }
 }
 impl<T: crate::ComRustInterface, M: ThreadingModel> core::ops::DerefMut for ComRef<'_, T, M> {
     /// Lends mutable lookup without asserting unique ownership of the COM object.
     fn deref_mut(&mut self) -> &mut Self::Target {
         // SAFETY: mutable lookup cannot replace the opaque unsized pair storage.
-        T::__nc_wrapper_mut(unsafe { crate::ComInterfacePointer::borrow_live_mut(&mut self.raw) })
+        T::__nc_wrapper_mut(unsafe { crate::ComInterfacePointer::borrow_pair_mut(&mut self.raw) })
     }
 }
 impl<T: ComInterface + ?Sized, M: ThreadingModel> ComPtr<T, M> {
@@ -272,7 +275,7 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> ComPtr<T, M> {
     /// Both-null absence is allowed. A half-null pair violates the raw contract.
     pub unsafe fn from_raw_owned(raw: ComRaw<T>) -> Option<Self> {
         Some(Self {
-            raw: LiveInterface::new(raw)?,
+            raw: NonNullComRaw::new(raw)?,
             _interface: PhantomData,
             _mode: PhantomData,
         })
@@ -346,7 +349,7 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> ComPtr<T, M> {
             // AddRef without dynamic C ABI interface discovery.
             unsafe { raw::add_ref(self.as_raw()) };
             Ok(ComPtr {
-                raw: LiveInterface::new(ComRaw {
+                raw: NonNullComRaw::new(ComRaw {
                     object: self.as_raw().object,
                     vtable: self.as_raw().vtable.cast(),
                 })
@@ -415,7 +418,7 @@ impl<'a, T: ComInterface + ?Sized, M: ThreadingModel> ComRef<'a, T, M> {
     /// implementation access, including calls on expired weak-backed views.
     pub unsafe fn from_raw_borrowed(raw: ComRaw<T>) -> Option<Self> {
         Some(Self {
-            raw: LiveInterface::new(raw)?,
+            raw: NonNullComRaw::new(raw)?,
             _interface: PhantomData,
             _mode: PhantomData,
         })

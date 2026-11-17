@@ -6,6 +6,11 @@ Historical draft numbers do not define additional supported COM baselines.
 
 ## Unreleased
 
+- Name the private present interface pair `NonNullComRaw` and its borrowed
+  method-pointer constructors `borrow_pair`/`borrow_pair_mut`. Presence checks
+  remain separate from value liveness, interface identity, ownership and
+  threading; representation and ABI v3/core21 remain unchanged.
+
 - Name generated Rust method access with `ComRustInterface`,
   `ComInterfacePointer`, and `IFooWrapper`/`Wrapper<M>`. Regenerate checked-in
   bindings and migrate imported families, collision admission and Rust consumers;
