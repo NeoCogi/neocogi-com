@@ -161,8 +161,47 @@ Interface ancestry and inherited-method collection likewise retain borrowed heap
 frames with their distinct preorder/completion and IID rules. A watchdog-isolated
 2,049-interface regression exercises both production collectors on a 1 MiB test
 thread; token creation, inspection and destruction stay on that thread with
-shallow inline syntax. Reachable-value discovery still requires conversion at
-this migration stage; its projection/closure qualification follows separately.
+shallow inline syntax. Reachable-value discovery uses a borrowed request frontier
+and canonical output map; scheduling can scale with sibling width and does not
+claim O(depth) scratch. Names resolve only when visited. Discovery returns the
+actual bound declarations to syntax emission rather than copying their shapes.
+
+### Traversal inventory and remaining boundaries
+
+Every new consumer of an admitted nominal edge must preserve this contract on
+success, rejection and cleanup of its own traversal state. Either use concrete
+heap work or identify an existing bound checked before descent; a cycle set or
+later codec limit is not such a bound. The current owner/check inventory is:
+
+| Operation / edge | Responsible owner or stopping rule | Qualification / limit |
+| --- | --- | --- |
+| Persistence explanation follows named fields | Borrowed field iterators and per-call canonical-name membership; wrappers peel locally | Real 64-record ×95-wrapper EIDL064 regression, cycle-plus-later-sibling/root-specific reasons, imported specialization labels |
+| Interface ancestry follows bases | Borrowed lazy base iterators; full32-before-IID-dedup | Production 2,049-interface small-stack collector, independent diamond metadata/COM baseline |
+| Method descriptions follow bases | Borrowed completion frames; IID-on-entry | Same depth and diamond baseline, imported/generic supplying-scope consumer |
+| Reachable interface/data definitions | Concrete borrowed request frontier; concrete supplying-name interface visits, canonical data visits after local projection | Deep and mixed discovery, recursive siblings, enum and phantom arguments, preferred/supplying projection and public-generation consumers |
+| Layout/projection and module fingerprints | Existing explicit ancestry/postorder frames | Finite/late-cycle small-stack and frozen fingerprint regressions |
+| Public capability predicates and inline array references | Unary loops; cached facts/names stop at nominal leaves | Constructor rules and detached 32K borrowed-query regression; detached fixture teardown is explicitly separate |
+| Bound field conversion, field/copy validation, canonical encoding, internal type display | Admitted inline height96, no unfolding of named declaration bodies | Existing resolution/identity/maximum-height tests; verify that stopping rule when adding a constructor |
+| Binding and retained semantic origins | Bound declaration keys / nominal identities stop ownership; retained inline arguments admitted | Canonical-origin/parameter-position and actual supplying-projection tests |
+| New specialization materialization | Combined descent256, new-materialization64, instances4096, monotone work/storage and prospective inline96 admission before copies; exact active reuse checked first | Existing growth/cache/pre-copy/composed-height/partial-failure tests; these limits are distinct from arbitrary nominal graph length |
+| Source syntax before admission | Token groups128 and parser descent192 before recursive structural assembly; normalized inline height96 | Existing malformed/max-height admission and source-part diagnostics |
+| Generated syntax, token/AST clone/format/map/drop | Existing syntax worker, bounded inline construction; flat field breadth does not manufacture deep proof ASTs | Maximum-inline, broad-field real-call and worker-start/publication-failure tests; no arbitrary total output/heap promise |
+| Admitted Module/ResolvedModules clone/Debug/drop | Owned inline trees are admitted; names/keys do not recursively own other declarations | Maximum-expression success/error ownership tests, with streamed formatting and no retained duplicate model |
+| Public detached model spelling and ordinary Rust traits; direct Rust macro inputs | Caller-owned inputs do not inherit sealed IDL admission | Outside the nominal-graph guarantee; no arbitrary-depth Clone/Debug/Drop or host Rust compiler stack promise |
+| Core COM value conversion | Shared ValueBudget charged before descent; exact/max-cost preflight proofs retain active validation and typed partial owners | Existing value/buffer/recursive consumer tests; defaults depth64, 8MiB, 1M values; permissive custom budgets remain caller policy |
+| NCB protocol | Fixed128 open values checked on entry, in addition to configured limits | Existing fixed-buffer and format tests; no compiler graph state or allocation added |
+| JSON | Logical entry bounded before another frame; parser syntax budget before child parse; writer completed syntax checked before byte emission | Existing numeric/path/format tests; writer tagged framing may temporarily exceed syntax128 but is bounded by logical depth and fixed framing overhead |
+| Host persistence | Capture checks caller object policy before callbacks, before codec selection; restore preflight precedes postorder construction | Existing real safe/raw snapshot/restore tests; later codec admission does not bound earlier capture, and permissive policy is no native-stack allocator |
+| Host dependency planner and runtime query | Iterative dependency ordering; flat distinct contract sets and compact tables | Existing planner/query tests; no runtime schema retention or shared compiler graph |
+| Generated application values, provider callbacks, trusted tool source-tree copying | Ordinary application ownership/caller policy and trusted fixture traversal | No universal arbitrary-depth destructor/callback/filesystem guarantee is implied |
+
+The inventory is a maintained ownership/validation map, not a proof from a text
+search that every possible Rust call graph is bounded. Runtime logical budgets,
+format framing, compiler expression height, nominal graph length and rustc trait
+proof recursion are separate. No ABI/core generation, IDL-v14 fingerprint,
+NCB-v1 byte, callback ordering or caller-limit policy changes follow from this
+traversal repair. Windows CI runs the native small-caller selections explicitly;
+a Linux result alone is not evidence of Windows execution.
 
 ## Closed generic values and interfaces
 

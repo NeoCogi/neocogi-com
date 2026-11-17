@@ -95,8 +95,10 @@ fn nil_callable_ids_are_rejected_before_specialization_or_generation() {
     .unwrap();
 }
 
-/// Builds the same genuine provider/consumer graph with optional unrelated projections.
-fn projection_graph(bystander: bool) -> ResolvedModules {
+/// Builds genuine peers with an unrelated bystander and optional requesting-local
+/// materialization. IChild itself has no local type roots: preference must select
+/// that projection even though all inherited method types still come from mid.
+fn projection_graph(bystander: bool, local: bool) -> ResolvedModules {
     let mut modules = vec![
         module("demo/ext.ncidl", "struct Inner<T> { value:T } struct Boxed<T> { nested:Inner<T> }"),
         module(
@@ -107,7 +109,14 @@ fn projection_graph(bystander: bool) -> ResolvedModules {
             interface Fact { fn value(&self) -> Result<demo::ext::Boxed<u32>>; }
         "#,
         ),
-        module("demo/leaf.ncidl", "extern demo.mid; interface IChild: demo::mid::IBase + demo::mid::Fact {}"),
+        module(
+            "demo/leaf.ncidl",
+            if local {
+                "extern demo.mid; extern demo.ext; interface IChild: demo::mid::IBase + demo::mid::Fact {} interface Materializer { fn keep(&self) -> Result<demo::ext::Boxed<u32>>; }"
+            } else {
+                "extern demo.mid; interface IChild: demo::mid::IBase + demo::mid::Fact {}"
+            },
+        ),
     ];
     if bystander {
         modules.push(module(
@@ -121,55 +130,57 @@ fn projection_graph(bystander: bool) -> ResolvedModules {
 /// Metadata provenance and inherited calls work with only the genuine dependencies.
 #[test]
 fn inherited_value_metadata_keeps_the_supplying_projection_without_bystander_dependencies() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize().unwrap();
-    let graph = projection_graph(true);
-    let without = projection_graph(false);
-    assert_eq!(
-        graph.module("demo.leaf").unwrap().abi_fingerprint,
-        without.module("demo.leaf").unwrap().abi_fingerprint
-    );
-    let mut paths = neocogi_idl::generate::RustModulePaths::default();
-    for name in ["demo.ext", "demo.mid", "demo.leaf"] {
-        paths.insert(name, &format!("binding_peers::{}", name.split('.').next_back().unwrap())).unwrap();
-    }
-    let project = tempfile::tempdir().unwrap();
-    fs::create_dir(project.path().join("src")).unwrap();
-    fs::write(
-        project.path().join("Cargo.toml"),
-        format!(
-            "[package]\nname='binding-peers'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\n",
-            root.join("crates/com")
-        ),
-    )
-    .unwrap();
-    for module in ["ext", "mid", "leaf"] {
-        let generated = neocogi_idl::generate::generate_rust_with_paths(&graph, &format!("demo.{module}"), &paths).unwrap();
-        assert!(!generated.contains("aaa_other_contracts"));
-        fs::write(project.path().join(format!("src/{module}.rs")), generated).unwrap();
-    }
-    let name = |template: &str| {
-        graph
-            .module("demo.mid")
-            .unwrap()
-            .source
-            .declarations()
-            .iter()
-            .find(|declaration| {
-                declaration
-                    .specialization
-                    .as_ref()
-                    .is_some_and(|origin| origin.template.segments.last().is_some_and(|name| name == template))
-            })
-            .unwrap()
-            .name
-            .clone()
-    };
-    let boxed = name("Boxed");
-    let inner = name("Inner");
-    fs::write(
-        project.path().join("src/lib.rs"),
-        format!(
-            r#"
+    for local in [false, true] {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize().unwrap();
+        let graph = projection_graph(true, local);
+        let without = projection_graph(false, local);
+        assert_eq!(
+            graph.module("demo.leaf").unwrap().abi_fingerprint,
+            without.module("demo.leaf").unwrap().abi_fingerprint
+        );
+        let mut paths = neocogi_idl::generate::RustModulePaths::default();
+        for name in ["demo.ext", "demo.mid", "demo.leaf"] {
+            paths.insert(name, &format!("binding_peers::{}", name.split('.').next_back().unwrap())).unwrap();
+        }
+        let project = tempfile::tempdir().unwrap();
+        fs::create_dir(project.path().join("src")).unwrap();
+        fs::write(
+            project.path().join("Cargo.toml"),
+            format!(
+                "[package]\nname='binding-peers'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\n",
+                root.join("crates/com")
+            ),
+        )
+        .unwrap();
+        for module in ["ext", "mid", "leaf"] {
+            let generated = neocogi_idl::generate::generate_rust_with_paths(&graph, &format!("demo.{module}"), &paths).unwrap();
+            assert!(!generated.contains("aaa_other_contracts"));
+            fs::write(project.path().join(format!("src/{module}.rs")), generated).unwrap();
+        }
+        let name = |template: &str| {
+            graph
+                .module("demo.mid")
+                .unwrap()
+                .source
+                .declarations()
+                .iter()
+                .find(|declaration| {
+                    declaration
+                        .specialization
+                        .as_ref()
+                        .is_some_and(|origin| origin.template.segments.last().is_some_and(|name| name == template))
+                })
+                .unwrap()
+                .name
+                .clone()
+        };
+        let boxed = name("Boxed");
+        let inner = name("Inner");
+        let metadata_owner = if local { "leaf" } else { "mid" };
+        fs::write(
+            project.path().join("src/lib.rs"),
+            format!(
+                r#"
         extern crate self as binding_peers;
         pub mod ext; pub mod mid; pub mod leaf;
         #[neocogi_com::com_object(leaf::IChild)] struct Provider;
@@ -187,33 +198,34 @@ fn inherited_value_metadata_keeps_the_supplying_projection_without_bystander_dep
         #[test] fn supplying_metadata_and_real_calls() {{
             let values = leaf::IChildAbi::IDL_INTERFACE.values;
             assert_eq!(values.len(),2);
-            for value in values {{ assert!(value.rust_type.starts_with("binding_peers::mid::"),"{{}}",value.rust_type); }}
+            for value in values {{ assert!(value.rust_type.starts_with("binding_peers::{metadata_owner}::"),"{{}}",value.rust_type); }}
             assert_eq!(Provider::from_value(Provider).query::<leaf::IChildAbi>().unwrap().get().unwrap().nested.value,73);
             assert_eq!(Snapshot::into_box(Snapshot).query::<mid::FactAbi>().unwrap().value().unwrap().nested.value,91);
             assert_eq!(leaf::IChildAbi::IDL_INTERFACE.methods.len(),2);
         }}
     "#
-        ),
-    )
-    .unwrap();
-    let output = Command::new("cargo")
-        .args(["test", "--offline", "--manifest-path"])
-        .arg(project.path().join("Cargo.toml"))
-        .env(
-            "CARGO_TARGET_DIR",
-            std::env::var_os("CARGO_TARGET_DIR").unwrap_or_else(|| root.join("target").into_os_string()),
+            ),
         )
-        .output()
         .unwrap();
-    assert!(
-        output.status.success(),
-        "{}\n{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert!(String::from_utf8_lossy(&output.stdout).contains("supplying_metadata_and_real_calls ... ok"));
-    assert!(matches!(
-        graph.module("demo.leaf").unwrap().source.declarations()[0].kind,
-        DeclarationKind::Interface(_)
-    ));
+        let output = Command::new("cargo")
+            .args(["test", "--offline", "--manifest-path"])
+            .arg(project.path().join("Cargo.toml"))
+            .env(
+                "CARGO_TARGET_DIR",
+                std::env::var_os("CARGO_TARGET_DIR").unwrap_or_else(|| root.join("target").into_os_string()),
+            )
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(String::from_utf8_lossy(&output.stdout).contains("supplying_metadata_and_real_calls ... ok"));
+        assert!(matches!(
+            graph.module("demo.leaf").unwrap().source.declaration("IChild").unwrap().kind,
+            DeclarationKind::Interface(_)
+        ));
+    }
 }

@@ -15,6 +15,7 @@ mod lower;
 mod mapping;
 mod method_metadata;
 mod paths;
+mod reachable_metadata;
 mod selection;
 mod value;
 pub use paths::RustModulePaths;
@@ -255,7 +256,17 @@ fn generate_declaration_metadata(graph: &Generation<'_>, module: &ResolvedModule
         let chain = interface_metadata::ancestry(graph, module, declaration)?;
         let rust_abi = Literal::string(&public_rust_path(graph, module, &abi_name)?);
         let methods = method_metadata::descriptions(graph, module, declaration)?;
-        let values = interface_value_metadata(graph, module, declaration)?;
+        let values = reachable_metadata::definitions(
+            graph,
+            ResolvedDeclaration {
+                module,
+                declaration,
+                identity: declaration_identity,
+            },
+        )?
+        .into_iter()
+        .map(|value| value_metadata(graph, value.module, value.declaration))
+        .collect::<Result<Vec<_>, _>>()?;
         quote! {
             impl #abi {
                 /// Callable interface identity, inherited methods and reachable value definitions.
@@ -407,91 +418,6 @@ fn field_metadata(graph: &Generation<'_>, module: &ResolvedModule, fields: &[cra
             Ok(quote! { ::neocogi_com::idl_metadata::FieldMetadata { name: #name, ty: #ty } })
         })
         .collect()
-}
-
-/// Collects reachable definitions once, retaining named edges across recursive sequences.
-fn interface_value_metadata<'a>(graph: &Generation<'a>, module: &ResolvedModule, declaration: &Declaration) -> Result<Vec<TokenStream>, GenerateError> {
-    use std::collections::{BTreeMap, BTreeSet};
-    fn data<'a>(
-        value: ResolvedDeclaration<'a>,
-        graph: &Generation<'a>,
-        preferred: &ResolvedModule,
-        names: &mut BTreeMap<String, ResolvedDeclaration<'a>>,
-    ) -> Result<(), GenerateError> {
-        let value = graph.graph.local_projection(preferred, &value.identity.qualified_name).unwrap_or(value);
-        if names.contains_key(&value.identity.qualified_name) {
-            return Ok(());
-        }
-        names.insert(value.identity.qualified_name.clone(), value);
-        // Follow the actual supplying declaration's bound fields. The global
-        // canonical capability graph deliberately contains no Rust projection.
-        for field in crate::resolve::value_fields(value.declaration) {
-            root(field, graph, value.module, preferred, names)?;
-        }
-        Ok(())
-    }
-    fn root<'a>(
-        ty: &IdlType,
-        graph: &Generation<'a>,
-        module: &ResolvedModule,
-        preferred: &ResolvedModule,
-        names: &mut BTreeMap<String, ResolvedDeclaration<'a>>,
-    ) -> Result<(), GenerateError> {
-        match ty {
-            IdlType::Named(name) if builtin_object_type(name).is_none() && !name.is_str() => {
-                let value = resolve(graph, module, name)?;
-                if !matches!(value.declaration.kind, DeclarationKind::Interface(_)) {
-                    data(value, graph, preferred, names)?;
-                }
-            }
-            IdlType::ComPtr(value)
-            | IdlType::WeakComPtr(value)
-            | IdlType::ComBox(value)
-            | IdlType::WeakComBox(value)
-            | IdlType::Borrowed(value)
-            | IdlType::Vector(value)
-            | IdlType::UnsizedSlice(value)
-            | IdlType::Slice(value)
-            | IdlType::OutputSlice(value)
-            | IdlType::Array { element: value, .. } => root(value, graph, module, preferred, names)?,
-            _ => {}
-        }
-        Ok(())
-    }
-    fn interface<'a>(
-        graph: &Generation<'a>,
-        module: &ResolvedModule,
-        declaration: &Declaration,
-        preferred: &ResolvedModule,
-        visited: &mut BTreeSet<String>,
-        names: &mut BTreeMap<String, ResolvedDeclaration<'a>>,
-    ) -> Result<(), GenerateError> {
-        if !visited.insert(module.source.name.qualify(&declaration.name)) {
-            return Ok(());
-        }
-        let DeclarationKind::Interface(value) = &declaration.kind else {
-            return Ok(());
-        };
-        if let Some(specialization) = &declaration.specialization {
-            for argument in &specialization.arguments {
-                root(argument, graph, module, preferred, names)?;
-            }
-        }
-        for method in &value.methods {
-            for parameter in &method.parameters {
-                root(&parameter.ty, graph, module, preferred, names)?;
-            }
-            root(&method.output, graph, module, preferred, names)?;
-        }
-        for base in &value.bases {
-            let base = resolve(graph, module, base)?;
-            interface(graph, base.module, base.declaration, preferred, visited, names)?;
-        }
-        Ok(())
-    }
-    let mut names = BTreeMap::new();
-    interface(graph, module, declaration, module, &mut BTreeSet::new(), &mut names)?;
-    names.values().map(|value| value_metadata(graph, value.module, value.declaration)).collect()
 }
 
 /// Detects explicit String/Vec spellings in this module's normalized field graph.

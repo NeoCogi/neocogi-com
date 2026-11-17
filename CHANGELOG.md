@@ -6,6 +6,14 @@ Historical draft numbers do not define additional supported COM baselines.
 
 ## Unreleased
 
+- Resolve persistence diagnostics and discover interface/value metadata without
+  recursive nominal graph traversal. Preserve first-leaf reasons, source labels,
+  derived-first ancestry, base-first methods and actual supplying projections;
+  unary public capability queries also use loops for detached expressions.
+  Keep syntax/specialization/runtime budgets separate and identity bytes unchanged.
+  Refresh built-in bindings' reserved-name aliases left stale by the earlier
+  boxed-input canonicalization; executable syntax and ABI constants stay unchanged.
+
 - Canonicalize checked boxed-owner results and consuming inputs after independent
   incoming/canonical interface validation. Resolve input tables once, adopt only
   after full admission, and restore exact original caller pairs on rejection.

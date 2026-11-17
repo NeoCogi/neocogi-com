@@ -131,6 +131,11 @@ jobs:
       - name: Qualification driver regressions
         if: ${{ !cancelled() }}
         run: cargo test -p xtask --locked
+      - name: Native compiler traversal limits
+        if: ${{ !cancelled() }}
+        run: |
+          cargo test -p neocogi-idl --lib small_ --locked
+          cargo test -p neocogi-idl --lib detached_capability_queries --locked
       - name: Native linked qualification
         if: ${{ !cancelled() }}
         run: cargo xtask compatibility --suite linked --report "${{ runner.temp }}/com-linked-windows.json"
