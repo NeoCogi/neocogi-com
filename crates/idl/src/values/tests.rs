@@ -136,3 +136,70 @@ fn detached_capability_queries_use_constant_native_stack() {
         .join()
         .unwrap();
 }
+
+/// Constructs shallow field expressions whose named dependencies form a long chain.
+fn chain(count: usize, tail: ValueType, sequence: bool) -> ValueGraph {
+    let mut graph = ValueGraph::default();
+    for index in 0..count {
+        let name = format!("Item{index}");
+        let field = if index + 1 == count {
+            tail.clone()
+        } else {
+            let edge = ValueType::Named(format!("Item{}", index + 1));
+            if sequence {
+                ValueType::Sequence(Box::new(edge))
+            } else {
+                ValueType::Array(Box::new(edge), 1)
+            }
+        };
+        graph.definitions.insert(
+            name.clone(),
+            ValueDefinition {
+                name,
+                fields: vec![field],
+                copied: true,
+                persistence: Persistence::Supported,
+            },
+        );
+    }
+    graph
+}
+
+/// The rejecting tail visits each reverse edge once and the scalar tail schedules nothing.
+#[test]
+fn capability_work_follows_affected_edges() {
+    let count = 1_000;
+    for (capability, tail, sequence, supported) in [
+        (Capability::Persistent, ValueType::Object("I".into()), true, false),
+        (Capability::Persistent, ValueType::Scalar("u32".into()), true, true),
+        (Capability::Copied, ValueType::Text, false, false),
+    ] {
+        let mut graph = chain(count, tail, sequence);
+        let mut work = PropagationWork::default();
+        graph.resolve_capability(capability, Some(&mut work));
+        assert!(graph.definitions.values().all(|definition| capability.supported(definition) == supported));
+        assert_eq!(work.scheduled, if supported { 0 } else { count });
+        assert_eq!(work.edges, if supported { 0 } else { count - 1 });
+    }
+}
+
+/// A cycle stays persistent until one of its leaves is unsupported. A dependent
+/// with two paths to the same failure still schedules only once.
+#[test]
+fn capability_cycles_follow_seeds_without_requeuing_dependents() {
+    let mut graph = chain(3, ValueType::Sequence(Box::new(ValueType::Named("Item0".into()))), true);
+    graph.definitions.get_mut("Item0").unwrap().fields.push(ValueType::Named("Item2".into()));
+    graph.resolve_capabilities();
+    assert!(
+        graph
+            .definitions
+            .values()
+            .all(|definition| definition.persistence == Persistence::Supported && !definition.copied)
+    );
+    graph.definitions.get_mut("Item2").unwrap().fields.push(ValueType::WeakObject("I".into()));
+    let mut work = PropagationWork::default();
+    graph.resolve_capability(Capability::Persistent, Some(&mut work));
+    assert!(graph.definitions.values().all(|definition| definition.persistence == Persistence::Unsupported));
+    assert_eq!(work.scheduled, 3);
+    assert_eq!(work.edges, 4);
+}

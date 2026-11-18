@@ -55,56 +55,163 @@ pub struct ValueGraph {
     /// One node per canonical name; recursion appears only as a named edge.
     pub definitions: BTreeMap<String, ValueDefinition>,
 }
-impl ValueGraph {
-    /// Removes unsupported operations monotonically until all named edges agree.
-    /// Recursive sequence codecs begin provisionally supported;
-    /// missing leaf operations propagate through every cycle before validation.
-    pub(crate) fn resolve_capabilities(&mut self) {
+/// Exactly one operation is computed per scratch reverse graph.
+#[derive(Clone, Copy)]
+enum Capability {
+    /// Self-contained ABI-copy lowering.
+    Copied,
+    /// Symmetric format-neutral construction and encoding.
+    Persistent,
+}
+
+/// After peeling wrappers, a field is local or depends on one cached fact.
+enum Requirement<'a> {
+    /// The field's own representation decides the answer.
+    Local(bool),
+    /// The field follows a named definition's capability.
+    Named(&'a str),
+}
+
+impl Capability {
+    /// Peels only wrappers transparent to the selected operation.
+    fn requirement(self, mut ty: &ValueType) -> Requirement<'_> {
         loop {
-            let rejected = self
-                .definitions
-                .values()
-                .filter_map(|value| {
-                    let copied = value.copied && value.fields.iter().all(|ty| self.is_copied(ty));
-                    let persistence = match value.persistence {
-                        Persistence::Supported if !value.fields.iter().all(|ty| self.can_persist(ty)) => Persistence::Unsupported,
-                        state => state,
+            match ty {
+                ValueType::Unit => return Requirement::Local(true),
+                ValueType::Text => return Requirement::Local(matches!(self, Self::Persistent)),
+                ValueType::Scalar(name) => {
+                    return Requirement::Local(match self {
+                        Self::Copied => true,
+                        Self::Persistent => persistent_scalar(name),
+                    });
+                }
+                ValueType::Named(name) => return Requirement::Named(name),
+                ValueType::Array(element, _) => ty = element,
+                ValueType::Sequence(element) => match self {
+                    Self::Copied => return Requirement::Local(false),
+                    Self::Persistent => ty = element,
+                },
+                ValueType::Object(_) | ValueType::WeakObject(_) | ValueType::WeakBoxObject(_) => return Requirement::Local(false),
+            }
+        }
+    }
+
+    /// Reads the selected provisionally supported or rejected state.
+    fn supported(self, definition: &ValueDefinition) -> bool {
+        match self {
+            Self::Copied => definition.copied,
+            Self::Persistent => definition.persistence == Persistence::Supported,
+        }
+    }
+
+    /// Records a stable negative fact without changing the other operation.
+    fn reject(self, definition: &mut ValueDefinition) {
+        match self {
+            Self::Copied => definition.copied = false,
+            Self::Persistent => definition.persistence = Persistence::Unsupported,
+        }
+    }
+}
+
+/// Scalars supported by both directions of the format-neutral codec.
+fn persistent_scalar(name: &str) -> bool {
+    matches!(
+        name,
+        "bool" | "u8" | "u16" | "u32" | "u64" | "i8" | "i16" | "i32" | "i64" | "f32" | "f64" | "Guid" | "Status"
+    )
+}
+
+#[cfg(test)]
+#[derive(Default)]
+/// Observes the scheduler and edge traversals without counting elapsed time.
+struct PropagationWork {
+    /// Rejected definitions scheduled exactly once.
+    scheduled: usize,
+    /// Reverse edges actually traversed from a rejected definition.
+    edges: usize,
+}
+
+impl ValueGraph {
+    /// Propagates invalidation separately for copied and persistent shapes.
+    /// Recursive definitions with only supported leaves retain their capability.
+    pub(crate) fn resolve_capabilities(&mut self) {
+        for capability in [Capability::Copied, Capability::Persistent] {
+            self.resolve_capability(
+                capability,
+                #[cfg(test)]
+                None,
+            );
+        }
+    }
+
+    /// Builds one reverse graph and only visits dependents of negative facts.
+    fn resolve_capability(&mut self, capability: Capability, #[cfg(test)] mut work: Option<&mut PropagationWork>) {
+        let indices = self
+            .definitions
+            .keys()
+            .enumerate()
+            .map(|(index, name)| (name.as_str(), index))
+            .collect::<BTreeMap<_, _>>();
+        let mut dependents = vec![Vec::new(); indices.len()];
+        let mut rejected = vec![false; indices.len()];
+        let mut pending = Vec::new();
+        for (index, definition) in self.definitions.values().enumerate() {
+            let mut supported = capability.supported(definition);
+            if supported {
+                for field in &definition.fields {
+                    supported = match capability.requirement(field) {
+                        Requirement::Local(supported) => supported,
+                        Requirement::Named(name) => match indices.get(name) {
+                            Some(&dependency) => {
+                                dependents[dependency].push(index);
+                                true
+                            }
+                            None => false,
+                        },
                     };
-                    (copied != value.copied || persistence != value.persistence).then(|| (value.name.clone(), copied, persistence))
-                })
-                .collect::<Vec<_>>();
-            if rejected.is_empty() {
-                break;
+                    if !supported {
+                        break;
+                    }
+                }
             }
-            for (name, copied, persistence) in rejected {
-                let value = self.definitions.get_mut(&name).expect("collected definition exists");
-                value.copied = copied;
-                value.persistence = persistence;
+            if !supported {
+                rejected[index] = true;
+                pending.push(index);
             }
+        }
+
+        while let Some(rejected_index) = pending.pop() {
+            #[cfg(test)]
+            if let Some(work) = &mut work {
+                work.scheduled += 1;
+                work.edges += dependents[rejected_index].len();
+            }
+            for &dependent in &dependents[rejected_index] {
+                if !rejected[dependent] {
+                    rejected[dependent] = true;
+                    pending.push(dependent);
+                }
+            }
+        }
+        for (definition, rejected) in self.definitions.values_mut().zip(rejected) {
+            if rejected {
+                capability.reject(definition);
+            }
+        }
+    }
+
+    /// Queries the final fact without expanding a named definition.
+    fn supports(&self, capability: Capability, ty: &ValueType) -> bool {
+        match capability.requirement(ty) {
+            Requirement::Local(supported) => supported,
+            Requirement::Named(name) => self.definitions.get(name).is_some_and(|definition| capability.supported(definition)),
         }
     }
 
     /// Checks format-neutral construction, independently of the COM wire codec.
     /// Guid and Status use explicit scalar/array recipes, never native-memory copies.
-    /// Unary wrappers are walked iteratively, including detached public inputs;
-    /// named leaves read cached facts without expanding their definitions.
-    pub fn can_persist(&self, mut ty: &ValueType) -> bool {
-        // Public detached expressions need not have passed compiler admission.
-        // Unary wrappers therefore use constant native stack even for those inputs.
-        loop {
-            match ty {
-                ValueType::Unit | ValueType::Text => return true,
-                ValueType::Scalar(name) => {
-                    return matches!(
-                        name.as_str(),
-                        "bool" | "u8" | "u16" | "u32" | "u64" | "i8" | "i16" | "i32" | "i64" | "f32" | "f64" | "Guid" | "Status"
-                    );
-                }
-                ValueType::Named(name) => return self.definitions.get(name).is_some_and(|value| value.persistence == Persistence::Supported),
-                ValueType::Object(_) | ValueType::WeakObject(_) | ValueType::WeakBoxObject(_) => return false,
-                ValueType::Sequence(value) | ValueType::Array(value, _) => ty = value,
-            }
-        }
+    pub fn can_persist(&self, ty: &ValueType) -> bool {
+        self.supports(Capability::Persistent, ty)
     }
 
     /// Finds the first unsupported leaf in declaration/variant DFS order.
@@ -162,15 +269,8 @@ impl ValueGraph {
     /// Reports implemented copied lowering, rather than merely finite Rust size.
     /// Only arrays unwrap; sequences remain owned values regardless of their leaf.
     /// The borrowed query does not require detached inputs to have admitted height.
-    pub fn is_copied(&self, mut ty: &ValueType) -> bool {
-        loop {
-            match ty {
-                ValueType::Unit | ValueType::Scalar(_) => return true,
-                ValueType::Array(element, _) => ty = element,
-                ValueType::Named(name) => return self.definitions.get(name).is_some_and(|value| value.copied),
-                ValueType::Text | ValueType::Object(_) | ValueType::WeakObject(_) | ValueType::WeakBoxObject(_) | ValueType::Sequence(_) => return false,
-            }
-        }
+    pub fn is_copied(&self, ty: &ValueType) -> bool {
+        self.supports(Capability::Copied, ty)
     }
 }
 

@@ -265,7 +265,8 @@ struct ApplicationData {
 }
 ```
 
-The resolved graph computes operation availability to a fixed point. An
+The resolved graph propagates unsupported operations to their dependents.
+Copied and persistence eligibility follow separate dependency edges. An
 unsupported live-reference field disables both persistence directions throughout
 its recursive component. A finite recursive tree of data values gains both
 codecs without opt-in attributes. No runtime type registry or COM object factory
