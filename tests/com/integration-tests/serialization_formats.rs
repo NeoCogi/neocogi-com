@@ -37,6 +37,39 @@ fn owning_ncb_objects_round_trip_through_the_format_factory() {
     assert_eq!(format.deserialize::<Settings>(&trailing).unwrap_err().status, NC_E_INVALID_ARG);
 }
 
+/// The owning COM adapter follows the same pending variant transitions.
+#[test]
+fn owning_ncb_probes_one_live_variant_frame() {
+    #[derive(ComSerialize)]
+    enum Value {
+        First,
+        Second(u8),
+    }
+    let format = binary::format(Limits::default());
+    let bytes = format.serialize(&Value::Second(23)).unwrap();
+    let source = format.deserializer(&bytes).unwrap();
+    let mut view = source.as_com_ref();
+    view.enter_value().unwrap();
+    assert_eq!(view.variant_is(0, NcCopyFromBufferOffset::new(0, b"First")), Ok(false));
+    assert_eq!(view.variant_is(1, NcCopyFromBufferOffset::new(0, b"Second")), Ok(true));
+    view.enter_value().unwrap();
+    assert_eq!(view.deserialize_u8(), Ok(23));
+    view.leave_value().unwrap();
+    view.leave_value().unwrap();
+    view.finish().unwrap();
+
+    let source = format.deserializer(&format.serialize(&Value::First).unwrap()).unwrap();
+    assert_eq!(
+        source.as_com_ref().variant_is(0, NcCopyFromBufferOffset::new(0, b"First")),
+        Err(NC_E_INVALID_ARG)
+    );
+    let failure = Error::capture(NC_E_INVALID_ARG, &source);
+    assert_eq!(failure.byte_offset, Some(4));
+    assert_eq!(failure.message, "no active value");
+    assert_eq!(source.as_com_ref().enter_value(), Err(NC_E_INVALID_ARG));
+    assert_eq!(Error::capture(NC_E_INVALID_ARG, &source), failure);
+}
+
 /// Complete output remains readable after a rejected short-copy operation.
 #[test]
 fn output_is_committed_once_and_session_failures_are_terminal() {

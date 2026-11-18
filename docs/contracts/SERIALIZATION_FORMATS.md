@@ -77,6 +77,12 @@ input. Completion rejects unknown or unconsumed fields. Required fields fail on
 absence. Explicit default-backed named records retain their `Default` members
 for missing fields; NCB can omit only a trailing suffix because it is positional.
 
+A reader selects a representation only inside an entered, unread value.
+Read-side NCB checks that state before advancing the byte cursor. A pending
+variant admits further probes of the same tag until selection. A pending
+string admits its one output copy. Neither state can complete or admit a child
+while pending. A failure still ends the session and retains its first diagnostic.
+
 Payload cases are probed by both declaration ordinal and authored name. NCB uses
 the ordinal; named formats can use the name. Numeric IDL enums and flags retain
 their declared raw integer representation. Decoded maps reject duplicate keys.

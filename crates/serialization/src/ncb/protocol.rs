@@ -35,6 +35,10 @@ enum Value {
     Empty,
     /// One scalar or completed container has been acquired.
     Done,
+    /// One validated UTF-8 string ends at the cursor and awaits its single copy.
+    StringPending(u32),
+    /// This decoder already read the ordinal and may probe another candidate.
+    VariantProbe(u32),
     /// Named fields must each be selected before acquiring their value.
     Record { remaining: usize, selected: bool },
     /// Sequence elements, map keys/values or an optional child remain.
@@ -101,13 +105,27 @@ impl Protocol {
             _ => Err("unclosed container"),
         }
     }
+    /// Returns the active frame before any representation-specific operation.
+    fn current(&self) -> Result<Value, &'static str> {
+        self.values.get(self.depth.wrapping_sub(1)).copied().ok_or("no active value")
+    }
+    /// Checks that materializing a representation cannot replace an open one.
+    fn require_empty(&self) -> Result<(), &'static str> {
+        match self.current()? {
+            Value::Empty => Ok(()),
+            _ => Err("value already consumed"),
+        }
+    }
+    /// Advances the active frame's representation after its specific admission.
+    /// The caller has already checked the active index and does not enter or
+    /// leave a scope between that check and this assignment.
+    fn set_current(&mut self, value: Value) {
+        self.values[self.depth - 1] = value;
+    }
     /// Selects the representation of an otherwise empty typed value.
     fn select(&mut self, value: Value) -> Result<(), &'static str> {
-        let current = self.values.get_mut(self.depth.wrapping_sub(1)).ok_or("no active value")?;
-        if !matches!(current, Value::Empty) {
-            return Err("value already consumed");
-        }
-        *current = value;
+        self.require_empty()?;
+        self.set_current(value);
         Ok(())
     }
     /// Validates a named field selection and reports genuine absent trailing fields.
@@ -286,16 +304,19 @@ impl Decoder<'_> {
             status(error)
         })
     }
-    /// Marks a scalar representation inside its existing typed budget scope.
-    fn scalar(&mut self) -> Result<(), Error> {
-        if self.pending_string.is_some() || self.pending_variant.is_some() {
-            return Err(self.error("incomplete value"));
-        }
-        self.protocol.select(Value::Done).map_err(|message| self.error(message))
+    /// Reads a fresh representation after checking the active frame. The byte
+    /// operation may update the cursor and budget but cannot change scopes.
+    fn read_value<T>(&mut self, read: impl FnOnce(&mut Self) -> Result<(Value, T), Error>) -> Result<T, NcStatus> {
+        self.run(|reader| {
+            reader.protocol.require_empty().map_err(|message| reader.error(message))?;
+            let (value, result) = read(reader)?;
+            reader.protocol.set_current(value);
+            Ok(result)
+        })
     }
-    /// Selects a concrete container representation exactly once.
-    fn shape(&mut self, value: Value) -> Result<(), Error> {
-        self.protocol.select(value).map_err(|message| self.error(message))
+    /// All primitive reads share phase admission and one successful completion.
+    fn read_scalar<T>(&mut self, read: impl FnOnce(&mut Self) -> Result<T, Error>) -> Result<T, NcStatus> {
+        self.read_value(|reader| Ok((Value::Done, read(reader)?)))
     }
     /// Returns the first failed source diagnostic for local format-specific tools.
     pub fn last_error(&self) -> Option<Error> {
@@ -318,8 +339,6 @@ impl<'a> Decoder<'a> {
             budget: Budget::new(limits),
             protocol: Protocol::new(),
             phase: Phase::Active,
-            pending_string: None,
-            pending_variant: None,
         };
         if reader.bytes.as_slice().len() > limits.bytes {
             return Err(reader.error("document byte limit"));
@@ -479,97 +498,54 @@ impl ISerializer for Encoder<'_> {
 impl IDeserializer for Decoder<'_> {
     fn enter_value(&mut self) -> Result<(), NcStatus> {
         self.run(|reader| {
-            if reader.pending_string.is_some() || reader.pending_variant.is_some() {
-                return Err(reader.error("incomplete value"));
-            }
             reader.budget.enter(reader.offset)?;
             reader.protocol.enter().map_err(|message| reader.error(message))
         })
     }
     fn leave_value(&mut self) -> Result<(), NcStatus> {
         self.run(|reader| {
-            if reader.pending_string.is_some() || reader.pending_variant.is_some() {
-                return Err(reader.error("incomplete value"));
-            }
             reader.protocol.leave_source().map_err(|message| reader.error(message))?;
             reader.budget.leave(reader.offset)
         })
     }
     fn deserialize_unit(&mut self) -> Result<(), NcStatus> {
-        self.run(|reader| {
-            reader.scalar()?;
-            reader.deserialize_unit()
-        })
+        self.read_scalar(Self::deserialize_unit)
     }
     fn deserialize_bool(&mut self) -> Result<bool, NcStatus> {
-        self.run(|reader| {
-            reader.scalar()?;
-            reader.deserialize_bool()
-        })
+        self.read_scalar(Self::deserialize_bool)
     }
     fn deserialize_u8(&mut self) -> Result<u8, NcStatus> {
-        self.run(|reader| {
-            reader.scalar()?;
-            reader.deserialize_u8()
-        })
+        self.read_scalar(Self::deserialize_u8)
     }
     fn deserialize_u16(&mut self) -> Result<u16, NcStatus> {
-        self.run(|reader| {
-            reader.scalar()?;
-            reader.deserialize_u16()
-        })
+        self.read_scalar(Self::deserialize_u16)
     }
     fn deserialize_u32(&mut self) -> Result<u32, NcStatus> {
-        self.run(|reader| {
-            reader.scalar()?;
-            reader.deserialize_u32()
-        })
+        self.read_scalar(Self::deserialize_u32)
     }
     fn deserialize_u64(&mut self) -> Result<u64, NcStatus> {
-        self.run(|reader| {
-            reader.scalar()?;
-            reader.deserialize_u64()
-        })
+        self.read_scalar(Self::deserialize_u64)
     }
     fn deserialize_i8(&mut self) -> Result<i8, NcStatus> {
-        self.run(|reader| {
-            reader.scalar()?;
-            reader.deserialize_i8()
-        })
+        self.read_scalar(Self::deserialize_i8)
     }
     fn deserialize_i16(&mut self) -> Result<i16, NcStatus> {
-        self.run(|reader| {
-            reader.scalar()?;
-            reader.deserialize_i16()
-        })
+        self.read_scalar(Self::deserialize_i16)
     }
     fn deserialize_i32(&mut self) -> Result<i32, NcStatus> {
-        self.run(|reader| {
-            reader.scalar()?;
-            reader.deserialize_i32()
-        })
+        self.read_scalar(Self::deserialize_i32)
     }
     fn deserialize_i64(&mut self) -> Result<i64, NcStatus> {
-        self.run(|reader| {
-            reader.scalar()?;
-            reader.deserialize_i64()
-        })
+        self.read_scalar(Self::deserialize_i64)
     }
     fn deserialize_f32(&mut self) -> Result<f32, NcStatus> {
-        self.run(|reader| {
-            reader.scalar()?;
-            reader.deserialize_f32()
-        })
+        self.read_scalar(Self::deserialize_f32)
     }
     fn deserialize_f64(&mut self) -> Result<f64, NcStatus> {
-        self.run(|reader| {
-            reader.scalar()?;
-            reader.deserialize_f64()
-        })
+        self.read_scalar(Self::deserialize_f64)
     }
     fn string_len(&mut self) -> Result<u32, NcStatus> {
-        self.run(|reader| {
-            reader.scalar()?;
+        self.read_value(|reader| {
             let len = reader.deserialize_u32()?;
             let start = reader.offset;
             let text = reader.take(len as usize)?;
@@ -577,8 +553,7 @@ impl IDeserializer for Decoder<'_> {
                 offset: start + len as usize,
                 message: "invalid UTF-8",
             })?;
-            reader.pending_string = Some(start..reader.offset);
-            Ok(len)
+            Ok((Value::StringPending(len), len))
         })
     }
     fn copy_string(&mut self, mut output: neocogi_com::NcOutputWriter<'_, u8>) -> Result<u32, NcStatus> {
@@ -586,35 +561,42 @@ impl IDeserializer for Decoder<'_> {
             if output.offset() != 0 {
                 return Err(reader.error("invalid output offset"));
             }
-            let range = reader.pending_string.take().ok_or_else(|| reader.error("no admitted string"))?;
-            let len = range.len();
-            if output.remaining() < len {
+            let Ok(Value::StringPending(len)) = reader.protocol.current() else {
+                return Err(reader.error("no admitted string"));
+            };
+            // No other frame state can read input until the copy completes, so
+            // the admitted string still ends at the same cursor position.
+            let end = reader.offset;
+            let start = end - len as usize;
+            if output.remaining() < len as usize {
                 return Err(reader.error("output buffer too small"));
             }
             output
-                .extend_from_slice(&reader.bytes.as_slice()[range])
+                .extend_from_slice(&reader.bytes.as_slice()[start..end])
                 .map_err(|_| reader.error("output buffer too small"))?;
-            Ok(len as u32)
+            reader.protocol.set_current(Value::Done);
+            Ok(len)
         })
     }
     fn option_present(&mut self) -> Result<bool, NcStatus> {
-        self.run(|reader| {
+        self.read_value(|reader| {
             let present = reader.deserialize_bool()?;
-            reader.shape(Value::Ordered {
-                kind: Container::Option,
-                remaining: usize::from(present),
-            })?;
-            Ok(present)
+            Ok((
+                Value::Ordered {
+                    kind: Container::Option,
+                    remaining: usize::from(present),
+                },
+                present,
+            ))
         })
     }
     fn begin_record(&mut self, maximum: u32) -> Result<u32, NcStatus> {
-        self.run(|reader| {
+        self.read_value(|reader| {
             let count = reader.count(1)?;
             if count > maximum as usize {
                 return Err(reader.error("unknown record fields"));
             }
-            reader.shape(Value::Record { remaining: count, selected: false })?;
-            Ok(count as u32)
+            Ok((Value::Record { remaining: count, selected: false }, count as u32))
         })
     }
     fn field(&mut self, name: NcCopyFromBufferOffset<'_, u8>) -> Result<bool, NcStatus> {
@@ -627,26 +609,25 @@ impl IDeserializer for Decoder<'_> {
         self.run(|reader| reader.protocol.end(Container::Record).map_err(|message| reader.error(message)))
     }
     fn begin_sequence(&mut self) -> Result<u32, NcStatus> {
-        self.run(|reader| {
+        self.read_value(|reader| {
             let count = reader.count(1)?;
-            reader.shape(Value::Ordered {
-                kind: Container::Sequence,
-                remaining: count,
-            })?;
-            Ok(count as u32)
+            Ok((
+                Value::Ordered {
+                    kind: Container::Sequence,
+                    remaining: count,
+                },
+                count as u32,
+            ))
         })
     }
     fn end_sequence(&mut self) -> Result<(), NcStatus> {
         self.run(|reader| reader.protocol.end(Container::Sequence).map_err(|message| reader.error(message)))
     }
     fn begin_map(&mut self) -> Result<u32, NcStatus> {
-        self.run(|reader| {
+        self.read_value(|reader| {
             let count = reader.count(2)?;
-            reader.shape(Value::Ordered {
-                kind: Container::Map,
-                remaining: count.checked_mul(2).ok_or_else(|| reader.error("collection count overflow"))?,
-            })?;
-            Ok(count as u32)
+            let remaining = count.checked_mul(2).ok_or_else(|| reader.error("collection count overflow"))?;
+            Ok((Value::Ordered { kind: Container::Map, remaining }, count as u32))
         })
     }
     fn end_map(&mut self) -> Result<(), NcStatus> {
@@ -655,21 +636,18 @@ impl IDeserializer for Decoder<'_> {
     fn variant_is(&mut self, index: u32, name: NcCopyFromBufferOffset<'_, u8>) -> Result<bool, NcStatus> {
         self.run(|reader| {
             read_text(name).map_err(|message| reader.error(message))?;
-            let ordinal = match reader.pending_variant {
-                Some(index) => index,
-                None => {
-                    let index = reader.deserialize_u32()?;
-                    reader.pending_variant = Some(index);
-                    index
-                }
+            let ordinal = match reader.protocol.current().map_err(|message| reader.error(message))? {
+                Value::Empty => reader.deserialize_u32()?,
+                Value::VariantProbe(ordinal) => ordinal,
+                _ => return Err(reader.error("value already consumed")),
             };
-            if ordinal == index {
-                reader.pending_variant = None;
-                reader.shape(Value::Variant { children: 0 })?;
-                Ok(true)
+            let matched = ordinal == index;
+            reader.protocol.set_current(if matched {
+                Value::Variant { children: 0 }
             } else {
-                Ok(false)
-            }
+                Value::VariantProbe(ordinal)
+            });
+            Ok(matched)
         })
     }
     fn fail(&mut self, message: NcCopyFromBufferOffset<'_, u8>) -> Result<(), NcStatus> {
@@ -703,6 +681,151 @@ fn read_text(value: NcCopyFromBufferOffset<'_, u8>) -> Result<&str, &'static str
 mod tests {
     use super::*;
     use neocogi_com::serialization::{scope::ScopedComProvider, ISerializerAbi, ScopedSerializer};
+
+    /// Calls the generated scoped deserializer and recovers the private cursor.
+    fn decode_scoped<'a>(bytes: &'a [u8], call: impl FnOnce(neocogi_com::ComRef<'_, neocogi_com::serialization::IDeserializerAbi>)) -> Decoder<'a> {
+        let scope = ScopedComProvider::new(Decoder::borrowed(bytes, Limits::default()).unwrap());
+        // SAFETY: the generated table matches this exact retained decoder scope.
+        let view = unsafe { scope.interface(&neocogi_com::serialization::ScopedDeserializer::<Decoder<'_>>::VTABLE) };
+        call(view);
+        scope.into_inner()
+    }
+
+    /// The real scoped prefix rejects out-of-phase byte reads before cursor movement.
+    #[test]
+    fn wrong_phase_byte_operations_preserve_the_cursor_and_first_failure() {
+        type Call = fn(&mut neocogi_com::ComRef<'_, neocogi_com::serialization::IDeserializerAbi>) -> Result<(), NcStatus>;
+        let calls: [Call; 7] = [
+            |view| view.deserialize_u8().map(|_| ()),
+            |view| view.option_present().map(|_| ()),
+            |view| view.begin_record(1).map(|_| ()),
+            |view| view.begin_sequence().map(|_| ()),
+            |view| view.begin_map().map(|_| ()),
+            |view| view.string_len().map(|_| ()),
+            |view| view.variant_is(0, NcCopyFromBufferOffset::new(0, b"First")).map(|_| ()),
+        ];
+        for (entered, position, reason) in [(false, 4, "no active value"), (true, 5, "value already consumed")] {
+            for call in calls {
+                let reader = decode_scoped(b"NCB\x01\x01", |mut view| {
+                    if entered {
+                        view.enter_value().unwrap();
+                        assert_eq!(view.deserialize_u8().unwrap(), 1);
+                    }
+                    assert_eq!(call(&mut view), Err(NC_E_INVALID_ARG));
+                    assert_eq!(view.finish(), Err(NC_E_INVALID_ARG));
+                });
+                assert_eq!(reader.offset, position);
+                assert_eq!(reader.last_error(), Some(Error { message: reason, offset: position }));
+            }
+        }
+        // In a valid phase, malformed/truncated framing still reports its own error.
+        let reader = decode_scoped(b"NCB\x01", |mut view| {
+            view.enter_value().unwrap();
+            assert_eq!(view.begin_sequence(), Err(NC_E_INVALID_ARG));
+        });
+        assert_eq!(reader.last_error().unwrap().message, "truncated value");
+        let reader = decode_scoped(b"NCB\x01\x01\0\x01\0", |mut view| {
+            view.enter_value().unwrap();
+            assert_eq!(view.begin_sequence(), Err(NC_E_OUT_OF_RANGE));
+        });
+        assert_eq!(reader.last_error().unwrap().message, "collection or value limit");
+    }
+
+    /// A miss permits another probe of the same tag. Other operations cannot
+    /// consume bytes or complete the frame before that tag is selected.
+    #[test]
+    fn pending_variant_reuses_the_tag_and_requires_selection() {
+        let first = NcCopyFromBufferOffset::new(0, b"First");
+        let second = NcCopyFromBufferOffset::new(0, b"Second");
+        let reader = decode_scoped(b"NCB\x01\x01\0\0\0\x17", |mut view| {
+            view.enter_value().unwrap();
+            assert_eq!(view.variant_is(0, first), Ok(false));
+            assert_eq!(view.variant_is(1, second), Ok(true));
+            view.enter_value().unwrap();
+            assert_eq!(view.deserialize_u8(), Ok(23));
+            view.leave_value().unwrap();
+            view.leave_value().unwrap();
+            view.finish().unwrap();
+        });
+        assert!(reader.last_error().is_none());
+
+        for probe_matches in [false, true] {
+            let reader = decode_scoped(b"NCB\x01\x01\0\0\0", |mut view| {
+                view.enter_value().unwrap();
+                assert_eq!(view.variant_is(u32::from(probe_matches), second), Ok(probe_matches));
+                if probe_matches {
+                    assert_eq!(view.variant_is(0, first), Err(NC_E_INVALID_ARG));
+                } else {
+                    assert_eq!(view.leave_value(), Err(NC_E_INVALID_ARG));
+                }
+                assert_eq!(view.finish(), Err(NC_E_INVALID_ARG));
+            });
+            assert_eq!(reader.offset, 8);
+        }
+    }
+
+    /// Pending strings retain their validated window until copied into fixed storage.
+    #[test]
+    fn pending_string_copies_once_into_stack_slots() {
+        use core::mem::MaybeUninit;
+        use neocogi_com::NcOutput;
+
+        for (bytes, expected) in [(b"NCB\x01\0\0\0\0".as_slice(), ""), (b"NCB\x01\x02\0\0\0\xc3\xa9".as_slice(), "é")] {
+            let reader = decode_scoped(bytes, |mut view| {
+                view.enter_value().unwrap();
+                assert_eq!(view.string_len(), Ok(expected.len() as u32));
+                let mut slots = [MaybeUninit::new(0_u8); 2];
+                let mut count = 0;
+                assert_eq!(
+                    view.copy_string(NcOutput::from_slots(0, &mut slots, &mut count).unwrap()),
+                    Ok(expected.len() as u32)
+                );
+                assert_eq!(count, expected.len());
+                // SAFETY: the fixture began with initialized bytes and the view only writes u8.
+                let copied = slots.map(|slot| unsafe { slot.assume_init() });
+                assert_eq!(&copied[..count], expected.as_bytes());
+                view.leave_value().unwrap();
+                view.finish().unwrap();
+            });
+            assert_eq!(reader.offset, bytes.len());
+        }
+        let bytes = b"NCB\x01\x02\0\0\0hi";
+        for (offset, capacity, status) in [(0, 1, NC_E_OUT_OF_RANGE), (1, 2, NC_E_INVALID_ARG)] {
+            let reader = decode_scoped(bytes, |mut view| {
+                view.enter_value().unwrap();
+                assert_eq!(view.string_len(), Ok(2));
+                let mut slots = [MaybeUninit::uninit(); 2];
+                let mut count = 9;
+                assert_eq!(
+                    view.copy_string(NcOutput::from_slots(offset, &mut slots[..capacity], &mut count).unwrap()),
+                    Err(status)
+                );
+                assert_eq!(count, 0);
+                assert_eq!(view.copy_string(NcOutput::from_slots(0, &mut slots, &mut count).unwrap()), Err(status));
+            });
+            assert_eq!(reader.offset, bytes.len());
+        }
+        let reader = decode_scoped(bytes, |mut view| {
+            view.enter_value().unwrap();
+            assert_eq!(view.string_len(), Ok(2));
+            assert_eq!(view.begin_map(), Err(NC_E_INVALID_ARG));
+        });
+        assert_eq!(reader.offset, bytes.len());
+        assert_eq!(reader.last_error().unwrap().message, "value already consumed");
+        let reader = decode_scoped(bytes, |mut view| {
+            view.enter_value().unwrap();
+            assert_eq!(view.string_len(), Ok(2));
+            let mut slots = [MaybeUninit::uninit(); 2];
+            let mut count = 0;
+            assert_eq!(view.copy_string(NcOutput::from_slots(0, &mut slots, &mut count).unwrap()), Ok(2));
+            assert_eq!(
+                view.copy_string(NcOutput::from_slots(0, &mut slots, &mut count).unwrap()),
+                Err(NC_E_INVALID_ARG)
+            );
+            assert_eq!(count, 0);
+        });
+        assert_eq!(reader.last_error().unwrap().message, "no admitted string");
+    }
 
     /// Counting storage exercises real format dispatch without any heap allocation.
     fn writer() -> Encoder<'static> {

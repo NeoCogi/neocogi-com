@@ -368,10 +368,6 @@ pub struct Decoder<'de> {
     protocol: Protocol,
     /// Terminal failure or successful finish; neither permits further operations.
     phase: Phase,
-    /// Validated string bytes awaiting one output-copy operation.
-    pending_string: Option<core::ops::Range<usize>>,
-    /// An ordinal being probed by authored case names, before selecting its payload.
-    pending_variant: Option<u32>,
 }
 impl<'de> Decoder<'de> {
     /// Creates a non-allocating diagnostic at the current cursor.
