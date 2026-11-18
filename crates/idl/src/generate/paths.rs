@@ -25,12 +25,19 @@ pub struct RustModulePaths {
 /// Validated path spelling without thread-local token spans. Backend syntax is
 /// constructed on the generation worker rather than retained by its caller.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(super) struct RustPath {
+pub(crate) struct RustPath {
     /// Canonical identifiers, including any authored raw-identifier prefixes.
     segments: Vec<String>,
 }
 
 impl RustPath {
+    /// Admits the logical name and Rust location under the shared generator rules.
+    pub(crate) fn validate_location(module: &str, rust_path: &str) -> Result<Self, GenerateError> {
+        neocogi_com_core::validate_qualified_name(module).map_err(|error| GenerateError::new(format!("invalid IDL module {module:?}: {error}")))?;
+        crate::ModuleName::validate_dotted(module).map_err(|error| GenerateError::new(format!("invalid IDL module {module:?}: {error}")))?;
+        parse_rust_path(rust_path)
+    }
+
     /// Retains identifiers from a validated owner path or compiler-owned route.
     fn from_syntax(path: &syn::Path) -> Self {
         Self {
@@ -56,9 +63,7 @@ impl RustModulePaths {
     /// The logical key separately uses ModuleName's nonraw segment rule and the
     /// existing qualified-name metadata bound; Rust placement never rewrites it.
     pub fn insert(&mut self, module: &str, rust_path: &str) -> Result<(), GenerateError> {
-        neocogi_com_core::validate_qualified_name(module).map_err(|error| GenerateError::new(format!("invalid IDL module {module:?}: {error}")))?;
-        crate::ModuleName::validate_dotted(module).map_err(|error| GenerateError::new(format!("invalid IDL module {module:?}: {error}")))?;
-        let path = parse_rust_path(rust_path)?;
+        let path = RustPath::validate_location(module, rust_path)?;
         match self.modules.entry(module.to_owned()) {
             Entry::Vacant(entry) => {
                 entry.insert(path);
@@ -67,6 +72,12 @@ impl RustModulePaths {
             Entry::Occupied(_) => return Err(GenerateError::new(format!("conflicting Rust locations for IDL module {module:?}"))),
         }
         Ok(())
+    }
+
+    /// Projects admitted module locations without reparsing their Rust paths.
+    /// SharedSources has already validated each key, path and ownership policy.
+    pub(crate) fn from_validated_modules(modules: BTreeMap<String, RustPath>) -> Self {
+        Self { modules, dependencies: BTreeMap::new() }
     }
 
     /// Selects access through one real direct Cargo dependency.

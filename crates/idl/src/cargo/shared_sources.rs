@@ -1,13 +1,13 @@
 //! Shared source imports with consumer-owned Rust generation, independent of Cargo links.
 
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, btree_map::Entry},
     fs,
     path::{Path, PathBuf},
 };
 
 use super::{BuildError, BuildOutput, GraphModule, GraphRecord, GRAPH_SCHEMA, ModuleSources, required_path, write_emissions, generate_module_emission};
-use crate::generate::RustModulePaths;
+use crate::generate::{RustModulePaths, RustPath};
 
 /// Generates selected modules directly from shared IDL namespace trees.
 ///
@@ -36,10 +36,19 @@ pub struct SharedSources {
 struct Binding {
     /// Exact dotted IDL module name; also determines its source path.
     module: String,
-    /// Owner prefix is admitted at registration; completed metadata paths are
-    /// checked during whole-request generation, before filesystem finishing.
+    /// Authored spelling whose validity is checked before discovery.
     rust_path: String,
     /// Whether this consumer emits the module rather than importing Rust types.
+    emission: Emission,
+}
+
+/// One validated route supplies discovery, Rust emission and graph metadata.
+struct AdmittedBinding<'a> {
+    /// Canonical segments compared for equivalent optional root separators.
+    path: RustPath,
+    /// First accepted spelling, preserved in serialized graph records.
+    spelling: &'a str,
+    /// Local emission or ordinary Rust import.
     emission: Emission,
 }
 
@@ -115,9 +124,7 @@ impl SharedSources {
     /// All source admission, generation and graph encoding precede output work.
     /// Physical provenance finishing and publication remain fallible filesystem phases.
     fn build_at(&self, source_roots: &[PathBuf], output: &Path) -> Result<Vec<BuildOutput>, BuildError> {
-        let mut paths = RustModulePaths::default();
-        let mut local = BTreeSet::new();
-        let mut policies = BTreeMap::new();
+        let mut bindings = BTreeMap::new();
         for binding in &self.bindings {
             if crate::is_bundled_module(&binding.module) {
                 return Err(BuildError::Resolve(
@@ -127,53 +134,65 @@ impl SharedSources {
                     .into(),
                 ));
             }
-            paths
-                .insert(&binding.module, &binding.rust_path)
-                .map_err(|error| BuildError::Idl(error.to_string()))?;
-            if policies
-                .insert(binding.module.clone(), binding.emission)
-                .is_some_and(|prior| prior != binding.emission)
-            {
-                return Err(BuildError::Idl(format!(
-                    "module {:?} cannot be both locally generated and imported",
-                    binding.module
-                )));
-            }
-            if binding.emission == Emission::Local {
-                local.insert(binding.module.clone());
+            let name = binding.module.as_str();
+            let path = RustPath::validate_location(name, &binding.rust_path).map_err(|error| BuildError::Idl(error.to_string()))?;
+            match bindings.entry(name) {
+                Entry::Vacant(slot) => {
+                    slot.insert(AdmittedBinding {
+                        path,
+                        spelling: &binding.rust_path,
+                        emission: binding.emission,
+                    });
+                }
+                Entry::Occupied(slot) => {
+                    if slot.get().path != path {
+                        return Err(BuildError::Idl(format!("conflicting Rust locations for IDL module {name:?}")));
+                    }
+                    if slot.get().emission != binding.emission {
+                        return Err(BuildError::Idl(format!("module {name:?} cannot be both locally generated and imported")));
+                    }
+                }
             }
         }
-        if local.is_empty() {
+        let local = bindings
+            .iter()
+            .filter_map(|(&name, binding)| (binding.emission == Emission::Local).then_some(name));
+        let mut pending = local.clone().map(str::to_owned).collect::<Vec<_>>();
+        if pending.is_empty() {
             return Err(BuildError::Idl("shared source build requires at least one local module".into()));
         }
         let mut modules = BTreeMap::new();
         let mut roots = BTreeMap::new();
-        let mut pending = local.iter().cloned().collect::<Vec<_>>();
         while let Some(name) = pending.pop() {
             if crate::is_bundled_module(&name) || modules.contains_key(&name) {
                 continue;
             }
-            if !policies.contains_key(&name) {
-                return Err(BuildError::Idl(format!("shared IDL import {name:?} has no local or imported Rust location")));
-            }
+            let route = bindings
+                .get(name.as_str())
+                .ok_or_else(|| BuildError::Idl(format!("shared IDL import {name:?} has no local or imported Rust location")))?;
             let (root, sources) = load_sources(source_roots, &name)?;
             roots.insert(name.clone(), root);
             let parsed = sources.parse()?;
             pending.extend(parsed.externals.iter().map(|external| external.module.clone()));
-            modules.insert(name, (sources, parsed));
+            let record = GraphModule {
+                sources,
+                rust_path: Some(route.spelling.to_owned()),
+            };
+            modules.insert(name, (record, parsed, &route.path));
         }
-        let resolved = crate::resolve_modules(modules.values().map(|(_, module)| module.clone()).collect()).map_err(BuildError::Resolve)?;
+        let mut records = BTreeMap::new();
+        let mut parsed = Vec::with_capacity(modules.len());
+        let mut paths = BTreeMap::new();
+        // Only discovered authored modules emit routes. Move parsed sources into
+        // the resolver in canonical order without copying their declaration trees.
+        for (name, (record, module, path)) in modules {
+            paths.insert(name.clone(), path.clone());
+            records.insert(name, record);
+            parsed.push(module);
+        }
+        let resolved = crate::resolve_modules(parsed).map_err(BuildError::Resolve)?;
         super::emit_warnings(&resolved);
-        // A repository may declare locations for several independent graphs.
-        // Only the reachable closure belongs to this generation invocation.
-        let mut paths = RustModulePaths::default();
-        for binding in &self.bindings {
-            if resolved.module(&binding.module).is_some() {
-                paths
-                    .insert(&binding.module, &binding.rust_path)
-                    .map_err(|error| BuildError::Idl(error.to_string()))?;
-            }
-        }
+        let paths = RustModulePaths::from_validated_modules(paths);
         let mut emissions = Vec::new();
         for name in local {
             // Module UUIDs are already the canonical logical identity. Bounded,
@@ -181,15 +200,15 @@ impl SharedSources {
             let stem = format!(
                 "module_{}",
                 resolved
-                    .module(&name)
-                    .expect("local module was resolved")
+                    .module(name)
+                    .ok_or_else(|| BuildError::Idl(format!("resolved graph lost local module {name:?}")))?
                     .module_id
                     .to_string()
                     .replace('-', "")
             );
             emissions.push(generate_module_emission(
                 &resolved,
-                &name,
+                name,
                 &paths,
                 output,
                 &stem,
@@ -198,17 +217,7 @@ impl SharedSources {
         }
         let graph = GraphRecord {
             schema: GRAPH_SCHEMA,
-            modules: modules
-                .into_iter()
-                .map(|(name, (sources, _))| {
-                    let rust_path = self
-                        .bindings
-                        .iter()
-                        .find(|binding| binding.module == name)
-                        .map(|binding| binding.rust_path.clone());
-                    (name, GraphModule { sources, rust_path })
-                })
-                .collect(),
+            modules: records,
             source_roots: roots,
         };
         let path = output.join("neocogi-idl-graph.json");
@@ -311,6 +320,7 @@ fn watch_missing_source(path: &Path) -> Result<(), BuildError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::BTreeSet;
 
     /// Multi-module outputs remain distinct for separator and case variants,
     /// including on case-insensitive filesystems. Rust paths never affect ABI.
@@ -449,6 +459,40 @@ mod tests {
                 assert_eq!(fs::read_dir(&output).unwrap().count(), 1);
                 fs::remove_dir_all(&output).unwrap();
             }
+        }
+    }
+
+    /// Equivalent requested paths retain the first spelling and skip unused routes.
+    #[test]
+    fn canonical_routes_preserve_first_spelling_and_omit_unreachable_imports() {
+        let work = tempfile::tempdir().unwrap();
+        let root = work.path().join("idl");
+        let output = work.path().join("output");
+        fs::create_dir_all(root.join("proof")).unwrap();
+        let build = |request: SharedSources| {
+            let modules = request.build_at(std::slice::from_ref(&root), &output).unwrap();
+            assert_eq!(modules.len(), 1);
+            (
+                fs::read(output.join("neocogi-idl-graph.json")).unwrap(),
+                fs::read(&modules[0].bindings).unwrap(),
+            )
+        };
+        for ty in ["u32", "Option<u32>"] {
+            fs::write(root.join("proof/root.ncidl"), format!("struct Root {{ value: {ty} }}")).unwrap();
+            let without_root = SharedSources::new(&root).module("proof.root", "consumer::root");
+            let baseline = build(without_root.clone());
+            assert_eq!(
+                build(without_root.module("proof.root", "::consumer::root").import("unused.route", "unused::route")),
+                baseline
+            );
+            let reversed = build(
+                SharedSources::new(&root)
+                    .module("proof.root", "::consumer::root")
+                    .module("proof.root", "consumer::root"),
+            );
+            assert_eq!(reversed.1, baseline.1);
+            let graph: serde_json::Value = serde_json::from_slice(&reversed.0).unwrap();
+            assert_eq!(graph["modules"]["proof.root"]["rust_path"], "::consumer::root");
         }
     }
 

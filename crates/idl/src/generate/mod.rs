@@ -19,6 +19,7 @@ mod reachable_metadata;
 mod selection;
 mod value;
 pub use paths::RustModulePaths;
+pub(crate) use paths::RustPath;
 use selection::named_rust_type;
 
 /// Failure to select a module or lower one validated IDL construct to Rust.
