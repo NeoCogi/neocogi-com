@@ -142,7 +142,7 @@ impl Module {
 
         let mut source_roots = BTreeMap::from([(module_name.clone(), source_root.clone())]);
         let mut records = BTreeMap::new();
-        records.insert(own_module.name.to_string(), own_record);
+        records.insert(module_name.clone(), own_record);
         let dependency_modules = own_module.externals.iter().map(|external| external.module.clone()).collect::<BTreeSet<_>>();
         // Each incoming graph came through one real direct Cargo dependency.
         // Keep that route while merging source ownership; source reachability
@@ -191,9 +191,15 @@ impl Module {
             }
         }
 
+        let stem = own_module.name.segments().join("_");
+        let mut own_module = Some(own_module);
         let parsed = records
             .iter()
             .map(|(name, record)| {
+                if name == &module_name {
+                    // The exact merge above retains this admitted local record.
+                    return Ok(own_module.take().expect("local record occurs once"));
+                }
                 let module = record.sources.parse()?;
                 if module.name.to_string() != *name {
                     return Err(BuildError::Idl(format!(
@@ -207,7 +213,7 @@ impl Module {
         let resolved = resolve_modules(parsed).map_err(BuildError::Resolve)?;
         emit_warnings(&resolved);
         let resolved_module = resolved
-            .module(&own_module.name.to_string())
+            .module(&module_name)
             .ok_or_else(|| BuildError::Idl("resolved graph lost the crate's own module".into()))?;
         // Rust locations travel with the source owner but never enter resolution
         // or hashing. Every transitive consumer uses the same validated mapping.
@@ -230,7 +236,7 @@ impl Module {
             &module_name,
             &paths,
             &output_dir,
-            &own_module.name.segments().join("_"),
+            &stem,
             &format!(
                 "// Cargo links `{expected_links}` encodes that exact module name as UTF-8 hex.\n// Demangle: strip `nc_contract_`, decode hex pairs, then read UTF-8."
             ),
@@ -250,7 +256,7 @@ impl Module {
         println!("cargo::metadata=idl_graph={}", graph_path.display());
         println!("cargo::metadata=idl_source_map={}", output.source_map.display());
         println!("cargo::metadata=idl_include={}", output.include.display());
-        println!("cargo::metadata=module_name={}", own_module.name);
+        println!("cargo::metadata=module_name={module_name}");
         println!("cargo::metadata=module_id={}", resolved_module.module_id);
         println!("cargo::metadata=abi_fingerprint={}", resolved_module.fingerprint_hex());
 

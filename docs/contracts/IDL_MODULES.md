@@ -1045,7 +1045,10 @@ Canonical owner Rust paths remain in inspection metadata. Only Rust type/import
 access and the hidden provider namespace use consumer-specific routes. Neither
 those routes nor filesystem roots affect logical IDs or ABI signatures. Pure
 `generate_rust_with_paths` callers continue supplying accessible owner locations;
-Cargo-specific routes are selected by `Module::build`. Source graph schema 7
+Cargo-specific routes are selected by `Module::build`. The packaged builder
+parses its own source once to select its `links` owner and dependency records,
+then uses that parsed module in resolution. The raw source record is still
+checked during incoming graph merges. Source graph schema 7
 requires providers with this namespace and rejects older sidecars. Runtime and
 plugin discovery and the core baseline follow the [ABI version table](../abi-v3.md#abi-identities-and-versions); source routes do not change
 the [canonical signature encoding](#canonical-signatures).
