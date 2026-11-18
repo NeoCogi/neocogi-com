@@ -26,17 +26,20 @@ fn persistence_cycle_keeps_later_siblings_and_per_request_reasons() {
 /// A generic request retains the supplying field and closed-specialization label.
 #[test]
 fn imported_persistence_request_keeps_specialization_sources() {
-    let definitions = parse_module(Path::new("proof/definitions.ncidl"), "#[persistence(default)] struct Required<T> { value: T }").unwrap();
-    let request = parse_module(
-        Path::new("proof/request.ncidl"),
-        "extern proof.definitions; use proof.definitions::Required; struct Root { value: Required<ComPtr<IUnknown>> }",
-    )
-    .unwrap();
+    use crate::{ModuleSource, parse_module_parts};
+    let path = Path::new("proof/tree/internal/part.ncidl");
+    let definition_text = "#[persistence(default)] struct Required<T> { value: T }";
+    let request_text = "extern proof.tree; use proof.tree::Required; struct Root { value: Required<ComPtr<IUnknown>> }";
+    let definitions = parse_module_parts(Path::new("proof/tree"), &[ModuleSource { path, text: definition_text }]).unwrap();
+    let request = parse_module_parts(Path::new("proof/tree/internal"), &[ModuleSource { path, text: request_text }]).unwrap();
     let ModuleGraphError::Resolution(error) = resolve_modules(vec![request, definitions]).unwrap_err() else {
         panic!("expected owned resolution diagnostics")
     };
     let diagnostic = error.diagnostics.iter().find(|d| d.code == "EIDL064").unwrap();
-    assert_eq!(diagnostic.labels[0].span.path(), "proof/definitions.ncidl");
+    assert_eq!(diagnostic.labels[0].span.path(), path.to_str().unwrap());
+    assert_eq!(diagnostic.labels[1].span.path(), diagnostic.labels[0].span.path());
+    assert_eq!(diagnostic.labels[0].source().unwrap().text(), definition_text);
+    assert_eq!(diagnostic.labels[1].source().unwrap().text(), request_text);
     assert_eq!(diagnostic.labels.len(), 2);
     assert!(diagnostic.notes[0].contains("IUnknown"));
 }

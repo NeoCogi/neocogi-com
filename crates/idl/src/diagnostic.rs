@@ -2,7 +2,6 @@
 
 use std::{
     cmp::Ordering,
-    collections::BTreeMap,
     fmt,
     path::{Component, Path},
     sync::Arc,
@@ -12,13 +11,17 @@ use proc_macro2::Span;
 
 /// Immutable IDL source retained so diagnostics can render exact snippets.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct SourceFile {
+pub struct SourceFile(Arc<SourceContents>);
+
+/// Immutable source identity and text shared by its diagnostic labels.
+#[derive(Debug, Eq, PartialEq)]
+struct SourceContents {
     /// Exact logical module owning this file, independent of its filesystem root.
     module: String,
     /// Portable path relative to the configured IDL root.
     path: String,
-    /// Complete UTF-8 source shared cheaply by every diagnostic label.
-    text: Arc<str>,
+    /// Complete UTF-8 source owned by the shared record.
+    text: Box<str>,
 }
 
 impl SourceFile {
@@ -37,31 +40,31 @@ impl SourceFile {
 
     /// Installs the already admitted path key used to order parser inputs.
     pub(crate) fn from_path_key(module: &crate::ModuleName, path: String, text: &str) -> Self {
-        Self {
+        Self(Arc::new(SourceContents {
             module: module.to_string(),
             path,
-            text: Arc::from(text),
-        }
+            text: text.into(),
+        }))
     }
 
     /// Returns the exact logical module owning this source file.
     pub fn module(&self) -> &str {
-        &self.module
+        &self.0.module
     }
 
     /// Returns the normalized source path used in diagnostics.
     pub fn path(&self) -> &str {
-        &self.path
+        &self.0.path
     }
 
     /// Returns the exact source text supplied to the parser.
     pub fn text(&self) -> &str {
-        &self.text
+        &self.0.text
     }
 
     /// Returns one one-based source line without its trailing newline.
     fn line(&self, number: usize) -> Option<&str> {
-        self.text.lines().nth(number.checked_sub(1)?)
+        self.text().lines().nth(number.checked_sub(1)?)
     }
 }
 
@@ -123,8 +126,8 @@ impl SourceSpan {
 
     /// Attaches the normalized path of the part that owns this range.
     pub(crate) fn attach(&mut self, source: &SourceFile) {
-        self.module.clone_from(&source.module);
-        self.path.clone_from(&source.path);
+        source.module().clone_into(&mut self.module);
+        source.path().clone_into(&mut self.path);
     }
 
     /// Returns the logical module that authored this range, including template origins.
@@ -166,6 +169,27 @@ pub struct DiagnosticLabel {
     pub message: String,
     /// Primary or supporting visual role.
     pub style: LabelStyle,
+    /// Exact source retained by this label, even if two inputs share a path.
+    source: Option<SourceFile>,
+}
+
+impl DiagnosticLabel {
+    /// Creates a label from a span, explanation and display style.
+    pub fn new(span: SourceSpan, message: impl Into<String>, style: LabelStyle) -> Self {
+        Self {
+            span,
+            message: message.into(),
+            style,
+            source: None,
+        }
+    }
+
+    /// Returns its retained file when it still matches the label's public span.
+    pub fn source(&self) -> Option<&SourceFile> {
+        self.source
+            .as_ref()
+            .filter(|source| source.module() == self.span.module() && source.path() == self.span.path())
+    }
 }
 
 /// One stable source-aware IDL compiler diagnostic.
@@ -181,8 +205,6 @@ pub struct Diagnostic {
     pub labels: Vec<DiagnosticLabel>,
     /// Explanatory notes and actionable help shown after source annotations.
     pub notes: Vec<String>,
-    /// Source contents indexed by logical owner and path for deterministic rendering.
-    sources: BTreeMap<(String, String), SourceFile>,
 }
 
 /// Whether a compiler diagnostic rejects input or accompanies successful parsing.
@@ -203,7 +225,6 @@ impl Diagnostic {
             message: message.into(),
             labels: Vec::new(),
             notes: Vec::new(),
-            sources: BTreeMap::new(),
         }
     }
 
@@ -219,41 +240,29 @@ impl Diagnostic {
     pub(crate) fn attach_source(&mut self, source: &SourceFile) {
         for label in &mut self.labels {
             label.span.attach(source);
+            label.source = Some(source.clone());
         }
-        self.sources.insert((source.module.clone(), source.path.clone()), source.clone());
     }
 
-    /// Adds one source file used by this diagnostic's labels.
-    pub(crate) fn with_source(mut self, source: &SourceFile) -> Self {
-        self.sources.insert((source.module.clone(), source.path.clone()), source.clone());
-        self
-    }
-
-    /// Adds all sources from one parsed module.
-    pub(crate) fn with_sources(mut self, sources: &[SourceFile]) -> Self {
-        for source in sources {
-            self.sources.insert((source.module.clone(), source.path.clone()), source.clone());
+    /// Retains only labelled files. Directly attached provenance wins over an
+    /// index lookup, including for different inputs claiming the same name/path.
+    pub(crate) fn attach_label_sources<'a>(&mut self, mut find: impl FnMut(&DiagnosticLabel) -> Option<&'a SourceFile>) {
+        for label in &mut self.labels {
+            if label.source.is_none() {
+                label.source = find(label).cloned();
+            }
         }
-        self
     }
 
     /// Adds the primary source range at which the error was detected.
     pub(crate) fn primary(mut self, span: &SourceSpan, message: impl Into<String>) -> Self {
-        self.labels.push(DiagnosticLabel {
-            span: span.clone(),
-            message: message.into(),
-            style: LabelStyle::Primary,
-        });
+        self.labels.push(DiagnosticLabel::new(span.clone(), message, LabelStyle::Primary));
         self
     }
 
     /// Adds a related definition or earlier conflicting source range.
     pub(crate) fn secondary(mut self, span: &SourceSpan, message: impl Into<String>) -> Self {
-        self.labels.push(DiagnosticLabel {
-            span: span.clone(),
-            message: message.into(),
-            style: LabelStyle::Secondary,
-        });
+        self.labels.push(DiagnosticLabel::new(span.clone(), message, LabelStyle::Secondary));
         self
     }
 
@@ -267,17 +276,16 @@ impl Diagnostic {
     pub(crate) fn from_syn(source: &SourceFile, error: syn::Error) -> Self {
         let mut errors = error.into_iter();
         let Some(primary) = errors.next() else {
-            return Self::new("EIDL000", "unknown IDL syntax error").with_source(source);
+            return Self::new("EIDL000", "unknown IDL syntax error");
         };
         let encoded_message = primary.to_string();
         let (code, message) = split_encoded_code(&encoded_message);
-        let mut diagnostic = Self::new(code, message)
-            .with_source(source)
-            .primary(&span_in_source(primary.span(), source), message);
+        let mut diagnostic = Self::new(code, message).primary(&span_in_source(primary.span(), source), message);
         for related in errors {
             let message = related.to_string();
             diagnostic = diagnostic.secondary(&span_in_source(related.span(), source), message);
         }
+        diagnostic.attach_label_sources(|_| Some(source));
         diagnostic
     }
 
@@ -327,11 +335,7 @@ impl fmt::Display for Diagnostic {
         for label in labels {
             let position = label.span.start;
             writeln!(formatter, " --> {}:{}:{}", label.span.path, position.line, position.column)?;
-            if let Some(line) = self
-                .sources
-                .get(&(label.span.module.clone(), label.span.path.clone()))
-                .and_then(|source| source.line(position.line))
-            {
+            if let Some(line) = label.source().and_then(|source| source.line(position.line)) {
                 let gutter = position.line.to_string().len();
                 writeln!(formatter, "{:gutter$} |", "", gutter = gutter)?;
                 writeln!(formatter, "{} | {line}", position.line)?;
@@ -367,4 +371,63 @@ fn span_in_source(span: Span, source: &SourceFile) -> SourceSpan {
     let mut result = SourceSpan::from_parser(span);
     result.attach(source);
     result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{ModuleGraphError, ModuleSource, parse_module, parse_module_parts, resolve_modules};
+
+    /// The retained label holds only its own file after all other errors are dropped.
+    #[test]
+    fn diagnostics_retain_only_labelled_inputs() {
+        let paths = (0..48).map(|i| format!("proof/many/part{i:02}.ncidl")).collect::<Vec<_>>();
+        let texts = (0..48).map(|i| format!("struct Value{i:02} {{ field: Missing }}")).collect::<Vec<_>>();
+        let parts = paths
+            .iter()
+            .zip(&texts)
+            .map(|(path, text)| ModuleSource { path: Path::new(path), text })
+            .collect::<Vec<_>>();
+        let module = parse_module_parts(Path::new("proof/many"), &parts).unwrap();
+        let retained = module.sources.iter().map(|source| Arc::downgrade(&source.0)).collect::<Vec<_>>();
+        let ModuleGraphError::Resolution(error) = resolve_modules(vec![module]).unwrap_err() else {
+            panic!("expected semantic errors");
+        };
+        assert_eq!(error.diagnostics.len(), parts.len());
+        for (index, diagnostic) in error.diagnostics.iter().enumerate() {
+            assert_eq!(diagnostic.code, "EIDL070");
+            assert_eq!(diagnostic.labels.len(), 1);
+            let source = diagnostic.labels[0].source().unwrap();
+            assert_eq!(source.path(), paths[index]);
+            assert_eq!(source.text(), texts[index]);
+            assert_eq!(retained[index].strong_count(), 1);
+        }
+        let first = error.diagnostics.into_iter().next().unwrap();
+        assert!(first.to_string().contains(&texts[0]));
+        assert_eq!(retained[0].strong_count(), 1);
+        assert!(retained[1..].iter().all(|source| source.strong_count() == 0));
+    }
+
+    /// The two source versions can share both logical identity and relative path.
+    #[test]
+    fn duplicate_modules_render_both_exact_source_versions() {
+        let path = Path::new("proof/duplicate.ncidl");
+        let first = parse_module(path, "struct Alpha { value: u32 }").unwrap();
+        let second = parse_module(path, "struct Beta { value: u64 }").unwrap();
+        let mut output = None;
+        for input in [vec![first.clone(), second.clone()], vec![second, first]] {
+            let ModuleGraphError::Resolution(error) = resolve_modules(input).unwrap_err() else {
+                panic!("expected duplicate module");
+            };
+            let diagnostic = &error.diagnostics[0];
+            assert_eq!(diagnostic.code, "EIDL011");
+            assert!(diagnostic.labels[0].source().unwrap().text().contains("struct Beta"));
+            assert!(diagnostic.labels[1].source().unwrap().text().contains("struct Alpha"));
+            let text = diagnostic.to_string();
+            assert!(text.contains("struct Alpha") && text.contains("struct Beta"));
+            if let Some(prior) = output.replace(text.clone()) {
+                assert_eq!(prior, text);
+            }
+        }
+    }
 }

@@ -1058,7 +1058,11 @@ path and exact range. Duplicate declarations, fields, enum cases, bit flags,
 methods, parameters, external dependencies, imports, discriminants, and bases
 identify both the later occurrence and the original occurrence. Type-category
 errors identify the use and the declaration that establishes the actual
-category.
+category. Each label can retain the exact source it points to, independently of
+the compiler graph and other diagnostics. When two authored inputs claim one
+logical module and path, duplicate-module labels retain the two input excerpts.
+Construct handwritten labels with `DiagnosticLabel::new` and inspect an
+attached file with `DiagnosticLabel::source`.
 
 Semantic validation collects independent errors from the complete module graph
 and renders them by normalized path, position, code, and message. The result is

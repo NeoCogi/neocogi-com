@@ -170,11 +170,9 @@ impl Expansion {
             self.budget.compare_origin(&instance.origin, at, &name.span)?;
             self.budget.compare_origin(&origin, at, &name.span)?;
             if instance.origin != origin {
-                let sources = self.originals.iter().flat_map(|module| module.sources.iter().cloned()).collect::<Vec<_>>();
                 return Err(ResolutionError {
                     diagnostics: vec![
                         Diagnostic::new("EIDL060", format!("specialization UUID {identity} has conflicting semantic origins"))
-                            .with_sources(&sources)
                             .primary(&name.span, "conflicting request")
                             .secondary(&instance.span, "first request"),
                     ],

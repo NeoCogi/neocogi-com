@@ -153,9 +153,10 @@ fn assemble_module<'a>(name: ModuleName, parts: impl IntoIterator<Item = ModuleS
     for (path, text) in parts {
         let source_file = SourceFile::from_path_key(&name, path, text);
         if sources.last().is_some_and(|previous| previous.path() == source_file.path()) {
-            return Err(ParseError::from(
-                Diagnostic::new("EIDL003", format!("IDL module contains source path {:?} more than once", source_file.path())).with_source(&source_file),
-            ));
+            return Err(ParseError::from(Diagnostic::new(
+                "EIDL003",
+                format!("IDL module contains source path {:?} more than once", source_file.path()),
+            )));
         }
         // Fallback tokenization and cleanup are iterative. Admit groups before Syn's
         // recursively constructed TokenBuffer, including unsupported syntax.
@@ -170,24 +171,22 @@ fn assemble_module<'a>(name: ModuleName, parts: impl IntoIterator<Item = ModuleS
         // part is an error rather than an instruction to merge two edges.
         for external in syntax.externals {
             if let Some(previous) = externals.get(&external.module) {
-                return Err(ParseError::from(
-                    Diagnostic::new("EIDL019", format!("duplicate external dependency {:?}", external.module))
-                        .with_sources(&[sources.as_slice(), std::slice::from_ref(&source_file)].concat())
-                        .primary(&external.span, "duplicate external dependency")
-                        .secondary(&previous.span, "dependency first declared here"),
-                ));
+                let mut diagnostic = Diagnostic::new("EIDL019", format!("duplicate external dependency {:?}", external.module))
+                    .primary(&external.span, "duplicate external dependency")
+                    .secondary(&previous.span, "dependency first declared here");
+                attach_duplicate_sources(&mut diagnostic, &source_file, &sources);
+                return Err(diagnostic.into());
             }
             externals.insert(external.module.clone(), external);
         }
         imports.extend(syntax.imports);
         for declaration in syntax.declarations {
             if let Some(previous) = declarations.get(&declaration.name) {
-                return Err(ParseError::from(
-                    Diagnostic::new("EIDL010", format!("duplicate declaration {:?}", declaration.name))
-                        .with_sources(&[sources.as_slice(), std::slice::from_ref(&source_file)].concat())
-                        .primary(&declaration.span, "duplicate declaration")
-                        .secondary(&previous.span, "first declared here"),
-                ));
+                let mut diagnostic = Diagnostic::new("EIDL010", format!("duplicate declaration {:?}", declaration.name))
+                    .primary(&declaration.span, "duplicate declaration")
+                    .secondary(&previous.span, "first declared here");
+                attach_duplicate_sources(&mut diagnostic, &source_file, &sources);
+                return Err(diagnostic.into());
             }
             declarations.insert(declaration.name.clone(), declaration);
         }
@@ -195,9 +194,7 @@ fn assemble_module<'a>(name: ModuleName, parts: impl IntoIterator<Item = ModuleS
     }
 
     if declarations.is_empty() {
-        return Err(ParseError::from(
-            Diagnostic::new("EIDL004", "an IDL module must declare at least one ABI item").with_sources(&sources),
-        ));
+        return Err(ParseError::from(Diagnostic::new("EIDL004", "an IDL module must declare at least one ABI item")));
     }
 
     warnings.sort_by(Diagnostic::stable_cmp);
@@ -210,6 +207,18 @@ fn assemble_module<'a>(name: ModuleName, parts: impl IntoIterator<Item = ModuleS
         declarations: declarations.into_values().collect(),
         templates: Vec::new(),
     })
+}
+
+/// Duplicate labels point to the current or an already parsed part, in path order.
+fn attach_duplicate_sources(diagnostic: &mut Diagnostic, current: &SourceFile, previous: &[SourceFile]) {
+    diagnostic.attach_label_sources(|label| {
+        let path = label.span.path();
+        if path == current.path() {
+            Some(current)
+        } else {
+            previous.binary_search_by(|source| source.path().cmp(path)).ok().map(|index| &previous[index])
+        }
+    });
 }
 
 /// Deduplicates exact bindings while retaining each name's first authored origin.

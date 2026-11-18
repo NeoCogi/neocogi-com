@@ -58,21 +58,19 @@ fn bind_name(index: usize, parameters: &[String], name: &NamedType, entries: &[M
         _ => None,
     };
     if let Some(position) = parameter {
-        require_arity(index, name, 0, entries, "a type parameter cannot accept arguments")?;
+        require_arity(name, 0, "a type parameter cannot accept arguments")?;
         return Ok(Binding::Parameter {
             position: u32_len(position, &entry.name, "parameter position")?,
         });
     }
     if let Some(intrinsic) = crate::binding::intrinsic(&name.segments) {
-        require_arity(index, name, 0, entries, "built-in types do not accept type arguments")?;
+        require_arity(name, 0, "built-in types do not accept type arguments")?;
         return Ok(Binding::Intrinsic(intrinsic));
     }
     let symbol = lookup_source(index, name, entries)?;
     require_arity(
-        index,
         name,
         symbol.parameters,
-        entries,
         &format!(
             "{} expects {} type arguments, received {}",
             name.rust_path(),
@@ -91,10 +89,10 @@ fn bind_name(index: usize, parameters: &[String], name: &NamedType, entries: &[M
 }
 
 /// Arity is lexical well-formedness even when no consumer instantiates a template.
-fn require_arity(index: usize, name: &NamedType, expected: usize, entries: &[ModuleEntry], message: &str) -> Result<(), ResolutionError> {
+fn require_arity(name: &NamedType, expected: usize, message: &str) -> Result<(), ResolutionError> {
     match name.arguments.len() == expected {
         true => Ok(()),
-        false => Err(source_error(&entries[index].module, "EIDL060", &name.span, message, "invalid type arguments")),
+        false => Err(source_error("EIDL060", &name.span, message, "invalid type arguments")),
     }
 }
 
@@ -107,21 +105,12 @@ fn lookup_source(index: usize, name: &NamedType, entries: &[ModuleEntry]) -> Res
             .get(local)
             .or_else(|| entry.imported_symbols.get(local))
             .copied()
-            .ok_or_else(|| {
-                source_error(
-                    &entry.module,
-                    "EIDL070",
-                    &name.span,
-                    format!("unknown IDL type {local:?}"),
-                    "type is not declared or imported",
-                )
-            });
+            .ok_or_else(|| source_error("EIDL070", &name.span, format!("unknown IDL type {local:?}"), "type is not declared or imported"));
     }
     let owner = name.segments[..name.segments.len() - 1].join(".");
     let local = name.segments.last().expect("parsed nonempty type path");
     let module = entries.iter().position(|entry| entry.name == owner).ok_or_else(|| {
         source_error(
-            &entry.module,
             "EIDL071",
             &name.span,
             format!("unknown IDL module {owner:?}"),
@@ -130,7 +119,6 @@ fn lookup_source(index: usize, name: &NamedType, entries: &[ModuleEntry]) -> Res
     })?;
     if module != index && !entry.dependencies.contains(&module) {
         return Err(source_error(
-            &entry.module,
             "EIDL072",
             &name.span,
             format!("type {} is used without declaring its external module", name.rust_path()),
@@ -139,7 +127,6 @@ fn lookup_source(index: usize, name: &NamedType, entries: &[ModuleEntry]) -> Res
     }
     entries[module].local_symbols.get(local).copied().ok_or_else(|| {
         source_error(
-            &entry.module,
             "EIDL070",
             &name.span,
             format!("unknown IDL type {}", name.rust_path()),

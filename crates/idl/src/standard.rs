@@ -31,9 +31,9 @@ pub(crate) fn reserved_owner_diagnostic() -> crate::Diagnostic {
 pub(crate) fn attach(mut modules: Vec<Module>) -> Result<Vec<Module>, ModuleGraphError> {
     // Tested syntax is not proof that the OS can start another syntax worker.
     let standard = crate::parse_module(std::path::Path::new("neocogi/lang.ncidl"), LANGUAGE_SOURCE).map_err(ModuleGraphError::BundledSource)?;
-    if let Some(module) = modules.iter().find(|module| is_bundled_module(&module.name.to_string())) {
+    if modules.iter().any(|module| is_bundled_module(&module.name.to_string())) {
         return Err(ResolutionError {
-            diagnostics: vec![reserved_owner_diagnostic().with_sources(&module.sources)],
+            diagnostics: vec![reserved_owner_diagnostic()],
         }
         .into());
     }

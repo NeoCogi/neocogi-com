@@ -4,15 +4,15 @@ mod bind;
 use crate::ParseError;
 use crate::binding::{Binding, DeclarationKey, Intrinsic};
 use std::{
-    collections::{BTreeSet, HashMap},
+    collections::{BTreeMap, BTreeSet, HashMap},
     fmt,
 };
 
 use neocogi_com_core::{NcComDenseEnumMember, NcGuid, guid_from_name, guid_from_qualified_name};
 
 use crate::{
-    IdlType, BitEnum, Declaration, DeclarationKind, Diagnostic, Enum, EnumRepr, Method, Module, NamedType, SourceFile, SourceSpan, Threading, VariantFields,
-    sha256::digest,
+    LabelStyle, IdlType, BitEnum, Declaration, DeclarationKind, Diagnostic, Enum, EnumRepr, Method, Module, NamedType, SourceFile, SourceSpan, Threading,
+    VariantFields, sha256::digest,
 };
 
 /// UUID namespace reserved for canonical NeoCogi IDL identities.
@@ -257,6 +257,25 @@ fn resolve_semantics_with_limits(mut modules: Vec<Module>, limits: crate::specia
             .then_with(|| left.sources.iter().map(SourceFile::path).cmp(right.sources.iter().map(SourceFile::path)))
             .then_with(|| left.sources.iter().map(SourceFile::text).cmp(right.sources.iter().map(SourceFile::text)))
     });
+    // Keep only shallow handles across the consuming semantic phases. The
+    // borrowed lookup is needed only if one of those phases returns diagnostics.
+    let sources = modules.iter().flat_map(|module| module.sources.iter().cloned()).collect::<Vec<_>>();
+    resolve_ordered_modules(modules, limits).map_err(|mut error| {
+        let mut index = BTreeMap::new();
+        for source in &sources {
+            // When an earlier error wins over duplicate-module admission,
+            // unresolved labels use the first canonical input at this key.
+            index.entry((source.module(), source.path())).or_insert(source);
+        }
+        for diagnostic in &mut error.diagnostics {
+            diagnostic.attach_label_sources(|label| index.get(&(label.span.module(), label.span.path())).copied());
+        }
+        error
+    })
+}
+
+/// Runs every semantic stage in canonical order before attaching diagnostic files.
+fn resolve_ordered_modules(modules: Vec<Module>, limits: crate::specialize::budget::Limits) -> Result<ResolvedModules, ResolutionError> {
     // Validate authored names and dependencies before templates are removed;
     // unused templates must not hide duplicate identities or ambiguous imports.
     let mut authored = build_entries(modules)?;
@@ -266,9 +285,9 @@ fn resolve_semantics_with_limits(mut modules: Vec<Module>, limits: crate::specia
     for entry in &authored {
         for declaration in &entry.module.declarations {
             match &declaration.kind {
-                DeclarationKind::Enum(enumeration) => validate_enum(entry, declaration, enumeration)?,
-                DeclarationKind::BitEnum(bit_enum) => validate_metadata_names(entry, bit_enum)?,
-                DeclarationKind::Interface(interface) => validate_method_names(&entry.module, interface)?,
+                DeclarationKind::Enum(enumeration) => validate_enum(declaration, enumeration)?,
+                DeclarationKind::BitEnum(bit_enum) => validate_metadata_names(bit_enum)?,
+                DeclarationKind::Interface(interface) => validate_method_names(interface)?,
                 _ => {}
             }
         }
@@ -277,18 +296,15 @@ fn resolve_semantics_with_limits(mut modules: Vec<Module>, limits: crate::specia
     // Stored ownership form is independent of resolving another field's name.
     // Check the same policy before substitution and after closing arguments so
     // a missing declaration never hides an unrelated borrowed-field diagnostic.
-    for (index, entry) in authored.iter().enumerate() {
+    for entry in &authored {
         for declaration in &entry.module.declarations {
             for field in stored_fields(declaration) {
-                collect_diagnostics(&mut diagnostics, validate_field_form(index, field.ty, &authored, &field.context, field.span));
+                collect_diagnostics(&mut diagnostics, validate_field_form(field.ty, &field.context, field.span));
             }
         }
     }
     if !diagnostics.is_empty() {
-        let sources = authored.iter().flat_map(|entry| entry.module.sources.iter().cloned()).collect::<Vec<_>>();
-        return Err(ResolutionError {
-            diagnostics: diagnostics.into_iter().map(|diagnostic| diagnostic.with_sources(&sources)).collect(),
-        });
+        return Err(ResolutionError { diagnostics });
     }
     let modules = crate::specialize::expand(authored.into_iter().map(|entry| entry.module).collect(), limits)?;
     let mut entries = build_entries(modules)?;
@@ -302,12 +318,7 @@ fn resolve_semantics_with_limits(mut modules: Vec<Module>, limits: crate::specia
         }
     }
     if !diagnostics.is_empty() {
-        // A specialized field retains its template's location while the closed
-        // use belongs to a consumer. Include both source sets in diagnostics.
-        let sources = entries.iter().flat_map(|entry| entry.module.sources.iter().cloned()).collect::<Vec<_>>();
-        return Err(ResolutionError {
-            diagnostics: diagnostics.into_iter().map(|diagnostic| diagnostic.with_sources(&sources)).collect(),
-        });
+        return Err(ResolutionError { diagnostics });
     }
 
     let fingerprints = fingerprint_modules(&entries)?;
@@ -371,7 +382,7 @@ fn resolve_semantics_with_limits(mut modules: Vec<Module>, limits: crate::specia
         for declaration in &module.source.declarations {
             if let Some(specialization) = &declaration.specialization {
                 for argument in &specialization.arguments {
-                    validate_closed_argument(&graph, module, argument, &declaration.span)?;
+                    validate_closed_argument(&graph, argument, &declaration.span)?;
                 }
             }
         }
@@ -382,14 +393,7 @@ fn resolve_semantics_with_limits(mut modules: Vec<Module>, limits: crate::specia
         collect_diagnostics(&mut diagnostics, validate_generated_names(&graph, module));
     }
     if !diagnostics.is_empty() {
-        let sources = graph
-            .modules
-            .iter()
-            .flat_map(|module| module.source.sources.iter().cloned())
-            .collect::<Vec<_>>();
-        return Err(ResolutionError {
-            diagnostics: diagnostics.into_iter().map(|diagnostic| diagnostic.with_sources(&sources)).collect(),
-        });
+        return Err(ResolutionError { diagnostics });
     }
     Ok(graph)
 }
@@ -397,7 +401,7 @@ fn resolve_semantics_with_limits(mut modules: Vec<Module>, limits: crate::specia
 /// Checks constructor well-formedness even for an unused template parameter.
 /// Field and method constraints are checked on substituted declarations, while
 /// an object-reference wrapper must always target a closed contract.
-fn validate_closed_argument(graph: &ResolvedModules, module: &ResolvedModule, ty: &IdlType, span: &SourceSpan) -> Result<(), ResolutionError> {
+fn validate_closed_argument(graph: &ResolvedModules, ty: &IdlType, span: &SourceSpan) -> Result<(), ResolutionError> {
     match ty {
         IdlType::ComPtr(value) | IdlType::WeakComPtr(value) | IdlType::ComBox(value) | IdlType::WeakComBox(value) => {
             let valid = match value.as_ref() {
@@ -411,18 +415,17 @@ fn validate_closed_argument(graph: &ResolvedModules, module: &ResolvedModule, ty
             };
             if !valid {
                 return Err(source_error(
-                    &module.source,
                     "EIDL060",
                     span,
                     "COM reference argument must name a closed object contract",
                     "invalid owned-reference target",
                 ));
             }
-            validate_closed_argument(graph, module, value, span)
+            validate_closed_argument(graph, value, span)
         }
         IdlType::Named(name) => {
             for argument in &name.arguments {
-                validate_closed_argument(graph, module, argument, span)?;
+                validate_closed_argument(graph, argument, span)?;
             }
             Ok(())
         }
@@ -431,7 +434,7 @@ fn validate_closed_argument(graph: &ResolvedModules, module: &ResolvedModule, ty
         | IdlType::UnsizedSlice(value)
         | IdlType::Slice(value)
         | IdlType::OutputSlice(value)
-        | IdlType::Array { element: value, .. } => validate_closed_argument(graph, module, value, span),
+        | IdlType::Array { element: value, .. } => validate_closed_argument(graph, value, span),
         IdlType::Unit | IdlType::Scalar(_) | IdlType::String => Ok(()),
     }
 }
@@ -502,28 +505,26 @@ enum VisitState {
 /// Creates graph nodes and rejects duplicate module or declaration IDs.
 fn build_entries(modules: Vec<Module>) -> Result<Vec<ModuleEntry>, ResolutionError> {
     let owners = modules.iter().map(|module| module.name.to_string()).collect::<Vec<_>>();
-    let mut module_names = HashMap::<String, (SourceSpan, Vec<SourceFile>)>::new();
-    let mut global_declaration_ids = HashMap::<NcGuid, (String, SourceSpan, Vec<SourceFile>)>::new();
-    let mut entries = Vec::with_capacity(modules.len());
+    let mut module_names = HashMap::<String, usize>::new();
+    let mut global_declaration_ids = HashMap::<NcGuid, (String, SourceSpan)>::new();
+    let mut entries: Vec<ModuleEntry> = Vec::with_capacity(modules.len());
     for module in modules {
         let name = module.name.to_string();
-        let module_span = module
-            .declarations
-            .first()
-            .or_else(|| module.templates.first())
-            .expect("parsed module contains declarations or templates")
-            .span
-            .clone();
-        if let Some((previous_span, previous_sources)) = module_names.insert(name.clone(), (module_span.clone(), module.sources.clone())) {
-            let sources = combined_sources(previous_sources, &module.sources);
-            return Err(ResolutionError {
-                diagnostics: vec![
-                    Diagnostic::new("EIDL011", format!("duplicate logical IDL module {name:?}"))
-                        .with_sources(&sources)
-                        .primary(&module_span, "second module supplied here")
-                        .secondary(&previous_span, "first module supplied here"),
-                ],
+        if let Some(previous) = module_names.insert(name.clone(), entries.len()) {
+            let previous = &entries[previous].module;
+            let mut diagnostic = Diagnostic::new("EIDL011", format!("duplicate logical IDL module {name:?}"))
+                .primary(first_module_span(&module), "second module supplied here")
+                .secondary(first_module_span(previous), "first module supplied here");
+            // Both inputs may have the same logical key. Their exact file handles
+            // are still available here, before any shared lookup is built.
+            diagnostic.attach_label_sources(|label| {
+                let owner = match label.style {
+                    LabelStyle::Primary => &module,
+                    LabelStyle::Secondary => previous,
+                };
+                owner.sources.iter().find(|source| source.path() == label.span.path())
             });
+            return Err(ResolutionError { diagnostics: vec![diagnostic] });
         }
         let module_id = derive_module_id(&name);
         let mut local_symbols = HashMap::new();
@@ -532,7 +533,6 @@ fn build_entries(modules: Vec<Module>) -> Result<Vec<ModuleEntry>, ResolutionErr
         for (declaration_index, declaration) in module.declarations.iter().enumerate() {
             if is_reserved_name(&declaration.name) {
                 return Err(source_error(
-                    &module,
                     "EIDL020",
                     &declaration.span,
                     format!("declaration name {:?} is reserved by the IDL type system", declaration.name),
@@ -549,7 +549,6 @@ fn build_entries(modules: Vec<Module>) -> Result<Vec<ModuleEntry>, ResolutionErr
             let id = declaration.explicit_id.unwrap_or_else(|| derive_declaration_id(&qualified_name));
             if matches!(declaration.kind, DeclarationKind::Interface(_)) && id.is_nil() {
                 return Err(source_error(
-                    &module,
                     "EIDL074",
                     &declaration.span,
                     "a callable interface ID must not be nil",
@@ -560,21 +559,16 @@ fn build_entries(modules: Vec<Module>) -> Result<Vec<ModuleEntry>, ResolutionErr
                 return Err(ResolutionError {
                     diagnostics: vec![
                         Diagnostic::new("EIDL012", format!("declaration {:?} reuses another declaration ID", declaration.name))
-                            .with_sources(&module.sources)
                             .primary(&declaration.span, "duplicate declaration ID")
                             .secondary(&previous, "ID first assigned here"),
                     ],
                 });
             }
-            if let Some((previous_name, previous_span, previous_sources)) =
-                global_declaration_ids.insert(id, (qualified_name.clone(), declaration.span.clone(), module.sources.clone()))
-            {
+            if let Some((previous_name, previous_span)) = global_declaration_ids.insert(id, (qualified_name.clone(), declaration.span.clone())) {
                 if declaration.specialization.is_none() || previous_name != qualified_name {
-                    let sources = combined_sources(previous_sources, &module.sources);
                     return Err(ResolutionError {
                         diagnostics: vec![
                             Diagnostic::new("EIDL012", format!("declaration {qualified_name:?} reuses the ID assigned to {previous_name:?}"))
-                                .with_sources(&sources)
                                 .primary(&declaration.span, "duplicate declaration ID")
                                 .secondary(&previous_span, format!("ID belongs to {previous_name}")),
                         ],
@@ -610,6 +604,16 @@ fn build_entries(modules: Vec<Module>) -> Result<Vec<ModuleEntry>, ResolutionErr
     Ok(entries)
 }
 
+/// Locates one authored item for duplicate-module diagnostics.
+fn first_module_span(module: &Module) -> &SourceSpan {
+    &module
+        .declarations
+        .first()
+        .or_else(|| module.templates.first())
+        .expect("parsed module contains declarations or templates")
+        .span
+}
+
 /// Resolves explicit dependency edges and makes imported names unambiguous.
 fn connect_externals_and_imports(entries: &mut [ModuleEntry]) -> Result<(), ResolutionError> {
     let indexes = entries
@@ -629,7 +633,6 @@ fn connect_externals_and_imports(entries: &mut [ModuleEntry]) -> Result<(), Reso
         for external in externals {
             let Some(&dependency) = indexes.get(&external.module) else {
                 return Err(source_error(
-                    &entries[index].module,
                     "EIDL030",
                     &external.span,
                     format!("external dependency module {:?} is unavailable", external.module),
@@ -637,13 +640,7 @@ fn connect_externals_and_imports(entries: &mut [ModuleEntry]) -> Result<(), Reso
                 ));
             };
             if dependency == index {
-                return Err(source_error(
-                    &entries[index].module,
-                    "EIDL031",
-                    &external.span,
-                    "a module cannot depend on itself",
-                    "self-dependency",
-                ));
+                return Err(source_error("EIDL031", &external.span, "a module cannot depend on itself", "self-dependency"));
             }
             dependencies.insert((entries[dependency].name.clone(), dependency));
         }
@@ -653,7 +650,6 @@ fn connect_externals_and_imports(entries: &mut [ModuleEntry]) -> Result<(), Reso
         for import in imports {
             let Some(&dependency) = indexes.get(&import.module) else {
                 return Err(source_error(
-                    &entries[index].module,
                     "EIDL035",
                     &import.span,
                     format!("import from {:?} requires `extern {};`", import.module, import.module),
@@ -662,7 +658,6 @@ fn connect_externals_and_imports(entries: &mut [ModuleEntry]) -> Result<(), Reso
             };
             if !dependencies.contains(&(entries[dependency].name.clone(), dependency)) {
                 return Err(source_error(
-                    &entries[index].module,
                     "EIDL035",
                     &import.span,
                     format!("import from {:?} requires `extern {};`", import.module, import.module),
@@ -675,7 +670,6 @@ fn connect_externals_and_imports(entries: &mut [ModuleEntry]) -> Result<(), Reso
                 return Err(ResolutionError {
                     diagnostics: vec![
                         Diagnostic::new("EIDL032", format!("import {name:?} conflicts with a local declaration"))
-                            .with_sources(&entries[index].module.sources)
                             .primary(&import.span, "conflicting import")
                             .secondary(local_span, "local declaration is here"),
                     ],
@@ -683,7 +677,6 @@ fn connect_externals_and_imports(entries: &mut [ModuleEntry]) -> Result<(), Reso
             }
             let Some(&symbol) = entries[dependency].local_symbols.get(&name) else {
                 return Err(source_error(
-                    &entries[index].module,
                     "EIDL033",
                     &import.span,
                     format!("module {:?} does not declare imported name {name:?}", entries[dependency].name),
@@ -695,7 +688,6 @@ fn connect_externals_and_imports(entries: &mut [ModuleEntry]) -> Result<(), Reso
                 return Err(ResolutionError {
                     diagnostics: vec![
                         Diagnostic::new("EIDL034", format!("imported name {name:?} is ambiguous"))
-                            .with_sources(&entries[index].module.sources)
                             .primary(&import.span, "second unqualified import")
                             .secondary(previous, "first unqualified import")
                             .note("remove one import or use a module-qualified type path"),
@@ -716,7 +708,7 @@ fn validate_module(index: usize, entries: &[ModuleEntry], values: &crate::ValueG
     let mut diagnostics = Vec::new();
     for declaration in &entry.module.declarations {
         for field in stored_fields(declaration) {
-            collect_diagnostics(&mut diagnostics, validate_field_type(index, field.ty, entries, &field.context, field.span));
+            collect_diagnostics(&mut diagnostics, validate_field_type(field.ty, entries, &field.context, field.span));
         }
         match &declaration.kind {
             DeclarationKind::Struct(record) => {
@@ -733,7 +725,6 @@ fn validate_module(index: usize, entries: &[ModuleEntry], values: &crate::ValueG
                                 "EIDL064",
                                 format!("struct {authored} field {} cannot implement requested deserialization", field.name),
                             )
-                            .with_sources(&entry.module.sources)
                             .primary(&field.span, "field has no supported decoder")
                             .note(reason);
                             if declaration.specialization.is_some() {
@@ -745,10 +736,10 @@ fn validate_module(index: usize, entries: &[ModuleEntry], values: &crate::ValueG
                 }
             }
             DeclarationKind::Enum(_) => {}
-            DeclarationKind::BitEnum(bit_enum) => collect_diagnostics(&mut diagnostics, validate_bit_enum(entry, declaration, bit_enum)),
+            DeclarationKind::BitEnum(bit_enum) => collect_diagnostics(&mut diagnostics, validate_bit_enum(declaration, bit_enum)),
             DeclarationKind::Interface(interface) => {
-                collect_diagnostics(&mut diagnostics, validate_interface_bases(index, interface, entries, &declaration.name));
-                collect_diagnostics(&mut diagnostics, validate_methods(index, interface, entries, values, &declaration.name));
+                collect_diagnostics(&mut diagnostics, validate_interface_bases(interface, entries, &declaration.name));
+                collect_diagnostics(&mut diagnostics, validate_methods(interface, entries, values, &declaration.name));
             }
         }
     }
@@ -786,15 +777,7 @@ fn validate_generated_names(graph: &ResolvedModules, module: &ResolvedModule) ->
         graph
             .resolve_import(import)
             .map(|resolved| (resolved.declaration, &import.span))
-            .ok_or_else(|| {
-                source_error(
-                    source,
-                    "EIDL033",
-                    &import.span,
-                    "resolved import lost its declaration",
-                    "missing imported declaration",
-                )
-            })
+            .ok_or_else(|| source_error("EIDL033", &import.span, "resolved import lost its declaration", "missing imported declaration"))
     });
     for family in local.chain(imported) {
         let (declaration, origin) = family?;
@@ -806,7 +789,6 @@ fn validate_generated_names(graph: &ResolvedModules, module: &ResolvedModule) ->
                     "EIDL021",
                     format!("generated Rust name {name:?} from {} conflicts with {previous_name}", declaration.name),
                 )
-                .with_sources(&source.sources)
                 .primary(origin, "this declaration or import exposes the conflicting name")
                 .secondary(previous_span, "name is already present here");
                 diagnostics.push(diagnostic);
@@ -889,7 +871,7 @@ fn layout_frame<'a>(module: usize, declaration: usize, entries: &'a [ModuleEntry
                 // local/imported projection and diagnostic span from its source
                 // reference, including values instantiated in this consumer.
                 source_references.iter().find_map(|reference| {
-                    let target = resolve_named(module, reference, entries).ok()?;
+                    let target = resolve_named(reference, entries).ok()?;
                     let identity = &entries[target.module].declaration_identities[target.declaration];
                     (identity.qualified_name == name).then_some((target, &reference.span))
                 })
@@ -897,7 +879,7 @@ fn layout_frame<'a>(module: usize, declaration: usize, entries: &'a [ModuleEntry
             .collect::<Vec<_>>(),
         None => source_references
             .iter()
-            .filter_map(|reference| resolve_named(module, reference, entries).ok().map(|symbol| (symbol, &reference.span)))
+            .filter_map(|reference| resolve_named(reference, entries).ok().map(|symbol| (symbol, &reference.span)))
             .collect(),
     };
     references.retain(|(symbol, _)| symbol.module == module && symbol.kind == symbol_kind(&owner.kind));
@@ -936,7 +918,6 @@ fn layout_cycle(module: usize, symbol: Symbol, span: &SourceSpan, entries: &[Mod
     ResolutionError {
         diagnostics: vec![
             Diagnostic::new("EIDL063", format!("recursive {layout}: {}", names.join(" -> ")))
-                .with_sources(&entries[module].module.sources)
                 .primary(span, format!("this {label} closes the recursive layout"))
                 .secondary(&definition.span, "recursive declaration is defined here")
                 .note(note),
@@ -998,11 +979,10 @@ fn collect_type_references<'a>(ty: &'a IdlType, output: &mut Vec<&'a NamedType>)
 
 /// Flags share their value's inherent namespace with per-value IDL metadata.
 /// Run at authored and closed stages so unused templates cannot hide conflicts.
-fn validate_metadata_names(entry: &ModuleEntry, bit_enum: &BitEnum) -> Result<(), ResolutionError> {
+fn validate_metadata_names(bit_enum: &BitEnum) -> Result<(), ResolutionError> {
     for flag in &bit_enum.flags {
         if flag.name == crate::metadata_names::VALUE_METADATA_MEMBER {
             return Err(source_error(
-                &entry.module,
                 "EIDL021",
                 &flag.span,
                 format!("flag {} conflicts with generated per-value metadata", flag.name),
@@ -1014,15 +994,14 @@ fn validate_metadata_names(entry: &ModuleEntry, bit_enum: &BitEnum) -> Result<()
 }
 
 /// Checks every bit pattern against the selected unsigned storage width.
-fn validate_bit_enum(entry: &ModuleEntry, declaration: &Declaration, bit_enum: &BitEnum) -> Result<(), ResolutionError> {
-    validate_metadata_names(entry, bit_enum)?;
+fn validate_bit_enum(declaration: &Declaration, bit_enum: &BitEnum) -> Result<(), ResolutionError> {
+    validate_metadata_names(bit_enum)?;
     let (_, maximum) = repr_range(bit_enum.repr);
     let mut values = HashMap::<u64, SourceSpan>::new();
     for flag in &bit_enum.flags {
         let value = i128::from(flag.value);
         if value > maximum {
             return Err(source_error(
-                &entry.module,
                 "EIDL040",
                 &flag.span,
                 format!("bit enum {} flag {} value {value} does not fit its representation", declaration.name, flag.name),
@@ -1033,7 +1012,6 @@ fn validate_bit_enum(entry: &ModuleEntry, declaration: &Declaration, bit_enum: &
             return Err(ResolutionError {
                 diagnostics: vec![
                     Diagnostic::new("EIDL041", format!("bit enum {} flag {} repeats value {value}", declaration.name, flag.name))
-                        .with_sources(&entry.module.sources)
                         .primary(&flag.span, "duplicate bit pattern")
                         .secondary(&previous, "value first assigned here"),
                 ],
@@ -1044,11 +1022,10 @@ fn validate_bit_enum(entry: &ModuleEntry, declaration: &Declaration, bit_enum: &
 }
 
 /// Checks enum discriminants against representation range and uniqueness.
-fn validate_enum(entry: &ModuleEntry, declaration: &Declaration, enumeration: &Enum) -> Result<(), ResolutionError> {
+fn validate_enum(declaration: &Declaration, enumeration: &Enum) -> Result<(), ResolutionError> {
     if enumeration.has_payload() {
         if let Some(variant) = enumeration.variants.iter().find(|variant| variant.discriminant.is_some()) {
             return Err(source_error(
-                &entry.module,
                 "EIDL073",
                 &variant.span,
                 format!("payload enum {} cannot assign an explicit value to {}", declaration.name, variant.name),
@@ -1058,7 +1035,6 @@ fn validate_enum(entry: &ModuleEntry, declaration: &Declaration, enumeration: &E
     }
     if enumeration.names.is_some() && !enumeration.dense {
         return Err(source_error(
-            &entry.module,
             "EIDL042",
             &declaration.span,
             format!("enum {} uses canonical names without `#[dense]`", declaration.name),
@@ -1070,7 +1046,6 @@ fn validate_enum(entry: &ModuleEntry, declaration: &Declaration, enumeration: &E
             || enumeration.variants.iter().any(|variant| !matches!(variant.fields, VariantFields::Unit)))
     {
         return Err(source_error(
-            &entry.module,
             "EIDL043",
             &declaration.span,
             format!("dense enum {} must use an unsigned representation and unit variants", declaration.name),
@@ -1084,7 +1059,6 @@ fn validate_enum(entry: &ModuleEntry, declaration: &Declaration, enumeration: &E
                 .find(|member| member.is_emitted(enumeration.names.is_some()) && member.name() == variant.name)
             {
                 return Err(source_error(
-                    &entry.module,
                     "EIDL021",
                     &variant.span,
                     format!(
@@ -1106,7 +1080,6 @@ fn validate_enum(entry: &ModuleEntry, declaration: &Declaration, enumeration: &E
             || {
                 previous.checked_add(1).ok_or_else(|| {
                     source_error(
-                        &entry.module,
                         "EIDL044",
                         &variant.span,
                         format!("enum {} discriminant overflow", declaration.name),
@@ -1118,7 +1091,6 @@ fn validate_enum(entry: &ModuleEntry, declaration: &Declaration, enumeration: &E
         )?;
         if value < minimum || value > maximum {
             return Err(source_error(
-                &entry.module,
                 "EIDL045",
                 &variant.span,
                 format!(
@@ -1135,7 +1107,6 @@ fn validate_enum(entry: &ModuleEntry, declaration: &Declaration, enumeration: &E
                         "EIDL046",
                         format!("enum {} variant {} repeats discriminant {value}", declaration.name, variant.name),
                     )
-                    .with_sources(&entry.module.sources)
                     .primary(&variant.span, "duplicate discriminant")
                     .secondary(&previous, "discriminant first assigned here"),
                 ],
@@ -1143,7 +1114,6 @@ fn validate_enum(entry: &ModuleEntry, declaration: &Declaration, enumeration: &E
         }
         if enumeration.dense && value != ordinal as i128 {
             return Err(source_error(
-                &entry.module,
                 "EIDL047",
                 &variant.span,
                 format!(
@@ -1171,13 +1141,12 @@ fn repr_range(repr: EnumRepr) -> (i128, i128) {
 }
 
 /// Requires each base or required projection to name an interface.
-fn validate_interface_bases(index: usize, interface: &crate::Interface, entries: &[ModuleEntry], owner: &str) -> Result<(), ResolutionError> {
+fn validate_interface_bases(interface: &crate::Interface, entries: &[ModuleEntry], owner: &str) -> Result<(), ResolutionError> {
     let mut identities = HashMap::<(usize, NcGuid), SourceSpan>::new();
     for base in &interface.bases {
-        let symbol = resolve_named(index, base, entries)?;
+        let symbol = resolve_named(base, entries)?;
         if symbol.kind != SymbolKind::Interface {
             return Err(kind_mismatch_error(
-                index,
                 symbol,
                 entries,
                 &base.span,
@@ -1189,7 +1158,6 @@ fn validate_interface_bases(index: usize, interface: &crate::Interface, entries:
         if let DeclarationKind::Interface(required) = &entries[symbol.module].module.declarations[symbol.declaration].kind {
             if matches!((interface.threading, required.threading), (Threading::Local, Threading::Shared)) {
                 return Err(source_error(
-                    &entries[index].module,
                     "EIDL052",
                     &base.span,
                     format!("{owner} cannot weaken the shared threading promise of {}", base.rust_path()),
@@ -1201,7 +1169,6 @@ fn validate_interface_bases(index: usize, interface: &crate::Interface, entries:
             return Err(ResolutionError {
                 diagnostics: vec![
                     Diagnostic::new("EIDL051", format!("{owner} repeats interface {}", base.rust_path()))
-                        .with_sources(&entries[index].module.sources)
                         .primary(&base.span, "repeated base interface")
                         .secondary(&previous, "base first listed here"),
                 ],
@@ -1213,7 +1180,7 @@ fn validate_interface_bases(index: usize, interface: &crate::Interface, entries:
 
 /// Rejects handle lookup conflicts at authored spans, even for unused templates.
 /// Generated/specialized methods reuse the same policy during final validation.
-fn validate_method_names(module: &Module, interface: &crate::Interface) -> Result<(), ResolutionError> {
+fn validate_method_names(interface: &crate::Interface) -> Result<(), ResolutionError> {
     let prefix = crate::codegen::InterfaceVTablePrefix::select(!interface.bases.is_empty());
     let diagnostics = interface
         .methods
@@ -1228,7 +1195,6 @@ fn validate_method_names(module: &Module, interface: &crate::Interface) -> Resul
                     format!("COM method `{}` conflicts with a COM handle operation", method.name)
                 },
             )
-            .with_sources(&module.sources)
             .primary(&method.span, "choose a distinct interface method name")
         })
         .collect::<Vec<_>>();
@@ -1240,21 +1206,14 @@ fn validate_method_names(module: &Module, interface: &crate::Interface) -> Resul
 }
 
 /// Validates ordinary signatures and generated output getters in vtable order.
-fn validate_methods(
-    index: usize,
-    interface: &crate::Interface,
-    entries: &[ModuleEntry],
-    values: &crate::ValueGraph,
-    owner: &str,
-) -> Result<(), ResolutionError> {
+fn validate_methods(interface: &crate::Interface, entries: &[ModuleEntry], values: &crate::ValueGraph, owner: &str) -> Result<(), ResolutionError> {
     let mut diagnostics = Vec::new();
-    collect_diagnostics(&mut diagnostics, validate_method_names(&entries[index].module, interface));
+    collect_diagnostics(&mut diagnostics, validate_method_names(interface));
     for method in &interface.methods {
         for parameter in &method.parameters {
             collect_diagnostics(
                 &mut diagnostics,
                 validate_parameter_type(
-                    index,
                     &parameter.ty,
                     entries,
                     values,
@@ -1265,14 +1224,7 @@ fn validate_methods(
         }
         collect_diagnostics(
             &mut diagnostics,
-            validate_output_type(
-                index,
-                &method.output,
-                entries,
-                values,
-                &format!("{owner}::{} result", method.name),
-                &method.span,
-            ),
+            validate_output_type(&method.output, entries, values, &format!("{owner}::{} result", method.name), &method.span),
         );
     }
     if diagnostics.is_empty() {
@@ -1353,50 +1305,46 @@ fn stored_fields(declaration: &Declaration) -> Vec<StoredField<'_>> {
 }
 
 /// Storage ownership form is independent of declaration lookup and specialization.
-fn validate_field_form(index: usize, ty: &IdlType, entries: &[ModuleEntry], context: &str, span: &SourceSpan) -> Result<(), ResolutionError> {
+fn validate_field_form(ty: &IdlType, context: &str, span: &SourceSpan) -> Result<(), ResolutionError> {
     match ty {
         IdlType::ComBox(_) => Err(source_error(
-            &entries[index].module,
             "EIDL060",
             span,
             format!("{context}: exclusive owners are method transfers, not repeatable fields"),
             "use an explicit owning object contract instead of a repeatable value codec",
         )),
         IdlType::Borrowed(_) | IdlType::Slice(_) | IdlType::UnsizedSlice(_) | IdlType::OutputSlice(_) => Err(source_error(
-            &entries[index].module,
             "EIDL060",
             span,
             format!("{context} requires an owned field"),
             "use Vec<T> for indirect ownership; borrowed fields cannot escape a call",
         )),
-        IdlType::Array { element, .. } | IdlType::Vector(element) => validate_field_form(index, element, entries, context, span),
+        IdlType::Array { element, .. } | IdlType::Vector(element) => validate_field_form(element, context, span),
         _ => Ok(()),
     }
 }
 
 /// Validates recursive field syntax independently from method ownership positions.
-fn validate_field_type(index: usize, ty: &IdlType, entries: &[ModuleEntry], context: &str, span: &SourceSpan) -> Result<(), ResolutionError> {
-    validate_field_form(index, ty, entries, context, span)?;
+fn validate_field_type(ty: &IdlType, entries: &[ModuleEntry], context: &str, span: &SourceSpan) -> Result<(), ResolutionError> {
+    validate_field_form(ty, context, span)?;
     match ty {
         IdlType::Unit | IdlType::Scalar(_) | IdlType::String => Ok(()),
         IdlType::ComPtr(value) | IdlType::WeakComPtr(value) | IdlType::ComBox(value) | IdlType::WeakComBox(value) => {
-            validate_object_target(index, value, entries, context, span)
+            validate_object_target(value, entries, context, span)
         }
         IdlType::Named(name) => {
             if builtin_object(name).is_some() {
                 return Err(source_error(
-                    &entries[index].module,
                     "EIDL060",
                     span,
                     format!("{context} must spell owned references as ComPtr<{}>", name.rust_path()),
                     "an object contract is not inline value storage",
                 ));
             }
-            let symbol = resolve_named(index, name, entries)?;
+            let symbol = resolve_named(name, entries)?;
             match symbol.kind {
                 SymbolKind::Value => Ok(()),
                 SymbolKind::Interface => Err(source_error(
-                    &entries[index].module,
                     "EIDL060",
                     span,
                     format!("{context} must spell owned references as ComPtr<{}>", name.rust_path()),
@@ -1404,23 +1352,22 @@ fn validate_field_type(index: usize, ty: &IdlType, entries: &[ModuleEntry], cont
                 )),
             }
         }
-        IdlType::Array { element, .. } | IdlType::Vector(element) => validate_field_type(index, element, entries, context, span),
+        IdlType::Array { element, .. } | IdlType::Vector(element) => validate_field_type(element, entries, context, span),
         IdlType::Borrowed(_) | IdlType::Slice(_) | IdlType::UnsizedSlice(_) | IdlType::OutputSlice(_) => unreachable!("field form already rejected"),
     }
 }
 
 /// Checks the referent kind of an explicit owner without treating it as stored data.
-fn validate_object_target(index: usize, ty: &IdlType, entries: &[ModuleEntry], context: &str, span: &SourceSpan) -> Result<(), ResolutionError> {
+fn validate_object_target(ty: &IdlType, entries: &[ModuleEntry], context: &str, span: &SourceSpan) -> Result<(), ResolutionError> {
     if let IdlType::Named(name) = ty {
         if builtin_object(name).is_some() {
             return Ok(());
         }
-        if resolve_named(index, name, entries)?.kind == SymbolKind::Interface {
+        if resolve_named(name, entries)?.kind == SymbolKind::Interface {
             return Ok(());
         }
     }
     Err(source_error(
-        &entries[index].module,
         "EIDL060",
         span,
         format!("{context}: COM references require a closed interface contract"),
@@ -1430,11 +1377,11 @@ fn validate_object_target(index: usize, ty: &IdlType, entries: &[ModuleEntry], c
 
 /// Reads copied use-site eligibility from the resolved structural graph.
 /// Layout validation separately reports inline cycles with source spans.
-fn copied_type(index: usize, ty: &IdlType, entries: &[ModuleEntry], values: &crate::ValueGraph) -> bool {
+fn copied_type(ty: &IdlType, entries: &[ModuleEntry], values: &crate::ValueGraph) -> bool {
     match ty {
         IdlType::Unit | IdlType::Scalar(_) => true,
-        IdlType::Array { element, .. } => copied_type(index, element, entries, values),
-        IdlType::Named(name) => resolve_named(index, name, entries).is_ok_and(|symbol| {
+        IdlType::Array { element, .. } => copied_type(element, entries, values),
+        IdlType::Named(name) => resolve_named(name, entries).is_ok_and(|symbol| {
             let qualified = &entries[symbol.module].declaration_identities[symbol.declaration].qualified_name;
             values.definitions.get(qualified).is_some_and(|value| value.copied)
         }),
@@ -1490,14 +1437,12 @@ fn admit_canonical_origins(entries: &[ModuleEntry]) -> Result<HashMap<String, Ca
                     if !(previous.closed && candidate.closed && previous.id == candidate.id && previous.origin == candidate.origin) {
                         let (owner, index) = previous.location;
                         let first = &entries[owner].module.declarations[index];
-                        let sources = entries.iter().flat_map(|entry| entry.module.sources.iter().cloned()).collect::<Vec<_>>();
                         return Err(ResolutionError {
                             diagnostics: vec![
                                 Diagnostic::new(
                                     "EIDL060",
                                     format!("canonical declaration {:?} has conflicting semantic origins", identity.qualified_name),
                                 )
-                                .with_sources(&sources)
                                 .primary(&declaration.span, "conflicting definition")
                                 .secondary(&first.span, "first definition"),
                             ],
@@ -1513,18 +1458,18 @@ fn admit_canonical_origins(entries: &[ModuleEntry]) -> Result<HashMap<String, Ca
 /// Resolves field paths once into finite named graph edges, including indirect recursion.
 /// Repeated projections reuse their admitted node; no shape is silently overwritten.
 fn resolve_value_graph(entries: &[ModuleEntry], admitted: &HashMap<String, CanonicalOrigin>) -> Result<crate::ValueGraph, ResolutionError> {
-    fn field(index: usize, ty: &IdlType, entries: &[ModuleEntry]) -> Result<crate::ValueType, ResolutionError> {
+    fn field(ty: &IdlType, entries: &[ModuleEntry]) -> Result<crate::ValueType, ResolutionError> {
         use crate::ValueType as V;
         Ok(match ty {
-            IdlType::WeakComPtr(value) => match field(index, value, entries)? {
+            IdlType::WeakComPtr(value) => match field(value, entries)? {
                 V::Object(name) => V::WeakObject(name),
                 other => other,
             },
-            IdlType::WeakComBox(value) => match field(index, value, entries)? {
+            IdlType::WeakComBox(value) => match field(value, entries)? {
                 V::Object(name) => V::WeakBoxObject(name),
                 other => other,
             },
-            IdlType::ComPtr(value) | IdlType::ComBox(value) => match field(index, value, entries)? {
+            IdlType::ComPtr(value) | IdlType::ComBox(value) => match field(value, entries)? {
                 V::Object(name) => V::Object(name),
                 other => other,
             },
@@ -1533,7 +1478,7 @@ fn resolve_value_graph(entries: &[ModuleEntry], admitted: &HashMap<String, Canon
             IdlType::String => V::Text,
             IdlType::Named(name) if builtin_object(name).is_some() => V::Object(name.segments.join(".")),
             IdlType::Named(name) => {
-                let Ok(symbol) = resolve_named(index, name, entries) else {
+                let Ok(symbol) = resolve_named(name, entries) else {
                     // Keep diagnostic collection in validate_module; unresolved
                     // edges are never eligible for copied lowering.
                     return Ok(V::Named(name.segments.join(".")));
@@ -1544,13 +1489,13 @@ fn resolve_value_graph(entries: &[ModuleEntry], admitted: &HashMap<String, Canon
                     _ => V::Object(name),
                 }
             }
-            IdlType::Vector(value) => V::Sequence(Box::new(field(index, value, entries)?)),
-            IdlType::Array { element, len } => V::Array(Box::new(field(index, element, entries)?), *len),
+            IdlType::Vector(value) => V::Sequence(Box::new(field(value, entries)?)),
+            IdlType::Array { element, len } => V::Array(Box::new(field(element, entries)?), *len),
             IdlType::Borrowed(_) | IdlType::Slice(_) | IdlType::OutputSlice(_) | IdlType::UnsizedSlice(_) => V::Unit,
         })
     }
     let mut graph = crate::ValueGraph::default();
-    for (index, entry) in entries.iter().enumerate() {
+    for entry in entries {
         for (declaration_index, declaration) in entry.module.declarations.iter().enumerate() {
             if matches!(declaration.kind, DeclarationKind::Interface(_)) {
                 continue;
@@ -1558,7 +1503,7 @@ fn resolve_value_graph(entries: &[ModuleEntry], admitted: &HashMap<String, Canon
             let name = entry.declaration_identities[declaration_index].qualified_name.clone();
             let fields = value_fields(declaration)
                 .into_iter()
-                .map(|ty| field(index, ty, entries))
+                .map(|ty| field(ty, entries))
                 .collect::<Result<Vec<_>, _>>()?;
             let proof = admitted.get(&name).expect("canonical admission precedes value analysis");
             let definition = crate::ValueDefinition {
@@ -1594,20 +1539,12 @@ fn resolve_value_graph(entries: &[ModuleEntry], admitted: &HashMap<String, Canon
 }
 
 /// Requires an implemented self-contained copied lowering at this method position.
-fn validate_value_type(
-    index: usize,
-    ty: &IdlType,
-    entries: &[ModuleEntry],
-    values: &crate::ValueGraph,
-    context: &str,
-    span: &SourceSpan,
-) -> Result<(), ResolutionError> {
-    validate_field_type(index, ty, entries, context, span)?;
-    if copied_type(index, ty, entries, values) {
+fn validate_value_type(ty: &IdlType, entries: &[ModuleEntry], values: &crate::ValueGraph, context: &str, span: &SourceSpan) -> Result<(), ResolutionError> {
+    validate_field_type(ty, entries, context, span)?;
+    if copied_type(ty, entries, values) {
         Ok(())
     } else {
         Err(source_error(
-            &entries[index].module,
             "EIDL060",
             span,
             format!("{context} has no copied ABI lowering"),
@@ -1617,14 +1554,7 @@ fn validate_value_type(
 }
 
 /// Validates an input without allowing implicit COM ownership transfer.
-fn validate_parameter_type(
-    index: usize,
-    ty: &IdlType,
-    entries: &[ModuleEntry],
-    values: &crate::ValueGraph,
-    context: &str,
-    span: &SourceSpan,
-) -> Result<(), ResolutionError> {
+fn validate_parameter_type(ty: &IdlType, entries: &[ModuleEntry], values: &crate::ValueGraph, context: &str, span: &SourceSpan) -> Result<(), ResolutionError> {
     let span = type_span(ty).unwrap_or(span);
     if let IdlType::Borrowed(referent) = ty {
         if let IdlType::Named(name) = referent.as_ref() {
@@ -1634,26 +1564,23 @@ fn validate_parameter_type(
         }
     }
     match ty {
-        IdlType::ComBox(value) => validate_object_target(index, value, entries, context, span),
+        IdlType::ComBox(value) => validate_object_target(value, entries, context, span),
         IdlType::WeakComBox(_) => Err(source_error(
-            &entries[index].module,
             "EIDL061",
             span,
             format!("{context}: weak box inputs must use a live interface borrow"),
             "unsupported ownership transfer",
         )),
         IdlType::WeakComPtr(_) | IdlType::ComPtr(_) | IdlType::Unit | IdlType::String | IdlType::Vector(_) | IdlType::UnsizedSlice(_) => Err(source_error(
-            &entries[index].module,
             "EIDL061",
             span,
             format!("{context} has no valid input ownership"),
             "invalid parameter type",
         )),
         IdlType::Scalar(_) => Ok(()),
-        IdlType::Named(name) => match resolve_named_or_str(index, name, entries)? {
-            ResolvedName::Symbol(symbol) if symbol.kind == SymbolKind::Value => validate_value_type(index, ty, entries, values, context, span),
+        IdlType::Named(name) => match resolve_named_or_str(name, entries)? {
+            ResolvedName::Symbol(symbol) if symbol.kind == SymbolKind::Value => validate_value_type(ty, entries, values, context, span),
             ResolvedName::Symbol(symbol) => Err(kind_mismatch_error(
-                index,
                 symbol,
                 entries,
                 span,
@@ -1662,7 +1589,6 @@ fn validate_parameter_type(
                 "borrow the object type with `&`",
             )),
             ResolvedName::Str => Err(source_error(
-                &entries[index].module,
                 "EIDL061",
                 span,
                 format!("{context} must borrow str as &str"),
@@ -1670,56 +1596,45 @@ fn validate_parameter_type(
             )),
         },
         IdlType::Borrowed(referent) => match referent.as_ref() {
-            IdlType::Named(name) => match resolve_named_or_str(index, name, entries)? {
+            IdlType::Named(name) => match resolve_named_or_str(name, entries)? {
                 ResolvedName::Str => Ok(()),
                 ResolvedName::Symbol(symbol) if symbol.kind != SymbolKind::Value => Ok(()),
                 ResolvedName::Symbol(_) => Ok(()),
             },
             _ => Err(source_error(
-                &entries[index].module,
                 "EIDL061",
                 span,
                 format!("{context} has an unsupported borrowed type"),
                 "unsupported borrow",
             )),
         },
-        IdlType::Slice(element) | IdlType::OutputSlice(element) => validate_value_type(index, element, entries, values, context, span),
-        IdlType::Array { .. } => validate_value_type(index, ty, entries, values, context, span),
+        IdlType::Slice(element) | IdlType::OutputSlice(element) => validate_value_type(element, entries, values, context, span),
+        IdlType::Array { .. } => validate_value_type(ty, entries, values, context, span),
     }
 }
 
 /// Validates outputs with explicit object ownership and copied-value semantics.
-fn validate_output_type(
-    index: usize,
-    ty: &IdlType,
-    entries: &[ModuleEntry],
-    values: &crate::ValueGraph,
-    context: &str,
-    span: &SourceSpan,
-) -> Result<(), ResolutionError> {
+fn validate_output_type(ty: &IdlType, entries: &[ModuleEntry], values: &crate::ValueGraph, context: &str, span: &SourceSpan) -> Result<(), ResolutionError> {
     let span = type_span(ty).unwrap_or(span);
     match ty {
         IdlType::Unit | IdlType::Scalar(_) => Ok(()),
         IdlType::ComPtr(value) | IdlType::WeakComPtr(value) | IdlType::ComBox(value) | IdlType::WeakComBox(value) => {
-            validate_object_target(index, value, entries, context, span)
+            validate_object_target(value, entries, context, span)
         }
-        IdlType::Named(_) | IdlType::Array { .. } => validate_value_type(index, ty, entries, values, context, span),
+        IdlType::Named(_) | IdlType::Array { .. } => validate_value_type(ty, entries, values, context, span),
         IdlType::String => Err(source_error(
-            &entries[index].module,
             "EIDL062",
             span,
             format!("{context}: return ComPtr<INcString> for an owned COM string"),
             "owned String values cannot escape a call-scoped wire guard",
         )),
         IdlType::Vector(_) => Err(source_error(
-            &entries[index].module,
             "EIDL062",
             span,
             format!("{context} cannot transfer an owned collection through a call-scoped wire guard"),
             "use an explicit COM collection contract or a caller-owned output buffer",
         )),
         IdlType::Borrowed(_) | IdlType::Slice(_) | IdlType::OutputSlice(_) | IdlType::UnsizedSlice(_) => Err(source_error(
-            &entries[index].module,
             "EIDL062",
             span,
             format!("{context} cannot return a borrowed value"),
@@ -1737,35 +1652,26 @@ enum ResolvedName {
 }
 
 /// Resolves a path while recognizing the unsized str built-in.
-fn resolve_named_or_str(index: usize, name: &NamedType, entries: &[ModuleEntry]) -> Result<ResolvedName, ResolutionError> {
+fn resolve_named_or_str(name: &NamedType, entries: &[ModuleEntry]) -> Result<ResolvedName, ResolutionError> {
     if name.is_str() {
         Ok(ResolvedName::Str)
     } else {
-        resolve_named(index, name, entries).map(ResolvedName::Symbol)
+        resolve_named(name, entries).map(ResolvedName::Symbol)
     }
 }
 
 /// Reads a concrete bound projection from the completed symbol table.
 /// Lexical lookup happens only in bind::bind, before specialization.
-fn resolve_named(index: usize, name: &NamedType, entries: &[ModuleEntry]) -> Result<Symbol, ResolutionError> {
-    let key = name.binding.projection().ok_or_else(|| {
-        source_error(
-            &entries[index].module,
-            "EIDL099",
-            &name.span,
-            "type has no bound concrete projection",
-            "compiler binding invariant",
-        )
-    })?;
-    entries[key.module].local_symbols.get(&key.name).copied().ok_or_else(|| {
-        source_error(
-            &entries[index].module,
-            "EIDL099",
-            &name.span,
-            "bound declaration is absent",
-            "compiler projection invariant",
-        )
-    })
+fn resolve_named(name: &NamedType, entries: &[ModuleEntry]) -> Result<Symbol, ResolutionError> {
+    let key = name
+        .binding
+        .projection()
+        .ok_or_else(|| source_error("EIDL099", &name.span, "type has no bound concrete projection", "compiler binding invariant"))?;
+    entries[key.module]
+        .local_symbols
+        .get(&key.name)
+        .copied()
+        .ok_or_else(|| source_error("EIDL099", &name.span, "bound declaration is absent", "compiler projection invariant"))
 }
 
 /// One active module whose dependencies are completed before its own digest.
@@ -1908,13 +1814,12 @@ struct FreeName<'a>(
 );
 
 /// Classifies a name identically in ordinary type, base positions.
-fn classify_name<'a>(scope: EncodingScope<'_>, name: &'a NamedType, entries: &[ModuleEntry]) -> Result<NameBinding<'a>, ResolutionError> {
+fn classify_name(name: &NamedType) -> Result<NameBinding<'_>, ResolutionError> {
     if let Binding::Parameter { position } = name.binding {
         // The binding phase already rejects arguments on parameters. Keep this
         // invariant check for direct internal encoder callers as well.
         if !name.arguments.is_empty() {
             return Err(source_error(
-                &entries[scope.module].module,
                 "EIDL060",
                 &name.span,
                 "a type parameter cannot accept arguments",
@@ -2102,7 +2007,7 @@ fn encode_type(scope: EncodingScope<'_>, ty: &IdlType, entries: &[ModuleEntry], 
             encoder.text(name, &entries[scope.module].name)?;
         }
         IdlType::String => encoder.type_tag(TypeTag::String),
-        IdlType::Named(name) => match classify_name(scope, name, entries)? {
+        IdlType::Named(name) => match classify_name(name)? {
             NameBinding::Parameter { position } => {
                 encoder.type_tag(TypeTag::Parameter);
                 encoder.u32(position);
@@ -2177,7 +2082,7 @@ fn encode_type(scope: EncodingScope<'_>, ty: &IdlType, entries: &[ModuleEntry], 
 /// Both alternatives therefore have an explicit discriminator; a free UUID must
 /// never be mistaken for a parameter ordinal. This grammar is retained from v11.
 fn encode_named(scope: EncodingScope<'_>, name: &NamedType, entries: &[ModuleEntry], encoder: &mut CanonicalEncoder) -> Result<(), ResolutionError> {
-    match classify_name(scope, name, entries)? {
+    match classify_name(name)? {
         NameBinding::Parameter { position } => {
             encoder.tag(0);
             encoder.u32(position);
@@ -2390,15 +2295,14 @@ fn type_span(ty: &IdlType) -> Option<&SourceSpan> {
 }
 
 /// Constructs one source-local semantic error.
-fn source_error(module: &Module, code: &str, span: &SourceSpan, message: impl Into<String>, label: impl Into<String>) -> ResolutionError {
+fn source_error(code: &str, span: &SourceSpan, message: impl Into<String>, label: impl Into<String>) -> ResolutionError {
     ResolutionError {
-        diagnostics: vec![Diagnostic::new(code, message).with_sources(&module.sources).primary(span, label)],
+        diagnostics: vec![Diagnostic::new(code, message).primary(span, label)],
     }
 }
 
 /// Constructs a type-kind error that points to both use and definition.
 fn kind_mismatch_error(
-    owner: usize,
     symbol: Symbol,
     entries: &[ModuleEntry],
     span: &SourceSpan,
@@ -2407,11 +2311,10 @@ fn kind_mismatch_error(
     help: impl Into<String>,
 ) -> ResolutionError {
     let definition = &entries[symbol.module].module.declarations[symbol.declaration];
-    let sources = combined_sources(entries[owner].module.sources.clone(), &entries[symbol.module].module.sources);
+
     ResolutionError {
         diagnostics: vec![
             Diagnostic::new("EIDL060", message)
-                .with_sources(&sources)
                 .primary(span, label)
                 .secondary(
                     &definition.span,
@@ -2420,18 +2323,6 @@ fn kind_mismatch_error(
                 .note(help),
         ],
     }
-}
-
-/// Unions diagnostic sources in normalized path order without duplicates.
-fn combined_sources(first: Vec<SourceFile>, second: &[SourceFile]) -> Vec<SourceFile> {
-    let mut sources = first
-        .into_iter()
-        .map(|source| (source.path().to_owned(), source))
-        .collect::<std::collections::BTreeMap<_, _>>();
-    for source in second {
-        sources.entry(source.path().to_owned()).or_insert_with(|| source.clone());
-    }
-    sources.into_values().collect()
 }
 
 /// Appends every diagnostic from a failed independent validation check.
