@@ -113,7 +113,10 @@ root-to-leaf path. The nested binary policy defaults to a 16 MiB document,
 65,536 elements/fields per container, 64 levels of value nesting, and 1,000,000
 decoded values. Binary nesting counts the encoded record/sequence structure,
 so it can be exhausted before the object-depth budget. Provider-state bytes
-and children also count toward binary container limits.
+and children also count toward binary container limits. Snapshot capture checks
+the advertised child count before visiting children, then grows each child
+vector fallibly as records complete. Allocation failure during child growth
+returns `NC_E_OUT_OF_MEMORY`.
 The format COM ABI represents container and value-depth ceilings as `u32`.
 Persistence saturates larger `usize` ceilings to `u32::MAX` at that boundary,
 so permissive caller policy still accepts small NCB-v1 documents.
