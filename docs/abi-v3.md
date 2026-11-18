@@ -224,9 +224,10 @@ let _ = NcAbiDigest::from_static(&WRONG_WIDTH);
 
 ## Weak lifetime references
 
-`IUnknownVTable.downgrade` is optional. Absence reports `NC_E_NOINTERFACE`;
-success transfers one retained shared weak token at the canonical allocation
-address. Failure clears its output. Handwritten providers opting in implement
+The callback in `IUnknownVTable.downgrade` is optional. When it is absent,
+`ComRef::downgrade` reports `NC_E_NOINTERFACE`. A successful callback transfers
+one retained shared weak token at the canonical allocation address. A failed
+callback clears its output. Handwritten providers opting in implement
 the common header and lifetime protocol, not an opaque Rust Weak token.
 
 The raw shared weak token contains one opaque allocation address:
@@ -301,6 +302,17 @@ boxed storage. A pointer cast alone is no proof. Raw checked callers admit polic
 before calling typed operations; typed borrow entry still checks liveness/conflicts.
 Exclusive AddRef returns zero, and shared query/downgrade clear outputs and reject
 with NC_E_INVALID_ARG (null argument/output rejection remains NC_E_POINTER).
+
+Shared AddRef and Release account for the same strong owners, including built-in
+headerless data and child lists. Counts reported by either slot are capped at
+`u32::MAX` when the internal count is wider. A raw caller transfers its exclusive
+token through the matching Release slot. Rust `ComBox::drop` calls the typed boxed
+operation directly. Exclusive release closes admission, waits for admitted
+methods, and destroys the value before returning zero. Boxed weak observers can
+still retain storage for checked access. Only an owned token can be released through the owner slot. Scoped
+format providers lend a pair for calls, with a defensive Release stub and no owner
+token. See the [lifetime admission contract](contracts/COM_LIFETIME_ADMISSION.md)
+for threading, reentry, and provider-code retention rules.
 
 Only interface slots and provider cleanup callbacks cross the C boundary. C calling
 convention does not make their implementation names public Rust functions or

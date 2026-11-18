@@ -2,7 +2,7 @@
 //!
 //! This module fixes the canonical `IUnknown` identity, raw handle pair, vtable prefix,
 //! and empty method descriptor. Generated and built-in interfaces implement
-//! [`ComInterface`] to describe their identity, vtable type, and shared lifecycle prefix, independent of object layout.
+//! [`ComInterface`] to describe their identity, vtable type, and common lifecycle prefix, independent of object layout.
 
 use core::ffi::c_void;
 
@@ -37,6 +37,13 @@ pub const IUNKNOWN_INTERFACE_ID: NcInterfaceId = NcInterfaceId::new(IID_IUNKNOWN
 pub enum IUnknown {}
 
 /// C-compatible vtable for [`IUnknown`].
+///
+/// Construction and generated interface tables select the ownership policy.
+/// Begin each callback with the matching live storage and table prefix, and
+/// keep the table, metadata, and provider code valid through the call. Owner
+/// release can end the storage lifetime before returning. Observe the
+/// implementation's threading and reentry rules. Callbacks must return across
+/// the C boundary without unwinding.
 #[repr(C)]
 pub struct IUnknownVTable {
     /// Identity of the actual interface selected by this vtable, including its
@@ -44,44 +51,68 @@ pub struct IUnknownVTable {
     /// it describes the projected interface, which may differ from IUnknown.
     pub interface_id: *const NcInterfaceId,
 
-    /// Queries the object for another interface by identity.
+    /// Queries a shared object for an owned interface of the requested identity.
+    ///
+    /// Success transfers one shared owner with the same allocation address.
+    /// Exclusive and scoped prefixes reject owning queries. Every failed query
+    /// clears both output fields and transfers no owner.
     ///
     /// # Safety
     ///
-    /// `this` must be the live allocation address paired with this table.
-    /// `interface_id` must point to the expected interface GUID/signature pair, and
-    /// `out` must point to a distinct slot valid for one ComRaw record write. Given
-    /// those preconditions, the implementation initializes both fields of `*out` to null.
-    /// `NC_OK` replaces it with one present owned interface pair with the same object address that the
-    /// caller must eventually release; every other returned status leaves it
-    /// null and transfers no reference. Null or otherwise invalid arguments
-    /// violate this safety contract even when an implementation rejects them
-    /// defensively.
+    /// `this` must be the address paired with this table, backed by a live shared
+    /// owner for a shared query or valid access to the matching exclusive or
+    /// scoped storage for a rejecting prefix. `interface_id` must point to a
+    /// readable GUID and signature for the call. `out` must be a distinct
+    /// writable slot for one [`crate::ComRaw`] with no input alias.
     pub query_interface: unsafe extern "C" fn(this: *mut c_void, interface_id: *const NcInterfaceId, out: *mut crate::ComRaw<IUnknown>) -> NcStatus,
 
-    /// Retains shared ownership and returns the new count. Exclusive objects
-    /// return zero without acquiring ownership; callers must check rejection.
+    /// Acquires one shared owner and returns the new count.
+    ///
+    /// The reported count is capped at `u32::MAX` when the private count is
+    /// wider. Exclusive and scoped prefixes return zero and transfer nothing.
     ///
     /// # Safety
     ///
-    /// `this` must be the live allocation address paired with this table. The caller only needs a
-    /// borrowed reference for the duration of the call; success creates one new
-    /// owned reference only when the returned count is nonzero.
+    /// Use the matched pair backed by a live shared owner for a shared retain.
+    /// A rejecting prefix requires valid access to its exclusive or scoped
+    /// storage for the call. The caller owns a new token only on nonzero return.
     pub add_ref: unsafe extern "C" fn(this: *mut c_void) -> u32,
 
-    /// Decrements the object's reference count and returns the remaining count.
+    /// Consumes one shared owner or the sole exclusive owner.
+    ///
+    /// Shared release returns the remaining count, capped at `u32::MAX` when
+    /// the private count is wider. Final shared release destroys the value.
+    /// Exclusive release closes admission, waits for admitted methods, destroys
+    /// the value synchronously in the provider, and returns zero. Boxed weak
+    /// observers can keep the allocation storage alive after value destruction.
+    ///
+    /// Rust [`crate::ComBox`] destruction calls the typed boxed lifetime operation.
+    /// A raw exclusive owner calls the matching prefix callback. A scoped
+    /// release stub is a defensive no-op for a pair that grants no owner.
     ///
     /// # Safety
     ///
-    /// `this` must own one live reference. The call consumes that reference and
-    /// may destroy the object immediately when the remaining count reaches zero.
+    /// Transfer one valid owner of the policy selected by the table exactly once.
+    /// A weak token or borrowed [`crate::ComRef`] supplies no owner for this call.
+    /// Before releasing an exclusive owner, end borrows on the calling thread
+    /// and release locks or resources needed by admitted calls to finish.
     pub release: unsafe extern "C" fn(this: *mut c_void) -> u32,
 
-    /// Optional weak-lifetime capability. None reports unsupported weak references.
-    /// A live borrowed `this` and a distinct writable output are required. Success
-    /// transfers one canonical weak token; failures clear output and transfer none.
-    /// All projections of an object must return the same control identity. A successful token uses the common header
-    /// at the canonical object address, retained through final weak release.
+    /// The optional callback acquires shared weak ownership.
+    ///
+    /// When the callback is absent, [`crate::ComRef::downgrade`] reports
+    /// `NC_E_NOINTERFACE`. Boxed prefixes supply a callback that rejects
+    /// shared downgrade with `NC_E_INVALID_ARG` on valid arguments.
+    /// Success transfers one shared [`crate::NcWeakRaw`]
+    /// at the canonical allocation address for every interface of the object.
+    /// The weak token keeps the shared header alive through final weak release.
+    /// Every callback failure clears the output and transfers no weak token.
+    ///
+    /// # Safety
+    ///
+    /// `this` must be backed by a live shared owner for a shared downgrade,
+    /// or valid matching storage for a rejecting prefix. `out` must be a
+    /// distinct writable weak-token slot with no input alias.
     pub downgrade: Option<unsafe extern "C" fn(this: *mut c_void, out: *mut crate::NcWeakRaw) -> NcStatus>,
 }
 
@@ -109,17 +140,22 @@ unsafe impl Sync for IUnknownVTable {}
 /// An implementation is a proof that all of the following invariants hold:
 ///
 /// - Self is a marker for an exact interface contract. Its VTable has the
-///   common IUnknownVTable prefix and methods accepting the allocation address.
-/// - Every published `ComRaw<Self>` pairs that table with its matching live object.
-///   Tables and identities remain immutable and live while any reference exists.
+///   [`IUnknownVTable`] prefix and methods accepting the allocation address.
+/// - Every present `ComRaw<Self>` pairs an allocation address with the matching
+///   table. Storage, immutable table and identity, and provider code stay valid
+///   for the access the pair grants. A [`crate::ComRef`] borrows that access from
+///   an owner or scope and acquires no token itself. A boxed weak observer keeps
+///   storage available for checked method entry, which checks value liveness.
 /// - Exact identity checks precede typed argument/result dispatch. Borrowed
 ///   inherited method views may use a physically compatible base table prefix.
 /// - `Self::Threading` is the minimum implementation guarantee. Shared
-///   contracts require thread-safe calls, ownership, and destruction; a
+///   contracts require thread-safe calls, ownership, and destruction. A
 ///   pointer may retain a stronger guarantee or explicitly weaken it.
-/// - QueryInterface preserves the object address, selects the exact requested
-///   table, and transfers exactly one reference on success. Failure clears both
-///   output fields. AddRef and Release share the allocation's single count.
+/// - The common callbacks implement the construction-selected ownership policy.
+///   Shared AddRef and Release account for a single set of strong owners,
+///   including built-in headerless data such as bytes, strings and child lists.
+///   Boxed Release consumes the sole exclusive owner. A scoped pair only lends
+///   call access, with no ownership transfer through its prefix.
 ///
 /// Violating these invariants can make safe operations such as
 /// [`crate::ComPtr::query`], `Clone`, or `Drop` cause undefined behavior.
