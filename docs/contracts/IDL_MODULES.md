@@ -899,7 +899,10 @@ No `links` owner, `DEP_*` exchange or contract package is needed. Each reachable
 non-bundled module has an explicit Rust location: `.module(name, rust_path)` emits
 that consumer's bindings; `.import(name, rust_path)` uses definitions exposed by
 an existing ordinary library when Rust helper calls exchange those concrete types.
-Both resolve shared IDL and compute the normal transitive ABI. Every external
+Bundled modules such as `neocogi.lang` participate through ordinary IDL references.
+A project `.module` or `.import` route claiming a bundled module fails with
+`EIDL067` before source discovery or output changes.
+Both routes resolve shared IDL and compute the normal transitive ABI. Every external
 Rust declaration actually selected by emission must also match its resolved IDL
 identity at compilation. Generated anonymous const assertions compare a value's
 `ComValueType::VALUE_SIGNATURE`, or an interface marker's complete

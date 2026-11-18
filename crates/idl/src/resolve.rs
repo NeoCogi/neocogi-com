@@ -194,7 +194,7 @@ impl std::error::Error for ResolutionError {}
 pub enum ModuleGraphError {
     /// The compiler-owned `neocogi.lang` dependency could not be parsed.
     BundledSource(ParseError),
-    /// Admitted modules contain source-level semantic errors.
+    /// Source-level semantic errors or a build configuration ownership violation.
     Resolution(ResolutionError),
 }
 

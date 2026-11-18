@@ -21,6 +21,8 @@ use crate::generate::RustModulePaths;
 /// emit local bindings, or [`Self::import`] to use Rust definitions already
 /// exposed by an ordinary library. The latter is useful when a Rust helper API
 /// passes its own generated values directly; it is not needed for COM calls.
+/// The compiler supplies `neocogi.lang` through standard source references.
+/// Registering a local emission or Rust import route for it fails with EIDL067.
 #[derive(Clone, Debug)]
 pub struct SharedSources {
     /// Source roots, relative to the consuming manifest unless absolute.
@@ -117,6 +119,14 @@ impl SharedSources {
         let mut local = BTreeSet::new();
         let mut policies = BTreeMap::new();
         for binding in &self.bindings {
+            if crate::is_bundled_module(&binding.module) {
+                return Err(BuildError::Resolve(
+                    crate::ResolutionError {
+                        diagnostics: vec![crate::standard::reserved_owner_diagnostic()],
+                    }
+                    .into(),
+                ));
+            }
             paths
                 .insert(&binding.module, &binding.rust_path)
                 .map_err(|error| BuildError::Idl(error.to_string()))?;
@@ -394,6 +404,51 @@ mod tests {
         ] {
             assert!(request.build_at(&[work.path().to_owned()], &work.path().join("output")).is_err());
             assert!(!work.path().join("output").exists());
+        }
+    }
+
+    /// Compiler-owned bindings cannot be configured regardless of authored use.
+    #[test]
+    fn bundled_rust_routes_reject_before_source_discovery_and_output() {
+        let work = tempfile::tempdir().unwrap();
+        let root = work.path().join("idl");
+        fs::create_dir_all(root.join("proof")).unwrap();
+        let output = work.path().join("output");
+        let entry = root.join("proof/root.ncidl");
+        for (source, valid) in [
+            ("struct Root { value: u32 }", true),
+            ("struct Root { value: Option<u32> }", true),
+            ("extern neocogi.lang; use neocogi.lang::Option; struct Root { value: Option<u32> }", true),
+            ("struct", false),
+        ] {
+            fs::write(&entry, source).unwrap();
+            let request = SharedSources::new(&root).module("proof.root", "consumer::root");
+            if valid {
+                let generated = request.clone().build_at(std::slice::from_ref(&root), &work.path().join("control")).unwrap();
+                assert_eq!(generated.len(), 1);
+                assert_eq!(generated[0].module_name, "proof.root");
+            }
+            for bad in [
+                request.clone().module("neocogi.lang", "consumer::lang"),
+                request.import("neocogi.lang", "supplier::lang"),
+            ] {
+                let reject = |output: &Path| {
+                    let error = bad.build_at(std::slice::from_ref(&root), output).unwrap_err();
+                    let BuildError::Resolve(crate::ModuleGraphError::Resolution(error)) = error else {
+                        panic!("wrong rejection: {error:?}")
+                    };
+                    assert_eq!(error.diagnostics[0].code, "EIDL067");
+                    assert!(error.to_string().contains("neocogi.lang is reserved"), "{error}");
+                };
+                reject(&output);
+                assert!(!output.exists());
+                fs::create_dir(&output).unwrap();
+                fs::write(output.join("include.rs"), "last good include").unwrap();
+                reject(&output);
+                assert_eq!(fs::read_to_string(output.join("include.rs")).unwrap(), "last good include");
+                assert_eq!(fs::read_dir(&output).unwrap().count(), 1);
+                fs::remove_dir_all(&output).unwrap();
+            }
         }
     }
 

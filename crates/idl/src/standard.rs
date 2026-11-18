@@ -19,6 +19,11 @@ pub fn is_bundled_module(name: &str) -> bool {
     name == LANGUAGE_MODULE
 }
 
+/// Creates the one diagnostic for an authored claim on the bundled module.
+pub(crate) fn reserved_owner_diagnostic() -> crate::Diagnostic {
+    crate::Diagnostic::new("EIDL067", "neocogi.lang is reserved for the bundled IDL library")
+}
+
 /// Adds the standard source only when used and supplies unshadowed prelude imports.
 /// Authored declarations/imports and template parameters take lexical precedence.
 /// The compiler owns the reserved module path so another package cannot silently
@@ -28,7 +33,7 @@ pub(crate) fn attach(mut modules: Vec<Module>) -> Result<Vec<Module>, ModuleGrap
     let standard = crate::parse_module(std::path::Path::new("neocogi/lang.ncidl"), LANGUAGE_SOURCE).map_err(ModuleGraphError::BundledSource)?;
     if let Some(module) = modules.iter().find(|module| is_bundled_module(&module.name.to_string())) {
         return Err(ResolutionError {
-            diagnostics: vec![crate::Diagnostic::new("EIDL067", "neocogi.lang is reserved for the bundled IDL library").with_sources(&module.sources)],
+            diagnostics: vec![reserved_owner_diagnostic().with_sources(&module.sources)],
         }
         .into());
     }
