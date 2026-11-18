@@ -40,8 +40,10 @@ known limits and actual platform results. Keep superseded development entries
 historical. For future releases, a prepared version remains a candidate until
 its publication and registry-user checks are complete.
 
-COM `0.3.0` was published on 2026-11-15 from `v0.3.0` at `35db184` after its
+COM `0.3.0` was published on 2026-11-15 from `35db184` after its
 [required CI jobs passed](https://github.com/NeoCogi/neocogi-com/actions/runs/43675768485).
+The `v0.3.0` tag now points to `57e913f`, which updates release wording and
+retains the same tutorial and SDK code.
 All eight registry archives matched the verified candidate's hashes and clean
 Git provenance. Registry-only tutorial builds and real plugin calls passed on
 stable Rust and Rust 1.85; the registry-installed inspector checked both plugins,
@@ -122,14 +124,14 @@ SharedSources COM consumer cases, docs,
 reduced features, generated consumers and independently built tutorial. It uses
 only extracted SDKs. It is distinct from the normal registry dry-run below.
 
-Run the ordinary dry-run **online**, with `CARGO_NET_OFFLINE` unset, on a clean
-candidate and without `--no-verify` or `--allow-dirty`:
+Run the ordinary dry run **online** with the release toolchain from the clean
+candidate checkout. Unset `CARGO_NET_OFFLINE` and keep Cargo verification enabled.
+`--workspace` selects publishable members and skips `publish = false` members.
+The `cargo xtask workspace` check above compares that set with the archive
+inventory. Multi-package publishing requires Cargo 1.90 or later.
 
 ```sh
-cargo publish --dry-run --locked --registry crates-io \
-  -p neocogi-com-core -p neocogi-idl -p neocogi-com-macros \
-  -p neocogi-com -p neocogi-com-serialization -p neocogi-com-serialization-dylib \
-  -p neocogi-com-host -p neocogi-inspect
+cargo publish --dry-run --locked --registry crates-io --workspace
 ```
 
 Cargo 1.97.1/1.98.1 can fail offline multi-package verification with an internal
@@ -139,12 +141,20 @@ not waive ordinary verification or interpret that offline error as proof of
 malformed source. The offline archive gate independently builds and tests its
 extracted contents.
 
-Save full logs and all nine `.crate` files from `target/package` outside Cargo
-targets, together with their SHA-256 hashes and the candidate commit ID. On Linux
-use `sha256sum`, on macOS `shasum -a 256`, or PowerShell `Get-FileHash`. Check the
-nine expected versions and `.cargo_vcs_info.json` provenance. Preserve this record
-through `cargo clean`. If code, docs, versions or dependencies change, commit a
-new candidate and rerun affected checks; refresh packaging/provenance evidence.
+Save the online dry-run log with the exact candidate commit ID. Cargo 1.93 and
+later treats publish tarballs as intermediate artifacts. To retain `.crate`
+files, run ordinary `cargo package --locked --registry crates-io` on the same
+clean Git commit with one `-p` selector for each of the nine entries in the
+[SDK inventory](../../tools/xtask/src/packages.rs). Cargo package selection can
+include unpublished members, so use the validated publication set here. The
+extraction gate tests the archive contents using temporary source copies. The
+saved release archives establish clean Git provenance.
+
+Save all nine resulting archives outside Cargo targets and record their SHA-256
+hashes. Use `sha256sum` on Linux, `shasum -a 256` on macOS or `Get-FileHash` on
+Windows. Check the versions and `.cargo_vcs_info.json` against the candidate.
+Preserve this evidence through `cargo clean`. If source, documentation, versions
+or dependencies change, verify a new candidate and refresh affected evidence.
 
 ## Execute the release
 
