@@ -121,8 +121,10 @@ NCB retains its independent format version 1 and existing bytes: `NCB\x01`,
 little-endian scalars, u32 counts/ordinals, declaration-order record fields and
 8-byte pointer-sized integers. Names are available to format providers but do
 not enter NCB output. No COM pointer, native padding or ABI signature is saved.
-The NCB protocol stack has a fixed ceiling of 128 open values in addition to
-configured limits, keeping fixed-buffer operations allocation-free.
+The NCB protocol stack supplies the open depth for both configured limits and
+its fixed ceiling of 128 values. Closing a value reduces the open depth without
+refunding cumulative value charges. The fixed stack keeps fixed-buffer
+operations allocation-free.
 
 `neocogi_com_serialization::ncb::{to_vec,to_slice,from_slice}` and measurement are NCB conveniences
 using the same COM protocol. Borrowed input and fixed output use nonretainable

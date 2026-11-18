@@ -110,3 +110,88 @@ fn header_byte_limit_is_a_range_failure() {
         assert_eq!(error.byte_offset, Some(4));
     }
 }
+
+/// Leaving a scope admits a sibling at the same depth without refunding values.
+#[test]
+fn fixed_paths_charge_depth_without_refunding_values() {
+    let tree = [[(); 2]; 2];
+    let exact = Limits { depth: 3, values: 7, ..Limits::default() };
+    let mut output = [0; 32];
+    let len = binary::to_slice_with_limits(&tree, &mut output, exact).unwrap();
+    assert_eq!(binary::from_slice_with_limits::<[[(); 2]; 2]>(&output[..len], exact), Ok(tree));
+    for limits in [Limits { depth: 2, ..exact }, Limits { values: 6, ..exact }] {
+        assert!(binary::from_slice_with_limits::<[[(); 2]; 2]>(&output[..len], limits).is_err());
+        assert!(binary::encoded_len_with_limits(&tree, limits).is_err());
+    }
+    let expected = binary::Error {
+        offset: 4,
+        message: "value or nesting limit",
+    };
+    for limits in [Limits { depth: 0, ..exact }, Limits { values: 0, ..exact }] {
+        assert_eq!(binary::encoded_len_with_limits(&(), limits), Err(expected));
+        assert_eq!(binary::from_slice_with_limits::<()>(b"NCB\x01", limits), Err(expected));
+    }
+}
+
+/// Direct owning calls reach the fixed frame ceiling without recursive Rust calls.
+#[cfg(feature = "alloc")]
+#[test]
+fn owning_ncb_admits_exact_protocol_ceiling_and_rejects_the_next_frame() {
+    use neocogi_com::{NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE};
+    let format = binary::format(Limits { depth: 200, ..Limits::default() });
+    let writer = format.serializer().unwrap();
+    let mut sink = writer.as_com_ref();
+    for _ in 0..127 {
+        sink.begin_option(true).unwrap();
+    }
+    sink.serialize_unit().unwrap();
+    for _ in 0..127 {
+        sink.end_option().unwrap();
+    }
+    sink.finish().unwrap();
+
+    let writer = format.serializer().unwrap();
+    let mut sink = writer.as_com_ref();
+    for _ in 0..128 {
+        sink.begin_option(true).unwrap();
+    }
+    assert_eq!(sink.serialize_unit(), Err(NC_E_OUT_OF_RANGE));
+    assert_eq!(sink.finish(), Err(NC_E_OUT_OF_RANGE));
+
+    let mut document = [1; 4 + 128];
+    document[..4].copy_from_slice(b"NCB\x01");
+    for present in [127_usize, 128] {
+        let source = format.deserializer(&document[..4 + present]).unwrap();
+        let mut view = source.as_com_ref();
+        for _ in 0..present {
+            view.enter_value().unwrap();
+            assert_eq!(view.option_present(), Ok(true));
+        }
+        if present == 128 {
+            assert_eq!(view.enter_value(), Err(NC_E_OUT_OF_RANGE));
+            assert_eq!(view.finish(), Err(NC_E_OUT_OF_RANGE));
+        } else {
+            view.enter_value().unwrap();
+            view.deserialize_unit().unwrap();
+            for _ in 0..=present {
+                view.leave_value().unwrap();
+            }
+            view.finish().unwrap();
+        }
+    }
+
+    for (values, expected) in [(1, NC_E_OUT_OF_RANGE), (2, NC_E_INVALID_ARG)] {
+        let bounded = binary::format(Limits { values, ..Limits::default() });
+        let writer = bounded.serializer().unwrap();
+        let mut sink = writer.as_com_ref();
+        sink.serialize_unit().unwrap();
+        assert_eq!(sink.serialize_unit(), Err(expected));
+
+        let source = bounded.deserializer(b"NCB\x01").unwrap();
+        let mut view = source.as_com_ref();
+        view.enter_value().unwrap();
+        view.deserialize_unit().unwrap();
+        view.leave_value().unwrap();
+        assert_eq!(view.enter_value(), Err(expected));
+    }
+}

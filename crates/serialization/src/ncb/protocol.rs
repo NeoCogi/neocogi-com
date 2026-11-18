@@ -65,6 +65,11 @@ impl Protocol {
             root: false,
         }
     }
+    /// Reports the only authoritative open value depth.
+    pub(super) fn open_depth(&self) -> usize {
+        self.depth
+    }
+
     /// Reserves one child before placing its fresh value on the bounded stack.
     pub(super) fn enter(&mut self) -> Result<(), &'static str> {
         if self.depth == self.values.len() {
@@ -498,15 +503,12 @@ impl ISerializer for Encoder<'_> {
 impl IDeserializer for Decoder<'_> {
     fn enter_value(&mut self) -> Result<(), NcStatus> {
         self.run(|reader| {
-            reader.budget.enter(reader.offset)?;
+            reader.budget.enter(reader.offset, reader.protocol.open_depth())?;
             reader.protocol.enter().map_err(|message| reader.error(message))
         })
     }
     fn leave_value(&mut self) -> Result<(), NcStatus> {
-        self.run(|reader| {
-            reader.protocol.leave_source().map_err(|message| reader.error(message))?;
-            reader.budget.leave(reader.offset)
-        })
+        self.run(|reader| reader.protocol.leave_source().map_err(|message| reader.error(message)))
     }
     fn deserialize_unit(&mut self) -> Result<(), NcStatus> {
         self.read_scalar(Self::deserialize_unit)

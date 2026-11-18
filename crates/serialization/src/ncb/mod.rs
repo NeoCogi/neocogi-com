@@ -112,8 +112,6 @@ use protocol::{Phase, Protocol};
 /// logical value count. Collection preflight checks a lower bound before either
 /// writing its elements or allocating storage while reading them.
 struct Budget {
-    /// Values currently open on the root-to-leaf path.
-    depth: usize,
     /// Values that may still be entered anywhere in this document.
     remaining: usize,
     /// Immutable policy supplied for this complete encoding or decoding call.
@@ -122,29 +120,18 @@ struct Budget {
 impl Budget {
     /// Starts an empty traversal with the complete cumulative value allowance.
     fn new(limits: Limits) -> Self {
-        Self {
-            depth: 0,
-            remaining: limits.values,
-            limits,
-        }
+        Self { remaining: limits.values, limits }
     }
 
-    /// Charges one value before any of its contents are visited.
-    fn enter(&mut self, offset: usize) -> Result<(), Error> {
-        if self.depth >= self.limits.depth || self.remaining == 0 {
+    /// Charges one value, using the protocol's current open depth.
+    fn enter(&mut self, offset: usize, open_depth: usize) -> Result<(), Error> {
+        if open_depth >= self.limits.depth || self.remaining == 0 {
             return Err(Error {
                 offset,
                 message: "value or nesting limit",
             });
         }
-        self.depth += 1;
         self.remaining -= 1;
-        Ok(())
-    }
-
-    /// Ends a value's depth scope without refunding its cumulative charge.
-    fn leave(&mut self, offset: usize) -> Result<(), Error> {
-        self.depth = self.depth.checked_sub(1).ok_or(Error { offset, message: "unmatched value end" })?;
         Ok(())
     }
 
@@ -232,13 +219,12 @@ impl Encoder<'_> {
     }
     /// Opens a schema value; callers must close it after all its children.
     fn enter(&mut self) -> Result<(), Error> {
-        self.budget.enter(self.offset)?;
+        self.budget.enter(self.offset, self.protocol.open_depth())?;
         self.protocol.enter().map_err(|message| self.error(message))
     }
     /// Ends a previously opened schema value, including an empty container.
     fn leave(&mut self) -> Result<(), Error> {
-        self.protocol.leave().map_err(|message| self.error(message))?;
-        self.budget.leave(self.offset)
+        self.protocol.leave().map_err(|message| self.error(message))
     }
     /// Runs a leaf or option value within one budget scope.
     /// Any error aborts serialization; the caller discards the incomplete output
