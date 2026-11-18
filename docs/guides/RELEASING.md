@@ -1,6 +1,6 @@
 # Publishing a coordinated SDK release
 
-This is the maintainer procedure. The [first-use walkthrough](../../examples/getting-started/README.md)
+This is the maintainer procedure. The [released first-use walkthrough](https://github.com/NeoCogi/neocogi-com/blob/v0.3.0/examples/getting-started/README.md)
 is the user entry point. Publication, Git pushes/tags and account changes are
 separate release actions; preparation and local dry-runs upload nothing.
 

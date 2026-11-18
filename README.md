@@ -24,9 +24,11 @@ listed in [ABI v3](docs/abi-v3.md#abi-identities-and-versions).
 Persistence applications explicitly supply their selected serialization provider;
 see [host persistence](crates/host/PERSISTENCE.md).
 
-Start with the complete [application and calculator plugin walkthrough](examples/getting-started/README.md).
+Start with the complete [application and calculator plugin walkthrough](https://github.com/NeoCogi/neocogi-com/blob/v0.3.0/examples/getting-started/README.md).
 It includes every source file, build script and dependency, plus commands for
 Linux, macOS and Windows. It requires Rust 1.85 or newer and a native linker.
+The [development walkthrough](examples/getting-started/README.md) exercises the
+current checkout through its archive gate.
 
 | Package | Purpose |
 | --- | --- |
@@ -51,9 +53,9 @@ See the [provider migration guide](docs/guides/ABI_V3_MIGRATION.md) when adoptin
 A **host** is the final application that owns one runtime implementation. An
 **interface caller** calls a COM interface; a **provider** implements one. These
 roles can overlap: hosts can implement callbacks, and plugins can call other
-providers or host services. Both use the shared `neocogi-com` SDK. The host also
-links `neocogi-com-host`; the SDK's `runtime` feature supplies runtime API wrappers
-without selecting that implementation.
+providers or host services. Both use the shared `neocogi-com` SDK. Static hosts
+link `neocogi-com-host`. Development hosts can also load the optional host shim.
+The SDK's `runtime` feature supplies access to the selected host.
 
 The [host, caller and provider guide](docs/COM.md#hosts-callers-and-providers)
 defines their responsibilities, dependency graph and call flow. The SDK lives in

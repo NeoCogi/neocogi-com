@@ -4,8 +4,28 @@ This example builds an application and a calculator plugin separately. The
 application loads the plugin, calls `add(2, 3)`, and prints `2 + 3 = 5`. It also
 checks that addition overflow returns the documented error.
 
-Use Rust 1.85 or newer and your platform's native linker. Copy this entire
-directory to a fresh location outside the repository. It contains every input:
+For a standalone crates.io build, use the [released 0.3.0 walkthrough](https://github.com/NeoCogi/neocogi-com/blob/v0.3.0/examples/getting-started/README.md).
+This directory exercises the current development SDK with the
+[WIP ABI](../../docs/abi-v3.md#abi-identities-and-versions). Each project compiles
+the same IDL into its own Rust bindings. The application selects the static host;
+the plugin receives that host through its bootstrap.
+
+From the checkout root, install the [archive gate prerequisites](../../tools/xtask/README.md)
+including Rust 1.85.0 and a native linker. Fetch the locked dependencies for a
+fresh checkout and run the gate:
+
+```sh
+cargo fetch --locked
+cargo xtask packages
+```
+
+The gate copies these inputs into a temporary directory and resolves both
+projects against the extracted SDK archives. It verifies the selected package
+origins, builds both projects with the resolved locks, runs the calculator, and
+checks that addition overflow returns the documented status. The calculator
+prints `2 + 3 = 5`. The extracted inspector also runs `dump` and `check` against
+the built plugin. The SDK dependency versions in the manifests select the
+matching archives during this check.
 
 | File | Purpose |
 | --- | --- |
@@ -16,70 +36,3 @@ directory to a fresh location outside the repository. It contains every input:
 | [host/src/main.rs](host/src/main.rs) | Load the plugin and call the interface |
 | [plugin/Cargo.toml](plugin/Cargo.toml) | SDK and build dependencies; native library output |
 | [plugin/src/lib.rs](plugin/src/lib.rs) | Implement the interface and export discovery |
-
-Both projects use matching published SDK versions. Each compiles the same IDL
-source into its own Rust bindings. The host does not link the provider and the
-provider does not select a host implementation. Application version `0.0.0` in
-these manifests is independent of the SDK dependency version.
-
-The manifests pin the published `0.3.0` SDK, including its versionless IDL and
-ABI v2/core generation 19. The commands below download these packages directly
-from crates.io. The development branch uses the [current WIP ABI versions](../../docs/abi-v3.md#abi-identities-and-versions);
-adopting it requires rebuilding both projects against the same development SDK sources.
-
-From the copied directory, build the plugin:
-
-```sh
-cargo build --manifest-path plugin/Cargo.toml
-```
-
-Then run the application with its explicit library path:
-
-Linux:
-
-```sh
-cargo run --manifest-path host/Cargo.toml -- "$PWD/plugin/target/debug/libgetting_started_plugin.so"
-```
-
-macOS:
-
-```sh
-cargo run --manifest-path host/Cargo.toml -- "$PWD/plugin/target/debug/libgetting_started_plugin.dylib"
-```
-
-Windows PowerShell:
-
-```powershell
-cargo run --manifest-path host/Cargo.toml -- "$PWD/plugin/target/debug/getting_started_plugin.dll"
-```
-
-The output is:
-
-```text
-2 + 3 = 5
-```
-
-These paths assume Cargo's default target directory. If you set
-`CARGO_TARGET_DIR`, pass the library from that directory instead. Keep any private
-native dependencies beside the plugin. Load only plugins you trust: opening a
-native library can run its initializers. A required plugin that cannot load
-produces a diagnostic and terminates the host; interface method failures such
-as overflow are ordinary returned statuses.
-
-Install the matching released inspector:
-
-```sh
-cargo install neocogi-inspect --version '=0.3.0' --locked
-```
-
-Inspect the library with `neocogi-inspect dump PATH_TO_LIBRARY`, or run
-`neocogi-inspect check PATH_TO_LIBRARY`. Inspection opens trusted native code but
-does not construct the calculator factory. `dump` prints plugin identity, binary
-compatibility fields and the exact factory signature as JSON. `check` exits
-successfully for this valid plugin.
-
-The repository's `cargo xtask packages` gate copies these exact files, builds
-both projects using only extracted SDK archives on Rust 1.85, executes the real
-call and error case, and runs the extracted inspector against the plugin. That
-pre-publication check is separate from verifying registry-only installation
-after upload.

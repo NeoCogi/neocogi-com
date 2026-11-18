@@ -172,26 +172,116 @@ fn native_artifact(output: &str, manifest: &Path, name: &str, kind: NativeOutput
     Ok(path.canonicalize()?)
 }
 
+/// Verify native normal/build dependencies by their resolved package IDs.
+/// Versions alone cannot distinguish an extracted candidate from the registry.
+fn check_walkthrough_graph(graph: &serde_json::Value, extracted: &Path, manifest: &Path, version: &str, host: bool) -> Result<()> {
+    use serde_json::Value;
+    use std::collections::BTreeMap;
+
+    fn indexed(rows: &Value) -> Result<BTreeMap<&str, &Value>> {
+        rows.as_array()
+            .ok_or("missing tutorial Cargo metadata entries")?
+            .iter()
+            .map(|row| Ok((row["id"].as_str().ok_or("missing tutorial package ID")?, row)))
+            .collect()
+    }
+    let resolve = &graph["resolve"];
+    let root = resolve["root"].as_str().ok_or("missing tutorial root package")?;
+    let packages = indexed(&graph["packages"])?;
+    let nodes = indexed(&resolve["nodes"])?;
+    let root_package = packages.get(root).ok_or("missing tutorial root metadata")?;
+    let root_manifest = Path::new(root_package["manifest_path"].as_str().ok_or("missing tutorial root manifest")?);
+    if root_manifest.canonicalize()? != manifest.canonicalize()? {
+        return Err("Cargo metadata selected the wrong tutorial manifest".into());
+    }
+
+    let mut direct = BTreeSet::new();
+    let mut seen = BTreeSet::new();
+    let mut pending = vec![root];
+    while let Some(id) = pending.pop() {
+        if !seen.insert(id) {
+            continue;
+        }
+        let package = packages.get(id).ok_or("missing reachable tutorial package")?;
+        let name = package["name"].as_str().ok_or("missing reachable tutorial package name")?;
+        let forbidden = if host {
+            name == "getting-started-plugin"
+        } else {
+            matches!(name, "neocogi-com-host" | "neocogi-com-host-dylib")
+        };
+        if forbidden {
+            return Err(format!("tutorial dependency direction includes {name}").into());
+        }
+        if PUBLISHED.iter().any(|&(published, _)| published == name) {
+            let actual = Path::new(package["manifest_path"].as_str().ok_or("missing tutorial SDK manifest")?);
+            let expected = extracted.join(format!("{name}-{version}/Cargo.toml"));
+            if package["version"] != version || package.get("source") != Some(&Value::Null) || actual.canonicalize()? != expected.canonicalize()? {
+                return Err(format!(
+                    "tutorial dependency {name} must resolve to {} at version {version}; Cargo selected {} from {}",
+                    expected.display(),
+                    package["version"],
+                    actual.display()
+                )
+                .into());
+            }
+        }
+        let node = nodes.get(id).ok_or("missing reachable tutorial resolve node")?;
+        for dep in node["deps"].as_array().ok_or("missing tutorial dependency edges")? {
+            let child = dep["pkg"].as_str().ok_or("missing tutorial dependency ID")?;
+            for kind in dep["dep_kinds"].as_array().ok_or("missing tutorial dependency kind")? {
+                let build = match kind.get("kind") {
+                    Some(Value::Null) => false,
+                    Some(Value::String(kind)) if kind == "build" => true,
+                    _ => continue,
+                };
+                pending.push(child);
+                if id == root {
+                    let name = packages
+                        .get(child)
+                        .and_then(|package| package["name"].as_str())
+                        .ok_or("missing direct tutorial dependency")?;
+                    direct.insert((name, build));
+                }
+            }
+        }
+    }
+    for (name, build) in [("neocogi-com", false), ("neocogi-idl", true)]
+        .into_iter()
+        .chain(host.then_some(("neocogi-com-host", false)))
+    {
+        if !direct.contains(&(name, build)) {
+            return Err(format!("tutorial root lacks its direct dependency on {name}").into());
+        }
+    }
+    Ok(())
+}
+
 /// Execute the documented independent host/provider using extracted SDKs only.
 fn walkthrough(runner: &Runner, version: &str) -> Result<()> {
     let plugin = runner.root.join("getting-started/plugin/Cargo.toml");
     let host = runner.root.join("getting-started/host/Cargo.toml");
-    for (manifest, forbidden) in [(&plugin, "neocogi-com-host"), (&host, "getting-started-plugin")] {
-        let tree = runner.cargo(
-            "1.85.0",
-            &[
-                "tree",
+    let compiler = runner.read("rustup", ["run", "1.85.0", "rustc", "-vV"])?;
+    let triple = compiler
+        .lines()
+        .find_map(|line| line.strip_prefix("host: "))
+        .ok_or("missing Rust 1.85 host triple")?;
+    for (manifest, host) in [(&plugin, false), (&host, true)] {
+        let graph = runner.read(
+            "rustup",
+            [
+                "run",
+                "1.85.0",
+                "cargo",
+                "metadata",
+                "--format-version",
+                "1",
+                "--filter-platform",
+                triple,
                 "--manifest-path",
                 manifest.to_str().ok_or("non-UTF8 tutorial manifest")?,
-                "--edges",
-                "normal,build",
-                "--prefix",
-                "none",
             ],
         )?;
-        if tree.contains(forbidden) {
-            return Err(format!("tutorial dependency direction includes {forbidden}").into());
-        }
+        check_walkthrough_graph(&serde_json::from_str(&graph)?, &runner.root, manifest, version, host)?;
     }
     let build = |manifest: &Path| -> Result<String> {
         runner.cargo(
@@ -201,6 +291,7 @@ fn walkthrough(runner: &Runner, version: &str) -> Result<()> {
                 "--manifest-path",
                 manifest.to_str().ok_or("non-UTF8 tutorial manifest")?,
                 "--message-format=json",
+                "--locked",
             ],
         )
     };
@@ -433,6 +524,62 @@ mod tests {
         duplicate.push(entries[0]);
         archive(&archive_path, &duplicate, false)?;
         assert!(extract(&archive_path, owner.path(), "proof-0.0.0").is_err());
+        Ok(())
+    }
+
+    /// Same-version registry and checkout sources cannot pass archive qualification.
+    /// A dev-only host must not be mistaken for a dependency of the built plugin.
+    #[test]
+    fn walkthrough_checks_reachable_origins_and_dependency_roles() -> Result<()> {
+        use serde_json::json;
+
+        let owner = tempfile::tempdir()?;
+        let extracted = owner.path();
+        let make_manifest = |directory: &str| -> Result<std::path::PathBuf> {
+            let directory = extracted.join(directory);
+            fs::create_dir_all(&directory)?;
+            let manifest = directory.join("Cargo.toml");
+            fs::write(&manifest, "")?;
+            Ok(manifest)
+        };
+        let plugin = make_manifest("getting-started/plugin")?;
+        let facade = make_manifest("neocogi-com-0.3.0")?;
+        let compiler = make_manifest("neocogi-idl-0.3.0")?;
+        let wrong = make_manifest("different-checkout/crates/com")?;
+        let mut graph = json!({
+            "packages": [
+                {"id":"root", "name":"getting-started-plugin", "manifest_path":plugin},
+                {"id":"facade", "name":"neocogi-com", "version":"0.3.0", "source":null, "manifest_path":facade},
+                {"id":"compiler", "name":"neocogi-idl", "version":"0.3.0", "source":null, "manifest_path":compiler},
+                {"id":"host-shim", "name":"neocogi-com-host-dylib"}
+            ],
+            "resolve": {"root":"root", "nodes":[
+                {"id":"root", "deps":[
+                    {"pkg":"facade", "dep_kinds":[{"kind":null}]},
+                    {"pkg":"compiler", "dep_kinds":[{"kind":"build"}]}
+                ]},
+                {"id":"facade", "deps":[{"pkg":"host-shim", "dep_kinds":[{"kind":"dev"}]}]},
+                {"id":"compiler", "deps":[]}
+            ]}
+        });
+        check_walkthrough_graph(&graph, extracted, &plugin, "0.3.0", false)?;
+
+        graph["packages"][1]["manifest_path"] = json!(wrong);
+        graph["packages"][1]["source"] = json!("registry+https://github.com/rust-lang/crates.io-index");
+        let error = check_walkthrough_graph(&graph, extracted, &plugin, "0.3.0", false).unwrap_err();
+        assert!(error.to_string().contains("neocogi-com must resolve to"), "{error}");
+        graph["packages"][1]["source"] = json!(null);
+        let error = check_walkthrough_graph(&graph, extracted, &plugin, "0.3.0", false).unwrap_err();
+        assert!(error.to_string().contains("different-checkout"), "{error}");
+        graph["packages"][1]["manifest_path"] = json!(facade);
+
+        graph["resolve"]["nodes"][1]["deps"][0]["dep_kinds"][0]["kind"] = json!(null);
+        let error = check_walkthrough_graph(&graph, extracted, &plugin, "0.3.0", false).unwrap_err();
+        assert!(error.to_string().contains("direction includes neocogi-com-host-dylib"), "{error}");
+        graph["resolve"]["nodes"][1]["deps"][0]["dep_kinds"][0]["kind"] = json!("dev");
+        graph["resolve"]["nodes"][0]["deps"][1]["dep_kinds"][0]["kind"] = json!(null);
+        let error = check_walkthrough_graph(&graph, extracted, &plugin, "0.3.0", false).unwrap_err();
+        assert!(error.to_string().contains("lacks its direct dependency on neocogi-idl"), "{error}");
         Ok(())
     }
 
