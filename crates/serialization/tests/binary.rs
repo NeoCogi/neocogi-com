@@ -63,3 +63,50 @@ fn fixed_output_and_measurement_report_identical_limit_errors() {
         assert!(binary::from_slice_with_limits::<[u16; 2]>(&storage[..len], limits).is_err());
     }
 }
+
+/// Header admission uses the same byte-limit classification as an active session.
+#[test]
+fn header_byte_limit_is_a_range_failure() {
+    for bytes in 0..4 {
+        let limits = Limits { bytes, ..Limits::default() };
+        let error = binary::encoded_len_with_limits(&(), limits).unwrap_err();
+        assert_eq!(
+            error,
+            binary::Error {
+                offset: 0,
+                message: "document byte limit"
+            }
+        );
+        assert_eq!(binary::to_slice_with_limits(&(), &mut [0; 4], limits), Err(error));
+        #[cfg(feature = "alloc")]
+        {
+            use neocogi_com::NC_E_OUT_OF_RANGE;
+            let format = binary::format(limits);
+            assert_eq!(format.serializer().err(), Some(NC_E_OUT_OF_RANGE));
+            let error = format.serialize(&()).unwrap_err();
+            assert_eq!(error.status, NC_E_OUT_OF_RANGE);
+            assert_eq!(error.byte_offset, None);
+        }
+    }
+    let limits = Limits { bytes: 4, ..Limits::default() };
+    let mut output = [0; 5];
+    assert_eq!(binary::encoded_len_with_limits(&(), limits), Ok(4));
+    assert_eq!(binary::to_slice_with_limits(&(), &mut output, limits), Ok(4));
+    assert_eq!(&output[..4], b"NCB\x01");
+    let error = binary::Error {
+        offset: 4,
+        message: "document byte limit",
+    };
+    assert_eq!(binary::encoded_len_with_limits(&1u8, limits), Err(error));
+    assert_eq!(binary::to_slice_with_limits(&1u8, &mut output, limits), Err(error));
+
+    #[cfg(feature = "alloc")]
+    {
+        let format = binary::format(limits);
+        assert_eq!(format.serialize(&()).unwrap(), b"NCB\x01");
+        let error = format.serialize(&1u8).unwrap_err();
+        assert_eq!(error.status, neocogi_com::NC_E_OUT_OF_RANGE);
+        assert_eq!(error.message, "document byte limit");
+        assert_eq!(error.byte_offset, Some(4));
+    }
+}

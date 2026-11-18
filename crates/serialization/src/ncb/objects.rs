@@ -307,7 +307,7 @@ impl ISerializationOutput for NcbSerializer {
 impl ISerializationFormat for NcbFormat {
     /// Creates a fresh independently bounded NCB writer object.
     fn create_serializer(&self, max_bytes: u64, max_elements: u32, max_depth: u32, max_values: u64) -> Result<ComBox<ISerializerAbi>, NcStatus> {
-        NcbSerializer::create(limits(max_bytes, max_elements, max_depth, max_values)?).map_err(|_| neocogi_com::NC_E_INVALID_ARG)
+        NcbSerializer::create(limits(max_bytes, max_elements, max_depth, max_values)?).map_err(super::protocol::status)
     }
     /// Acquires the caller's complete input before returning a source object.
     fn create_deserializer(

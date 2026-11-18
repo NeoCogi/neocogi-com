@@ -325,6 +325,19 @@ fn provider_registration_recovers_existing_context_through_abi_v2() {
 
     // SAFETY: The descriptor and all provider callbacks are linked process statics.
     unsafe { runtime.register_plugin_descriptor(plugin_descriptor()) }.unwrap();
+    let mut short = Limits::default();
+    short.binary.bytes = 3;
+    // SAFETY: Both owners are live and the callback borrows the receipt only
+    // for this synchronous call, with no overlapping writable storage.
+    assert_eq!(
+        unsafe { (api.snapshot)(value.as_raw(), short.into(), Some(receive_snapshot), core::ptr::from_mut(&mut receipt).cast()) },
+        neocogi_com::NC_E_INVALID_ARG
+    );
+    assert_eq!(SELECTIONS.load(Ordering::Relaxed), 1);
+    assert_eq!((ROOTS.load(Ordering::Relaxed), FORMATS.load(Ordering::Relaxed)), (0, 0));
+    assert_eq!(receipt.calls, 0);
+    assert!(receipt.bytes.is_empty());
+
     // SAFETY: The same live context still owns its recipe; value, receipt and
     // output storage satisfy the unchanged synchronous C calling contract.
     unsafe {
@@ -344,7 +357,7 @@ fn provider_registration_recovers_existing_context_through_abi_v2() {
     // SAFETY: Successful restore transferred exactly one owned common COM pair.
     let restored = unsafe { ComPtr::<IUnknown>::__nc_from_raw_owned_checked(root) }.unwrap();
     assert_eq!(restored.query::<IPersistableAbi>().unwrap().schema_version().unwrap(), 1);
-    assert_eq!(SELECTIONS.load(Ordering::Relaxed), 2);
+    assert_eq!(SELECTIONS.load(Ordering::Relaxed), 3);
     assert_eq!(DEFAULTS.load(Ordering::Relaxed), 0);
     assert_eq!(VALIDATIONS.load(Ordering::Relaxed), 2);
     assert_eq!((ROOTS.load(Ordering::Relaxed), FORMATS.load(Ordering::Relaxed)), (0, 0));
@@ -378,6 +391,15 @@ fn named_ncb_retains_capabilities_and_ignores_json_default() {
     assert_eq!(snapshot_with_limits(&runtime, value.as_com_ref(), permissive).unwrap(), saved);
     drop(registry.restore_with_limits(&saved, permissive).unwrap());
     let validations = VALIDATIONS.load(Ordering::Relaxed);
+
+    // The one-byte state fits capture's limit and the named factory is
+    // selected. The four-byte NCB header still cannot fit that limit.
+    let selections = SELECTIONS.load(Ordering::Relaxed);
+    let mut short = Limits::default();
+    short.binary.bytes = 3;
+    assert_eq!(snapshot_with_limits(&runtime, value.as_com_ref(), short), Err(neocogi_com::NC_E_INVALID_ARG));
+    assert_eq!(SELECTIONS.load(Ordering::Relaxed), selections + 1);
+    assert_eq!((ROOTS.load(Ordering::Relaxed), FORMATS.load(Ordering::Relaxed)), (0, 0));
 
     // A malformed document releases the selected capabilities before returning
     // and never invokes recipes. Every truncation and trailing data must fail.
