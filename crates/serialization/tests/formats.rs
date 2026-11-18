@@ -78,6 +78,16 @@ fn ncb_is_unconditional_and_default() {
         b"NCB\x01\x2a\0\0\0"
     );
 }
+/// The default static feature set has NCB and omits the optional JSON factory.
+#[cfg(not(feature = "json"))]
+#[test]
+fn default_static_plugin_omits_json() {
+    let root = neocogi_com_serialization::factory();
+    assert_eq!(root.format(NcCopyFromBufferOffset::new(0, b"json")).unwrap_err(), NC_E_NOINTERFACE);
+    let format = Format::new(root.default_format().unwrap(), Limits::default());
+    assert_eq!(format.serialize(&()).unwrap(), b"NCB\x01");
+}
+
 /// Integer endpoints, nested options, arbitrary map keys and every payload shape
 /// survive actual COM calls through every enabled production provider.
 #[test]

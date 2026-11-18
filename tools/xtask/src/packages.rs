@@ -330,6 +330,28 @@ fn qualify_package(verification: &Runner, manifest: &Path) -> Result<String> {
     Ok(output)
 }
 
+/// Qualifies feature boundaries that the general all-features lane cannot see.
+fn qualify_reduced_serialization(verification: &Runner, manifest: &Path) -> Result<()> {
+    for (options, required) in [
+        (&["check", "--lib", "--no-default-features"][..], None),
+        (
+            &["test", "--no-default-features", "--test", "binary"][..],
+            Some("fixed_output_roundtrips_with_exact_limits"),
+        ),
+        (&["test", "--test", "formats"][..], Some("default_static_plugin_omits_json")),
+    ] {
+        let mut args = words(&["run", "1.85.0", "cargo"]);
+        args.extend(words(options));
+        args.push("--manifest-path".into());
+        args.push(manifest.as_os_str().to_owned());
+        let output = verification.run("rustup", args)?;
+        if let Some(test) = required {
+            require_named_execution(&output, test)?;
+        }
+    }
+    Ok(())
+}
+
 /// Check shipped tests/docs and execute actual generated COM against only archives.
 pub(crate) fn run(runner: &Runner) -> Result<()> {
     let mut runner = runner.clone();
@@ -369,6 +391,9 @@ pub(crate) fn run(runner: &Runner) -> Result<()> {
             if *package == "neocogi-idl" {
                 require_named_execution(&output, IMPORTED_INTERFACE_PROVIDER_TEST)?;
                 require_named_execution(&output, SHARED_SOURCE_CONSUMER_TEST)?;
+            }
+            if *package == "neocogi-com-serialization" {
+                qualify_reduced_serialization(&verification, &manifest)?;
             }
         }
         let output = verification.cargo("1.85.0", &["run", "--manifest-path", "strings-consumer/Cargo.toml"])?;

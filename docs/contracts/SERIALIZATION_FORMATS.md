@@ -278,3 +278,7 @@ An independent JSON fixture also verifies that implementations need not share
 the supplied codecs' Rust storage or parser. Production JSON tests cover all
 value shapes, numeric endpoints, finite floating bits, limits and diagnostics. Scoped tests reject retention, invalid raw scalar storage
 and reentrant mutation. Core and facade reduced-feature builds remain required.
+
+Archive qualification checks the extracted NCB library without default features,
+executes fixed-buffer NCB in that feature selection, and verifies that the
+default static plugin omits JSON. The all-features lane exercises JSON support.
