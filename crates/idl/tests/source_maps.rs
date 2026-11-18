@@ -101,6 +101,70 @@ fn source_maps_are_deterministic_and_round_trip() {
     assert_eq!(decoded, first.source_map);
 }
 
+/// Direct callers get the same fallible provenance rules as parser callers.
+#[test]
+fn diagnostic_sources_require_utf8_relative_paths() {
+    use neocogi_idl::{ModuleName, ModulePathError, SourceFile};
+    let module = ModuleName::from_relative_directory(Path::new("proof/maps")).unwrap();
+    let source = SourceFile::new(&module, Path::new("proof/maps/main.ncidl"), "data").unwrap();
+    assert_eq!(source.path(), "proof/maps/main.ncidl");
+    assert_eq!(source.text(), "data");
+    assert!(matches!(SourceFile::new(&module, Path::new(""), ""), Err(ModulePathError::Empty)));
+    assert!(matches!(
+        SourceFile::new(&module, Path::new("proof/../main.ncidl"), ""),
+        Err(ModulePathError::NonCanonical)
+    ));
+    #[cfg(unix)]
+    {
+        use std::{ffi::OsStr, os::unix::ffi::OsStrExt};
+        assert!(matches!(SourceFile::new(&module, Path::new("/main.ncidl"), ""), Err(ModulePathError::Absolute)));
+        assert!(matches!(
+            SourceFile::new(&module, Path::new(OsStr::from_bytes(b"proof/\xff.ncidl")), ""),
+            Err(ModulePathError::NonUtf8)
+        ));
+    }
+}
+
+/// Unix separators and ordinary backslash characters are distinct provenance.
+#[cfg(unix)]
+#[test]
+fn pure_generation_keeps_distinct_native_parts_and_rejects_true_duplicates() {
+    let directory = Path::new("proof/maps");
+    let mut parts = [
+        ModuleSource {
+            path: Path::new(r"proof/maps/packet\parts.ncidl"),
+            text: "struct First { value: u32 }",
+        },
+        ModuleSource {
+            path: Path::new("proof/maps/packet/parts.ncidl"),
+            text: "struct Second { value: u32 }",
+        },
+    ];
+    let mapped = |parts: &[ModuleSource<'_>]| {
+        let module = parse_module_parts(directory, parts).unwrap();
+        let graph = resolve_modules(vec![module]).unwrap();
+        let fingerprint = graph.module("proof.maps").unwrap().abi_fingerprint;
+        (fingerprint, generate_rust_with_source_map(&graph, "proof.maps").unwrap())
+    };
+    let (fingerprint, original) = mapped(&parts);
+    for (name, part) in [("First", parts[0]), ("Second", parts[1])] {
+        let entry = original.source_map.lookup(position(&original.source, &format!("pub struct {name}"))).unwrap();
+        let file = &original.source_map.sources[entry.original.source];
+        assert_eq!(Path::new(&file.path), part.path);
+        assert!(file.location.is_none());
+    }
+    parts.reverse();
+    assert_eq!(mapped(&parts), (fingerprint, original));
+    parts[0].path = Path::new("proof/maps/moved.ncidl");
+    assert_eq!(mapped(&parts).0, fingerprint);
+    assert!(
+        parse_module_parts(directory, &[parts[0], parts[0]])
+            .unwrap_err()
+            .to_string()
+            .contains("EIDL003")
+    );
+}
+
 /// Imports point to the local authored use statement rather than a guessed dependency path.
 #[test]
 fn imported_bindings_keep_their_local_import_origin() {
@@ -175,11 +239,13 @@ fn cargo_maps_resolve_transitive_templates_and_bundled_sources() {
     .unwrap();
     let first = "extern origin.bridge; use origin.bridge::{Derived, First};\ninterface Counter: Derived<u32> {}\nstruct Item { value: Option<u32> }\ninterface Plain { fn read(&self) -> Result<u32>; }\n";
     let second = "use origin.bridge::Second;\nstruct Both { first: First, second: Second }\n";
+    let provider_root = if cfg!(unix) { r"idl\provider" } else { "idl" };
+    let provider_part = if cfg!(unix) { r"body\template.ncidl" } else { "template.ncidl" };
     for (package, module, input, source, dependency) in [
         (
             "maps-provider",
             "origin.generic",
-            "origin/generic.ncidl",
+            "origin/generic",
             "interface Value<T> { fn get(&self) -> Result<T>; }",
             None,
         ),
@@ -204,11 +270,15 @@ fn cargo_maps_resolve_transitive_templates_and_bundled_sources() {
         }
         manifest.push_str(&format!("[build-dependencies]\nneocogi-idl={{path={:?}}}\n", root.join("crates/idl")));
         fs::write(directory.join("Cargo.toml"), manifest).unwrap();
-        let constructor = if package == "maps-host" { "directory" } else { "new" };
+        let (constructor, source_root) = match package {
+            "maps-provider" => ("directory", provider_root),
+            "maps-host" => ("directory", "idl"),
+            _ => ("new", "idl"),
+        };
         fs::write(
             directory.join("build.rs"),
             format!(
-                "fn main() {{ neocogi_idl::cargo::Module::{constructor}(\"idl\", {input:?}).rust_path({:?}).build().unwrap(); }}",
+                "fn main() {{ neocogi_idl::cargo::Module::{constructor}({source_root:?}, {input:?}).rust_path({:?}).build().unwrap(); }}",
                 package.replace('-', "_")
             ),
         )
@@ -218,8 +288,15 @@ fn cargo_maps_resolve_transitive_templates_and_bundled_sources() {
             format!("include!(concat!(env!(\"OUT_DIR\"), \"/{}.include.rs\"));", module.replace('.', "_")),
         )
         .unwrap();
-        let path = directory.join("idl").join(input);
-        if package == "maps-host" {
+        let path = directory.join(source_root).join(input);
+        if package == "maps-provider" {
+            fs::create_dir_all(&path).unwrap();
+            fs::write(path.join(provider_part), source).unwrap();
+            if cfg!(unix) {
+                fs::create_dir(path.join("body")).unwrap();
+                fs::write(path.join("body/template.ncidl"), "struct Other { value: u32 }").unwrap();
+            }
+        } else if package == "maps-host" {
             fs::create_dir_all(&path).unwrap();
             fs::write(path.join("a.ncidl"), source).unwrap();
             fs::write(path.join("z.ncidl"), second).unwrap();
@@ -315,9 +392,17 @@ mod metadata_calls {
         .unwrap();
     let file = &map.sources[method.original.source];
     assert_eq!(file.module, "origin.generic");
+    assert_eq!(file.path, format!("origin/generic/{provider_part}"));
     assert_eq!(
         out_dir.join(file.location.as_ref().unwrap()).canonicalize().unwrap(),
-        project.path().join("maps-provider/idl/origin/generic.ncidl").canonicalize().unwrap()
+        project
+            .path()
+            .join("maps-provider")
+            .join(provider_root)
+            .join("origin/generic")
+            .join(provider_part)
+            .canonicalize()
+            .unwrap()
     );
     let variant = map
         .mappings

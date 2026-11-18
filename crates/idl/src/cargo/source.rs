@@ -169,11 +169,11 @@ fn read_source(path: &Path) -> Result<String, BuildError> {
     })
 }
 
-/// Converts a normalized source path into portable metadata text.
+/// Persists exact native UTF-8 spelling for same-host Cargo graph exchange.
 fn path_text(path: &Path) -> Result<String, BuildError> {
     path.to_str()
         .map(str::to_owned)
-        .ok_or_else(|| BuildError::Idl(format!("IDL source path {} is not UTF-8", path.display())))
+        .ok_or_else(|| BuildError::Idl(format!("IDL source path {path:?} is not UTF-8")))
 }
 
 #[cfg(test)]

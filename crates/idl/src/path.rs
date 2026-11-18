@@ -116,6 +116,27 @@ impl fmt::Display for ModuleName {
     }
 }
 
+/// Encodes a relative native path for same-host source provenance and maps.
+/// Only actual separators become `/`. Unicode inside each component is exact.
+/// Computed navigation paths may contain `.` and `..`; source admission checks
+/// for ordinary components before calling this converter.
+pub(crate) fn relative_path_text(path: &Path) -> Result<String, ModulePathError> {
+    let mut text = String::new();
+    for component in path.components() {
+        let part = match component {
+            Component::Normal(part) => part.to_str().ok_or(ModulePathError::NonUtf8)?,
+            Component::CurDir => ".",
+            Component::ParentDir => "..",
+            Component::Prefix(_) | Component::RootDir => return Err(ModulePathError::Absolute),
+        };
+        if !text.is_empty() {
+            text.push('/');
+        }
+        text.push_str(part);
+    }
+    if text.is_empty() { Err(ModulePathError::Empty) } else { Ok(text) }
+}
+
 /// Failure to derive a stable module identity from a source path.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ModulePathError {

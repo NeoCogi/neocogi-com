@@ -69,8 +69,11 @@ authored file = map directory / file.location
 
 Cargo canonicalizes the map directory and the source file before computing the
 relative location. Different filesystem roots, such as different Windows drives,
-require an absolute location. Pure generation leaves locations unset; the caller
-supplies filesystem context using each file's logical owner and path.
+require a native absolute location. Relative source paths and locations preserve
+UTF-8 components and render actual separators as `/`. On Unix a literal
+backslash remains part of the filename. Unrepresentable native paths fail with
+path context before main output publication. Pure generation leaves locations
+unset, so callers supply context using the logical owner and path.
 
 Dependency build metadata carries physical source roots separately from semantic
 source records. Different checkouts of identical contracts do not conflict merely

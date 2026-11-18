@@ -241,12 +241,8 @@ impl Module {
             modules: records,
             source_roots,
         };
-        let graph_bytes = serde_json::to_vec_pretty(&graph).map_err(|source_error| BuildError::Json {
-            operation: "encode IDL graph",
-            path: output_dir.clone(),
-            source: source_error,
-        })?;
         let graph_path = output_dir.join("neocogi-idl-graph.json");
+        let graph_bytes = graph.encode(&graph_path)?;
         let output = write_emissions(vec![emission], &graph.source_roots, &resolved, &output_dir, &graph_bytes)?
             .pop()
             .expect("packaged build prepared exactly one local module");
@@ -382,6 +378,25 @@ struct GraphRecord {
     /// Physical source roots for editor navigation only; never compared or hashed
     /// as semantic module records and never emitted into deployed Rust constants.
     source_roots: BTreeMap<String, PathBuf>,
+}
+
+impl GraphRecord {
+    /// Encodes the admitted graph before either frontend publishes an output.
+    /// Report the exact native root for paths the JSON schema cannot represent.
+    fn encode(&self, path: &Path) -> Result<Vec<u8>, BuildError> {
+        for (module, root) in &self.source_roots {
+            if root.to_str().is_none() {
+                return Err(BuildError::Idl(format!(
+                    "cannot encode IDL graph: source root {root:?} for {module:?} is not UTF-8"
+                )));
+            }
+        }
+        serde_json::to_vec_pretty(self).map_err(|source| BuildError::Json {
+            operation: "encode IDL graph",
+            path: path.to_owned(),
+            source,
+        })
+    }
 }
 
 /// Source record sufficient to repeat semantic resolution in a dependent crate.

@@ -259,11 +259,17 @@ fn graph_encoding_rejection_precedes_output_changes() {
         }
         let before = snapshot(&output);
         let error = builder.build("proof::z", false).unwrap_err();
-        let BuildError::Json { operation, source, .. } = error else {
+        let BuildError::Idl(message) = error else {
             panic!("wrong rejection phase: {error:?}")
         };
-        assert!(operation.contains("encode") && operation.contains("graph"), "{operation}");
-        assert!(source.to_string().contains("UTF-8"), "{source}");
+        assert!(message.contains("encode IDL graph") && message.contains("not UTF-8"), "{message}");
+        let source_root = root.join("schemas");
+        let expected_root = if matches!(builder, Builder::Shared) {
+            source_root.canonicalize().unwrap()
+        } else {
+            source_root
+        };
+        assert!(message.contains(&format!("{expected_root:?}")), "{message}");
         assert_eq!(snapshot(&output), before);
         println!("{OBSERVED}");
         return;

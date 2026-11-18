@@ -1,7 +1,7 @@
 //! Parser for the intentionally small Rust-like NeoCogi IDL grammar.
 
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{BTreeMap, HashMap},
     fmt,
     path::{Component, Path},
 };
@@ -121,11 +121,7 @@ pub fn parse_module_parts(relative_directory: &Path, parts: &[ModuleSource<'_>])
         if !normalized || part.path.extension().and_then(|extension| extension.to_str()) != Some("ncidl") || !part.path.starts_with(relative_directory) {
             return Err(ParseError::from(Diagnostic::new(
                 "EIDL002",
-                format!(
-                    "IDL part {} must be a .ncidl file below module directory {}",
-                    part.path.display(),
-                    relative_directory.display()
-                ),
+                format!("IDL part {:?} must be a .ncidl file below module directory {:?}", part.path, relative_directory),
             )));
         }
     }
@@ -143,26 +139,27 @@ struct Parsed<T> {
 
 /// Parses source parts in portable path order and builds one canonical module.
 fn assemble_module<'a>(name: ModuleName, parts: impl IntoIterator<Item = ModuleSource<'a>>) -> Result<Module, ParseError> {
-    let mut parts = parts.into_iter().collect::<Vec<_>>();
-    parts.sort_by_key(|part| part.path.to_string_lossy().replace('\\', "/"));
+    let mut parts = parts
+        .into_iter()
+        .map(|part| Ok((crate::path::relative_path_text(part.path)?, part.text)))
+        .collect::<Result<Vec<_>, ModulePathError>>()?;
+    parts.sort_by(|(left, _), (right, _)| left.cmp(right));
 
-    let mut source_paths = HashSet::new();
-    let mut sources = Vec::with_capacity(parts.len());
+    let mut sources: Vec<SourceFile> = Vec::with_capacity(parts.len());
     let mut warnings = Vec::new();
     let mut externals = BTreeMap::<String, ExternalModule>::new();
     let mut imports = Vec::new();
     let mut declarations = BTreeMap::<String, Declaration>::new();
-    for part in parts {
-        let source_file = SourceFile::new(&name, part.path, part.text);
-        if !source_paths.insert(source_file.path().to_owned()) {
+    for (path, text) in parts {
+        let source_file = SourceFile::from_path_key(&name, path, text);
+        if sources.last().is_some_and(|previous| previous.path() == source_file.path()) {
             return Err(ParseError::from(
                 Diagnostic::new("EIDL003", format!("IDL module contains source path {:?} more than once", source_file.path())).with_source(&source_file),
             ));
         }
         // Fallback tokenization and cleanup are iterative. Admit groups before Syn's
         // recursively constructed TokenBuffer, including unsupported syntax.
-        let tokens = part
-            .text
+        let tokens = text
             .parse::<proc_macro2::TokenStream>()
             .map_err(|error| ParseError::from(Diagnostic::from_syn(&source_file, syn::Error::new(error.span(), error))))?;
         crate::nesting::admit_tokens(&tokens).map_err(|error| ParseError::from(Diagnostic::from_syn(&source_file, error)))?;

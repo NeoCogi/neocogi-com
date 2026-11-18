@@ -221,11 +221,7 @@ impl SharedSources {
             source_roots: roots,
         };
         let path = output.join("neocogi-idl-graph.json");
-        let bytes = serde_json::to_vec_pretty(&graph).map_err(|source| BuildError::Json {
-            operation: "encode shared IDL graph",
-            path: path.clone(),
-            source,
-        })?;
+        let bytes = graph.encode(&path)?;
         fs::create_dir_all(output).map_err(|source| BuildError::Io {
             operation: "create generated output directory",
             path: output.to_owned(),
@@ -516,6 +512,33 @@ mod tests {
             assert_eq!(fs::read_dir(&output).unwrap().count(), 1);
         }
     }
+    /// The source map must resolve the original Unix path for each authored part.
+    #[cfg(unix)]
+    #[test]
+    fn shared_source_maps_preserve_literal_backslashes_in_roots_and_parts() {
+        let work = tempfile::tempdir().unwrap();
+        let root = work.path().join(r"project\idl");
+        let parts = [r"proof/value/packet\parts.ncidl", "proof/value/packet/parts.ncidl"];
+        for (part, name) in parts.into_iter().zip(["First", "Second"]) {
+            let path = root.join(part);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(path, format!("struct {name} {{ value: u32 }}")).unwrap();
+        }
+        let output = work.path().join("generated");
+        let built = SharedSources::new(&root)
+            .module("proof.value", "example::value")
+            .build_at(std::slice::from_ref(&root), &output)
+            .unwrap();
+        let map: crate::RustSourceMap = serde_json::from_slice(&fs::read(&built[0].source_map).unwrap()).unwrap();
+        for part in parts {
+            let file = map.sources.iter().find(|file| file.path == part).unwrap();
+            assert_eq!(
+                output.join(file.location.as_ref().unwrap()).canonicalize().unwrap(),
+                root.join(part).canonicalize().unwrap()
+            );
+        }
+    }
+
     /// Separate subsystem roots resolve one graph with accurate source locations;
     /// duplicate roots are harmless, while a competing owner fails before output.
     #[test]

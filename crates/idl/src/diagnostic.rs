@@ -1,6 +1,12 @@
 //! Structured, source-aware diagnostics shared by every IDL compiler phase.
 
-use std::{cmp::Ordering, collections::BTreeMap, fmt, path::Path, sync::Arc};
+use std::{
+    cmp::Ordering,
+    collections::BTreeMap,
+    fmt,
+    path::{Component, Path},
+    sync::Arc,
+};
 
 use proc_macro2::Span;
 
@@ -16,11 +22,24 @@ pub struct SourceFile {
 }
 
 impl SourceFile {
-    /// Creates a diagnostic source with its validated owner, relative path and text.
-    pub fn new(module: &crate::ModuleName, path: &Path, text: &str) -> Self {
+    /// Creates a diagnostic source with its owner, relative path and text.
+    /// Rejects absolute, empty, non-UTF-8 or traversal paths before constructing
+    /// a provenance key. Separators are normalized using native components.
+    pub fn new(module: &crate::ModuleName, path: &Path, text: &str) -> Result<Self, crate::ModulePathError> {
+        if path.is_absolute() {
+            return Err(crate::ModulePathError::Absolute);
+        }
+        if !path.components().all(|part| matches!(part, Component::Normal(_))) {
+            return Err(crate::ModulePathError::NonCanonical);
+        }
+        Ok(Self::from_path_key(module, crate::path::relative_path_text(path)?, text))
+    }
+
+    /// Installs the already admitted path key used to order parser inputs.
+    pub(crate) fn from_path_key(module: &crate::ModuleName, path: String, text: &str) -> Self {
         Self {
             module: module.to_string(),
-            path: path.to_string_lossy().replace('\\', "/"),
+            path,
             text: Arc::from(text),
         }
     }

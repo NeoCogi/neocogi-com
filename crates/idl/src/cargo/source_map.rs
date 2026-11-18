@@ -48,17 +48,22 @@ pub(super) fn relative_location(output: &Path, source: &Path) -> Result<String, 
             source,
         })
     };
-    let output = canonical(output)?;
-    let source = canonical(source)?;
-    let relative = relative_path(&output, &source);
-    relative
-        .to_str()
-        .map(|text| match relative.is_absolute() {
-            // Preserve Windows verbatim/UNC prefixes when crossing filesystem roots.
-            true => text.to_owned(),
-            false => text.replace('\\', "/"),
-        })
-        .ok_or_else(|| BuildError::Idl("source-map locations must have UTF-8 paths".into()))
+    let output_directory = canonical(output)?;
+    let physical_source = canonical(source)?;
+    let relative = relative_path(&output_directory, &physical_source);
+    let unrepresentable = || {
+        BuildError::Idl(format!(
+            "source-map location for {source:?} from {output:?} cannot represent {physical_source:?} as UTF-8"
+        ))
+    };
+    if relative.is_absolute() {
+        // Preserve Windows verbatim/UNC prefixes when crossing filesystem roots.
+        return relative.to_str().map(str::to_owned).ok_or_else(unrepresentable);
+    }
+    crate::path::relative_path_text(&relative).map_err(|error| match error {
+        crate::ModulePathError::NonUtf8 => unrepresentable(),
+        error => BuildError::Idl(format!("invalid source-map location {relative:?} for {source:?}: {error}")),
+    })
 }
 
 /// Computes a lexical relative path between already normalized absolute directories.
@@ -85,6 +90,20 @@ fn relative_path(from: &Path, to: &Path) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A map crossing drive or UNC roots must keep the absolute native prefix.
+    #[cfg(windows)]
+    #[test]
+    fn relative_paths_preserve_cross_root_windows_prefixes() {
+        let drive = Path::new(r"\\?\C:\build\out");
+        let other_drive = Path::new(r"\\?\D:\source\main.ncidl");
+        let share = Path::new(r"\\?\UNC\server\share\source\main.ncidl");
+        let same_drive = Path::new(r"\\?\C:\source\main.ncidl");
+        assert_eq!(relative_path(drive, other_drive), other_drive);
+        assert_eq!(relative_path(drive, share), share);
+        let relative = relative_path(drive, same_drive);
+        assert_eq!(crate::path::relative_path_text(&relative).unwrap(), "../../source/main.ncidl");
+    }
 
     /// Source roots resolve from the map location, including paths with spaces and '..'.
     #[test]
