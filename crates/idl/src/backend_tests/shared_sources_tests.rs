@@ -180,3 +180,70 @@ fn require_real_call(output: &std::process::Output) {
         "no successful executed tests\n{stdout}"
     );
 }
+
+/// Real Cargo notices a competing owner even when the watch also covers output.
+/// Keeping output outside the directory makes an otherwise unchanged build fresh.
+#[test]
+fn watched_directory_overlap_reports_the_cargo_output_and_caches_after_relocation() {
+    let fixture = tempfile::tempdir().unwrap();
+    let project = fixture.path().join("package");
+    let stamp = fixture.path().join("build-runs");
+    let nested = project.join("target");
+    let external = fixture.path().join("external-target");
+    let idl = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+
+    fs::create_dir_all(project.join("src")).unwrap();
+    fs::write(project.join("src/lib.rs"), "").unwrap();
+    fs::write(project.join("audit_root.ncidl"), "interface IAuditRoot {}").unwrap();
+    fs::write(
+        project.join("Cargo.toml"),
+        format!("[package]\nname='shared-watch-proof'\nversion='0.1.0'\nedition='2024'\n[workspace]\n[build-dependencies]\nneocogi-idl={{path={idl:?}}}\n"),
+    )
+    .unwrap();
+    fs::write(
+        project.join("build.rs"),
+        format!(
+            r#"
+        fn main() {{
+            println!("cargo::rerun-if-changed=build.rs");
+            let stamp = std::path::Path::new({stamp:?});
+            let runs = std::fs::read_to_string(stamp).map(|value| value.parse::<u32>().unwrap()).unwrap_or(0);
+            std::fs::write(stamp, (runs + 1).to_string()).unwrap();
+            neocogi_idl::cargo::SharedSources::new(".").module("audit_root", "shared_watch_proof::contract").build().unwrap();
+        }}
+    "#
+        ),
+    )
+    .unwrap();
+    let run = |target: &std::path::Path| {
+        Command::new("cargo")
+            .current_dir(&project)
+            .args(["check", "--offline", "--target-dir"])
+            .arg(target)
+            .output()
+            .unwrap()
+    };
+    let runs = || fs::read_to_string(&stamp).unwrap().parse::<u32>().unwrap();
+    let overlap = run(&nested);
+    let stderr = String::from_utf8_lossy(&overlap.stderr);
+    assert!(overlap.status.success(), "{stderr}");
+    assert_eq!(stderr.matches("contains Cargo OUT_DIR").count(), 1, "{stderr}");
+    assert!(stderr.contains("dedicated schema directory"), "{stderr}");
+    assert_eq!(runs(), 1);
+
+    let separated = run(&external);
+    let stderr = String::from_utf8_lossy(&separated.stderr);
+    assert!(separated.status.success(), "{stderr}");
+    assert!(!stderr.contains("contains Cargo OUT_DIR"), "{stderr}");
+    let first = runs();
+    let unchanged = run(&external);
+    assert!(unchanged.status.success(), "{}", String::from_utf8_lossy(&unchanged.stderr));
+    assert_eq!(runs(), first);
+
+    fs::create_dir(project.join("audit_root")).unwrap();
+    fs::write(project.join("audit_root/part.ncidl"), "interface IAuditRoot {}").unwrap();
+    let conflict = run(&external);
+    assert!(!conflict.status.success());
+    assert!(String::from_utf8_lossy(&conflict.stderr).contains("ambiguous source owners"));
+    assert_eq!(runs(), first + 1);
+}

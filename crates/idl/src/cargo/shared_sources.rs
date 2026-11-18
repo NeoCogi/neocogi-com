@@ -112,6 +112,8 @@ impl SharedSources {
 
     /// Builds from Cargo's manifest directory into this consumer's `OUT_DIR`.
     /// Emits source rerun instructions, but no Cargo ownership metadata.
+    /// Use source-only watched directories for incremental builds. A watched
+    /// directory containing Cargo's OUT_DIR can trigger repeated generation.
     /// All requested generation and graph encoding complete before output work;
     /// filesystem finishing and publication can still fail with partial effects.
     pub fn build(self) -> Result<Vec<BuildOutput>, BuildError> {
@@ -163,6 +165,8 @@ impl SharedSources {
         }
         let mut modules = BTreeMap::new();
         let mut roots = BTreeMap::new();
+        // Only the overlap warning depends on finding a canonical output path.
+        let mut watch_output = output.canonicalize().ok();
         while let Some(name) = pending.pop() {
             if crate::is_bundled_module(&name) || modules.contains_key(&name) {
                 continue;
@@ -170,7 +174,7 @@ impl SharedSources {
             let route = bindings
                 .get(name.as_str())
                 .ok_or_else(|| BuildError::Idl(format!("shared IDL import {name:?} has no local or imported Rust location")))?;
-            let (root, sources) = load_sources(source_roots, &name)?;
+            let (root, sources) = load_sources(source_roots, &name, &mut watch_output)?;
             roots.insert(name.clone(), root);
             let parsed = sources.parse()?;
             pending.extend(parsed.externals.iter().map(|external| external.module.clone()));
@@ -235,7 +239,7 @@ impl SharedSources {
 /// written. File/directory conflicts and distinct roots claiming the same name
 /// are errors, rather than order-dependent shadowing. Filesystem failures retain
 /// their IO cause; only an absent candidate is ignored.
-fn load_sources(roots: &[PathBuf], name: &str) -> Result<(PathBuf, ModuleSources), BuildError> {
+fn load_sources(roots: &[PathBuf], name: &str, watch_output: &mut Option<PathBuf>) -> Result<(PathBuf, ModuleSources), BuildError> {
     let relative = PathBuf::from(name.replace('.', "/"));
     let file = relative.with_extension("ncidl");
     let mut owner: Option<(PathBuf, PathBuf)> = None;
@@ -244,11 +248,11 @@ fn load_sources(roots: &[PathBuf], name: &str) -> Result<(PathBuf, ModuleSources
             let path = root.join(candidate);
             let metadata = match fs::metadata(&path) {
                 Ok(metadata) => {
-                    println!("cargo::rerun-if-changed={}", path.display());
+                    watch_source(&path, metadata.is_dir(), watch_output);
                     metadata
                 }
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                    watch_missing_source(&path)?;
+                    watch_missing_source(&path, watch_output)?;
                     continue;
                 }
                 Err(source) => {
@@ -290,13 +294,13 @@ fn load_sources(roots: &[PathBuf], name: &str) -> Result<(PathBuf, ModuleSources
 
 /// Watches directory membership for an absent source candidate. Cargo treats a
 /// missing rerun-if-changed path as dirty on every build. Watching its nearest
-/// existing parent catches later creation without defeating unchanged-build
-/// caching. This parent contains source inputs, not generated OUT_DIR files.
-fn watch_missing_source(path: &Path) -> Result<(), BuildError> {
+/// existing parent catches later creation. For caching, watched directories
+/// must contain only inputs, since Cargo also notices writes made by the build.
+fn watch_missing_source(path: &Path, watch_output: &mut Option<PathBuf>) -> Result<(), BuildError> {
     for parent in path.ancestors().skip(1) {
         match fs::metadata(parent) {
             Ok(metadata) if metadata.is_dir() => {
-                println!("cargo::rerun-if-changed={}", parent.display());
+                watch_source(parent, true, watch_output);
                 return Ok(());
             }
             Ok(_) => return Err(BuildError::Idl(format!("shared source ancestor is not a directory: {}", parent.display()))),
@@ -311,6 +315,19 @@ fn watch_missing_source(path: &Path) -> Result<(), BuildError> {
         }
     }
     Err(BuildError::Idl(format!("shared source has no existing parent: {}", path.display())))
+}
+
+/// Emits the exact existing watch and advises about confirmed output overlap.
+/// Directory canonicalization is advisory and never suppresses a watch.
+fn watch_source(path: &Path, directory: bool, watch_output: &mut Option<PathBuf>) {
+    println!("cargo::rerun-if-changed={}", path.display());
+    if let Some(output) = watch_output.take_if(|output| directory && path.canonicalize().is_ok_and(|watch| output.starts_with(watch))) {
+        println!(
+            "cargo::warning=shared IDL watch {} contains Cargo OUT_DIR {}. Use a dedicated schema directory or put Cargo build output outside the watched inputs to cache unchanged builds.",
+            path.display(),
+            output.display(),
+        );
+    }
 }
 
 #[cfg(test)]
@@ -581,9 +598,9 @@ mod tests {
         let work = tempfile::tempdir().unwrap();
         let blocker = work.path().join("not-a-directory");
         fs::write(&blocker, "file").unwrap();
-        let error = load_sources(&[blocker], "proof.value").unwrap_err();
+        let error = load_sources(&[blocker], "proof.value", &mut None).unwrap_err();
         assert!(matches!(error, BuildError::Io { .. }), "{error}");
-        let missing = load_sources(&[work.path().join("missing")], "proof.value").unwrap_err();
+        let missing = load_sources(&[work.path().join("missing")], "proof.value", &mut None).unwrap_err();
         assert!(matches!(missing, BuildError::Idl(_)), "{missing}");
     }
 }

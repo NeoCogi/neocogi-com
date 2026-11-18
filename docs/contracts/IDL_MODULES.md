@@ -998,6 +998,14 @@ fingerprint. Runtime state, JSON document models, caches, concrete factory
 fields, and other implementation-only types live in their respective
 implementation crates.
 
+For incremental builds, keep the watched directories input-only. Automatic
+discovery watches a missing file or directory candidate's nearest existing
+parent so adding a competing source reruns the build. Cargo also sees build
+writes beneath that directory. Use a dedicated schema subtree or direct Cargo's
+build output outside the watched directories. When a watch contains the
+current `OUT_DIR`, the builder emits one warning with the paths. Source
+selection still checks every candidate.
+
 ### Separately distributed source dependencies
 
 When a separately distributed library uses `cargo::Module` to publish its IDL
