@@ -864,9 +864,7 @@ impl Part {
         use core::fmt::Write;
         match self {
             Self::Root => {}
-            Self::Field(name) => {
-                let _ = write!(path, ".{name}");
-            }
+            Self::Field(name) => append_field(path, name),
             Self::Index(index) => {
                 let _ = write!(path, "[{index}]");
             }
@@ -878,6 +876,22 @@ impl Part {
         }
     }
 }
+/// Uses dot notation for identifiers and a JSON string literal for any other key.
+fn append_field(path: &mut String, name: &str) {
+    if name
+        .as_bytes()
+        .split_first()
+        .is_some_and(|(&first, rest)| (first.is_ascii_alphabetic() || first == b'_') && rest.iter().all(|byte| byte.is_ascii_alphanumeric() || *byte == b'_'))
+    {
+        path.push('.');
+        path.push_str(name);
+    } else {
+        path.push('[');
+        syntax::quoted(name, path).expect("writing a diagnostic String cannot fail");
+        path.push(']');
+    }
+}
+
 impl Reader {
     /// Reports the current representation without inspecting application values.
     fn actual(&self) -> &'static str {
@@ -899,8 +913,8 @@ impl Reader {
         }
         if site != PathSite::Current {
             match self.values.last() {
-                Some(ReadValue::Record { selected: Some((name, _)), .. }) => Part::Field(name.clone()).append(&mut path),
-                Some(ReadValue::Record { missing: Some(name), .. }) => Part::Field(name.clone()).append(&mut path),
+                Some(ReadValue::Record { selected: Some((name, _)), .. }) => append_field(&mut path, name),
+                Some(ReadValue::Record { missing: Some(name), .. }) => append_field(&mut path, name),
                 Some(ReadValue::Ordered { kind, index, .. }) if site == PathSite::NextChild => {
                     if *kind == Ordered::Map {
                         Part::Map(*index).append(&mut path);

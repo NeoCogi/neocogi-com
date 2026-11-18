@@ -161,3 +161,72 @@ fn collection_admission_stops_before_the_next_subtree() {
     assert_eq!(error.status, neocogi_com::NC_E_OUT_OF_RANGE);
     assert_eq!(error.byte_offset, Some(11));
 }
+
+/// Entered, selected and missing fields share the unambiguous name rendering.
+#[test]
+fn logical_paths_quote_ambiguous_literal_field_names() {
+    use neocogi_com::{ComDeserialize, NC_E_INVALID_ARG, NcCopyFromBufferOffset, NcStatus};
+    use neocogi_com::serialization::{Deserializer, Error};
+
+    #[derive(Debug, ComDeserialize)]
+    #[allow(dead_code)]
+    struct Nested {
+        a: Inner,
+    }
+    #[derive(Debug, ComDeserialize)]
+    #[allow(dead_code)]
+    struct Inner {
+        b: bool,
+    }
+
+    let format = format();
+    let nested = format.deserialize::<Nested>(br#"{"a":{"b":7}}"#).unwrap_err();
+    assert_eq!(nested.path, "$.a.b");
+    let option = format.deserialize::<Option<bool>>(br#"{"$some":7}"#).unwrap_err();
+    assert_eq!(option.path, "$.$some");
+
+    /// Reads a single literal dotted name through the typed record facade.
+    #[derive(Debug)]
+    struct Dotted;
+    impl ComDeserialize for Dotted {
+        fn com_deserialize(reader: &mut Deserializer<'_>) -> Result<Self, NcStatus> {
+            reader.record(1, |fields| {
+                fields.read_field::<bool>("a.b")?.map(|_| Self).ok_or_else(|| fields.error("missing field"))
+            })
+        }
+    }
+    let literal = format.deserialize::<Dotted>(br#"{"a.b":7}"#).unwrap_err();
+    assert_eq!(literal.path, r#"$["a.b"]"#);
+
+    for (name, document, path) in [
+        ("a.b", r#"{"a.b":7}"#, r#"$["a.b"]"#),
+        ("a\"b", r#"{"a\"b":7}"#, r#"$["a\"b"]"#),
+        ("a\\b", r#"{"a\\b":7}"#, r#"$["a\\b"]"#),
+        ("a[0]", r#"{"a[0]":7}"#, r#"$["a[0]"]"#),
+        ("", r#"{"":7}"#, r#"$[""]"#),
+        ("a\x01\n", r#"{"a\u0001\n":7}"#, r#"$["a\u0001\n"]"#),
+        ("é", r#"{"é":7}"#, r#"$["é"]"#),
+        ("$some", r#"{"$some":7}"#, r#"$["$some"]"#),
+    ] {
+        let key = NcCopyFromBufferOffset::new(0, name.as_bytes());
+        for present in [false, true] {
+            let limits = Limits { depth: 1, ..Limits::default() };
+            let bounded = Format::new(neocogi_com_serialization::json::factory(), limits);
+            let source = bounded.deserializer(if present { document.as_bytes() } else { b"{}" }).unwrap();
+            let mut view = source.as_com_ref();
+            view.enter_value().unwrap();
+            assert_eq!(view.begin_record(1), Ok(u32::from(present)));
+            assert_eq!(view.field(key), Ok(present));
+            let error = if present {
+                view.enter_value().unwrap_err()
+            } else {
+                view.fail(NcCopyFromBufferOffset::new(0, b"missing field")).unwrap_err()
+            };
+            assert_eq!(error, if present { neocogi_com::NC_E_OUT_OF_RANGE } else { NC_E_INVALID_ARG });
+            let first = Error::capture(error, &source);
+            assert_eq!(first.path, path);
+            assert_eq!(view.finish(), Err(error));
+            assert_eq!(Error::capture(error, &source), first);
+        }
+    }
+}

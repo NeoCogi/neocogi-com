@@ -337,7 +337,7 @@ pub(super) fn encode(node: &Node, maximum: usize) -> Result<Vec<u8>, NcStatus> {
     Ok(output.bytes)
 }
 /// Writes contiguous UTF-8 runs in bulk, escaping only JSON's required bytes.
-fn quoted(value: &str, output: &mut Output) -> core::fmt::Result {
+pub(super) fn quoted(value: &str, output: &mut impl Write) -> core::fmt::Result {
     output.write_char('"')?;
     let mut start = 0;
     for (index, byte) in value.bytes().enumerate() {

@@ -209,8 +209,11 @@ successfully finished sessions report that no failure exists.
 NCB supplies its exact failure cursor and native diagnostic. JSON syntax
 errors include an exact zero-based byte offset and one-based line/column. Columns
 count Unicode scalars, and lines count LF separators. Typed text failures report the expected type and a field/index path,
-for example `$.items[0].count`. A semantic path does not fabricate a source
-coordinate after parsing. Unavailable offsets use `u64::MAX`, and unavailable
+for example `$.items[0].count`. JSON uses dot notation for field identifiers made
+of ASCII letters, digits and underscores, with a letter or underscore first.
+Other literal keys use bracketed JSON string syntax, such as `$["a.b"]` for a
+single dotted name. A semantic path does not fabricate a source coordinate
+after parsing. Unavailable offsets use `u64::MAX`, and unavailable
 line/column use zero in COM. The native NCB helpers retain their existing error
 representation and allocation-free diagnostics.
 
