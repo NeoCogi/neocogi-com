@@ -596,3 +596,106 @@ fn native_plan_reports_the_blocked_plugin_remainder() {
     assert_eq!(order[0]["name"], "nc.tests.plan.a");
     assert_eq!(order[1]["name"], "nc.tests.plan.c");
 }
+
+/// A generated threading edit changes the exact root digest and the old host
+/// rejects that provider. Inspector describes the threading change as context.
+#[test]
+fn generated_root_threading_change_is_context_for_a_breaking_digest() {
+    let inspector = build_inspector("dev");
+    let temporary = tempfile::tempdir().unwrap();
+    let root = temporary.path();
+    let target = prepare_calculator_workspace(root);
+    let source = root.join("host/src/main.rs");
+    let old = std::fs::read_to_string(&source).unwrap();
+    let expected = r#"    let calculator = runtime
+        .acquire_plugin_root::<contracts::CalculatorAbi>(plugin)
+        .expect("compatible calculator factory");"#;
+    assert!(old.contains(expected));
+    std::fs::write(
+        &source,
+        old.replace(
+            expected,
+            r#"    let root = runtime.acquire_plugin_root::<contracts::CalculatorAbi>(plugin);
+    if std::env::args().nth(2).as_deref() == Some("different-contract") {
+        assert_eq!(root.err(), Some(neocogi_com::NC_E_ABI_VERSION));
+        println!("observed exact contract rejection");
+        return;
+    }
+    let calculator = root.expect("compatible calculator factory");"#,
+        ),
+    )
+    .unwrap();
+    let result = build_calculator_workspace(root, target.path(), &["getting-started-host", "getting-started-plugin"]);
+    let host = String::from_utf8_lossy(&result.stdout)
+        .lines()
+        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+        .find(|item| item["reason"] == "compiler-artifact" && item["target"]["name"] == "getting-started-host")
+        .and_then(|item| item["executable"].as_str().map(PathBuf::from))
+        .expect("old fixture host executable");
+    let local = root.join(format!("local{}", std::env::consts::DLL_SUFFIX));
+    std::fs::copy(shared_artifact(&result, "getting_started_plugin"), &local).unwrap();
+
+    let schema = root.join("schemas/tutorial/calculator.ncidl");
+    let old = std::fs::read_to_string(&schema).unwrap();
+    assert!(old.contains("interface Calculator"));
+    std::fs::write(&schema, old.replace("interface Calculator", "#[threading(shared)]\ninterface Calculator")).unwrap();
+    let source = root.join("plugin/src/lib.rs");
+    let old = std::fs::read_to_string(&source).unwrap();
+    assert!(old.contains("ComPtr<contracts::CalculatorAbi>"));
+    assert!(old.contains("com_object(contracts::Calculator)"));
+    let shared_provider = old
+        .replace(
+            "com_object(contracts::Calculator)",
+            "com_object(interfaces(contracts::Calculator), thread_safe)",
+        )
+        .replace("ComPtr<contracts::CalculatorAbi>", "ComPtr<contracts::CalculatorAbi, neocogi_com::ThreadSafe>");
+    std::fs::write(&source, shared_provider).unwrap();
+    let result = build_calculator_workspace(root, target.path(), &["getting-started-plugin"]);
+    let shared = root.join(format!("shared{}", std::env::consts::DLL_SUFFIX));
+    std::fs::copy(shared_artifact(&result, "getting_started_plugin"), &shared).unwrap();
+
+    let compatible = Command::new(&host).arg(&local).output().unwrap();
+    assert_success("old host with exact provider", &compatible);
+    assert_eq!(String::from_utf8_lossy(&compatible.stdout).trim(), "2 + 3 = 5");
+    let incompatible = Command::new(&host).arg(&shared).arg("different-contract").output().unwrap();
+    assert_success("old host observing exact contract rejection", &incompatible);
+    assert_eq!(String::from_utf8_lossy(&incompatible.stdout).trim(), "observed exact contract rejection");
+
+    let inspect = |library: &Path, name: &str| {
+        let output = Command::new(&inspector).arg("dump").arg(library).args(["--format", "json"]).output().unwrap();
+        assert_success("generated root descriptor", &output);
+        let artifact: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+        std::fs::write(root.join(name), &output.stdout).unwrap();
+        artifact["factory"].clone()
+    };
+    let old = inspect(&local, "local.json");
+    let new = inspect(&shared, "shared.json");
+    assert_eq!(old["root_factory_id"], new["root_factory_id"]);
+    assert_ne!(old["root_factory_signature"], new["root_factory_signature"]);
+    assert_eq!(old["root_factory_threading"], "thread_local");
+    assert_eq!(new["root_factory_threading"], "thread_safe");
+    let result = Command::new(&inspector)
+        .current_dir(root)
+        .args(["diff", "local.json", "shared.json", "--compat"])
+        .output()
+        .unwrap();
+    assert_eq!(result.status.code(), Some(1));
+    let report = String::from_utf8(result.stdout).unwrap();
+    assert!(report.contains("compatibility: breaking"), "{report}");
+    assert!(report.contains("breaking:\n  - root factory ABI signature changed"), "{report}");
+    assert!(report.contains("diagnostic:\n  - root factory threading changed"), "{report}");
+    assert!(!report.contains("compatible additions and relaxations"), "{report}");
+
+    let result = Command::new(inspector)
+        .current_dir(root)
+        .args(["diff", "local.json", "shared.json", "--exact"])
+        .output()
+        .unwrap();
+    assert_eq!(result.status.code(), Some(1));
+    let report = String::from_utf8(result.stdout).unwrap();
+    assert!(report.contains("factory.root_factory_signature:"), "{report}");
+    assert!(
+        report.contains(r#"factory.root_factory_threading: "thread_local" -> "thread_safe""#),
+        "{report}"
+    );
+}

@@ -68,14 +68,15 @@ fn compare_factory(report: &mut CompatibilityReport, old: &ArtifactFactory, new:
             .push(format!("root factory identity changed: {} -> {}", old.root_factory_id, new.root_factory_id));
         return;
     }
-    compare_threading(report, "root factory", old.root_factory_threading, new.root_factory_threading);
-
     if old.root_factory_signature != new.root_factory_signature {
         report.breaking.push(format!(
             "root factory ABI signature changed: {} -> {}",
             old.root_factory_signature, new.root_factory_signature
         ));
+        push_diagnostic_change(report, "root factory threading", &old.root_factory_threading, &new.root_factory_threading);
+        return;
     }
+    compare_threading(report, "root factory", old.root_factory_threading, new.root_factory_threading);
 }
 
 /// A new hard dependency can make a previously valid load plan incomplete.
@@ -105,8 +106,8 @@ fn compare_threading(report: &mut CompatibilityReport, subject: &str, old: Artif
     }
 }
 
-/// Records changed release text without treating it as an ABI signature.
-fn push_diagnostic_change(report: &mut CompatibilityReport, label: &str, old: &str, new: &str) {
+/// Records changed diagnostic values with their canonical JSON spelling.
+fn push_diagnostic_change<T: serde::Serialize + PartialEq + ?Sized>(report: &mut CompatibilityReport, label: &str, old: &T, new: &T) {
     if old != new {
         report.diagnostic.push(format!("{label} changed: {} -> {}", value_text(old), value_text(new)));
     }
@@ -150,6 +151,31 @@ mod tests {
         let report = check_compatibility(&old_safe, &old);
         assert!(!report.is_compatible());
         assert!(report.breaking[0].contains("threading weakened"));
+    }
+
+    /// A new exact contract cannot relax the previous root's required capability.
+    #[test]
+    fn threading_changes_with_a_new_digest_are_diagnostic_context() {
+        let mut old = sample_artifact();
+        old.plugin.dependencies.push(guid_from_qualified_name("example.Dependency").to_string());
+        let mut new = sample_artifact();
+        new.factory.root_factory_signature = "22".repeat(32);
+        new.factory.root_factory_threading = ArtifactThreading::ThreadSafe;
+
+        let report = check_compatibility(&old, &new);
+        assert!(!report.is_compatible());
+        assert_eq!(report.breaking.len(), 1);
+        assert!(report.breaking[0].contains("ABI signature changed"));
+        assert_eq!(report.additive.len(), 1);
+        assert!(report.additive[0].contains("removed hard plugin dependency"));
+        assert_eq!(report.diagnostic.len(), 1);
+        assert!(report.diagnostic[0].contains("root factory threading changed"));
+
+        let reverse = check_compatibility(&new, &old);
+        assert!(!reverse.is_compatible());
+        assert_eq!(reverse.breaking.len(), 2);
+        assert!(reverse.breaking.iter().all(|change| !change.contains("threading")));
+        assert_eq!(reverse.diagnostic.len(), 1);
     }
 
     #[test]

@@ -49,11 +49,13 @@ After inspection and dependency validation, a source pathname outside Unicode
 returns an error before stdout or the output file is written. Native `check`,
 `dump`, and `plan --format text` remain available for those source names. Output
 destination paths remain native paths.
-Disconnected contract revisions may coexist. `diff --compat` reports changed factory signatures,
-identities, target/ABI versions, weakened threading, and added hard dependencies
-as breaking; plugin version text is diagnostic. Text differences use canonical JSON
-spellings and escaped strings, preserving concrete values in ordinary and
-min-size builds alike.
+Disconnected contract revisions may coexist. `diff --compat` reports changed
+factory signatures, identities, target/ABI versions, and added hard dependencies
+as breaking. For matching factory identities and signatures, weakened threading
+is breaking and strengthened threading is additive. When the signature changes,
+threading differences provide diagnostic context for that breaking change. Plugin
+version text is diagnostic. Text differences use canonical JSON spellings and
+escaped strings, preserving concrete values in ordinary and min-size builds alike.
 Native inspection failures also preserve the loader phase, path, platform or
 validation detail and any ABI status in both profiles.
 
