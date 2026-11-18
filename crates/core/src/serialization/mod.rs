@@ -160,10 +160,11 @@ impl<'a> Deserializer<'a> {
         }
         let mut fields = RecordFieldReader { reader: self, remaining: count };
         let value = read(&mut fields)?;
+        fields.reader.interface.end_record()?;
         if fields.remaining != 0 {
+            // A provider that completed the record must agree with its advertised count.
             return Err(fields.error("unconsumed record fields"));
         }
-        fields.reader.interface.end_record()?;
         Ok(value)
     }
     /// Opens an ordered, counted collection and requires complete consumption.

@@ -125,6 +125,88 @@ fn empty_arrays_still_execute_provider_completion_and_begin_errors_win() {
     assert_eq!(source.units, 0);
 }
 
+/// Defaulting permits construction before the provider checks remaining fields.
+#[derive(Debug, Default, PartialEq, ComDeserialize)]
+#[com_deserialize(default)]
+struct Settings {
+    enabled: bool,
+    count: u32,
+}
+
+#[test]
+fn provider_record_completion_precedes_the_facade_count_check() {
+    #[derive(ComSerialize)]
+    struct Empty {}
+    let bytes = ncb::to_vec(&Empty {}).unwrap();
+    assert_eq!(ncb::from_slice::<Settings>(&bytes).unwrap(), Settings::default());
+
+    let (result, source) = decode::<Settings>(bytes.clone(), Stage::RecordEndFailure);
+    assert_eq!(result, Err(Stage::RecordEndFailure.status()));
+    assert_eq!(source.record_calls, ["end_record", "generic failure"]);
+
+    let (result, source) = decode::<Settings>(bytes, Stage::RecordRemainder);
+    assert_eq!(result, Err(NC_E_INVALID_ARG));
+    assert_eq!(source.record_calls, ["end_record", "remainder failure", "generic failure"]);
+
+    // A real positional provider also rejects a record with unconsumed children.
+    struct Skipped;
+    impl ComDeserialize for Skipped {
+        fn com_deserialize(reader: &mut Deserializer<'_>) -> Result<Self, NcStatus> {
+            reader.record(1, |_| Ok(Self))
+        }
+    }
+    assert_eq!(
+        ncb::from_slice::<Skipped>(b"NCB\x01\x01\0\0\0").err(),
+        Some(ncb::Error {
+            offset: 8,
+            message: "unconsumed record fields"
+        })
+    );
+}
+
+#[cfg(feature = "json")]
+#[test]
+fn defaulted_record_completion_reports_the_enclosing_json_path() {
+    use neocogi_com::serialization::{Error, Format, Limits};
+
+    #[allow(dead_code)]
+    #[derive(Debug, ComDeserialize)]
+    struct Required {
+        enabled: bool,
+        count: u32,
+    }
+    #[allow(dead_code)]
+    #[derive(Debug, ComDeserialize)]
+    struct Nested {
+        outer: [Settings; 1],
+    }
+    let format = Format::new(neocogi_com_serialization::json::factory(), Limits::default());
+    assert_eq!(format.deserialize::<Settings>(b"{}").unwrap(), Settings::default());
+    assert_eq!(
+        format.deserialize::<Settings>(br#"{"count":7}"#).unwrap(),
+        Settings { enabled: false, count: 7 }
+    );
+
+    let source = format.deserializer(br#"{"rogue":true}"#).unwrap();
+    let status = Deserializer::new(source.as_com_ref()).deserialize::<Settings>().unwrap_err();
+    let error = Error::capture(status, &source);
+    assert_eq!(error.status, NC_E_INVALID_ARG);
+    assert!(error.message.starts_with("unknown or unconsumed record fields"), "{}", error.message);
+    assert_eq!(error.path, "$");
+    assert_eq!(source.as_com_ref().finish(), Err(status));
+    assert_eq!(Error::capture(status, &source), error);
+
+    let nested = format.deserialize::<Nested>(br#"{"outer":[{"rogue":true}]}"#).unwrap_err();
+    assert_eq!(nested.message, error.message);
+    assert_eq!(nested.path, "$.outer[0]");
+    assert_eq!(format.deserialize::<Required>(b"{}").unwrap_err().path, "$.enabled");
+    assert_eq!(format.deserialize::<Settings>(br#"{"enabled":1}"#).unwrap_err().path, "$.enabled");
+    let excessive = format.deserialize::<Settings>(br#"{"enabled":true,"count":1,"extra":0}"#).unwrap_err();
+    assert_eq!(excessive.status, NC_E_INVALID_ARG);
+    assert!(excessive.message.starts_with("expected record with declared fields"), "{}", excessive.message);
+    assert_eq!(excessive.path, "$");
+}
+
 #[cfg(feature = "json")]
 #[test]
 fn json_uses_the_same_exact_count_admission() {

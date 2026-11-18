@@ -15,14 +15,18 @@ pub(super) enum Stage {
     Leave,
     /// Fail after successful root acquisition.
     Finish,
+    /// Report an inconsistent count and fail completion with a distinct status.
+    RecordEndFailure,
+    /// Report an inconsistent count and allow completion and failure requests.
+    RecordRemainder,
 }
 impl Stage {
     /// Distinct statuses expose replacement by a later schema failure.
     pub(super) fn status(self) -> NcStatus {
         match self {
-            Self::None => NC_E_INVALID_ARG,
+            Self::None | Self::RecordRemainder => NC_E_INVALID_ARG,
             Self::Begin => NC_E_BUSY,
-            Self::End => NC_E_CLOSED,
+            Self::End | Self::RecordEndFailure => NC_E_CLOSED,
             Self::Leave => NC_E_NOT_FOUND,
             Self::Finish => NC_E_OUT_OF_RANGE,
         }
@@ -38,6 +42,8 @@ pub(super) struct FaultSource {
     depth: usize,
     /// Successful unit acquisitions; inspect after recovering the scoped provider.
     pub(super) units: usize,
+    /// Completion and failure calls for the record controls, in order.
+    pub(super) record_calls: Vec<&'static str>,
     /// First status prevents all later operations from succeeding.
     failed: Option<NcStatus>,
 }
@@ -49,6 +55,7 @@ impl FaultSource {
             stage,
             depth: 0,
             units: 0,
+            record_calls: Vec::new(),
             failed: None,
         }
     }
@@ -58,6 +65,10 @@ impl FaultSource {
             Some(status) => Err(status),
             None => Ok(()),
         }
+    }
+    /// Whether the record count deliberately disagrees with the real provider.
+    fn wrong_record_count(&self) -> bool {
+        matches!(self.stage, Stage::RecordEndFailure | Stage::RecordRemainder)
     }
     /// Records the selected boundary failure once.
     fn inject(&mut self, stage: Stage) -> Result<(), NcStatus> {
@@ -81,6 +92,9 @@ impl IDeserializer for FaultSource {
     }
     /// Delegates to the real NCB session after failure admission.
     fn leave_value(&mut self) -> Result<(), NcStatus> {
+        if self.wrong_record_count() {
+            self.record_calls.push("leave_value");
+        }
         self.admit()?;
         if self.depth == 1 {
             self.inject(Stage::Leave)?;
@@ -169,7 +183,12 @@ impl IDeserializer for FaultSource {
     /// Delegates to the real NCB session after failure admission.
     fn begin_record(&mut self, maximum: u32) -> Result<u32, NcStatus> {
         self.admit()?;
-        self.inner.as_com_ref().begin_record(maximum)
+        let count = self.inner.as_com_ref().begin_record(maximum)?;
+        if self.wrong_record_count() {
+            assert_eq!(count, 0);
+            return Ok(1);
+        }
+        Ok(count)
     }
     /// Delegates to the real NCB session after failure admission.
     fn field(&mut self, name: NcCopyFromBufferOffset<'_, u8>) -> Result<bool, NcStatus> {
@@ -179,7 +198,11 @@ impl IDeserializer for FaultSource {
     /// Delegates to the real NCB session after failure admission.
     fn end_record(&mut self) -> Result<(), NcStatus> {
         self.admit()?;
-        self.inner.as_com_ref().end_record()
+        self.inner.as_com_ref().end_record()?;
+        if self.wrong_record_count() {
+            self.record_calls.push("end_record");
+        }
+        self.inject(Stage::RecordEndFailure)
     }
     /// Delegates to the real NCB session after failure admission.
     fn begin_sequence(&mut self) -> Result<u32, NcStatus> {
@@ -208,6 +231,17 @@ impl IDeserializer for FaultSource {
     }
     /// Delegates to the real NCB session after failure admission.
     fn fail(&mut self, message: NcCopyFromBufferOffset<'_, u8>) -> Result<(), NcStatus> {
+        if self.wrong_record_count() {
+            self.record_calls.push(match message.as_slice() {
+                b"unconsumed record fields" => "remainder failure",
+                b"invalid persistent value" => "generic failure",
+                _ => "unexpected failure",
+            });
+            return match self.stage {
+                Stage::RecordEndFailure => Err(NC_E_BUSY),
+                _ => Ok(()),
+            };
+        }
         if let Some(status) = self.failed {
             return Err(status);
         }
@@ -217,6 +251,9 @@ impl IDeserializer for FaultSource {
     }
     /// Delegates to the real NCB session after failure admission.
     fn finish(&mut self) -> Result<(), NcStatus> {
+        if self.wrong_record_count() {
+            self.record_calls.push("finish");
+        }
         self.inject(Stage::Finish)?;
         self.inner.as_com_ref().finish()
     }

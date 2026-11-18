@@ -222,6 +222,12 @@ convenience API. Successful traversal does no diagnostic formatting; field keys
 move from the syntax map into path components, and a path string is built only
 on failure.
 
+After typed field construction succeeds, the deserializer asks the provider to
+complete the record so it can diagnose unconsumed fields at the enclosing record.
+The facade also rejects an inconsistent remaining count if the provider reports
+successful completion. Required-field and invalid-value errors arise during
+field construction and keep their field diagnostics.
+
 ## Usage and object persistence
 
 ```rust,ignore
