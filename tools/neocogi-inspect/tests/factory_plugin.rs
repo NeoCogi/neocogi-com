@@ -473,3 +473,126 @@ fn inspects_a_standalone_plugin_and_its_exact_factory_signature() {
         assert_native_output_paths(&inspector, &plugin, &intended, &neighbor);
     }
 }
+
+/// Copies the maintained generated calculator into one scratch workspace.
+/// Local crate paths exercise the candidate SDK. Return a private build directory
+/// so another fixture cannot overwrite the library between Cargo and relocation.
+fn prepare_calculator_workspace(root: &Path) -> tempfile::TempDir {
+    let checkout = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize().unwrap();
+    let example = checkout.join("examples/getting-started");
+    for path in [
+        "build.rs",
+        "schemas/tutorial/calculator.ncidl",
+        "plugin/Cargo.toml",
+        "plugin/src/lib.rs",
+        "host/Cargo.toml",
+        "host/src/main.rs",
+    ] {
+        let output = root.join(path);
+        std::fs::create_dir_all(output.parent().unwrap()).unwrap();
+        std::fs::copy(example.join(path), output).unwrap();
+    }
+    let crates = checkout.join("crates");
+    std::fs::write(root.join("Cargo.toml"), format!(
+        "[workspace]\nresolver='3'\nmembers=['host','plugin']\n[patch.crates-io]\n         neocogi-com={{path={:?}}}\nneocogi-com-host={{path={:?}}}\nneocogi-idl={{path={:?}}}\n",
+        crates.join("com"), crates.join("host"), crates.join("idl"),
+    )).unwrap();
+    let targets = checkout.join("target");
+    std::fs::create_dir_all(&targets).unwrap();
+    tempfile::Builder::new().prefix("inspect-calculator-").tempdir_in(targets).unwrap()
+}
+
+/// Builds selected scratch packages in their private target and retains Cargo artifact records.
+fn build_calculator_workspace(root: &Path, target: &Path, packages: &[&str]) -> Output {
+    let mut command = Command::new(env!("CARGO"));
+    command
+        .current_dir(root)
+        .args(["build", "--offline", "--message-format=json", "--target-dir"])
+        .arg(target);
+    for package in packages {
+        command.args(["-p", package]);
+    }
+    let output = command.output().unwrap();
+    assert_success("calculator fixture build", &output);
+    output
+}
+
+/// Inspect the actual native artifacts. A downstream plugin is blocked, and
+/// an independent provider is absent from the reported remainder.
+#[test]
+fn native_plan_reports_the_blocked_plugin_remainder() {
+    use neocogi_com_core::guid_from_qualified_name;
+    let inspector = build_inspector("dev");
+    let temporary = tempfile::tempdir().unwrap();
+    let root = temporary.path();
+    let target = prepare_calculator_workspace(root);
+    let source = root.join("plugin/src/lib.rs");
+    let original = std::fs::read_to_string(&source).unwrap();
+    let mut paths = Vec::new();
+    let mut blocked = Vec::new();
+    let mut independent = None;
+    for (suffix, dependency) in [("a", Some("b")), ("b", Some("a")), ("c", Some("a")), ("independent", None)] {
+        let name = format!("nc.tests.plan.{suffix}");
+        let mut code = original.replace("nc.tutorial.calculator", &name);
+        let id = guid_from_qualified_name(&name);
+        if let Some(dependency) = dependency {
+            code = code.replace(
+                &format!(r#"#[neocogi_com::plugin(name = "{name}")]"#),
+                &format!(r#"#[neocogi_com::plugin(name = "{name}", dependencies = [REQUIRED])]"#),
+            );
+            code.push_str(&format!(
+                "\nconst REQUIRED: neocogi_com::NcGuid = neocogi_com::guid_from_qualified_name(\"nc.tests.plan.{dependency}\");\n",
+            ));
+            blocked.push(id);
+        } else {
+            independent = Some(id);
+        }
+        std::fs::write(&source, code).unwrap();
+        let result = build_calculator_workspace(root, target.path(), &["getting-started-plugin"]);
+        let library = shared_artifact(&result, "getting_started_plugin");
+        let staged = root.join(format!("{suffix}{}", std::env::consts::DLL_SUFFIX));
+        std::fs::copy(library, &staged).unwrap();
+        assert_success("valid plan descriptor", &Command::new(&inspector).arg("check").arg(&staged).output().unwrap());
+        paths.push(staged);
+    }
+    blocked.sort_by_key(|id| (id.data1, id.data2, id.data3, id.data4));
+    let path = root.join("plan.json");
+    std::fs::write(&path, b"previous plan").unwrap();
+    let result = Command::new(&inspector)
+        .arg("plan")
+        .args(&paths)
+        .args(["--format", "json", "--output"])
+        .arg(&path)
+        .output()
+        .unwrap();
+    assert_eq!(result.status.code(), Some(1));
+    assert!(result.stdout.is_empty());
+    let error = String::from_utf8(result.stderr).unwrap();
+    assert_eq!(
+        error.trim(),
+        format!("error: plugins blocked by dependency cycles: {} {} {}", blocked[0], blocked[1], blocked[2])
+    );
+    assert!(!error.contains(&independent.unwrap().to_string()));
+    assert_eq!(std::fs::read(&path).unwrap(), b"previous plan");
+
+    // Removing A's dependency leaves C requiring A. The CLI orders the
+    // provider first even when the input paths arrive in reverse order.
+    std::fs::write(source, original.replace("nc.tutorial.calculator", "nc.tests.plan.a")).unwrap();
+    let result = build_calculator_workspace(root, target.path(), &["getting-started-plugin"]);
+    let library = shared_artifact(&result, "getting_started_plugin");
+    let acyclic = root.join(format!("acyclic{}", std::env::consts::DLL_SUFFIX));
+    std::fs::copy(library, &acyclic).unwrap();
+    let result = Command::new(inspector)
+        .arg("plan")
+        .arg(&paths[2])
+        .arg(acyclic)
+        .args(["--format", "json"])
+        .output()
+        .unwrap();
+    assert_success("acyclic provider-first plan", &result);
+    let plan: serde_json::Value = serde_json::from_slice(&result.stdout).unwrap();
+    let order = plan["load_order"].as_array().unwrap();
+    assert_eq!(order.len(), 2);
+    assert_eq!(order[0]["name"], "nc.tests.plan.a");
+    assert_eq!(order[1]["name"], "nc.tests.plan.c");
+}

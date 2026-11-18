@@ -41,7 +41,7 @@ pub enum PluginDependencyPlanError {
         /// Required plugin GUID absent from the input set.
         dependency_id: NcGuid,
     },
-    /// The remaining plugin IDs form one or more dependency cycles.
+    /// The remaining plugins cannot load because of dependency cycles.
     DependencyCycle {
         /// Sorted plugin GUIDs participating in, or blocked by, the cycles.
         plugin_ids: Vec<NcGuid>,
@@ -63,7 +63,7 @@ impl fmt::Display for PluginDependencyPlanError {
             }
             Self::MissingDependency { plugin_id, dependency_id } => write!(f, "plugin {plugin_id} requires missing plugin {dependency_id}"),
             Self::DependencyCycle { plugin_ids } => {
-                write!(f, "plugin dependency cycle among")?;
+                write!(f, "plugins blocked by dependency cycles:")?;
                 for plugin_id in plugin_ids {
                     write!(f, " {plugin_id}")?;
                 }
@@ -210,11 +210,16 @@ mod tests {
         );
     }
 
+    /// Remainder includes a downstream dependent, while an independent plugin was ordered.
     #[test]
-    fn rejects_cycles() {
+    fn reports_plugins_blocked_by_cycles() {
+        let plugins = [plugin(3, &[1]), plugin(2, &[1]), plugin(4, &[]), plugin(1, &[2])];
+        let error = plan_plugin_load_order(&plugins).unwrap_err();
+        let blocked = [guid(1), guid(2), guid(3)];
+        assert_eq!(error, PluginDependencyPlanError::DependencyCycle { plugin_ids: blocked.to_vec() });
         assert_eq!(
-            plan_plugin_load_order(&[plugin(2, &[1]), plugin(1, &[2])]),
-            Err(PluginDependencyPlanError::DependencyCycle { plugin_ids: vec![guid(1), guid(2)] })
+            error.to_string(),
+            format!("plugins blocked by dependency cycles: {} {} {}", blocked[0], blocked[1], blocked[2])
         );
     }
 

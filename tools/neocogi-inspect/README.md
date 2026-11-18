@@ -42,11 +42,13 @@ the plugin and its root factory. Source-level method and value definitions belon
 to [local IDL metadata](https://docs.rs/neocogi-com/0.3.0/neocogi_com/idl_metadata/index.html).
 
 `plan` rejects duplicate plugin identities, missing hard dependencies, and
-cycles, then prints deterministic provider-first order. JSON plans preserve source
-pathnames as Unicode strings. A source pathname outside Unicode returns an error
-before stdout or the output file is written; inspection and dependency validation
-still run first. Native `check`, `dump`, and `plan --format text` remain available
-for those source names. Output destination paths remain native paths.
+cycles. Successful plans list providers before dependents in deterministic order.
+A cycle error lists all plugin identities blocked by cycles, including plugins
+that depend on them. JSON plans preserve source pathnames as Unicode strings.
+After inspection and dependency validation, a source pathname outside Unicode
+returns an error before stdout or the output file is written. Native `check`,
+`dump`, and `plan --format text` remain available for those source names. Output
+destination paths remain native paths.
 Disconnected contract revisions may coexist. `diff --compat` reports changed factory signatures,
 identities, target/ABI versions, weakened threading, and added hard dependencies
 as breaking; plugin version text is diagnostic. Text differences use canonical JSON
