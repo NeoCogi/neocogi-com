@@ -6,7 +6,7 @@
 //! loading is fail-fatal after detailed diagnostic emission, whereas direct
 //! registration and factory acquisition return ordinary statuses.
 
-use neocogi_com_core::{
+use neocogi_com::{
     IUnknown, NC_DEBUG_TYPE_PLUGIN, NC_DEBUG_TYPE_RUNTIME, NC_DEBUG_TYPE_VALIDATION, NC_E_INVALID_ARG, NC_E_LOAD_FAILED, NC_E_POINTER, NC_OK,
     NcPluginDescriptor, NcGuid, NcInterfaceId, NcStatus,
 };
@@ -53,7 +53,7 @@ pub(super) unsafe extern "C" fn load_plugin_library_utf8(path: *const u8, path_l
         }
         Err(error) => {
             let status = error.status().unwrap_or_else(|| load_error_status(error.kind()));
-            eprintln!("fatal neocogi-com plugin load failure: {error}");
+            eprintln!("fatal neocogi-com-sdk plugin load failure: {error}");
             emit_error(NC_DEBUG_TYPE_PLUGIN, status, &error.to_string());
             // Required plugin loading is fail-fatal. An opened library has
             // already been pinned by the loader, so aborting here cannot race
@@ -68,7 +68,7 @@ pub(super) unsafe extern "C" fn acquire_factory_plugin(
     plugin_id: NcGuid,
     factory_interface: NcInterfaceId,
     requested_threading: u32,
-    out: *mut neocogi_com_core::ComRaw<IUnknown>,
+    out: *mut neocogi_com::ComRaw<IUnknown>,
 ) -> NcStatus {
     let runtime = RuntimeState::global();
     let acquisition = {

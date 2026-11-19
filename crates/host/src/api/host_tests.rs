@@ -2,7 +2,7 @@
 
 use core::{mem, ptr};
 
-use neocogi_com_core::{
+use neocogi_com::{
     ComRaw, IUnknown, NC_ABI_THREADING_THREAD_LOCAL, NC_COM_CORE_ABI_VERSION, NC_COM_RUNTIME_ABI_VERSION, NC_E_ABI_VERSION, NC_E_CLOSED, NC_E_POINTER, NC_OK,
     NC_PLUGIN_DESCRIPTOR_ABI_VERSION, NcPersistenceApiV3, NcPluginDescriptor, NcPluginInfoV3, NcStaticUtf8, NcStatus, guid_from_qualified_name,
     validate_host_api,
@@ -11,7 +11,7 @@ use neocogi_com_core::{
 use super::{HOST_API, PERSISTENCE_API_V3, RUNTIME_API_V3};
 
 /// Descriptor-only fixture; admission and lookup must never acquire a factory.
-unsafe extern "C" fn unused_acquisition(_host: *const neocogi_com_core::NcHostApiV3, out: *mut ComRaw<IUnknown>) -> NcStatus {
+unsafe extern "C" fn unused_acquisition(_host: *const neocogi_com::NcHostApiV3, out: *mut ComRaw<IUnknown>) -> NcStatus {
     if out.is_null() {
         return NC_E_POINTER;
     }
@@ -126,7 +126,7 @@ fn host_admission_reads_only_available_child_prefixes() {
 
 #[test]
 fn host_admission_rejects_inconsistent_service_core_versions() {
-    let runtime = neocogi_com_core::NcPluginApiV3 {
+    let runtime = neocogi_com::NcPluginApiV3 {
         core_abi_version: NC_COM_CORE_ABI_VERSION + 1,
         ..RUNTIME_API_V3
     };

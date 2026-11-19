@@ -11,8 +11,8 @@ mod snapshot;
 pub(crate) use registry::Registry;
 pub(crate) use snapshot::snapshot_with_limits;
 
-use neocogi_com::{ComPtr, NcCopyFromBufferOffset, NcStatus, guid_from_qualified_name};
-use neocogi_com::serialization::{Format, ISerializationPluginAbi, Limits};
+use neocogi_com_sdk::{ComPtr, NcCopyFromBufferOffset, NcStatus, guid_from_qualified_name};
+use neocogi_com_sdk::serialization::{Format, ISerializationPluginAbi, Limits};
 
 /// Strong capabilities selected once for one synchronous persistence operation.
 /// The format and its root stay alive through traversal and recipe callbacks;

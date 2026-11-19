@@ -88,7 +88,7 @@ impl Consumer {
         let facade = workspace
             .packages
             .iter()
-            .find(|package| package.name == "neocogi-com" && package.version == env!("CARGO_PKG_VERSION"));
+            .find(|package| package.name == "neocogi-com-sdk" && package.version == env!("CARGO_PKG_VERSION"));
         let dependency = match facade {
             Some(package) => format!("{{path={:?}}}", package.manifest_path.parent().unwrap()),
             None => format!("\"={}\"", env!("CARGO_PKG_VERSION")),
@@ -98,7 +98,7 @@ impl Consumer {
         let manifest = directory.path().join("Cargo.toml");
         fs::write(
             &manifest,
-            format!("[package]\nname={name:?}\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={dependency}\n"),
+            format!("[package]\nname={name:?}\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com-sdk={dependency}\n"),
         )
         .unwrap();
         // Cargo metadata requires a target even before the test emits bindings.
@@ -117,8 +117,8 @@ impl Consumer {
         };
         Self {
             directory,
-            core: root("neocogi-com-core"),
-            facade: root("neocogi-com"),
+            core: root("neocogi-com"),
+            facade: root("neocogi-com-sdk"),
         }
     }
 }

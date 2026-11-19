@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use super::*;
-    use neocogi_com::*;
+    use neocogi_com_sdk::*;
     use std::sync::{Arc, atomic::{AtomicUsize, Ordering},
     };
 
@@ -95,8 +95,8 @@ mod tests {
         let copied = NcValueRef::new(&facts).unwrap().to_owned().unwrap();
         assert!(copied.many[0].upgrade().unwrap().is_none());
         assert!(copied.fixed[1].same_object(&weak));
-        let neocogi_com::idl_metadata::TypeShape::Struct(fields) = References::IDL_TYPE.shape else { panic!("record metadata") };
-        assert_eq!(fields[0].ty, neocogi_com::idl_metadata::ValueType::WeakObject("proof.weak.Counter"));
+        let neocogi_com_sdk::idl_metadata::TypeShape::Struct(fields) = References::IDL_TYPE.shape else { panic!("record metadata") };
+        assert_eq!(fields[0].ty, neocogi_com_sdk::idl_metadata::ValueType::WeakObject("proof.weak.Counter"));
         // SAFETY: these are immutable generated descriptor graphs.
         let signature = unsafe { format_method_signature(&StoreAbi::METHOD_DESCRIPTORS[0]) }.unwrap();
         assert!(signature.contains("weak_com_ptr_out<"), "{signature}");

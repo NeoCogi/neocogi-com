@@ -241,7 +241,7 @@ field construction and keep their field diagnostics.
 ## Usage and object persistence
 
 ```rust,ignore
-use neocogi_com::serialization::{Format, Limits};
+use neocogi_com_sdk::serialization::{Format, Limits};
 let format = neocogi_com_serialization::ncb::format(Limits::default());
 let bytes = format.serialize(&state)?;
 let restored: State = format.deserialize(&bytes)?;

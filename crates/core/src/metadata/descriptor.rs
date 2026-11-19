@@ -121,13 +121,13 @@ impl NcStaticUtf8 {
     /// a safe, infallible `as_str(&self) -> &str` method.
     ///
     /// ```
-    /// use neocogi_com_core::NcStaticUtf8;
+    /// use neocogi_com::NcStaticUtf8;
     ///
     /// let name = NcStaticUtf8::from_static("example.widget");
     /// // SAFETY: The literal's immutable bytes remain live for the whole program.
     /// let text = unsafe { name.as_str() }?;
     /// assert_eq!(text, "example.widget");
-    /// # Ok::<(), neocogi_com_core::NcStatus>(())
+    /// # Ok::<(), neocogi_com::NcStatus>(())
     /// ```
     ///
     /// # Safety
@@ -245,7 +245,7 @@ impl NcMethodDescriptor {
     }
 }
 
-/// One hard neocogi-com plugin dependency.
+/// One hard neocogi-com-sdk plugin dependency.
 ///
 /// Dependency metadata is declarative. It names a plugin that must already be
 /// registered before the descriptor containing this entry may be registered;

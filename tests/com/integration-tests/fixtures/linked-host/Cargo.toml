@@ -3,6 +3,6 @@ resolver = "3"
 members = ["app", "provider-a", "provider-b"]
 
 [workspace.dependencies]
-neocogi-com = { path = "../../../../../crates/com", default-features = false, features = ["std", "runtime", "macros"] }
+neocogi-com-sdk = { path = "../../../../../crates/com", default-features = false, features = ["std", "runtime", "macros"] }
 neocogi-com-host = { path = "../../../../../crates/host" }
 neocogi-idl = { path = "../../../../../crates/idl" }

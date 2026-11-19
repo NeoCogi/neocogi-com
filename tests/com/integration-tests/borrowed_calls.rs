@@ -5,7 +5,7 @@
 mod test_contracts {
     include!(concat!(env!("OUT_DIR"), "/test_contracts.rs"));
 }
-use neocogi_com::{ComInterface, ComPtr, IUnknown, IUnknownVTable, NcInterfaceId, NcStatus, NC_E_NOINTERFACE, NC_OK};
+use neocogi_com_sdk::{ComInterface, ComPtr, IUnknown, IUnknownVTable, NcInterfaceId, NcStatus, NC_E_NOINTERFACE, NC_OK};
 use std::{cell::Cell, ffi::c_void, rc::Rc};
 
 extern crate self as fixture_borrowed_calls;
@@ -36,9 +36,9 @@ unsafe fn storage<'a>(this: *mut c_void) -> &'a Counter {
 }
 
 /// This probe has no additional interface projection; failure transfers nothing.
-unsafe extern "C" fn query(_this: *mut c_void, _id: *const NcInterfaceId, out: *mut neocogi_com::ComRaw<IUnknown>) -> NcStatus {
+unsafe extern "C" fn query(_this: *mut c_void, _id: *const NcInterfaceId, out: *mut neocogi_com_sdk::ComRaw<IUnknown>) -> NcStatus {
     // SAFETY: The test's raw callers provide a writable pointer output slot.
-    unsafe { *out = neocogi_com::ComRaw::null() };
+    unsafe { *out = neocogi_com_sdk::ComRaw::null() };
     NC_E_NOINTERFACE
 }
 
@@ -80,7 +80,7 @@ unsafe extern "C" fn malformed_output(
     len: u64,
     output: *mut u8,
     written: *mut u64,
-    out: *mut neocogi_com::ComRaw<IDerivedCounterAbi>,
+    out: *mut neocogi_com_sdk::ComRaw<IDerivedCounterAbi>,
 ) -> NcStatus {
     assert_eq!(len, 1);
     // SAFETY: test calls supply one initialized writable byte and an output slot.
@@ -89,7 +89,7 @@ unsafe extern "C" fn malformed_output(
         add_ref(this.cast());
         *output = 2;
         *written = 1;
-        *out = neocogi_com::ComRaw { object: this, vtable: &VTABLE };
+        *out = neocogi_com_sdk::ComRaw { object: this, vtable: &VTABLE };
     }
     NC_OK
 }
@@ -118,7 +118,7 @@ fn borrowed_generated_calls_perform_no_lifecycle_operations() {
     }));
     // SAFETY: The allocation is private until its matching object/table pair is published.
     let owner = unsafe {
-        ComPtr::<IDerivedCounterAbi>::from_raw_owned(neocogi_com::ComRaw {
+        ComPtr::<IDerivedCounterAbi>::from_raw_owned(neocogi_com_sdk::ComRaw {
             object: allocation.cast(),
             vtable: &VTABLE,
         })
@@ -130,8 +130,11 @@ fn borrowed_generated_calls_perform_no_lifecycle_operations() {
     assert_eq!(counts.releases.get(), 0);
     // A failed acquisition must preserve the safe bool and release the returned
     // reference immediately. The original caller still owns the object afterward.
-    let mut destination = neocogi_com::NcOutputBuffer::<bool>::new();
-    assert_eq!(borrowed.malformed_output(destination.output(0, 1)).unwrap_err(), neocogi_com::NC_E_INVALID_ARG);
+    let mut destination = neocogi_com_sdk::NcOutputBuffer::<bool>::new();
+    assert_eq!(
+        borrowed.malformed_output(destination.output(0, 1)).unwrap_err(),
+        neocogi_com_sdk::NC_E_INVALID_ARG
+    );
     assert!(destination.is_empty());
     assert_eq!(counts.additions.get(), 1);
     assert_eq!(counts.releases.get(), 1);
@@ -145,7 +148,7 @@ fn borrowed_generated_calls_perform_no_lifecycle_operations() {
 
 #[test]
 fn borrowed_builtin_handles_share_copy_and_utf8_validation() {
-    use neocogi_com::{NcString, ComStringExt, ComBytesExt, INcBytesAbi};
+    use neocogi_com_sdk::{NcString, ComStringExt, ComBytesExt, INcBytesAbi};
     let string = NcString::from_utf8_str("snowman: ☃");
     let borrowed = string.as_com_ref();
     assert_eq!(borrowed.to_string().unwrap(), "snowman: ☃");

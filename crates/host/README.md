@@ -4,7 +4,7 @@ The runtime owns plugin registration, trusted library loading, checked
 root-factory acquisition, plugin provenance, diagnostics, and the
 implementation of caller-owned persistence contexts. It contains
 no contract-module registry, native contract descriptions, or event seeding.
-Applications use `neocogi_com::RuntimeHandle`.
+Applications use `neocogi_com_sdk::RuntimeHandle`.
 
 This development host uses **WIP ABI v3/core generation 21**, not a frozen
 release contract. Published
@@ -14,9 +14,9 @@ release contract. Published
 
 A host is the final application that selects this implementation. The package
 name is `neocogi-com-host` and the Rust library path is `neocogi_com_host`.
-Interface callers and providers both use the separate `neocogi-com` SDK: callers
+Interface callers and providers both use the separate `neocogi-com-sdk` SDK: callers
 call interfaces, providers implement them, and either role can occur inside a
-host or plugin. `neocogi_com::RuntimeHandle` is supplied access to this implementation's
+host or plugin. `neocogi_com_sdk::RuntimeHandle` is supplied access to this implementation's
 service tables; it does not own or initialize another runtime.
 
 This package depends on the SDK with defaults disabled and `std` enabled for
@@ -87,13 +87,13 @@ the [current ABI versions](../../docs/abi-v3.md#abi-identities-and-versions).
 ## Build and link
 
 Native and browser applications can link the `neocogi_com_host` Rust rlib and use
-`#[neocogi_com::com_main]` to obtain a copyable runtime handle. It supplies the
+`#[neocogi_com_sdk::com_main]` to obtain a copyable runtime handle. It supplies the
 host's tables to providers and their nested acquisitions. The host requires
 `std`. Core and the access handle retain reduced-feature support. See the
 [native build guide](https://github.com/NeoCogi/neocogi-com/blob/v0.4.0-alpha.1/docs/guides/COM_NATIVE.md#linked-host-with-a-shared-provider).
 
 For linked startup, `initialize_runtime()` admits the host service graph and
-returns a safe `neocogi_com::RuntimeHandle`. It invokes no plugin, and repeated
+returns a safe `neocogi_com_sdk::RuntimeHandle`. It invokes no plugin, and repeated
 calls use the same host. `com_main` calls this typed constructor, including with
 an explicit dependency/module path.
 `initialize_process()` lends the raw C description for service ABI callers. Its
@@ -102,7 +102,7 @@ even after application main returns. The three existing C tables remain separate
 services. Callbacks execute here and reach this host's one private registry;
 nested provider acquisition forwards this canonical bundle.
 
-Persistence operations are available through `neocogi_com::persistence` when the
+Persistence operations are available through `neocogi_com_sdk::persistence` when the
 facade's `runtime` feature is enabled. `FactoryRegistry::new(&runtime)` returns a
 fallible owner of one runtime-allocated context. Registration requires mutable
 access; restore only borrows the context. Contexts never populate the global

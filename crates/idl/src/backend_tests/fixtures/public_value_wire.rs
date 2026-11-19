@@ -1,6 +1,6 @@
 // Public associated representations remain usable from a separate Rust crate.
 use fixture::{Choice, Owned, Record};
-use neocogi_com::{ComValue, ValueBudget, decode_inline, encode_inline};
+use neocogi_com_sdk::{ComValue, ValueBudget, decode_inline, encode_inline};
 
 /// Public raw members and typed backing remain accessible without helper names.
 #[test]

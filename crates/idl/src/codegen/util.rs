@@ -105,27 +105,24 @@ impl PrivateNames {
 }
 
 /// Derives a public companion with authored navigation and the shared API policy.
-pub(crate) fn interface_companion_ident(name: &Ident, companion: neocogi_com_core::NcComInterfaceCompanion) -> Ident {
+pub(crate) fn interface_companion_ident(name: &Ident, companion: neocogi_com::NcComInterfaceCompanion) -> Ident {
     format_ident!("{name}{}", companion.suffix(), span = name.span())
 }
 
 /// Selects the named SDK dependency used by ordinary IDL and macro output.
 pub(crate) fn sdk_crate_path(override_path: Option<&Path>) -> Path {
-    override_path.cloned().unwrap_or_else(|| syn::parse_quote!(::neocogi_com))
+    override_path.cloned().unwrap_or_else(|| syn::parse_quote!(::neocogi_com_sdk))
 }
 
 /// Validates a qualified name and emits its matching explicit, derived, or path GUID.
 pub(crate) fn stable_guid(attr: PluginGuid, qualified_name: &syn::LitStr, nc: &Path) -> Result<proc_macro2::TokenStream> {
     let name = qualified_name.value();
-    neocogi_com_core::validate_qualified_name(&name)
+    neocogi_com::validate_qualified_name(&name)
         .map_err(|error| syn::Error::new(qualified_name.span(), format!("invalid descriptor qualified name: {error}")))?;
-    let expected = neocogi_com_core::guid_from_qualified_name(&name);
+    let expected = neocogi_com::guid_from_qualified_name(&name);
     match attr {
         PluginGuid::Explicit(value) => {
-            let actual = value
-                .value()
-                .parse::<neocogi_com_core::NcGuid>()
-                .map_err(|err| syn::Error::new(value.span(), err))?;
+            let actual = value.value().parse::<neocogi_com::NcGuid>().map_err(|err| syn::Error::new(value.span(), err))?;
             if actual != expected {
                 return Err(syn::Error::new(
                     value.span(),
@@ -169,7 +166,7 @@ pub(crate) fn stable_guid(attr: PluginGuid, qualified_name: &syn::LitStr, nc: &P
 
 /// Applies core descriptor version policy at the literal's source span.
 pub(crate) fn validate_version_literal(version: &LitStr) -> Result<()> {
-    neocogi_com_core::validate_version_text(&version.value()).map_err(|error| syn::Error::new(version.span(), format!("invalid descriptor version: {error}")))
+    neocogi_com::validate_version_text(&version.value()).map_err(|error| syn::Error::new(version.span(), format!("invalid descriptor version: {error}")))
 }
 
 /// Converts a generated table length to the ABI's `u32` count domain.
@@ -178,7 +175,7 @@ pub(crate) fn checked_u32_len(len: usize, span: proc_macro2::Span, description: 
 }
 
 /// Emits a field-wise GUID literal independent of host memory byte order.
-pub(crate) fn guid_tokens(value: neocogi_com_core::NcGuid, nc: &Path) -> Result<proc_macro2::TokenStream> {
+pub(crate) fn guid_tokens(value: neocogi_com::NcGuid, nc: &Path) -> Result<proc_macro2::TokenStream> {
     let (data1, data2, data3, data4) = value.fields();
     let bytes = data4.iter().map(|byte| quote! { #byte });
     Ok(quote! {

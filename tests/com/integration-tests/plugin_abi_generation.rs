@@ -5,18 +5,18 @@ use std::{
     path::{Path, PathBuf},
     process::{Command, Output},
 };
-use neocogi_com::{NcStatus, NC_E_ABI_VERSION, NC_E_OUT_OF_RANGE};
+use neocogi_com_sdk::{NcStatus, NC_E_ABI_VERSION, NC_E_OUT_OF_RANGE};
 
 /// A real generated adapter makes entry into authored acquisition observable.
 mod host_admission {
     use std::sync::atomic::{AtomicUsize, Ordering};
-    use neocogi_com::{ComPtr, IUnknown, NcStatus, RuntimeHandle, NC_E_CLOSED};
+    use neocogi_com_sdk::{ComPtr, IUnknown, NcStatus, RuntimeHandle, NC_E_CLOSED};
 
     /// Counts only calls that pass generated host admission.
     pub static CALLS: AtomicUsize = AtomicUsize::new(0);
 
     /// Fails normally after admission; no synthetic object or retained runtime is needed.
-    #[neocogi_com::plugin(name = "nc.tests.v2_host_admission")]
+    #[neocogi_com_sdk::plugin(name = "nc.tests.v2_host_admission")]
     fn acquire(_runtime: RuntimeHandle) -> Result<ComPtr<IUnknown>, NcStatus> {
         CALLS.fetch_add(1, Ordering::SeqCst);
         Err(NC_E_CLOSED)
@@ -39,7 +39,7 @@ struct RejectedHostPrefix {
 #[test]
 fn retired_host_prefixes_are_rejected_before_authored_acquisition() {
     use std::sync::atomic::Ordering;
-    use neocogi_com::{ComRaw, IUnknown, IUnknownVTable, NcHostApiV3, NC_E_CLOSED};
+    use neocogi_com_sdk::{ComRaw, IUnknown, IUnknownVTable, NcHostApiV3, NC_E_CLOSED};
     let acquire = host_admission::plugin_descriptor().acquire.unwrap();
     host_admission::CALLS.store(0, Ordering::SeqCst);
     for (runtime, core) in [(1, 18), (1, 19), (2, 18), (2, 19), (3, 19), (3, 20)] {
@@ -160,7 +160,7 @@ fn retired_bootstrap_is_rejected_before_its_callback() {
         assert_eq!(load.status.signal(), Some(6), "wrong failure: {detail}");
     }
     assert!(
-        detail.contains("fatal neocogi-com plugin load failure:") && detail.contains("NC_E_ABI_VERSION"),
+        detail.contains("fatal neocogi-com-sdk plugin load failure:") && detail.contains("NC_E_ABI_VERSION"),
         "wrong rejection: {detail}"
     );
     assert!(!marker.exists(), "mandatory loading invoked the retired callback");
@@ -208,14 +208,14 @@ fn generation_child() {
         return;
     }
     // SAFETY: This executable explicitly owns the immutable process host graph.
-    let runtime = unsafe { neocogi_com::RuntimeHandle::__from_host_api(neocogi_com_host::initialize_process()) }.unwrap();
+    let runtime = unsafe { neocogi_com_sdk::RuntimeHandle::__from_host_api(neocogi_com_host::initialize_process()) }.unwrap();
     // SAFETY: Parent supplies its own trusted native fixture. Old metadata is
     // admitted only by its prefix; current metadata has complete static backing.
     let id = unsafe { runtime.load_plugin_library(path) };
     match mode.as_str() {
         "load" => std::process::exit(RETURNED),
         "current" => {
-            let root = runtime.acquire_plugin_root::<neocogi_com::persistence::IObjectChildrenAbi>(id).unwrap();
+            let root = runtime.acquire_plugin_root::<neocogi_com_sdk::persistence::IObjectChildrenAbi>(id).unwrap();
             assert_eq!(root.count().unwrap(), 0);
             let error: NcStatus = match root.get(0) {
                 Err(error) => error,

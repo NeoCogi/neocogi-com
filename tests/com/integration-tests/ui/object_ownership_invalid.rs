@@ -1,4 +1,4 @@
-use neocogi_com::{com_object};
+use neocogi_com_sdk::{com_object};
 
 #[com_object(interfaces(), ownership = borrowed)]
 struct Invalid;

@@ -5,11 +5,11 @@ use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
 };
-use neocogi_com::{
+use neocogi_com_sdk::{
     com_object, guid_from_qualified_name, ComDeserialize, ComSerialize, ComPtr, ComRef, INcBytesAbi, IUnknown, NcBytes, NcCopyFromBufferOffset, NcGuid,
     NcStatus, NC_E_ABI_VERSION, NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE,
 };
-use neocogi_com::persistence::*;
+use neocogi_com_sdk::persistence::*;
 
 /// A live exclusive persistence provider is borrowable, but not shareable.
 #[com_object(interfaces(IPersistable), ownership = exclusive)]
@@ -93,7 +93,7 @@ fn exclusive_snapshot_returns_status_before_getters_and_preserves_owner() {
 unsafe extern "C" fn count_delivery(data: *mut core::ffi::c_void, _bytes: *const u8, _len: usize) -> NcStatus {
     // SAFETY: The test supplies and retains the exact counter for the synchronous call.
     unsafe { *data.cast::<usize>() += 1 };
-    neocogi_com::NC_OK
+    neocogi_com_sdk::NC_OK
 }
 
 /// A raw registration caller can lend an exclusive projection without owning a shared handle.
@@ -116,7 +116,7 @@ fn raw_factory_registration_rejects_exclusive_projection_without_mutation() {
     let api = unsafe { neocogi_com_host::initialize_process().persistence.as_ref() }.unwrap();
     let mut context = core::ptr::null_mut();
     // SAFETY: Fresh local output; all context operations remain sequential on this thread.
-    assert_eq!(unsafe { (api.create_context)(&mut context) }, neocogi_com::NC_OK);
+    assert_eq!(unsafe { (api.create_context)(&mut context) }, neocogi_com_sdk::NC_OK);
     // SAFETY: Exclusive access to the new context and a valid, live COM projection.
     assert_eq!(unsafe { (api.register_factory)(context, KIND, owner.as_raw()) }, NC_E_INVALID_ARG);
     assert!(owner.downgrade().is_alive());
@@ -127,7 +127,7 @@ fn raw_factory_registration_rejects_exclusive_projection_without_mutation() {
         .unwrap();
     // SAFETY: Same exclusive context access and a live shared provider; the rejected
     // registration must not reserve KIND or leave an invalid retained reference.
-    assert_eq!(unsafe { (api.register_factory)(context, KIND, factory.as_raw()) }, neocogi_com::NC_OK);
+    assert_eq!(unsafe { (api.register_factory)(context, KIND, factory.as_raw()) }, neocogi_com_sdk::NC_OK);
     drop(factory);
     assert_eq!(counts.factories_dropped.load(Ordering::Relaxed), 0);
     // SAFETY: Return the sole context owner once, with no active table calls.
@@ -142,7 +142,7 @@ fn raw_factory_registration_rejects_exclusive_projection_without_mutation() {
 #[test]
 fn shared_root_without_persistence_returns_nointerface() {
     let owner = Factory::from_value(Factory { counts: Arc::new(Counts::default()) });
-    assert_eq!(snapshot(&crate::host_runtime(), owner.as_com_ref()), Err(neocogi_com::NC_E_NOINTERFACE));
+    assert_eq!(snapshot(&crate::host_runtime(), owner.as_com_ref()), Err(neocogi_com_sdk::NC_E_NOINTERFACE));
 }
 
 /// Explicit recipe identity, unrelated to individual object addresses.
@@ -228,7 +228,7 @@ fn registry_ownership_is_local_and_releases_retained_factories() {
     let second = FactoryRegistry::new(&crate::host_runtime()).unwrap();
     let bytes = binary::to_vec(&record("root", vec![])).unwrap();
     // A recipe in one context must never become visible in another context.
-    assert_eq!(second.restore(&bytes).err(), Some(neocogi_com::NC_E_NOT_FOUND));
+    assert_eq!(second.restore(&bytes).err(), Some(neocogi_com_sdk::NC_E_NOT_FOUND));
     let root = first.restore(&bytes).unwrap();
     assert_eq!(counts.factories_dropped.load(Ordering::Relaxed), 0);
     drop(first);
@@ -448,9 +448,9 @@ fn binary_limits_agree_across_snapshot_and_factory_restore() {
 mod snapshot_identity;
 
 /// Initializes this final test executable's selected host and admits its static tables.
-fn host_runtime() -> neocogi_com::RuntimeHandle {
+fn host_runtime() -> neocogi_com_sdk::RuntimeHandle {
     // SAFETY: the explicit implementation owns its complete process-lived graph.
-    let runtime = unsafe { neocogi_com::RuntimeHandle::__from_host_api(neocogi_com_host::initialize_process()) }.expect("test host API is compatible");
+    let runtime = unsafe { neocogi_com_sdk::RuntimeHandle::__from_host_api(neocogi_com_host::initialize_process()) }.expect("test host API is compatible");
     // SAFETY: This standalone composition retains its static provider for process lifetime.
     unsafe { runtime.register_plugin_descriptor(neocogi_com_serialization::plugin_descriptor()) }.unwrap();
     runtime

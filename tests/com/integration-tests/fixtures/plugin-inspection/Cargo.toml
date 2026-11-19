@@ -9,4 +9,4 @@ publish = false
 crate-type = ["cdylib"]
 
 [dependencies]
-neocogi-com-core = { path = "../../../../../crates/core" }
+neocogi-com = { path = "../../../../../crates/core" }

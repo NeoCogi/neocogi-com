@@ -31,12 +31,12 @@ fn current_abi_specification_matches_the_runtime_generation() {
     // Compare the documented authorities to code, rather than separately
     // asserting two hardcoded numbers that can contradict each other.
     for (name, constant, version) in [
-        ("Core ABI", "NC_COM_CORE_ABI_VERSION", neocogi_com_core::NC_COM_CORE_ABI_VERSION),
-        ("Runtime ABI", "NC_COM_RUNTIME_ABI_VERSION", neocogi_com_core::NC_COM_RUNTIME_ABI_VERSION),
+        ("Core ABI", "NC_COM_CORE_ABI_VERSION", neocogi_com::NC_COM_CORE_ABI_VERSION),
+        ("Runtime ABI", "NC_COM_RUNTIME_ABI_VERSION", neocogi_com::NC_COM_RUNTIME_ABI_VERSION),
         (
             "Plugin descriptor ABI",
             "NC_PLUGIN_DESCRIPTOR_ABI_VERSION",
-            neocogi_com_core::NC_PLUGIN_DESCRIPTOR_ABI_VERSION,
+            neocogi_com::NC_PLUGIN_DESCRIPTOR_ABI_VERSION,
         ),
     ] {
         let expected = format!("| {name} | {constant} == {version};");
@@ -46,13 +46,13 @@ fn current_abi_specification_matches_the_runtime_generation() {
         assert!(rows[0].starts_with(&expected), "the {name} row must match {constant}");
     }
     let migration = include_str!("../../../docs/guides/ABI_V3_MIGRATION.md");
-    let expected = format!("| Core generation | 19 | {} |", neocogi_com_core::NC_COM_CORE_ABI_VERSION);
+    let expected = format!("| Core generation | 19 | {} |", neocogi_com::NC_COM_CORE_ABI_VERSION);
     assert!(
         migration.lines().any(|line| line == expected),
         "the provider migration table must use the current core generation"
     );
-    let expected = format!("| Runtime and descriptor families | 2 | {} |", neocogi_com_core::NC_COM_RUNTIME_ABI_VERSION);
-    assert_eq!(neocogi_com_core::NC_COM_RUNTIME_ABI_VERSION, neocogi_com_core::NC_PLUGIN_DESCRIPTOR_ABI_VERSION);
+    let expected = format!("| Runtime and descriptor families | 2 | {} |", neocogi_com::NC_COM_RUNTIME_ABI_VERSION);
+    assert_eq!(neocogi_com::NC_COM_RUNTIME_ABI_VERSION, neocogi_com::NC_PLUGIN_DESCRIPTOR_ABI_VERSION);
     assert!(
         migration.lines().any(|line| line == expected),
         "the provider migration table must use the current discovery family"
@@ -72,8 +72,8 @@ fn authoring_guides_match_current_encoding_and_module_mangling() {
     let setup = include_str!("../README.md");
     let links = setup.lines().find_map(|line| line.strip_prefix("links = ")).unwrap().trim_matches('"');
     assert_eq!(links, neocogi_idl::cargo::contract_links_name("example.widgets"));
-    assert_eq!(neocogi_com_core::NC_COM_RUNTIME_ABI_VERSION, 3);
-    assert_eq!(neocogi_com_core::NC_PLUGIN_DESCRIPTOR_ABI_VERSION, 3);
+    assert_eq!(neocogi_com::NC_COM_RUNTIME_ABI_VERSION, 3);
+    assert_eq!(neocogi_com::NC_PLUGIN_DESCRIPTOR_ABI_VERSION, 3);
     for keyword in ["class", "factory"] {
         let invalid = format!("{keyword} Removed {{}}");
         assert!(neocogi_idl::parse_module(Path::new("example/removed.ncidl"), &invalid).is_err());
@@ -91,7 +91,7 @@ fn readme_factory_contract_and_bootstrap_execute_as_documented() {
     let project = tempfile::tempdir().unwrap();
     fs::create_dir(project.path().join("src")).unwrap();
     fs::write(project.path().join("Cargo.toml"), format!(
-        "[package]\nname='documented-com-bootstrap'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[features]\ndynamic-plugin=[]\n[dependencies]\nneocogi-com={{path={:?},features=['runtime']}}\nneocogi-com-host={{path={:?}}}\n",
+        "[package]\nname='documented-com-bootstrap'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[features]\ndynamic-plugin=[]\n[dependencies]\nneocogi-com-sdk={{path={:?},features=['runtime']}}\nneocogi-com-host={{path={:?}}}\n",
         root.join("crates/com"), root.join("crates/host"),
     )).unwrap();
     // The consumer's locally generated bindings are included as a module here;
@@ -206,21 +206,21 @@ fn provider_lifetime_prefix_guide_executes_with_private_helpers() {
     let project = tempfile::tempdir().unwrap();
     fs::create_dir(project.path().join("src")).unwrap();
     fs::write(project.path().join("Cargo.toml"), format!(
-        "[package]\nname='documented-lifetime-prefix'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\n[[bin]]\nname='private-support'\npath='src/private.rs'\n",
+        "[package]\nname='documented-lifetime-prefix'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com-sdk={{path={:?}}}\n[[bin]]\nname='private-support'\npath='src/private.rs'\n",
         root.join("crates/com"),
     )).unwrap();
     let implementation = r#"
         static DROPS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-        #[neocogi_com::com_object(Probe)] struct Shared;
-        #[neocogi_com::com_object(Probe, ownership = exclusive)] struct Exclusive;
-        impl Probe for Shared { fn value(&self) -> Result<u32, neocogi_com::NcStatus> { Ok(1) } }
-        impl Probe for Exclusive { fn value(&self) -> Result<u32, neocogi_com::NcStatus> { Ok(2) } }
+        #[neocogi_com_sdk::com_object(Probe)] struct Shared;
+        #[neocogi_com_sdk::com_object(Probe, ownership = exclusive)] struct Exclusive;
+        impl Probe for Shared { fn value(&self) -> Result<u32, neocogi_com_sdk::NcStatus> { Ok(1) } }
+        impl Probe for Exclusive { fn value(&self) -> Result<u32, neocogi_com_sdk::NcStatus> { Ok(2) } }
         impl Drop for Shared { fn drop(&mut self) { DROPS.fetch_add(1, std::sync::atomic::Ordering::SeqCst); } }
         impl Drop for Exclusive { fn drop(&mut self) { DROPS.fetch_add(1, std::sync::atomic::Ordering::SeqCst); } }
-        const SHARED: IUnknownVTable = interface_prefix::<Shared>(&<ProbeAbi as neocogi_com::ComInterface>::INTERFACE_ID);
-        const EXCLUSIVE: IUnknownVTable = interface_prefix::<Exclusive>(&<ProbeAbi as neocogi_com::ComInterface>::INTERFACE_ID);
+        const SHARED: IUnknownVTable = interface_prefix::<Shared>(&<ProbeAbi as neocogi_com_sdk::ComInterface>::INTERFACE_ID);
+        const EXCLUSIVE: IUnknownVTable = interface_prefix::<Exclusive>(&<ProbeAbi as neocogi_com_sdk::ComInterface>::INTERFACE_ID);
         #[test] fn selected_prefixes_release_the_matching_policy() {
-            use neocogi_com::{ComRaw, IUnknown, NC_E_INVALID_ARG, NC_OK};
+            use neocogi_com_sdk::{ComRaw, IUnknown, NC_E_INVALID_ARG, NC_OK};
             let shared = Shared::from_value(Shared);
             let exclusive = Exclusive::into_box(Exclusive);
             assert_eq!(shared.query::<ProbeAbi>().unwrap().value(), Ok(1));
@@ -229,11 +229,11 @@ fn provider_lifetime_prefix_guide_executes_with_private_helpers() {
             unsafe {
                 assert_eq!((SHARED.add_ref)(shared.as_raw().object), 2);
                 assert_eq!((SHARED.release)(shared.as_raw().object), 1);
-                assert_eq!((SHARED.query_interface)(shared.as_raw().object, &<ProbeAbi as neocogi_com::ComInterface>::INTERFACE_ID, &mut out), NC_OK);
-                assert_eq!(neocogi_com::raw::validate_interface(out.cast::<ProbeAbi>()), Ok(()));
-                assert_eq!(neocogi_com::raw::release(out), 1);
+                assert_eq!((SHARED.query_interface)(shared.as_raw().object, &<ProbeAbi as neocogi_com_sdk::ComInterface>::INTERFACE_ID, &mut out), NC_OK);
+                assert_eq!(neocogi_com_sdk::raw::validate_interface(out.cast::<ProbeAbi>()), Ok(()));
+                assert_eq!(neocogi_com_sdk::raw::release(out), 1);
                 assert_eq!((EXCLUSIVE.add_ref)(exclusive.as_raw().object), 0);
-                assert_eq!((EXCLUSIVE.query_interface)(exclusive.as_raw().object, &<ProbeAbi as neocogi_com::ComInterface>::INTERFACE_ID, &mut out), NC_E_INVALID_ARG);
+                assert_eq!((EXCLUSIVE.query_interface)(exclusive.as_raw().object, &<ProbeAbi as neocogi_com_sdk::ComInterface>::INTERFACE_ID, &mut out), NC_E_INVALID_ARG);
                 assert!(!out.is_present());
                 let raw = exclusive.into_raw();
                 assert_eq!((EXCLUSIVE.release)(raw.object), 0);
@@ -262,7 +262,7 @@ fn provider_lifetime_prefix_guide_executes_with_private_helpers() {
     ];
     let private = rejected
         .iter()
-        .map(|(name, _)| format!("use neocogi_com::lifetime::{name};\n"))
+        .map(|(name, _)| format!("use neocogi_com_sdk::lifetime::{name};\n"))
         .collect::<String>()
         + "fn main() {}\n";
     fs::write(project.path().join("src/private.rs"), private).unwrap();

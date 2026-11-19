@@ -77,7 +77,7 @@ fn run() -> Result<(), CliError> {
     match command {
         Command::Dump { library, format, output } => {
             // SAFETY: The user explicitly asks the inspector to load this
-            // shared library. The runtime reads only neocogi-com descriptor metadata.
+            // shared library. The runtime reads only neocogi-com-sdk descriptor metadata.
             let inspection = unsafe { inspect_plugin_library(&library) }.map_err(CliError::Inspect)?;
             let rendered = match format {
                 OutputFormat::Json => render_json(&inspection).map_err(CliError::Json)?,
@@ -91,7 +91,7 @@ fn run() -> Result<(), CliError> {
         }
         Command::Check { library } => {
             // SAFETY: The user explicitly asks the inspector to load this
-            // shared library. The runtime reads only neocogi-com descriptor metadata.
+            // shared library. The runtime reads only neocogi-com-sdk descriptor metadata.
             let inspection = unsafe { inspect_plugin_library(&library) }.map_err(CliError::Inspect)?;
             let activation = format!("factory {}", inspection.factory.root_factory_id);
             println!("{}: ok ({}, {activation})", library.display(), inspection.qualified_name);

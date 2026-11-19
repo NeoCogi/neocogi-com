@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod exclusive_tests {
     use super::*;
-    use neocogi_com::{com_object, ComBox, WeakComBox, NcStatus};
+    use neocogi_com_sdk::{com_object, ComBox, WeakComBox, NcStatus};
 
     #[com_object(IValue, ownership = exclusive)]
     /// Concrete payload whose owner travels through generated method signatures.
@@ -34,7 +34,7 @@ mod exclusive_tests {
             let raw = Value::into_box(Value).query::<IValueAbi>().map_err(|(status, _unpublished)| status)?.into_raw();
             // SAFETY: copied metadata has the exact generated identity/thunks for
             // this concrete Value. Transfer the sole owner, without retaining it.
-            Ok(unsafe { ComBox::from_raw_owned(neocogi_com::ComRaw { object: raw.object, vtable: &COPIED_VALUE_TABLE }) }.unwrap())
+            Ok(unsafe { ComBox::from_raw_owned(neocogi_com_sdk::ComRaw { object: raw.object, vtable: &COPIED_VALUE_TABLE }) }.unwrap())
         }
     }
     /// Only the dedicated child process deliberately violates returned-view identity.
@@ -46,21 +46,21 @@ mod exclusive_tests {
     }
     impl IContainer for Container {
         /// Replaces ownership without exposing a detached previous child.
-        fn insert(&mut self, child: neocogi_com::ComBox<IValueAbi>) -> Result<(), (NcStatus, neocogi_com::ComBox<IValueAbi>)> {
+        fn insert(&mut self, child: neocogi_com_sdk::ComBox<IValueAbi>) -> Result<(), (NcStatus, neocogi_com_sdk::ComBox<IValueAbi>)> {
             if std::env::var_os(REPLACED_VIEW_CHILD).is_some() {
                 let raw = child.into_raw();
                 // SAFETY: the copied table still matches the real Value allocation.
                 // The ownership/view rejection protocol is deliberately violated,
                 // so generated code must fail before restoring/publishing a pair.
-                let changed = unsafe { ComBox::from_raw_owned(neocogi_com::ComRaw { object: raw.object, vtable: &COPIED_VALUE_TABLE }) }.unwrap();
-                return Err((neocogi_com::NC_E_INVALID_ARG, changed));
+                let changed = unsafe { ComBox::from_raw_owned(neocogi_com_sdk::ComRaw { object: raw.object, vtable: &COPIED_VALUE_TABLE }) }.unwrap();
+                return Err((neocogi_com_sdk::NC_E_INVALID_ARG, changed));
             }
             self.child = Some(child);
             Ok(())
         }
         /// Gives callers weak access without an independent owner.
         fn child(&self) -> Result<WeakComBox<IValueAbi>, NcStatus> {
-            self.child.as_ref().map(ComBox::downgrade).ok_or(neocogi_com::NC_E_NOT_FOUND)
+            self.child.as_ref().map(ComBox::downgrade).ok_or(neocogi_com_sdk::NC_E_NOT_FOUND)
         }
         /// Ordinary destruction replaces fallible domain closure.
         fn remove(&mut self) -> Result<(), NcStatus> {
@@ -110,14 +110,14 @@ mod exclusive_tests {
         assert!(parent.child().unwrap().same_object(&weak));
         assert_eq!(weak.value(), Ok(42));
         parent.remove().unwrap();
-        assert_eq!(weak.value(), Err(neocogi_com::NC_E_DROPPED));
+        assert_eq!(weak.value(), Err(neocogi_com_sdk::NC_E_DROPPED));
         for (descriptor, expected) in [
             (&FactoryAbi::METHOD_DESCRIPTORS[0], "com_box_out"),
             (&IContainerAbi::METHOD_DESCRIPTORS[0], "com_box_in"),
             (&IContainerAbi::METHOD_DESCRIPTORS[1], "weak_com_box_out"),
         ] {
             // SAFETY: generated static descriptors have readable nested metadata.
-            let printed = unsafe { neocogi_com::format_method_signature(descriptor) }.unwrap();
+            let printed = unsafe { neocogi_com_sdk::format_method_signature(descriptor) }.unwrap();
             assert!(printed.contains(expected), "{printed}");
         }
     }

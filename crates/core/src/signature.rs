@@ -42,13 +42,13 @@ impl NcAbiDigest {
     /// Borrows a complete static digest. Incorrect widths fail type checking.
     ///
     /// ```compile_fail
-    /// use neocogi_com_core::NcAbiDigest;
+    /// use neocogi_com::NcAbiDigest;
     /// let _ = NcAbiDigest::from_static(&[0; 17]);
     /// ```
     ///
     /// Absence is explicit rather than an empty slice accepted by this constructor:
     /// ```compile_fail
-    /// use neocogi_com_core::NcAbiDigest;
+    /// use neocogi_com::NcAbiDigest;
     /// let _ = NcAbiDigest::from_static(&[]);
     /// ```
     pub const fn from_static(bytes: &'static [u8; Self::SHA256_LEN]) -> Self {

@@ -155,7 +155,7 @@ fn rejects_rust_2024_keyword_members() {
         generate_rust(&graph, "proof.keywords").unwrap();
     }
     // A metadata path limit is not an authored member-name limit.
-    let long_name = "a".repeat(neocogi_com_core::NC_DESCRIPTOR_RUST_PATH_MAX_LEN + 1);
+    let long_name = "a".repeat(neocogi_com::NC_DESCRIPTOR_RUST_PATH_MAX_LEN + 1);
     let source = format!("struct Data {{ {long_name}: u32 }}");
     let parsed = parse_module(path, &source).unwrap();
     let DeclarationKind::Struct(data) = &parsed.declaration("Data").unwrap().kind else {

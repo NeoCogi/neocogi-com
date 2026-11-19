@@ -21,7 +21,7 @@ fn current_generated_persistence_peers_call_builtin_providers() {
     fs::write(
         project.path().join("Cargo.toml"),
         format!(
-            "[package]\nname='persistence-peers-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\n",
+            "[package]\nname='persistence-peers-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com-sdk={{path={:?}}}\n",
             root.join("crates/com"),
         ),
     )

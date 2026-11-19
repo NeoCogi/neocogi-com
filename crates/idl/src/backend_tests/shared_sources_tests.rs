@@ -39,7 +39,7 @@ fn independent_shared_source_consumers_call_through_their_own_bindings() {
     let mut source = fs::read_to_string(&manifest).unwrap();
     source.push_str(&format!("provider={{path='provider'}}\n[build-dependencies]\nneocogi-idl={{path={idl:?}}}\n"));
     fs::write(manifest, source).unwrap();
-    fs::write(root.join("provider/Cargo.toml"), format!("[package]\nname='provider'\nversion='0.0.0'\nedition='2024'\n[dependencies]\nneocogi-com={{path={:?}}}\n[build-dependencies]\nneocogi-idl={{path={idl:?}}}\n", consumer.facade)).unwrap();
+    fs::write(root.join("provider/Cargo.toml"), format!("[package]\nname='provider'\nversion='0.0.0'\nedition='2024'\n[dependencies]\nneocogi-com-sdk={{path={:?}}}\n[build-dependencies]\nneocogi-idl={{path={idl:?}}}\n", consumer.facade)).unwrap();
     for (path, shared, service, owner) in [
         (root.to_owned(), "schemas", "provider-schemas", "shared_source_host"),
         (root.join("provider"), "../schemas", "../provider-schemas", "provider"),
@@ -87,16 +87,16 @@ fn independent_shared_source_consumers_call_through_their_own_bindings() {
             r#"
         extern crate self as provider;
         {modules}
-        #[neocogi_com::com_object(service::Service)] struct Counter;
+        #[neocogi_com_sdk::com_object(service::Service)] struct Counter;
         impl service::Service for Counter {{
-            fn increment(&self, value: value::Value) -> Result<value::Value, neocogi_com::NcStatus> {{
+            fn increment(&self, value: value::Value) -> Result<value::Value, neocogi_com_sdk::NcStatus> {{
                 Ok(value::Value {{ count: value.count + 1 }})
             }}
-            fn contrast(&self, value: near_values::NearValue) -> Result<private_values::PrivateValue, neocogi_com::NcStatus> {{
+            fn contrast(&self, value: near_values::NearValue) -> Result<private_values::PrivateValue, neocogi_com_sdk::NcStatus> {{
                 Ok(private_values::PrivateValue {{ count: value.count + 100 }})
             }}
         }}
-        pub fn root() -> neocogi_com::ComPtr<neocogi_com::IUnknown> {{ Counter::from_value(Counter) }}
+        pub fn root() -> neocogi_com_sdk::ComPtr<neocogi_com_sdk::IUnknown> {{ Counter::from_value(Counter) }}
     "#
         ),
     )

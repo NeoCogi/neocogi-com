@@ -8,17 +8,17 @@ mod contracts {
 }
 
 /// Private application state implementing the public contract.
-#[neocogi_com::com_object(contracts::Calculator)]
+#[neocogi_com_sdk::com_object(contracts::Calculator)]
 struct Calculator;
 
 impl contracts::Calculator for Calculator {
-    fn add(&self, left: i32, right: i32) -> Result<i32, neocogi_com::NcStatus> {
-        left.checked_add(right).ok_or(neocogi_com::NC_E_OUT_OF_RANGE)
+    fn add(&self, left: i32, right: i32) -> Result<i32, neocogi_com_sdk::NcStatus> {
+        left.checked_add(right).ok_or(neocogi_com_sdk::NC_E_OUT_OF_RANGE)
     }
 }
 
 /// Supplies one owned calculator through the fixed plugin bootstrap contract.
-#[neocogi_com::plugin(name = "nc.tutorial.calculator")]
-fn acquire(_runtime: neocogi_com::RuntimeHandle) -> Result<neocogi_com::ComPtr<contracts::CalculatorAbi>, neocogi_com::NcStatus> {
+#[neocogi_com_sdk::plugin(name = "nc.tutorial.calculator")]
+fn acquire(_runtime: neocogi_com_sdk::RuntimeHandle) -> Result<neocogi_com_sdk::ComPtr<contracts::CalculatorAbi>, neocogi_com_sdk::NcStatus> {
     Calculator::from_value(Calculator).query()
 }

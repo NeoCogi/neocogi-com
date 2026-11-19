@@ -1,8 +1,8 @@
 //! Array cardinality and cleanup cross production and fault-injected COM sessions.
 #![cfg(feature = "alloc")]
 use std::cell::Cell;
-use neocogi_com::{ComDeserialize, ComSerialize, NcStatus, NC_E_INVALID_ARG};
-use neocogi_com::serialization::{Deserializer, ScopedDeserializer, scope::ScopedComProvider};
+use neocogi_com_sdk::{ComDeserialize, ComSerialize, NcStatus, NC_E_INVALID_ARG};
+use neocogi_com_sdk::serialization::{Deserializer, ScopedDeserializer, scope::ScopedComProvider};
 use neocogi_com_serialization::ncb;
 #[path = "support/array_source.rs"]
 mod array_source;
@@ -80,7 +80,7 @@ fn wrong_array_count_rejects_before_any_child_acquisition() {
     assert!(ncb::from_slice::<[(); 0]>(b"NCB\x01\x01\0\0\0").is_err());
     // Provider admission precedes typed shape checks and child side effects.
     OWNERS.with(|owners| owners.set((0, 0)));
-    let limits = neocogi_com::serialization::Limits { elements: 1, ..Default::default() };
+    let limits = neocogi_com_sdk::serialization::Limits { elements: 1, ..Default::default() };
     assert_eq!(
         ncb::from_slice_with_limits::<[Acquired; 3]>(b"NCB\x01\x02\0\0\0", limits).unwrap_err().message,
         "collection or value limit"
@@ -167,7 +167,7 @@ fn provider_record_completion_precedes_the_facade_count_check() {
 #[cfg(feature = "json")]
 #[test]
 fn defaulted_record_completion_reports_the_enclosing_json_path() {
-    use neocogi_com::serialization::{Error, Format, Limits};
+    use neocogi_com_sdk::serialization::{Error, Format, Limits};
 
     #[allow(dead_code)]
     #[derive(Debug, ComDeserialize)]
@@ -210,7 +210,7 @@ fn defaulted_record_completion_reports_the_enclosing_json_path() {
 #[cfg(feature = "json")]
 #[test]
 fn json_uses_the_same_exact_count_admission() {
-    use neocogi_com::serialization::{Format, Limits};
+    use neocogi_com_sdk::serialization::{Format, Limits};
     let format = Format::new(neocogi_com_serialization::json::factory(), Limits::default());
     for bytes in [b"[]".as_slice(), b"[null,null]", b"[null,null,null,null]"] {
         OWNERS.with(|owners| owners.set((0, 0)));
@@ -226,7 +226,7 @@ fn json_uses_the_same_exact_count_admission() {
 #[cfg(feature = "json")]
 #[test]
 fn json_container_errors_keep_real_paths_and_child_entry_keeps_attempted_index() {
-    use neocogi_com::serialization::{Format, Limits, Error};
+    use neocogi_com_sdk::serialization::{Format, Limits, Error};
     use std::collections::BTreeMap;
     /// Nested arrays separate the enclosing container path from its next child.
     #[derive(Debug, ComDeserialize)]
@@ -255,19 +255,19 @@ fn json_container_errors_keep_real_paths_and_child_entry_keeps_attempted_index()
     let source = format.deserializer(br#"{"items":[]}"#).unwrap();
     source.as_com_ref().enter_value().unwrap();
     assert_eq!(source.as_com_ref().begin_record(1).unwrap(), 1);
-    assert!(source.as_com_ref().field(neocogi_com::NcCopyFromBufferOffset::new(0, b"items")).unwrap());
+    assert!(source.as_com_ref().field(neocogi_com_sdk::NcCopyFromBufferOffset::new(0, b"items")).unwrap());
     let status = source
         .as_com_ref()
-        .fail(neocogi_com::NcCopyFromBufferOffset::new(0, b"invalid selected field"))
+        .fail(neocogi_com_sdk::NcCopyFromBufferOffset::new(0, b"invalid selected field"))
         .unwrap_err();
     assert_eq!(Error::capture(status, &source).path, "$.items");
     // Child budget failures happen before pushing their path, including payloads.
     let shallow = Format::new(neocogi_com_serialization::json::factory(), Limits { depth: 1, ..Default::default() });
     let child = shallow.deserialize::<[u8; 1]>(b"[1]").unwrap_err();
-    assert_eq!(child.status, neocogi_com::NC_E_OUT_OF_RANGE);
+    assert_eq!(child.status, neocogi_com_sdk::NC_E_OUT_OF_RANGE);
     assert_eq!(child.path, "$[0]");
     let child = shallow.deserialize::<Option<u8>>(br#"{"$some":1}"#).unwrap_err();
-    assert_eq!(child.status, neocogi_com::NC_E_OUT_OF_RANGE);
+    assert_eq!(child.status, neocogi_com_sdk::NC_E_OUT_OF_RANGE);
     assert_eq!(child.path, "$.$some");
     /// A matched enum has one selected payload even before its scope is entered.
     #[derive(Debug, ComSerialize, ComDeserialize)]
@@ -276,6 +276,6 @@ fn json_container_errors_keep_real_paths_and_child_entry_keeps_attempted_index()
     }
     let bytes = format.serialize(&Payload::Value(1)).unwrap();
     let child = shallow.deserialize::<Payload>(&bytes).unwrap_err();
-    assert_eq!(child.status, neocogi_com::NC_E_OUT_OF_RANGE);
+    assert_eq!(child.status, neocogi_com_sdk::NC_E_OUT_OF_RANGE);
     assert_eq!(child.path, "$.$value");
 }

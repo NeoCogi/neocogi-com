@@ -1,7 +1,7 @@
 //! Format selection crosses COM; typed values never depend on a format's Rust storage.
 use neocogi_com_serialization::ncb as binary;
-use neocogi_com::{ComDeserialize, ComSerialize, NcStatus, NC_E_INVALID_ARG, NcCopyFromBufferOffset, NcOutputWriter};
-use neocogi_com::serialization::*;
+use neocogi_com_sdk::{ComDeserialize, ComSerialize, NcStatus, NC_E_INVALID_ARG, NcCopyFromBufferOffset, NcOutputWriter};
+use neocogi_com_sdk::serialization::*;
 use binary::{NcbSerializer, NcbDeserializer};
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -81,10 +81,10 @@ fn output_is_committed_once_and_session_failures_are_terminal() {
     capability.finish().unwrap();
     assert_eq!(capability.finish(), Err(NC_E_INVALID_ARG));
     assert_eq!(capability.serialize_u8(3), Err(NC_E_INVALID_ARG));
-    let mut short = neocogi_com::NcOutputBuffer::<u8>::new();
+    let mut short = neocogi_com_sdk::NcOutputBuffer::<u8>::new();
     assert!(output.copy_to(short.output(0, 1)).is_err());
     assert!(short.is_empty());
-    let mut full = neocogi_com::NcOutputBuffer::<u8>::new();
+    let mut full = neocogi_com_sdk::NcOutputBuffer::<u8>::new();
     output.copy_to(full.output(0, output.byte_len().unwrap() as usize)).unwrap();
     assert_eq!(full.as_slice(), binary::to_vec(&7u32).unwrap());
     let poisoned = NcbSerializer::create(Limits::default()).unwrap();
@@ -178,7 +178,7 @@ enum JsonWrite {
     Failed,
 }
 /// Independent format storage with ordinary exclusive COM ownership.
-#[neocogi_com::com_object(interfaces(ISerializer, ISerializationOutput), ownership=exclusive)]
+#[neocogi_com_sdk::com_object(interfaces(ISerializer, ISerializationOutput), ownership=exclusive)]
 struct JsonWriter {
     state: JsonWrite,
 }
@@ -216,7 +216,7 @@ enum JsonRead {
     Failed,
 }
 /// The independently implemented decoder knows only JSON and the COM protocol.
-#[neocogi_com::com_object(IDeserializer, ownership=exclusive)]
+#[neocogi_com_sdk::com_object(IDeserializer, ownership=exclusive)]
 struct JsonReader {
     /// Root and field-acquisition state.
     state: JsonRead,
@@ -251,58 +251,58 @@ fn text(value: NcCopyFromBufferOffset<'_, u8>) -> Result<&str, NcStatus> {
     std::str::from_utf8(value.as_slice()).map_err(|_| NC_E_INVALID_ARG)
 }
 impl ISerializer for JsonWriter {
-    fn serialize_unit(&mut self) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
+    fn serialize_unit(&mut self) -> ::core::result::Result<(), ::neocogi_com_sdk::NcStatus> {
         self.reject()
     }
-    fn serialize_bool(&mut self, value: ::core::primitive::bool) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
+    fn serialize_bool(&mut self, value: ::core::primitive::bool) -> ::core::result::Result<(), ::neocogi_com_sdk::NcStatus> {
         self.store(Value::Bool(value))
     }
-    fn serialize_u8(&mut self, _value: ::core::primitive::u8) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
+    fn serialize_u8(&mut self, _value: ::core::primitive::u8) -> ::core::result::Result<(), ::neocogi_com_sdk::NcStatus> {
         self.reject()
     }
-    fn serialize_u16(&mut self, _value: ::core::primitive::u16) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
+    fn serialize_u16(&mut self, _value: ::core::primitive::u16) -> ::core::result::Result<(), ::neocogi_com_sdk::NcStatus> {
         self.reject()
     }
-    fn serialize_u32(&mut self, value: ::core::primitive::u32) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
+    fn serialize_u32(&mut self, value: ::core::primitive::u32) -> ::core::result::Result<(), ::neocogi_com_sdk::NcStatus> {
         self.store(Value::from(value))
     }
-    fn serialize_u64(&mut self, _value: ::core::primitive::u64) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
+    fn serialize_u64(&mut self, _value: ::core::primitive::u64) -> ::core::result::Result<(), ::neocogi_com_sdk::NcStatus> {
         self.reject()
     }
-    fn serialize_i8(&mut self, _value: ::core::primitive::i8) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
+    fn serialize_i8(&mut self, _value: ::core::primitive::i8) -> ::core::result::Result<(), ::neocogi_com_sdk::NcStatus> {
         self.reject()
     }
-    fn serialize_i16(&mut self, _value: ::core::primitive::i16) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
+    fn serialize_i16(&mut self, _value: ::core::primitive::i16) -> ::core::result::Result<(), ::neocogi_com_sdk::NcStatus> {
         self.reject()
     }
-    fn serialize_i32(&mut self, _value: ::core::primitive::i32) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
+    fn serialize_i32(&mut self, _value: ::core::primitive::i32) -> ::core::result::Result<(), ::neocogi_com_sdk::NcStatus> {
         self.reject()
     }
-    fn serialize_i64(&mut self, _value: ::core::primitive::i64) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
+    fn serialize_i64(&mut self, _value: ::core::primitive::i64) -> ::core::result::Result<(), ::neocogi_com_sdk::NcStatus> {
         self.reject()
     }
-    fn serialize_f32(&mut self, _value: ::core::primitive::f32) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
+    fn serialize_f32(&mut self, _value: ::core::primitive::f32) -> ::core::result::Result<(), ::neocogi_com_sdk::NcStatus> {
         self.reject()
     }
-    fn serialize_f64(&mut self, _value: ::core::primitive::f64) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
+    fn serialize_f64(&mut self, _value: ::core::primitive::f64) -> ::core::result::Result<(), ::neocogi_com_sdk::NcStatus> {
         self.reject()
     }
     fn serialize_string(
         &mut self,
-        value: ::neocogi_com::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
-    ) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
+        value: ::neocogi_com_sdk::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
+    ) -> ::core::result::Result<(), ::neocogi_com_sdk::NcStatus> {
         match text(value) {
             Ok(value) => self.store(Value::String(value.to_owned())),
             Err(_) => self.reject(),
         }
     }
-    fn begin_option(&mut self, _present: ::core::primitive::bool) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
+    fn begin_option(&mut self, _present: ::core::primitive::bool) -> ::core::result::Result<(), ::neocogi_com_sdk::NcStatus> {
         self.reject()
     }
-    fn end_option(&mut self) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
+    fn end_option(&mut self) -> ::core::result::Result<(), ::neocogi_com_sdk::NcStatus> {
         self.reject()
     }
-    fn begin_record(&mut self, fields: ::core::primitive::u32) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
+    fn begin_record(&mut self, fields: ::core::primitive::u32) -> ::core::result::Result<(), ::neocogi_com_sdk::NcStatus> {
         if matches!(self.state, JsonWrite::Ready) {
             self.state = JsonWrite::Record {
                 expected: fields,
@@ -314,7 +314,7 @@ impl ISerializer for JsonWriter {
             self.reject()
         }
     }
-    fn field(&mut self, name: ::neocogi_com::NcCopyFromBufferOffset<'_, ::core::primitive::u8>) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
+    fn field(&mut self, name: ::neocogi_com_sdk::NcCopyFromBufferOffset<'_, ::core::primitive::u8>) -> ::core::result::Result<(), ::neocogi_com_sdk::NcStatus> {
         let name = match text(name) {
             Ok(name) => name,
             Err(_) => return self.reject(),
@@ -327,7 +327,7 @@ impl ISerializer for JsonWriter {
         }
         self.reject()
     }
-    fn end_record(&mut self) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
+    fn end_record(&mut self) -> ::core::result::Result<(), ::neocogi_com_sdk::NcStatus> {
         let state = std::mem::replace(&mut self.state, JsonWrite::Failed);
         if let JsonWrite::Record { expected, fields, selected: None } = state {
             if fields.len() == expected as usize {
@@ -337,16 +337,16 @@ impl ISerializer for JsonWriter {
         }
         self.reject()
     }
-    fn begin_sequence(&mut self, _length: ::core::primitive::u32) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
+    fn begin_sequence(&mut self, _length: ::core::primitive::u32) -> ::core::result::Result<(), ::neocogi_com_sdk::NcStatus> {
         self.reject()
     }
-    fn end_sequence(&mut self) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
+    fn end_sequence(&mut self) -> ::core::result::Result<(), ::neocogi_com_sdk::NcStatus> {
         self.reject()
     }
-    fn begin_map(&mut self, _pairs: ::core::primitive::u32) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
+    fn begin_map(&mut self, _pairs: ::core::primitive::u32) -> ::core::result::Result<(), ::neocogi_com_sdk::NcStatus> {
         self.reject()
     }
-    fn end_map(&mut self) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
+    fn end_map(&mut self) -> ::core::result::Result<(), ::neocogi_com_sdk::NcStatus> {
         self.reject()
     }
     fn begin_variant(&mut self, _index: u32, name: NcCopyFromBufferOffset<'_, u8>) -> Result<(), NcStatus> {
@@ -366,10 +366,13 @@ impl ISerializer for JsonWriter {
             self.reject()
         }
     }
-    fn fail(&mut self, _message: ::neocogi_com::NcCopyFromBufferOffset<'_, ::core::primitive::u8>) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
+    fn fail(
+        &mut self,
+        _message: ::neocogi_com_sdk::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
+    ) -> ::core::result::Result<(), ::neocogi_com_sdk::NcStatus> {
         self.reject()
     }
-    fn finish(&mut self) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
+    fn finish(&mut self) -> ::core::result::Result<(), ::neocogi_com_sdk::NcStatus> {
         let state = std::mem::replace(&mut self.state, JsonWrite::Failed);
         if let JsonWrite::Complete(fields) = state {
             self.state = JsonWrite::Finished(serde_json::to_vec(&fields).unwrap());
@@ -380,7 +383,7 @@ impl ISerializer for JsonWriter {
     }
 }
 impl IDeserializer for JsonReader {
-    fn enter_value(&mut self) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
+    fn enter_value(&mut self) -> ::core::result::Result<(), ::neocogi_com_sdk::NcStatus> {
         match (&self.state, self.depth) {
             (JsonRead::Ready(_) | JsonRead::Variant(_), 0) | (JsonRead::Record { selected: Some(_), .. }, 1) => {
                 self.depth += 1;
@@ -389,7 +392,7 @@ impl IDeserializer for JsonReader {
             _ => self.reject(),
         }
     }
-    fn leave_value(&mut self) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
+    fn leave_value(&mut self) -> ::core::result::Result<(), ::neocogi_com_sdk::NcStatus> {
         if self.string.is_some() {
             return self.reject();
         }
@@ -401,49 +404,49 @@ impl IDeserializer for JsonReader {
             _ => self.reject(),
         }
     }
-    fn deserialize_unit(&mut self) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
+    fn deserialize_unit(&mut self) -> ::core::result::Result<(), ::neocogi_com_sdk::NcStatus> {
         self.reject()
     }
-    fn deserialize_bool(&mut self) -> ::core::result::Result<::core::primitive::bool, ::neocogi_com::NcStatus> {
+    fn deserialize_bool(&mut self) -> ::core::result::Result<::core::primitive::bool, ::neocogi_com_sdk::NcStatus> {
         match self.scalar()? {
             Value::Bool(value) => Ok(value),
             _ => self.reject(),
         }
     }
-    fn deserialize_u8(&mut self) -> ::core::result::Result<::core::primitive::u8, ::neocogi_com::NcStatus> {
+    fn deserialize_u8(&mut self) -> ::core::result::Result<::core::primitive::u8, ::neocogi_com_sdk::NcStatus> {
         self.reject()
     }
-    fn deserialize_u16(&mut self) -> ::core::result::Result<::core::primitive::u16, ::neocogi_com::NcStatus> {
+    fn deserialize_u16(&mut self) -> ::core::result::Result<::core::primitive::u16, ::neocogi_com_sdk::NcStatus> {
         self.reject()
     }
-    fn deserialize_u32(&mut self) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus> {
+    fn deserialize_u32(&mut self) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com_sdk::NcStatus> {
         match self.scalar()?.as_u64().and_then(|value| u32::try_from(value).ok()) {
             Some(value) => Ok(value),
             None => self.reject(),
         }
     }
-    fn deserialize_u64(&mut self) -> ::core::result::Result<::core::primitive::u64, ::neocogi_com::NcStatus> {
+    fn deserialize_u64(&mut self) -> ::core::result::Result<::core::primitive::u64, ::neocogi_com_sdk::NcStatus> {
         self.reject()
     }
-    fn deserialize_i8(&mut self) -> ::core::result::Result<::core::primitive::i8, ::neocogi_com::NcStatus> {
+    fn deserialize_i8(&mut self) -> ::core::result::Result<::core::primitive::i8, ::neocogi_com_sdk::NcStatus> {
         self.reject()
     }
-    fn deserialize_i16(&mut self) -> ::core::result::Result<::core::primitive::i16, ::neocogi_com::NcStatus> {
+    fn deserialize_i16(&mut self) -> ::core::result::Result<::core::primitive::i16, ::neocogi_com_sdk::NcStatus> {
         self.reject()
     }
-    fn deserialize_i32(&mut self) -> ::core::result::Result<::core::primitive::i32, ::neocogi_com::NcStatus> {
+    fn deserialize_i32(&mut self) -> ::core::result::Result<::core::primitive::i32, ::neocogi_com_sdk::NcStatus> {
         self.reject()
     }
-    fn deserialize_i64(&mut self) -> ::core::result::Result<::core::primitive::i64, ::neocogi_com::NcStatus> {
+    fn deserialize_i64(&mut self) -> ::core::result::Result<::core::primitive::i64, ::neocogi_com_sdk::NcStatus> {
         self.reject()
     }
-    fn deserialize_f32(&mut self) -> ::core::result::Result<::core::primitive::f32, ::neocogi_com::NcStatus> {
+    fn deserialize_f32(&mut self) -> ::core::result::Result<::core::primitive::f32, ::neocogi_com_sdk::NcStatus> {
         self.reject()
     }
-    fn deserialize_f64(&mut self) -> ::core::result::Result<::core::primitive::f64, ::neocogi_com::NcStatus> {
+    fn deserialize_f64(&mut self) -> ::core::result::Result<::core::primitive::f64, ::neocogi_com_sdk::NcStatus> {
         self.reject()
     }
-    fn string_len(&mut self) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus> {
+    fn string_len(&mut self) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com_sdk::NcStatus> {
         match self.scalar()? {
             Value::String(value) => {
                 let len = value.len() as u32;
@@ -455,8 +458,8 @@ impl IDeserializer for JsonReader {
     }
     fn copy_string(
         &mut self,
-        output: ::neocogi_com::NcOutputWriter<'_, ::core::primitive::u8>,
-    ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus> {
+        output: ::neocogi_com_sdk::NcOutputWriter<'_, ::core::primitive::u8>,
+    ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com_sdk::NcStatus> {
         let Some(value) = self.string.take() else {
             return self.reject();
         };
@@ -467,10 +470,10 @@ impl IDeserializer for JsonReader {
         output.extend_from_slice(value.as_bytes())?;
         Ok(value.len() as u32)
     }
-    fn option_present(&mut self) -> ::core::result::Result<::core::primitive::bool, ::neocogi_com::NcStatus> {
+    fn option_present(&mut self) -> ::core::result::Result<::core::primitive::bool, ::neocogi_com_sdk::NcStatus> {
         self.reject()
     }
-    fn begin_record(&mut self, maximum: ::core::primitive::u32) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus> {
+    fn begin_record(&mut self, maximum: ::core::primitive::u32) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com_sdk::NcStatus> {
         let state = std::mem::replace(&mut self.state, JsonRead::Failed);
         if self.depth == 1 {
             if let JsonRead::Ready(fields) = state {
@@ -485,8 +488,8 @@ impl IDeserializer for JsonReader {
     }
     fn field(
         &mut self,
-        name: ::neocogi_com::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
-    ) -> ::core::result::Result<::core::primitive::bool, ::neocogi_com::NcStatus> {
+        name: ::neocogi_com_sdk::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
+    ) -> ::core::result::Result<::core::primitive::bool, ::neocogi_com_sdk::NcStatus> {
         let name = match text(name) {
             Ok(name) => name,
             Err(_) => return self.reject(),
@@ -501,7 +504,7 @@ impl IDeserializer for JsonReader {
         }
         self.reject()
     }
-    fn end_record(&mut self) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
+    fn end_record(&mut self) -> ::core::result::Result<(), ::neocogi_com_sdk::NcStatus> {
         if let JsonRead::Record { fields, selected: None } = &self.state {
             if fields.is_empty() && self.depth == 1 {
                 self.state = JsonRead::Complete;
@@ -510,16 +513,16 @@ impl IDeserializer for JsonReader {
         }
         self.reject()
     }
-    fn begin_sequence(&mut self) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus> {
+    fn begin_sequence(&mut self) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com_sdk::NcStatus> {
         self.reject()
     }
-    fn end_sequence(&mut self) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
+    fn end_sequence(&mut self) -> ::core::result::Result<(), ::neocogi_com_sdk::NcStatus> {
         self.reject()
     }
-    fn begin_map(&mut self) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus> {
+    fn begin_map(&mut self) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com_sdk::NcStatus> {
         self.reject()
     }
-    fn end_map(&mut self) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
+    fn end_map(&mut self) -> ::core::result::Result<(), ::neocogi_com_sdk::NcStatus> {
         self.reject()
     }
     fn variant_is(&mut self, _index: u32, name: NcCopyFromBufferOffset<'_, u8>) -> Result<bool, NcStatus> {
@@ -534,10 +537,13 @@ impl IDeserializer for JsonReader {
         }
         self.reject()
     }
-    fn fail(&mut self, _message: ::neocogi_com::NcCopyFromBufferOffset<'_, ::core::primitive::u8>) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
+    fn fail(
+        &mut self,
+        _message: ::neocogi_com_sdk::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
+    ) -> ::core::result::Result<(), ::neocogi_com_sdk::NcStatus> {
         self.reject()
     }
-    fn finish(&mut self) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
+    fn finish(&mut self) -> ::core::result::Result<(), ::neocogi_com_sdk::NcStatus> {
         if self.depth == 0 && matches!(self.state, JsonRead::Complete) {
             self.state = JsonRead::Finished;
             Ok(())
@@ -565,10 +571,10 @@ impl ISerializationOutput for JsonWriter {
     }
 }
 /// Independent provider factory; all cursor state stays inside its own COM objects.
-#[neocogi_com::com_object(ISerializationFormat)]
+#[neocogi_com_sdk::com_object(ISerializationFormat)]
 struct JsonFormat;
 impl ISerializationFormat for JsonFormat {
-    fn create_serializer(&self, _bytes: u64, _elements: u32, _depth: u32, _values: u64) -> Result<neocogi_com::ComBox<ISerializerAbi>, NcStatus> {
+    fn create_serializer(&self, _bytes: u64, _elements: u32, _depth: u32, _values: u64) -> Result<neocogi_com_sdk::ComBox<ISerializerAbi>, NcStatus> {
         Ok(JsonWriter::into_box(JsonWriter { state: JsonWrite::Ready })
             .query()
             .unwrap_or_else(|_| unreachable!()))
@@ -580,7 +586,7 @@ impl ISerializationFormat for JsonFormat {
         _elements: u32,
         _depth: u32,
         _values: u64,
-    ) -> Result<neocogi_com::ComBox<IDeserializerAbi>, NcStatus> {
+    ) -> Result<neocogi_com_sdk::ComBox<IDeserializerAbi>, NcStatus> {
         if input.offset() != 0 || input.len() as u64 > max_bytes {
             return Err(NC_E_INVALID_ARG);
         }
@@ -645,7 +651,7 @@ fn native_plugin_provides_format_objects_without_sharing_rust_layouts() {
         default=["dynamic-plugin"]
         dynamic-plugin=[]
         [dependencies]
-        neocogi-com={{path={:?},features=["runtime"]}}
+        neocogi-com-sdk={{path={:?},features=["runtime"]}}
         neocogi-com-serialization={{path={:?}}}
     "#,
             root.join("crates/com"),
@@ -656,10 +662,10 @@ fn native_plugin_provides_format_objects_without_sharing_rust_layouts() {
     fs::write(
         project.path().join("src/lib.rs"),
         r#"
-        use neocogi_com::{ComPtr,NcStatus,RuntimeHandle};
-        use neocogi_com::serialization::ISerializationFormatAbi;
+        use neocogi_com_sdk::{ComPtr,NcStatus,RuntimeHandle};
+        use neocogi_com_sdk::serialization::ISerializationFormatAbi;
         use neocogi_com_serialization::ncb::NcbFormat;
-        #[neocogi_com::plugin(name="nc.tests.serialization_format",version="0.0.0")]
+        #[neocogi_com_sdk::plugin(name="nc.tests.serialization_format",version="0.0.0")]
         fn acquire(_runtime:RuntimeHandle)->Result<ComPtr<ISerializationFormatAbi>,NcStatus>{
             NcbFormat::from_value(NcbFormat).query()
         }
@@ -693,7 +699,7 @@ fn native_plugin_provides_format_objects_without_sharing_rust_layouts() {
         .find(|path| path.extension().is_some_and(|extension| extension == std::env::consts::DLL_EXTENSION))
         .unwrap();
     // SAFETY: this test executable owns its host implementation for the whole process.
-    let runtime = unsafe { neocogi_com::RuntimeHandle::__from_host_api(neocogi_com_host::initialize_process()) }.unwrap();
+    let runtime = unsafe { neocogi_com_sdk::RuntimeHandle::__from_host_api(neocogi_com_host::initialize_process()) }.unwrap();
     // SAFETY: the fixture is trusted code just built by this test and stays process-pinned.
     let id = unsafe { runtime.load_plugin_library(artifact) };
     let format = Format::new(runtime.acquire_plugin_root::<ISerializationFormatAbi>(id).unwrap(), Limits::default());
@@ -708,7 +714,7 @@ impl ComSerialize for RejectWrite {
     /// Models application validation failing after a format operation succeeded.
     fn com_serialize(&self, writer: &mut Serializer<'_>) -> Result<(), NcStatus> {
         writer.serialize_u32(7)?;
-        Err(neocogi_com::NC_E_CLOSED)
+        Err(neocogi_com_sdk::NC_E_CLOSED)
     }
 }
 /// A failed typed constructor must not leave a reusable partially decoded session.
@@ -717,20 +723,20 @@ impl ComDeserialize for RejectRead {
     /// Models validation that rejects an otherwise valid input scalar.
     fn com_deserialize(reader: &mut Deserializer<'_>) -> Result<Self, NcStatus> {
         u8::com_deserialize(reader)?;
-        Err(neocogi_com::NC_E_CLOSED)
+        Err(neocogi_com_sdk::NC_E_CLOSED)
     }
 }
 /// Both callback failures preserve the caller's status and make the provider terminal.
 #[test]
 fn value_callback_failures_abort_the_com_session() {
     let writer = NcbSerializer::create(Limits::default()).unwrap();
-    assert_eq!(Serializer::new(writer.as_com_ref()).serialize(&RejectWrite), Err(neocogi_com::NC_E_CLOSED));
+    assert_eq!(Serializer::new(writer.as_com_ref()).serialize(&RejectWrite), Err(neocogi_com_sdk::NC_E_CLOSED));
     assert_eq!(writer.as_com_ref().finish(), Err(NC_E_INVALID_ARG));
     assert!(writer.query_ref::<ISerializationOutputAbi>().unwrap().byte_len().is_err());
     let reader = NcbDeserializer::create(binary::to_vec(&7u8).unwrap(), Limits::default()).unwrap();
     assert!(matches!(
         Deserializer::new(reader.as_com_ref()).deserialize::<RejectRead>(),
-        Err(neocogi_com::NC_E_CLOSED)
+        Err(neocogi_com_sdk::NC_E_CLOSED)
     ));
     assert_eq!(reader.as_com_ref().leave_value(), Err(NC_E_INVALID_ARG));
     assert_eq!(reader.as_com_ref().finish(), Err(NC_E_INVALID_ARG));
@@ -806,7 +812,7 @@ fn authored_names_omit_rust_raw_identifier_prefixes() {
 #[test]
 fn statically_linked_plugin_acquires_the_common_format_root() {
     // SAFETY: this final executable owns the host tables for its complete lifetime.
-    let runtime = unsafe { neocogi_com::RuntimeHandle::__from_host_api(neocogi_com_host::initialize_process()) }.unwrap();
+    let runtime = unsafe { neocogi_com_sdk::RuntimeHandle::__from_host_api(neocogi_com_host::initialize_process()) }.unwrap();
     let descriptor = neocogi_com_serialization::plugin_descriptor();
     // SAFETY: the descriptor and all reachable code are linked into this executable.
     unsafe { runtime.register_plugin_descriptor(descriptor) }.unwrap();

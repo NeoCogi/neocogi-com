@@ -3,8 +3,8 @@
 //! part of the runtime. Numeric conversion uses Rust's correctly rounded floats.
 use alloc::{borrow::ToOwned, collections::BTreeMap, string::String, vec::Vec};
 use core::fmt::Write;
-use neocogi_com::{NcStatus, NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE};
-use neocogi_com::serialization::{Error, Limits};
+use neocogi_com_sdk::{NcStatus, NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE};
+use neocogi_com_sdk::serialization::{Error, Limits};
 use super::grammar::{Node, Number, SyntaxBudget, Output};
 
 /// Parses exactly one bounded document and retains a precise source diagnostic.

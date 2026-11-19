@@ -10,7 +10,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use neocogi_com::{NC_E_LOAD_FAILED, PluginOrigin, guid_from_qualified_name};
+use neocogi_com_sdk::{NC_E_LOAD_FAILED, PluginOrigin, guid_from_qualified_name};
 use neocogi_com_host::{PluginLoadErrorKind, inspect_plugin_library};
 
 /// Unique basename shared by both helper implementations and the provider import.
@@ -158,7 +158,7 @@ pub(super) fn exercise() {
             assert_eq!(Some(output.status), abort_status, "{details}");
             assert!(output.stdout.contains("NC_LOAD_ENTERED"), "{details}");
             assert!(!output.stdout.contains("NC_LOAD_RETURNED"), "{details}");
-            assert!(output.stderr.contains("fatal neocogi-com plugin load failure:"), "{details}");
+            assert!(output.stderr.contains("fatal neocogi-com-sdk plugin load failure:"), "{details}");
             assert!(output.stderr.contains("OpenLibrary"), "{details}");
         } else {
             assert!(output.status.success(), "{details}");
@@ -463,7 +463,7 @@ pub(super) fn child() {
 }
 
 /// Admits only this final executable's process-lived host tables.
-fn runtime() -> neocogi_com::RuntimeHandle {
+fn runtime() -> neocogi_com_sdk::RuntimeHandle {
     // SAFETY: this explicitly linked implementation owns the complete static graph.
-    unsafe { neocogi_com::RuntimeHandle::__from_host_api(neocogi_com_host::initialize_process()) }.unwrap()
+    unsafe { neocogi_com_sdk::RuntimeHandle::__from_host_api(neocogi_com_host::initialize_process()) }.unwrap()
 }

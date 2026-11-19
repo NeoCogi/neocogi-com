@@ -4,7 +4,7 @@
 mod test_contracts {
     include!(concat!(env!("OUT_DIR"), "/test_contracts.rs"));
 }
-use neocogi_com::{com_object, ComInterface, ComPtr, ComRef, IUnknown, NcStatus, NC_E_NOINTERFACE};
+use neocogi_com_sdk::{com_object, ComInterface, ComPtr, ComRef, IUnknown, NcStatus, NC_E_NOINTERFACE};
 use std::{cell::Cell, rc::Rc};
 
 /// Interface verbs belong to the contract, rather than boolean handle probes.
@@ -126,10 +126,10 @@ fn inherited_methods_and_queries_share_one_allocation() {
     drop(audit);
     // Independent physical base projections advertise their own exact identity.
     unsafe {
-        neocogi_com::raw::validate_interface::<IToggleAbi>(toggle.as_raw()).unwrap();
-        neocogi_com::raw::validate_interface::<contract::IWidgetAbi>(widget.as_raw()).unwrap();
+        neocogi_com_sdk::raw::validate_interface::<IToggleAbi>(toggle.as_raw()).unwrap();
+        neocogi_com_sdk::raw::validate_interface::<contract::IWidgetAbi>(widget.as_raw()).unwrap();
         assert_eq!(
-            neocogi_com::raw::validate_interface::<contract::IWidgetAbi>(toggle.as_raw().cast()),
+            neocogi_com_sdk::raw::validate_interface::<contract::IWidgetAbi>(toggle.as_raw().cast()),
             Err(NC_E_NOINTERFACE)
         );
     }
@@ -142,10 +142,10 @@ fn inherited_methods_and_queries_share_one_allocation() {
 /// Compile-time entries retain the concrete provider through real C queries and calls.
 #[test]
 fn interface_table_entries_dispatch_to_their_concrete_implementation() {
-    use neocogi_com::{ComInterfaceTableEntry, ComRaw, IUnknownVTable, NC_OK};
+    use neocogi_com_sdk::{ComInterfaceTableEntry, ComRaw, IUnknownVTable, NC_OK};
 
     const ENTRIES: [ComInterfaceTableEntry<Toggle>; IToggleAbi::INTERFACE_CHAIN.len()] = IToggleVtblFor::<Toggle>::INTERFACE_TABLE;
-    const TABLES: [*const IUnknownVTable; ENTRIES.len()] = neocogi_com::__nc_interface_vtables(&ENTRIES);
+    const TABLES: [*const IUnknownVTable; ENTRIES.len()] = neocogi_com_sdk::__nc_interface_vtables(&ENTRIES);
 
     let drops = Rc::new(Cell::new(0));
     let owner = Toggle::from_value(Toggle { value: 0, drops: drops.clone() });
@@ -184,7 +184,7 @@ mod diamond;
 /// Contract selection changes only the table; every view retains one allocation.
 #[test]
 fn interface_pairs_share_one_object_without_embedded_headers() {
-    use neocogi_com::ComRaw;
+    use neocogi_com_sdk::ComRaw;
     let word = core::mem::size_of::<usize>();
     assert_eq!(core::mem::size_of::<ComPtr<IToggleAbi>>(), 2 * word);
     assert_eq!(core::mem::size_of::<Option<ComPtr<IToggleAbi>>>(), 2 * word);
@@ -227,13 +227,13 @@ fn interface_pairs_share_one_object_without_embedded_headers() {
     let value_address = (&*state as *const Toggle) as usize;
     assert_eq!(
         value_address - root.as_raw().object as usize,
-        core::mem::size_of::<neocogi_com::lifetime::NcSharedLifetimeState>() + word
+        core::mem::size_of::<neocogi_com_sdk::lifetime::NcSharedLifetimeState>() + word
     );
 }
 
 /// Required borrowed pairs reject every null shape before generated dispatch.
 mod pair_inputs {
-    use neocogi_com::{com_object, ComPtr, ComRaw, ComRef, IUnknown, NcStatus, NC_E_POINTER, NC_OK};
+    use neocogi_com_sdk::{com_object, ComPtr, ComRaw, ComRef, IUnknown, NcStatus, NC_E_POINTER, NC_OK};
 
     #[allow(unused_imports)]
     pub use fixture_inheritance::{

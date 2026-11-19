@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
-use neocogi_com_core::NcGuid;
+use neocogi_com::NcGuid;
 use neocogi_com_host::PluginInspection;
 use serde::Serialize;
 
@@ -108,12 +108,12 @@ fn artifacts_by_id(artifacts: &[(PathBuf, PluginInspection)]) -> HashMap<NcGuid,
 #[cfg(test)]
 mod tests {
     use super::*;
-    use neocogi_com_core::NcGuid;
+    use neocogi_com::NcGuid;
 
     /// Constructs one minimal inspected plugin for plan rendering tests.
     fn plugin() -> PluginInspection {
         PluginInspection {
-            description_abi_version: neocogi_com_core::NC_PLUGIN_DESCRIPTOR_ABI_VERSION,
+            description_abi_version: neocogi_com::NC_PLUGIN_DESCRIPTOR_ABI_VERSION,
             core_abi_version: 7,
             plugin_id: NcGuid::from_fields(1, 0, 0, [0; 8]),
             qualified_name: "nc.tests.plan".to_string(),
@@ -121,7 +121,7 @@ mod tests {
             dependencies: Vec::new(),
             factory: neocogi_com_host::FactoryInspection {
                 root_factory_id: NcGuid::from_fields(2, 0, 0, [0; 8]),
-                root_factory_threading: neocogi_com_core::NcAbiThreadingMode::ThreadLocal,
+                root_factory_threading: neocogi_com::NcAbiThreadingMode::ThreadLocal,
                 root_factory_signature: [1; 32],
             },
         }

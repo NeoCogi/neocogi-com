@@ -25,7 +25,7 @@ fn decoder_source(style: Decoder, unrelated_return: bool, expand: bool) -> Strin
         struct Settings { value: u32, enabled: bool }
     };
     let declaration = match (style, expand) {
-        (Decoder::Derive, false) => quote! { #[derive(neocogi_com::ComDeserialize)] #[com_deserialize(default)] #record }.to_string(),
+        (Decoder::Derive, false) => quote! { #[derive(neocogi_com_sdk::ComDeserialize)] #[com_deserialize(default)] #record }.to_string(),
         (Decoder::Derive, true) => {
             let input = syn::parse2(quote! { #[com_deserialize(default)] #record }).unwrap();
             let implementation = crate::codegen::expand_com_deserialize_derive(input).unwrap();
@@ -50,9 +50,9 @@ fn decoder_source(style: Decoder, unrelated_return: bool, expand: bool) -> Strin
             fn default() -> Self {{ Self {{ value: 7, enabled: true{retained} }} }}
         }}
         impl Settings {{ {inherent} }}
-        #[derive(neocogi_com::ComSerialize)]
+        #[derive(neocogi_com_sdk::ComSerialize)]
         struct Prefix {{ value: u32 }}
-        #[derive(neocogi_com::ComSerialize)]
+        #[derive(neocogi_com_sdk::ComSerialize)]
         struct Complete {{ value: u32, enabled: bool }}
         #[test]
         fn trait_defaults_apply_only_to_absent_fields() {{
@@ -77,14 +77,14 @@ fn plugin_source(shadow: &str, explicit_version: bool, expand: bool) -> String {
     let version = explicit_version.then(|| quote! { , version = "4.5.6" });
     let args = quote! { name = "nc.tests.support_resolution" #version };
     let function: syn::ItemFn = syn::parse_quote! {
-        fn acquire(_runtime: neocogi_com::RuntimeHandle) -> Result<neocogi_com::ComPtr<IRootAbi>, neocogi_com::NcStatus> {
+        fn acquire(_runtime: neocogi_com_sdk::RuntimeHandle) -> Result<neocogi_com_sdk::ComPtr<IRootAbi>, neocogi_com_sdk::NcStatus> {
             Root::from_value(Root).query()
         }
     };
     let plugin = if expand {
         printed(crate::codegen::expand_plugin(syn::parse2(args).unwrap(), function).unwrap())
     } else {
-        quote! { #[neocogi_com::plugin(#args)] #function }.to_string()
+        quote! { #[neocogi_com_sdk::plugin(#args)] #function }.to_string()
     };
     let bindings = super::name_ownership_tests::contract("interface IRoot { fn value(&self) -> Result<u32>; }");
     let expected = if explicit_version { "4.5.6" } else { "0.0.0" };
@@ -92,9 +92,9 @@ fn plugin_source(shadow: &str, explicit_version: bool, expand: bool) -> String {
         r#"
         #![allow(dead_code, non_snake_case, unused_macros)]
         {bindings}
-        #[neocogi_com::com_object(interfaces(IRoot))]
+        #[neocogi_com_sdk::com_object(interfaces(IRoot))]
         struct Root;
-        impl IRoot for Root {{ fn value(&self) -> Result<u32, neocogi_com::NcStatus> {{ Ok(73) }} }}
+        impl IRoot for Root {{ fn value(&self) -> Result<u32, neocogi_com_sdk::NcStatus> {{ Ok(73) }} }}
         {shadow}
         {plugin}
         #[test]
@@ -102,15 +102,15 @@ fn plugin_source(shadow: &str, explicit_version: bool, expand: bool) -> String {
             let descriptor = plugin_descriptor();
             // SAFETY: the generated descriptor's text is static in this executable.
             assert_eq!(unsafe {{ descriptor.plugin_version.as_str() }}.unwrap(), {expected:?});
-            let mut raw = neocogi_com::ComRaw::<neocogi_com::IUnknown>::null();
+            let mut raw = neocogi_com_sdk::ComRaw::<neocogi_com_sdk::IUnknown>::null();
             // SAFETY: live output storage receives one owner from the generated C adapter.
             assert!(unsafe {{ descriptor.acquire.unwrap()(neocogi_com_host::initialize_process(), &mut raw) }}.is_ok());
             // SAFETY: the successful transfer has a live common prefix, whose
             // identity remains IRoot even though its raw transport is erased.
-            assert_eq!(unsafe {{ neocogi_com::raw::validate_interface(raw) }}, Err(neocogi_com::NC_E_NOINTERFACE));
+            assert_eq!(unsafe {{ neocogi_com_sdk::raw::validate_interface(raw) }}, Err(neocogi_com_sdk::NC_E_NOINTERFACE));
             // SAFETY: checked adoption validates the exact factory and consumes
             // its transferred reference, including on rejection.
-            let root = unsafe {{ neocogi_com::ComPtr::<IRootAbi>::__nc_from_raw_owned_checked(raw.cast()) }}.unwrap();
+            let root = unsafe {{ neocogi_com_sdk::ComPtr::<IRootAbi>::__nc_from_raw_owned_checked(raw.cast()) }}.unwrap();
             assert_eq!(root.value().unwrap(), 73);
         }}
     "#
@@ -172,7 +172,7 @@ fn plugin_support_lookup_is_explicit_in_normal_and_printed_rust() {
         ("Some wrong arity", "fn Some() {}", false),
         (
             "Some wrong value",
-            r#"const fn Some(_: unsafe extern "C" fn(*const neocogi_com::NcHostApiV3, *mut neocogi_com::ComRaw<neocogi_com::IUnknown>) -> neocogi_com::NcStatus) -> Option<unsafe extern "C" fn(*const neocogi_com::NcHostApiV3, *mut neocogi_com::ComRaw<neocogi_com::IUnknown>) -> neocogi_com::NcStatus> { None }"#,
+            r#"const fn Some(_: unsafe extern "C" fn(*const neocogi_com_sdk::NcHostApiV3, *mut neocogi_com_sdk::ComRaw<neocogi_com_sdk::IUnknown>) -> neocogi_com_sdk::NcStatus) -> Option<unsafe extern "C" fn(*const neocogi_com_sdk::NcHostApiV3, *mut neocogi_com_sdk::ComRaw<neocogi_com_sdk::IUnknown>) -> neocogi_com_sdk::NcStatus> { None }"#,
             false,
         ),
         ("env wrong type", "macro_rules! env { ($key:literal) => { 99_u32 }; }", false),

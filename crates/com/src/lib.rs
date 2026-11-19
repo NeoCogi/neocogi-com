@@ -24,10 +24,10 @@
 //! The following runnable example uses the ordinary object-children contract:
 //!
 //! ```
-//! use neocogi_com::{com_object, ComBox, ComPtr, IUnknown, NcStatus, NC_E_OUT_OF_RANGE};
-//! use neocogi_com::persistence::{IObjectChildren, IObjectChildrenAbi};
+//! use neocogi_com_sdk::{com_object, ComBox, ComPtr, IUnknown, NcStatus, NC_E_OUT_OF_RANGE};
+//! use neocogi_com_sdk::persistence::{IObjectChildren, IObjectChildrenAbi};
 //!
-//! #[com_object(neocogi_com::persistence::IObjectChildren, ownership = exclusive)]
+//! #[com_object(neocogi_com_sdk::persistence::IObjectChildren, ownership = exclusive)]
 //! struct EmptyChildren;
 //! impl IObjectChildren for EmptyChildren {
 //!     fn count(&self) -> Result<u32, NcStatus> { Ok(0) }
@@ -124,17 +124,17 @@ mod runtime;
 #[cfg(all(test, feature = "std"))]
 mod tests;
 
-pub use neocogi_com_core::lifetime;
-pub use neocogi_com_core::{ComBox, WeakComBox};
-pub use neocogi_com_core::{NcCopyFromBufferOffset, WeakComPtr, NcSharedWeakRaw};
-pub use neocogi_com_core::{NcHostApiV3, validate_host_api};
+pub use neocogi_com::lifetime;
+pub use neocogi_com::{ComBox, WeakComBox};
+pub use neocogi_com::{NcCopyFromBufferOffset, WeakComPtr, NcSharedWeakRaw};
+pub use neocogi_com::{NcHostApiV3, validate_host_api};
 #[cfg(feature = "alloc")]
 pub use data::{ComBytesExt, ComStringExt, NC_COM_DEFAULT_OWNED_COPY_MAX_BYTES, NcBytes, NcString};
 #[cfg(feature = "macros")]
 pub use neocogi_com_macros::{ComDeserialize, ComSerialize, com_object, com_main, plugin};
 #[cfg(feature = "alloc")]
-pub use neocogi_com_core::{format_abi_signature, format_method_signature};
-pub use neocogi_com_core::{
+pub use neocogi_com::{format_abi_signature, format_method_signature};
+pub use neocogi_com::{
     __nc_abi_plain_type, __nc_abi_type, AbiPlainValue, AbiType, ComRustInterface, ComDeserialize, ComSerialize, ComInterface, ComPtr, ComRaw, ComRef,
     ComInterfacePointer, IID_INC_BYTES, IID_INC_STRING, IID_IUNKNOWN, INcBytesAbi, INcBytesVTable, INcStringAbi, INcStringVTable, IUNKNOWN_INTERFACE_ID,
     IUNKNOWN_QUALIFIED_NAME, IUnknown, IUnknownVTable, NC_ABI_PASSING_COM_PTR_OUT, NC_ABI_PASSING_COM_BOX_IN, NC_ABI_PASSING_COM_BOX_OUT,
@@ -163,7 +163,7 @@ pub use object::{__ComBoxedInner, __ComSharedInner};
 mod local;
 pub use local::{LocalBox, WeakLocalBox, LocalCom, WeakLocalCom, LocalRef, LocalRefMut};
 #[doc(hidden)]
-pub use neocogi_com_core::__ComSupportsInterfaceThreading;
+pub use neocogi_com::__ComSupportsInterfaceThreading;
 #[cfg(feature = "runtime")]
 pub use runtime::{
     RuntimeDiagnostics, DebugMessenger, NC_COM_RUNTIME_MAX_ENUMERATION_ITEMS, NC_COM_RUNTIME_MAX_ENUMERATION_RETRIES, NC_COM_RUNTIME_MAX_INSPECTION_TEXT_BYTES,
@@ -171,7 +171,7 @@ pub use runtime::{
 };
 
 #[doc(hidden)]
-pub use neocogi_com_core::{
+pub use neocogi_com::{
     ComInterfaceTableEntry, __nc_interface_chain, __nc_object_interface_count, __nc_interface_table, __nc_interface_vtables, __nc_find_interface,
 };
 
@@ -183,15 +183,15 @@ pub mod serialization;
 mod readme_examples {}
 
 // Recursive value transport is independent of whether a value is used as a message.
-pub use neocogi_com_core::{
+pub use neocogi_com::{
     ComValue, ComValueType, ComInlineValue, NcValueRef, ValueBudget, ValueCost, ValueArray, ValueOption, ValueSlice, encode_inline, decode_inline,
     check_inline_output, check_buffer_output, MAX_VALUE_BYTES, MAX_VALUE_COUNT, MAX_VALUE_DEPTH,
 };
 #[cfg(feature = "alloc")]
-pub use neocogi_com_core::{ValueSequenceKeepAlive, encode_value_buffer, decode_value_buffer};
+pub use neocogi_com::{ValueSequenceKeepAlive, encode_value_buffer, decode_value_buffer};
 
 #[doc(hidden)]
-pub use neocogi_com_core::{EncodedInput, DecodedInput};
-pub use neocogi_com_core::{NcOutput, NcOutputWriter, PreparedOutput};
+pub use neocogi_com::{EncodedInput, DecodedInput};
+pub use neocogi_com::{NcOutput, NcOutputWriter, PreparedOutput};
 #[cfg(feature = "alloc")]
-pub use neocogi_com_core::NcOutputBuffer;
+pub use neocogi_com::NcOutputBuffer;

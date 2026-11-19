@@ -170,7 +170,7 @@ fn complete_path_rejection_preserves_the_entire_output_tree() {
         assert!(message.contains("maximum is 1024"), "{message}");
         assert_eq!(snapshot(&output), before);
         // The exact complete-path limit succeeds using the same current authored input.
-        let prefix = "z".repeat(neocogi_com_core::NC_DESCRIPTOR_RUST_PATH_MAX_LEN - suffix.len());
+        let prefix = "z".repeat(neocogi_com::NC_DESCRIPTOR_RUST_PATH_MAX_LEN - suffix.len());
         builder.build(&prefix, reverse).unwrap();
         assert_ne!(snapshot(&output), before);
         println!("{OBSERVED}");

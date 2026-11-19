@@ -7,7 +7,7 @@ publish = false
 build = "../build.rs"
 
 [dependencies]
-neocogi-com.workspace = true
+neocogi-com-sdk.workspace = true
 neocogi-com-host.workspace = true
 
 [build-dependencies]

@@ -1,6 +1,6 @@
-# neocogi-com
+# neocogi-com-sdk
 
-`neocogi-com` is the user-facing Rust facade for NeoCogi's explicit C-shaped
+`neocogi-com-sdk` is the user-facing Rust facade for NeoCogi's explicit C-shaped
 component ABI. It provides typed COM pointers, generated interface/object
 support, typed plugin roots, and optional API wrappers for
 host-supplied runtime services.
@@ -58,7 +58,7 @@ There are no handwritten interface/value declaration attributes or signature
 options. The checkout [calculator example](https://github.com/NeoCogi/neocogi-com/blob/v0.4.0-alpha.1/tests/com/examples/calculator.rs) and its
 [contract source](https://github.com/NeoCogi/neocogi-com/blob/v0.4.0-alpha.1/tests/com/examples/schemas/nc/examples/calculator.ncidl) show the complete path.
 
-Tools can read generated contracts through `neocogi_com::idl_metadata` without
+Tools can read generated contracts through `neocogi_com_sdk::idl_metadata` without
 depending on the compiler. `InterfaceAbi::IDL_INTERFACE` contains an
 `InterfaceMetadata` with methods, argument/result ownership and reachable value
 definitions. Its name, complete signature and ancestry use lifetime-bearing static
@@ -72,10 +72,10 @@ Concrete Rust state implements generated traits and uses `com_object`. This
 runnable example uses the ordinary object-children contract:
 
 ```rust
-use neocogi_com::{com_object, ComBox, ComPtr, IUnknown, NcStatus, NC_E_OUT_OF_RANGE};
-use neocogi_com::persistence::{IObjectChildren, IObjectChildrenAbi};
+use neocogi_com_sdk::{com_object, ComBox, ComPtr, IUnknown, NcStatus, NC_E_OUT_OF_RANGE};
+use neocogi_com_sdk::persistence::{IObjectChildren, IObjectChildrenAbi};
 
-#[com_object(neocogi_com::persistence::IObjectChildren, ownership = exclusive)]
+#[com_object(neocogi_com_sdk::persistence::IObjectChildren, ownership = exclusive)]
 struct EmptyChildren;
 impl IObjectChildren for EmptyChildren {
     fn count(&self) -> Result<u32, NcStatus> { Ok(0) }
@@ -144,7 +144,7 @@ With `alloc` (also enabled by the default `std` feature), `NcString` and
 are not Rust string/vector wrappers that expose their provider's allocation.
 
 ```rust
-use neocogi_com::{ComStringExt, NcStatus, NcString};
+use neocogi_com_sdk::{ComStringExt, NcStatus, NcString};
 
 let value = NcString::from_utf8_str("hello");
 let owned = value.to_string()?;
@@ -198,7 +198,7 @@ Given locally generated bindings, implementation code has this shape:
 
 ```rust,ignore
 use my_contracts::{Button, ButtonAbi, UiFactory};
-use neocogi_com::{ComBox, NcStatus, com_object};
+use neocogi_com_sdk::{ComBox, NcStatus, com_object};
 
 #[com_object(my_contracts::Button, ownership = exclusive)]
 struct ButtonObject {
@@ -219,8 +219,8 @@ impl UiFactory for UiFactoryObject {
     }
 }
 
-#[neocogi_com::plugin(name = "my.ui")]
-fn acquire_root(_runtime: neocogi_com::RuntimeHandle) -> Result<neocogi_com::ComPtr<my_contracts::UiFactoryAbi>, neocogi_com::NcStatus> {
+#[neocogi_com_sdk::plugin(name = "my.ui")]
+fn acquire_root(_runtime: neocogi_com_sdk::RuntimeHandle) -> Result<neocogi_com_sdk::ComPtr<my_contracts::UiFactoryAbi>, neocogi_com_sdk::NcStatus> {
     UiFactoryObject::from_value(UiFactoryObject).query()
 }
 ```
@@ -310,7 +310,7 @@ linkage modes with ordinary Cargo.
 
 ## Object persistence
 
-`neocogi_com::persistence` exposes the built-in `IPersistable`,
+`neocogi_com_sdk::persistence` exposes the built-in `IPersistable`,
 `IPersistenceFactory`, and `IObjectChildren` contracts. Providers implement these
 without enabling a runtime. `ObjectRecord` and `Limits` require only `alloc`.
 With `runtime`, hosts can capture and reconstruct explicit initialization trees.
@@ -326,7 +326,7 @@ empty registry creation and recipe registration remain available without one.
 Once the application has supplied the provider:
 
 ```rust,ignore
-use neocogi_com::persistence::{FactoryRegistry, snapshot};
+use neocogi_com_sdk::persistence::{FactoryRegistry, snapshot};
 
 let mut recipes = FactoryRegistry::new(&runtime)?;
 recipes.register(recipe_id, factory)?;
@@ -355,7 +355,7 @@ See [persistence semantics and ownership](https://github.com/NeoCogi/neocogi-com
 | `runtime` | Implies `std`; enables runtime and persistence API wrappers. The host supplies admitted access. |
 
 The final native/browser executable directly depends on `neocogi-com-host`
-and initializes it through `#[neocogi_com::com_main]`. The facade has no
+and initializes it through `#[neocogi_com_sdk::com_main]`. The facade has no
 implementation dependency. Reusable helpers accept `RuntimeHandle`; plugin acquisition
 receives it from the host. Tests may explicitly initialize their selected owner.
 `neocogi_com_host::initialize_runtime()` returns the admitted handle safely;

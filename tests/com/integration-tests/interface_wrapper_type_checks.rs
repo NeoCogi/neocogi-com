@@ -12,7 +12,7 @@ fn interface_wrappers_cannot_replace_pointer_pair() {
     let project = tempfile::tempdir().unwrap();
     fs::create_dir(project.path().join("src")).unwrap();
     fs::write(project.path().join("Cargo.toml"), format!(
-        "[package]\nname='interface-wrapper-type-checks'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={facade:?}}}\n[build-dependencies]\nneocogi-idl={{path={compiler:?}}}\n"
+        "[package]\nname='interface-wrapper-type-checks'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com-sdk={{path={facade:?}}}\n[build-dependencies]\nneocogi-idl={{path={compiler:?}}}\n"
     )).unwrap();
     fs::write(
         project.path().join("build.rs"),
@@ -40,7 +40,7 @@ fn interface_wrappers_cannot_replace_pointer_pair() {
             format!(
                 r#"
             #![allow(dead_code)]
-            use neocogi_com::{{ComPtr,ComRef,ComBox,WeakComBox,ThreadSafe}};
+            use neocogi_com_sdk::{{ComPtr,ComRef,ComBox,WeakComBox,ThreadSafe}};
             mod abi {{ include!(concat!(env!("OUT_DIR"),"/bindings.rs")); {body} }}
         "#
             ),

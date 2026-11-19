@@ -11,9 +11,9 @@ mod entry {
     const __nc_host_api: usize = 17;
     const __nc_runtime: usize = 19;
 
-    #[neocogi_com::com_main]
+    #[neocogi_com_sdk::com_main]
     /// Ordinary application body receives access and returns unit.
-    pub fn main(runtime: neocogi_com::RuntimeHandle) {
+    pub fn main(runtime: neocogi_com_sdk::RuntimeHandle) {
         assert_eq!(runtime.runtime_abi_version(), 3);
         assert_eq!(runtime.core_abi_version(), 21);
         super::CALLS.fetch_add(1, super::Ordering::SeqCst);
@@ -22,29 +22,29 @@ mod entry {
 
 /// Result/ExitCode and question-mark semantics stay with the authored function.
 mod result_entry {
-    #[neocogi_com::com_main]
+    #[neocogi_com_sdk::com_main]
     /// No conversion into a framework-specific application error is needed.
-    pub fn main(runtime: neocogi_com::RuntimeHandle) -> Result<std::process::ExitCode, &'static str> {
+    pub fn main(runtime: neocogi_com_sdk::RuntimeHandle) -> Result<std::process::ExitCode, &'static str> {
         let admitted = Result::<_, &'static str>::Ok(runtime.core_abi_version())?;
-        assert_eq!(admitted, neocogi_com::NC_COM_CORE_ABI_VERSION);
+        assert_eq!(admitted, neocogi_com_sdk::NC_COM_CORE_ABI_VERSION);
         Ok(std::process::ExitCode::SUCCESS)
     }
 }
 
 /// An early return still returns from the authored body before later statements.
 mod exit_entry {
-    #[neocogi_com::com_main]
+    #[neocogi_com_sdk::com_main]
     /// Returning an ordinary process code needs no executor or error wrapper.
-    pub fn main(_runtime: neocogi_com::RuntimeHandle) -> std::process::ExitCode {
+    pub fn main(_runtime: neocogi_com_sdk::RuntimeHandle) -> std::process::ExitCode {
         std::process::ExitCode::SUCCESS
     }
 }
 
 /// Cfg removes the whole entry, including otherwise invalid body references.
 mod excluded_entry {
-    #[neocogi_com::com_main]
+    #[neocogi_com_sdk::com_main]
     #[cfg(any())]
-    fn main(_runtime: neocogi_com::RuntimeHandle) {
+    fn main(_runtime: neocogi_com_sdk::RuntimeHandle) {
         unavailable_application_body();
     }
 }
@@ -68,13 +68,13 @@ fn ordinary_result_and_exit_code_returns_are_preserved() {
 /// children and supports concurrent copies without choosing another owner.
 #[cfg(feature = "runtime")]
 mod copied_access {
-    #[neocogi_com::com_object(interfaces())]
+    #[neocogi_com_sdk::com_object(interfaces())]
     /// Minimal ordinary root keeps this check about host access, not product APIs.
     struct Root;
 
-    #[neocogi_com::plugin(name = "nc.tests.host-access-copies")]
+    #[neocogi_com_sdk::plugin(name = "nc.tests.host-access-copies")]
     /// Supplies an initialized local owner without discovering an implementation.
-    fn acquire(_runtime: neocogi_com::RuntimeHandle) -> Result<neocogi_com::ComPtr<neocogi_com::IUnknown>, neocogi_com::NcStatus> {
+    fn acquire(_runtime: neocogi_com_sdk::RuntimeHandle) -> Result<neocogi_com_sdk::ComPtr<neocogi_com_sdk::IUnknown>, neocogi_com_sdk::NcStatus> {
         Ok(Root::from_value(Root))
     }
 
@@ -84,7 +84,7 @@ mod copied_access {
             let record = *neocogi_com_host::initialize_process();
             // SAFETY: only this outer copy is temporary. Its reachable immutable
             // tables/code and synchronized host state all remain process-lived.
-            unsafe { neocogi_com::RuntimeHandle::__from_host_api(&record) }.unwrap()
+            unsafe { neocogi_com_sdk::RuntimeHandle::__from_host_api(&record) }.unwrap()
         };
         let copy = runtime;
         // Ordinary safe startup and explicit raw-record adoption must reach the
@@ -99,6 +99,6 @@ mod copied_access {
         let id = plugin_descriptor().plugin_id;
         assert!(runtime.plugin_info(id).unwrap().is_some());
         assert!(initialized.plugin_info(id).unwrap().is_some());
-        drop(runtime.acquire_plugin_root::<neocogi_com::IUnknown>(id).unwrap());
+        drop(runtime.acquire_plugin_root::<neocogi_com_sdk::IUnknown>(id).unwrap());
     }
 }

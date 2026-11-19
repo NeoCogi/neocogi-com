@@ -1,5 +1,5 @@
 //! A borrowed projection cannot survive movement of the owner's sole token.
-use neocogi_com::{ComBox, IUnknown};
+use neocogi_com_sdk::{ComBox, IUnknown};
 fn inspect(owner: ComBox<IUnknown>) {
     let projection = owner.query_ref::<IUnknown>().unwrap();
     drop(owner);

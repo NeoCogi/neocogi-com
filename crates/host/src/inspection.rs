@@ -2,7 +2,7 @@
 //! Referenced buffers are immutable heap allocations or static/pinned descriptor
 //! storage. Moving the enclosing catalog records never moves these allocations.
 
-use neocogi_com_core::{NcFactoryInfoV3, NcPluginInfoV3, NcStaticUtf8, NcUtf8View};
+use neocogi_com::{NcFactoryInfoV3, NcPluginInfoV3, NcStaticUtf8, NcUtf8View};
 use crate::factory_plugin_registry::{PluginOrigin, RegisteredPlugin};
 
 /// Borrows a complete record from process-lived registration storage.

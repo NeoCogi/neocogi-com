@@ -29,20 +29,12 @@ version = "0.0.0"
 dependencies = [
  "cc",
  "neocogi-com",
- "neocogi-com-core",
+ "neocogi-com-sdk",
  "neocogi-idl",
 ]
 
 [[package]]
 name = "neocogi-com"
-version = "0.4.0-alpha.1"
-dependencies = [
- "neocogi-com-core",
- "neocogi-com-macros",
-]
-
-[[package]]
-name = "neocogi-com-core"
 version = "0.4.0-alpha.1"
 
 [[package]]
@@ -54,10 +46,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "neocogi-com-sdk"
+version = "0.4.0-alpha.1"
+dependencies = [
+ "neocogi-com",
+ "neocogi-com-macros",
+]
+
+[[package]]
 name = "neocogi-idl"
 version = "0.4.0-alpha.1"
 dependencies = [
- "neocogi-com-core",
+ "neocogi-com",
  "prettyplease",
  "proc-macro2",
  "quote",

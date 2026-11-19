@@ -4,12 +4,12 @@ use neocogi_com_serialization::ncb::{self as binary, Limits};
 #[path = "support/allocation_probe.rs"]
 mod allocation_probe;
 
-use neocogi_com::{ComDeserialize, ComSerialize};
+use neocogi_com_sdk::{ComDeserialize, ComSerialize};
 use std::collections::BTreeMap;
 
 /// The former persistence crate's derive-based schema, retained as a wire baseline.
 mod legacy {
-    use neocogi_com::{ComDeserialize, ComSerialize};
+    use neocogi_com_sdk::{ComDeserialize, ComSerialize};
 
     /// Preserve the old record name as well as its exact field order and types.
     #[derive(ComSerialize, ComDeserialize)]
@@ -42,7 +42,7 @@ fn builtin_object_records_preserve_the_existing_wire_format() {
     // Decode bytes emitted by the old derive into the new core-owned schema,
     // then require the encoder to produce exactly the same bytes.
     let original = binary::to_vec(&previous).unwrap();
-    let current: neocogi_com::persistence::ObjectRecord = binary::from_slice(&original).unwrap();
+    let current: neocogi_com_sdk::persistence::ObjectRecord = binary::from_slice(&original).unwrap();
     assert_eq!(current.type_id, [7; 16]);
     assert_eq!(current.children[0].state, [4, 6]);
     assert_eq!(binary::to_vec(&current).unwrap(), original);
@@ -259,7 +259,7 @@ fn collections_records_options_and_variants_have_symmetric_boundaries() {
 /// as restoring, rather than returning an artifact the receiver cannot accept.
 #[test]
 fn oversized_persistence_state_is_rejected_by_both_directions() {
-    use neocogi_com::persistence::ObjectRecord;
+    use neocogi_com_sdk::persistence::ObjectRecord;
     let record = ObjectRecord {
         type_id: [0; 16],
         schema_version: 1,
@@ -287,7 +287,7 @@ fn oversized_persistence_state_is_rejected_by_both_directions() {
 /// boundary, including zero bytes, UUID elements and the final empty child vector.
 #[test]
 fn measured_leaf_envelopes_match_real_encoding_and_decoding() {
-    use neocogi_com::persistence::ObjectRecord;
+    use neocogi_com_sdk::persistence::ObjectRecord;
     for state_bytes in [0, 1, 15, 16, 17, 64] {
         let record = ObjectRecord {
             type_id: [0xab; 16],
@@ -346,8 +346,8 @@ fn measurement_needs_no_output_allocation_and_encoding_failure_is_recoverable() 
 #[test]
 fn owning_ncb_reports_output_allocation_refusal() {
     use allocation_probe::Probe;
-    use neocogi_com::{NC_E_INVALID_ARG, NC_E_OUT_OF_MEMORY, NcOutputBuffer};
-    use neocogi_com::serialization::{ISerializationDiagnosticsAbi, ISerializationOutputAbi};
+    use neocogi_com_sdk::{NC_E_INVALID_ARG, NC_E_OUT_OF_MEMORY, NcOutputBuffer};
+    use neocogi_com_sdk::serialization::{ISerializationDiagnosticsAbi, ISerializationOutputAbi};
 
     let format = binary::factory();
     let probe = Probe::start(Some(1));
@@ -377,8 +377,8 @@ fn owning_ncb_reports_output_allocation_refusal() {
 /// A caller-supplied diagnostic retains its text and uses the exact schema status rules.
 #[test]
 fn ncb_schema_messages_use_explicit_statuses() {
-    use neocogi_com::{NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE, NcCopyFromBufferOffset, NcOutputBuffer};
-    use neocogi_com::serialization::ISerializationDiagnosticsAbi;
+    use neocogi_com_sdk::{NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE, NcCopyFromBufferOffset, NcOutputBuffer};
+    use neocogi_com_sdk::serialization::ISerializationDiagnosticsAbi;
 
     let format = binary::factory();
     for (message, status) in [
@@ -480,7 +480,7 @@ static TOTAL_ACQUIRED_FIELDS: std::sync::atomic::AtomicUsize = std::sync::atomic
 struct Acquired;
 impl ComDeserialize for Acquired {
     /// Reads one byte inside the current value scope before publishing this test resource.
-    fn com_deserialize(reader: &mut neocogi_com::serialization::Deserializer<'_>) -> Result<Self, neocogi_com::NcStatus> {
+    fn com_deserialize(reader: &mut neocogi_com_sdk::serialization::Deserializer<'_>) -> Result<Self, neocogi_com_sdk::NcStatus> {
         u8::com_deserialize(reader)?;
         ACQUIRED_FIELDS.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         TOTAL_ACQUIRED_FIELDS.fetch_add(1, std::sync::atomic::Ordering::SeqCst);

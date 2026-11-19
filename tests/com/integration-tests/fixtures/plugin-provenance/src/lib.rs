@@ -1,13 +1,13 @@
 //! Independent provider with no embedded runtime. Its bootstrap returns a
 //! distinctive error, proving retained code executes even after the file vanishes.
 
-use neocogi_com_core::{
+use neocogi_com::{
     ComRaw, IUnknown, NC_ABI_THREADING_THREAD_LOCAL, NC_COM_CORE_ABI_VERSION, NC_E_CLOSED, NC_E_POINTER, NC_PLUGIN_DESCRIPTOR_ABI_VERSION, NC_OK,
     NcPluginDescriptor, NcStaticUtf8, NcStatus, guid_from_qualified_name,
 };
 
 /// This test does not construct an object; successful lookup reaches this code.
-unsafe extern "C" fn acquire(_host: *const neocogi_com_core::NcHostApiV3, out: *mut ComRaw<IUnknown>) -> NcStatus {
+unsafe extern "C" fn acquire(_host: *const neocogi_com::NcHostApiV3, out: *mut ComRaw<IUnknown>) -> NcStatus {
     if out.is_null() {
         return NC_E_POINTER;
     }

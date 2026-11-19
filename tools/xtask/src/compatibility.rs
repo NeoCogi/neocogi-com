@@ -472,11 +472,11 @@ fn ordinary_tests(runner: &Runner, build: Build, target: &Path, native: &str, sa
         tests.push(((*name).into(), words(&["test", "-p", "neocogi-com-tests", "--test", name]), vec![sentinel]));
     }
     if sanitizer.is_some() {
-        for package in ["neocogi-com-core", "neocogi-com-host", "neocogi-com"] {
+        for package in ["neocogi-com", "neocogi-com-host", "neocogi-com-sdk"] {
             let mut args = words(&["test", "-p", package, "--lib"]);
             match package {
-                "neocogi-com-core" => args.extend(words(&["--features", "std"])),
-                "neocogi-com" => args.extend(words(&["--features", "runtime"])),
+                "neocogi-com" => args.extend(words(&["--features", "std"])),
+                "neocogi-com-sdk" => args.extend(words(&["--features", "runtime"])),
                 _ => {}
             }
             tests.push((package.into(), args, vec![]));
@@ -662,11 +662,11 @@ fn safety(runner: &Runner) -> Result<Value> {
                 ],
             ),
             (
-                words(&["-p", "neocogi-com-core", "--lib", "--features", "std"]),
+                words(&["-p", "neocogi-com", "--lib", "--features", "std"]),
                 vec!["abi::array_tests::array_signature_matches_known_sha256_and_distinguishes_shapes"],
             ),
             (
-                words(&["-p", "neocogi-com-core", "--test", "array_values", "--features", "std"]),
+                words(&["-p", "neocogi-com", "--test", "array_values", "--features", "std"]),
                 vec!["split_encoding_drops_child_local_and_completed_prefix_backing_once"],
             ),
             (
@@ -681,7 +681,7 @@ fn safety(runner: &Runner) -> Result<Value> {
                 ],
             ),
             (
-                words(&["-p", "neocogi-com", "--lib", "--features", "runtime"]),
+                words(&["-p", "neocogi-com-sdk", "--lib", "--features", "runtime"]),
                 vec![
                     "tests::metadata_identity_query_checks_and_releases_a_concrete_projection",
                     "object::tests::guard_release_does_not_keep_a_protected_value_reference",

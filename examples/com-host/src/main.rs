@@ -3,9 +3,9 @@
 use neocogi_com_serialization::ncb as binary;
 #[path = "../support/notification_channel.rs"]
 mod notification_channel;
-use neocogi_com::{RuntimeHandle, ComPtr, ComRef, IUnknown, NcCopyFromBufferOffset, NcStatus, NC_E_ABI_VERSION, NC_E_INVALID_ARG, guid_from_qualified_name};
-use neocogi_com::persistence::{FactoryRegistry, snapshot};
-use neocogi_com::NcValueRef;
+use neocogi_com_sdk::{RuntimeHandle, ComPtr, ComRef, IUnknown, NcCopyFromBufferOffset, NcStatus, NC_E_ABI_VERSION, NC_E_INVALID_ARG, guid_from_qualified_name};
+use neocogi_com_sdk::persistence::{FactoryRegistry, snapshot};
+use neocogi_com_sdk::NcValueRef;
 
 #[path = "../support/extent_state.rs"]
 mod extent_state;
@@ -13,7 +13,7 @@ use extent_state::{ExtentState, PERSISTENT_KIND};
 use neocogi_example_com_host::contracts::{ExampleFactoryAbi, ExampleObjectAbi, Extent, ExtentReport};
 
 /// Registers the selected plugin, acquires its checked factory, and mutates one object.
-#[neocogi_com::com_main]
+#[neocogi_com_sdk::com_main]
 fn main(runtime: RuntimeHandle) {
     // This example also uses static NCB helpers for typed state. Select that same
     // static serialization implementation explicitly for host persistence.
@@ -35,7 +35,7 @@ fn main(runtime: RuntimeHandle) {
     assert_eq!(extent, Extent { width: 44, height: 31 });
     // This assertion runs with independently selected compilers, private-layout
     // randomization, LTO and panic profiles. Native enum layout never crosses COM.
-    let mut reports = neocogi_com::NcOutputBuffer::new();
+    let mut reports = neocogi_com_sdk::NcOutputBuffer::new();
     assert_eq!(object.reports(reports.output(0, 3)).unwrap(), 2);
     assert_eq!(reports.as_slice(), [ExtentReport::Current { extent, usable: true }, ExtentReport::Empty]);
     assert_eq!(object.reports(reports.output(0, 0)).unwrap(), 2);
@@ -129,16 +129,16 @@ fn qualify_peer(_runtime: &RuntimeHandle) {}
 /// Same valid identity in different static storage must conflict with provider A.
 #[cfg(not(feature = "monolith"))]
 mod conflict {
-    #[neocogi_com::plugin(name = "nc.examples.factory_plugin_component")]
+    #[neocogi_com_sdk::plugin(name = "nc.examples.factory_plugin_component")]
     fn acquire(
-        _runtime: neocogi_com::RuntimeHandle,
-    ) -> Result<neocogi_com::ComPtr<neocogi_example_com_host::contracts::ExampleFactoryAbi>, neocogi_com::NcStatus> {
+        _runtime: neocogi_com_sdk::RuntimeHandle,
+    ) -> Result<neocogi_com_sdk::ComPtr<neocogi_example_com_host::contracts::ExampleFactoryAbi>, neocogi_com_sdk::NcStatus> {
         panic!("conflicting metadata must never be acquired")
     }
 }
 
 /// Adapts an existing typed factory without changing its construction ABI.
-#[neocogi_com::com_object(interfaces(neocogi_com::persistence::IPersistenceFactory))]
+#[neocogi_com_sdk::com_object(interfaces(neocogi_com_sdk::persistence::IPersistenceFactory))]
 struct PersistenceAdapter {
     /// In shared mode this is a checked factory in the separately loaded plugin.
     factory: ComPtr<ExampleFactoryAbi>,
@@ -156,7 +156,7 @@ fn decode(version: u32, state: NcCopyFromBufferOffset<'_, u8>, children: u32) ->
     }
     binary::from_slice(state.as_slice()).map_err(|_| NC_E_INVALID_ARG)
 }
-impl neocogi_com::persistence::IPersistenceFactory for PersistenceAdapter {
+impl neocogi_com_sdk::persistence::IPersistenceFactory for PersistenceAdapter {
     /// Preflight has no construction side effects.
     fn validate(&self, version: u32, state: NcCopyFromBufferOffset<'_, u8>, children: u32) -> Result<(), NcStatus> {
         decode(version, state, children).map(|_| ())
@@ -166,7 +166,7 @@ impl neocogi_com::persistence::IPersistenceFactory for PersistenceAdapter {
         &self,
         version: u32,
         state: NcCopyFromBufferOffset<'_, u8>,
-        children: ComRef<'_, neocogi_com::persistence::IObjectChildrenAbi>,
+        children: ComRef<'_, neocogi_com_sdk::persistence::IObjectChildrenAbi>,
     ) -> Result<ComPtr<IUnknown>, NcStatus> {
         let state = decode(version, state, children.count()?)?;
         let binding = neocogi_example_com_host::contracts::ExtentBinding::from_observer(Some(self.queue.as_com_ref()))?;

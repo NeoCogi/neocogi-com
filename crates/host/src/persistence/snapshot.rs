@@ -1,7 +1,7 @@
 //! Bounded capture of semantic initialization trees, with owned-path cycle checks.
 
-use neocogi_com::{ComPtr, ComRef, ComBytesExt, IUnknown, NcStatus, NC_E_INVALID_ARG, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE};
-use neocogi_com::persistence::{IPersistableAbi, Limits, ObjectRecord};
+use neocogi_com_sdk::{ComPtr, ComRef, ComBytesExt, IUnknown, NcStatus, NC_E_INVALID_ARG, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE};
+use neocogi_com_sdk::persistence::{IPersistableAbi, Limits, ObjectRecord};
 
 /// Exports a shared opt-in tree, detects ownership cycles, and bounds traversal.
 /// A live exclusive root is a valid borrow but cannot be retained along the
@@ -100,11 +100,11 @@ impl Capture {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use neocogi_com::{INcBytesAbi, NC_E_NOT_FOUND, NcBytes, NcGuid};
-    use neocogi_com::persistence::{IPersistable, IPersistableVtblFor};
+    use neocogi_com_sdk::{INcBytesAbi, NC_E_NOT_FOUND, NcBytes, NcGuid};
+    use neocogi_com_sdk::persistence::{IPersistable, IPersistableVtblFor};
 
     /// Ordinary COM provider with an advertised list and a possible getter failure.
-    #[neocogi_com::com_object(IPersistable)]
+    #[neocogi_com_sdk::com_object(IPersistable)]
     struct Node {
         /// Admitted child count, including getters that may return failure.
         count: u32,
@@ -114,7 +114,7 @@ mod tests {
 
     impl IPersistable for Node {
         fn type_id(&self) -> Result<NcGuid, NcStatus> {
-            Ok(neocogi_com::guid_from_qualified_name("nc.tests.snapshot_capacity"))
+            Ok(neocogi_com_sdk::guid_from_qualified_name("nc.tests.snapshot_capacity"))
         }
 
         fn schema_version(&self) -> Result<u32, NcStatus> {

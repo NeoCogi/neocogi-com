@@ -58,22 +58,22 @@ fn versionless_peers_negotiate_exact_transitive_contracts() {
     }
     source.push_str(
         r#"
-        use neocogi_com::{ComInterface, NcStatus, NC_E_ABI_VERSION, NC_E_NOINTERFACE};
-        #[neocogi_com::com_object(plain::clock::Clock)]
+        use neocogi_com_sdk::{ComInterface, NcStatus, NC_E_ABI_VERSION, NC_E_NOINTERFACE};
+        #[neocogi_com_sdk::com_object(plain::clock::Clock)]
         struct Clock;
         impl plain::clock::Clock for Clock {
             fn read(&self) -> Result<plain::units::Duration, NcStatus> {
                 Ok(plain::units::Duration { ticks: 41 })
             }
         }
-        #[neocogi_com::com_object(changed::clock::Clock)]
+        #[neocogi_com_sdk::com_object(changed::clock::Clock)]
         struct ChangedClock;
         impl changed::clock::Clock for ChangedClock {
             fn read(&self) -> Result<changed::units::Duration, NcStatus> {
                 Ok(changed::units::Duration { milliseconds: 42 })
             }
         }
-        #[neocogi_com::com_object(renamed::clock::ClockMilliseconds)]
+        #[neocogi_com_sdk::com_object(renamed::clock::ClockMilliseconds)]
         struct MillisecondClock;
         impl renamed::clock::ClockMilliseconds for MillisecondClock {
             fn read(&self) -> Result<renamed::units::Duration, NcStatus> {
@@ -141,9 +141,9 @@ fn cargo_build_apis_report_deprecated_versions_without_rejecting_calls() {
         r#"
         extern crate self as identity_warning_consumer;
         mod contract { include!(env!("BINDINGS")); }
-        #[neocogi_com::com_object(contract::Reader)] struct Reader;
+        #[neocogi_com_sdk::com_object(contract::Reader)] struct Reader;
         impl contract::Reader for Reader {
-            fn read(&self) -> Result<contract::Value, neocogi_com::NcStatus> {
+            fn read(&self) -> Result<contract::Value, neocogi_com_sdk::NcStatus> {
                 Ok(contract::Value { count: 17 })
             }
         }

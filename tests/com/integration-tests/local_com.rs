@@ -4,7 +4,7 @@
 mod test_contracts {
     include!(concat!(env!("OUT_DIR"), "/test_contracts.rs"));
 }
-use neocogi_com::{com_object, LocalRef, LocalRefMut, NcStatus, NC_E_BUSY};
+use neocogi_com_sdk::{com_object, LocalRef, LocalRefMut, NcStatus, NC_E_BUSY};
 use std::{
     rc::Rc,
     sync::atomic::{AtomicUsize, Ordering},
@@ -206,7 +206,7 @@ fn shared_weak_local_can_promote_and_become_the_last_owner_on_another_thread() {
 #[allow(non_upper_case_globals)]
 mod generic_constructor_names {
     use super::{ICounter, ICounterAbi, ICounterVtblFor, NcStatus};
-    use neocogi_com::{com_object, NC_E_DROPPED};
+    use neocogi_com_sdk::{com_object, NC_E_DROPPED};
     use core::marker::PhantomData;
 
     #[com_object(interfaces(ICounter))]

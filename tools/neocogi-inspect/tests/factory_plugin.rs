@@ -503,7 +503,7 @@ fn prepare_calculator_workspace(root: &Path) -> tempfile::TempDir {
     }
     let crates = checkout.join("crates");
     std::fs::write(root.join("Cargo.toml"), format!(
-        "[workspace]\nresolver='3'\nmembers=['host','plugin']\n[patch.crates-io]\n         neocogi-com={{path={:?}}}\nneocogi-com-host={{path={:?}}}\nneocogi-idl={{path={:?}}}\n",
+        "[workspace]\nresolver='3'\nmembers=['host','plugin']\n[patch.crates-io]\n         neocogi-com-sdk={{path={:?}}}\nneocogi-com-host={{path={:?}}}\nneocogi-idl={{path={:?}}}\n",
         crates.join("com"), crates.join("host"), crates.join("idl"),
     )).unwrap();
     let targets = checkout.join("target");
@@ -530,7 +530,7 @@ fn build_calculator_workspace(root: &Path, target: &Path, packages: &[&str]) -> 
 /// an independent provider is absent from the reported remainder.
 #[test]
 fn native_plan_reports_the_blocked_plugin_remainder() {
-    use neocogi_com_core::guid_from_qualified_name;
+    use neocogi_com::guid_from_qualified_name;
     let inspector = build_inspector("dev");
     let temporary = tempfile::tempdir().unwrap();
     let root = temporary.path();
@@ -546,11 +546,11 @@ fn native_plan_reports_the_blocked_plugin_remainder() {
         let id = guid_from_qualified_name(&name);
         if let Some(dependency) = dependency {
             code = code.replace(
-                &format!(r#"#[neocogi_com::plugin(name = "{name}")]"#),
-                &format!(r#"#[neocogi_com::plugin(name = "{name}", dependencies = [REQUIRED])]"#),
+                &format!(r#"#[neocogi_com_sdk::plugin(name = "{name}")]"#),
+                &format!(r#"#[neocogi_com_sdk::plugin(name = "{name}", dependencies = [REQUIRED])]"#),
             );
             code.push_str(&format!(
-                "\nconst REQUIRED: neocogi_com::NcGuid = neocogi_com::guid_from_qualified_name(\"nc.tests.plan.{dependency}\");\n",
+                "\nconst REQUIRED: neocogi_com_sdk::NcGuid = neocogi_com_sdk::guid_from_qualified_name(\"nc.tests.plan.{dependency}\");\n",
             ));
             blocked.push(id);
         } else {
@@ -626,7 +626,7 @@ fn generated_root_threading_change_is_context_for_a_breaking_digest() {
             expected,
             r#"    let root = runtime.acquire_plugin_root::<contracts::CalculatorAbi>(plugin);
     if std::env::args().nth(2).as_deref() == Some("different-contract") {
-        assert_eq!(root.err(), Some(neocogi_com::NC_E_ABI_VERSION));
+        assert_eq!(root.err(), Some(neocogi_com_sdk::NC_E_ABI_VERSION));
         println!("observed exact contract rejection");
         return;
     }
@@ -657,7 +657,10 @@ fn generated_root_threading_change_is_context_for_a_breaking_digest() {
             "com_object(contracts::Calculator)",
             "com_object(interfaces(contracts::Calculator), thread_safe)",
         )
-        .replace("ComPtr<contracts::CalculatorAbi>", "ComPtr<contracts::CalculatorAbi, neocogi_com::ThreadSafe>");
+        .replace(
+            "ComPtr<contracts::CalculatorAbi>",
+            "ComPtr<contracts::CalculatorAbi, neocogi_com_sdk::ThreadSafe>",
+        );
     std::fs::write(&source, shared_provider).unwrap();
     let result = build_calculator_workspace(root, target.path(), &["getting-started-plugin"]);
     let shared = root.join(format!("shared{}", std::env::consts::DLL_SUFFIX));

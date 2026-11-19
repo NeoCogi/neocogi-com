@@ -13,7 +13,7 @@ mod height;
 use budget::{Budget, Descent, Limits};
 #[cfg(test)]
 mod tests;
-use neocogi_com_core::{NcGuid, guid_from_name, guid_from_qualified_name};
+use neocogi_com::{NcGuid, guid_from_name, guid_from_qualified_name};
 use crate::{IdlType, Declaration, DeclarationKind, Diagnostic, ExternalModule, Module, NamedType, ResolutionError, SourceSpan, Specialization, VariantFields};
 
 /// Expands one admitted batch with one private compiler allowance.

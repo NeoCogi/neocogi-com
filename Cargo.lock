@@ -215,14 +215,6 @@ dependencies = [
 name = "neocogi-com"
 version = "0.4.0-alpha.1"
 dependencies = [
- "neocogi-com-core",
- "neocogi-com-macros",
-]
-
-[[package]]
-name = "neocogi-com-core"
-version = "0.4.0-alpha.1"
-dependencies = [
  "syn 2.0.119",
 ]
 
@@ -231,7 +223,7 @@ name = "neocogi-com-host"
 version = "0.4.0-alpha.1"
 dependencies = [
  "neocogi-com",
- "neocogi-com-core",
+ "neocogi-com-sdk",
  "neocogi-com-serialization",
 ]
 
@@ -244,17 +236,25 @@ dependencies = [
 ]
 
 [[package]]
-name = "neocogi-com-serialization"
+name = "neocogi-com-sdk"
 version = "0.4.0-alpha.1"
 dependencies = [
  "neocogi-com",
+ "neocogi-com-macros",
+]
+
+[[package]]
+name = "neocogi-com-serialization"
+version = "0.4.0-alpha.1"
+dependencies = [
+ "neocogi-com-sdk",
 ]
 
 [[package]]
 name = "neocogi-com-serialization-dylib"
 version = "0.4.0-alpha.1"
 dependencies = [
- "neocogi-com",
+ "neocogi-com-sdk",
  "neocogi-com-serialization",
 ]
 
@@ -265,8 +265,8 @@ dependencies = [
  "cc",
  "libc",
  "neocogi-com",
- "neocogi-com-core",
  "neocogi-com-host",
+ "neocogi-com-sdk",
  "neocogi-com-serialization",
  "neocogi-idl",
  "serde_json",
@@ -278,8 +278,8 @@ dependencies = [
 name = "neocogi-example-com-host"
 version = "0.0.0"
 dependencies = [
- "neocogi-com",
  "neocogi-com-host",
+ "neocogi-com-sdk",
  "neocogi-com-serialization",
  "neocogi-example-com-plugin",
  "neocogi-idl",
@@ -290,7 +290,7 @@ dependencies = [
 name = "neocogi-example-com-plugin"
 version = "0.0.0"
 dependencies = [
- "neocogi-com",
+ "neocogi-com-sdk",
  "neocogi-com-serialization",
  "neocogi-idl",
 ]
@@ -300,7 +300,7 @@ name = "neocogi-idl"
 version = "0.4.0-alpha.1"
 dependencies = [
  "libc",
- "neocogi-com-core",
+ "neocogi-com",
  "prettyplease",
  "proc-macro2",
  "quote",
@@ -314,7 +314,7 @@ dependencies = [
 name = "neocogi-inspect"
 version = "0.4.0-alpha.1"
 dependencies = [
- "neocogi-com-core",
+ "neocogi-com",
  "neocogi-com-host",
  "serde",
  "serde_json",
@@ -326,7 +326,7 @@ name = "neocogi-tooling-tests"
 version = "0.4.0-alpha.1"
 dependencies = [
  "libc",
- "neocogi-com-core",
+ "neocogi-com",
  "neocogi-idl",
  "prettyplease",
  "proc-macro2",

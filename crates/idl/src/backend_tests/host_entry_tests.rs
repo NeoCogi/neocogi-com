@@ -17,7 +17,7 @@ fn host_entry_runs_with_normal_printed_and_renamed_dependencies() {
                 .unwrap()
                 .lines()
                 .map(|line| {
-                    for (package, alias) in [("neocogi-com", "sdk"), ("neocogi-com-host", "owner")] {
+                    for (package, alias) in [("neocogi-com-sdk", "sdk"), ("neocogi-com-host", "owner")] {
                         if let Some(dependency) = line.strip_prefix(&format!("{package}=")) {
                             return match dependency.strip_prefix('{') {
                                 Some(fields) => format!("{alias}={{package={package:?},{fields}\n"),
@@ -31,7 +31,7 @@ fn host_entry_runs_with_normal_printed_and_renamed_dependencies() {
             fs::write(&manifest, source).unwrap();
             ("sdk", "owner", "neocogi_com = ::sdk, neocogi_com_host = ::owner")
         } else {
-            ("neocogi_com", "neocogi_com_host", "")
+            ("neocogi_com_sdk", "neocogi_com_host", "")
         };
         // A custom safe module can forward admitted access, including through
         // renamed dependencies. Its path is not privileged by the expansion.
@@ -109,19 +109,19 @@ fn host_entry_rejects_safe_modules_returning_unverified_raw_tables() {
             r#"
             #![deny(unsafe_code)]
             mod safe_local_host {{
-                use neocogi_com::{{NcHostApiV3, NcPluginApiV3}};
+                use neocogi_com_sdk::{{NcHostApiV3, NcPluginApiV3}};
                 static HOST: NcHostApiV3 = NcHostApiV3 {{
                     size: core::mem::size_of::<NcHostApiV3>(),
-                    runtime_abi_version: neocogi_com::NC_COM_RUNTIME_ABI_VERSION,
-                    core_abi_version: neocogi_com::NC_COM_CORE_ABI_VERSION,
+                    runtime_abi_version: neocogi_com_sdk::NC_COM_RUNTIME_ABI_VERSION,
+                    core_abi_version: neocogi_com_sdk::NC_COM_CORE_ABI_VERSION,
                     runtime: core::ptr::NonNull::<NcPluginApiV3>::dangling().as_ptr(),
                     debug: core::ptr::null(),
                     persistence: core::ptr::null(),
                 }};
                 pub fn {initializer}() -> &'static NcHostApiV3 {{ &HOST }}
             }}
-            #[neocogi_com::com_main(neocogi_com_host = safe_local_host)]
-            fn main(_runtime: neocogi_com::RuntimeHandle) {{}}
+            #[neocogi_com_sdk::com_main(neocogi_com_host = safe_local_host)]
+            fn main(_runtime: neocogi_com_sdk::RuntimeHandle) {{}}
         "#
         );
         fs::write(consumer.directory.path().join("src/main.rs"), source).unwrap();
@@ -152,10 +152,10 @@ fn plugin_bootstrap_requires_the_actual_supplied_runtime_type() {
     fs::write(
         consumer.directory.path().join("src/lib.rs"),
         r#"
-        #[neocogi_com::com_object(interfaces())]
+        #[neocogi_com_sdk::com_object(interfaces())]
         struct Root;
-        #[neocogi_com::plugin(name = "nc.tests.wrong-runtime-argument")]
-        fn acquire(_application_value: u32) -> Result<neocogi_com::ComPtr<neocogi_com::IUnknown>, neocogi_com::NcStatus> {
+        #[neocogi_com_sdk::plugin(name = "nc.tests.wrong-runtime-argument")]
+        fn acquire(_application_value: u32) -> Result<neocogi_com_sdk::ComPtr<neocogi_com_sdk::IUnknown>, neocogi_com_sdk::NcStatus> {
             Ok(Root::from_value(Root))
         }
     "#,

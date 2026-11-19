@@ -1,6 +1,6 @@
 //! Public Rust names shared by source admission and both export surfaces.
 
-use neocogi_com_core::NcComInterfaceCompanion;
+use neocogi_com::NcComInterfaceCompanion;
 use crate::{Declaration, DeclarationKind};
 
 /// Projects one final declaration's existing public Rust surface, authored name

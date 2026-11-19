@@ -6,7 +6,8 @@ publish = false
 
 [workspace]
 [dependencies]
-renamed_nc = { package = "neocogi-com", path = "../../../../../crates/com" }
+neocogi-com = { path = "../../../../../crates/core" }
+renamed_nc = { package = "neocogi-com-sdk", path = "../../../../../crates/com" }
 
 [build-dependencies]
 neocogi-idl = { path = "../../../../../crates/idl" }

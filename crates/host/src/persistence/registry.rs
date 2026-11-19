@@ -1,8 +1,8 @@
 //! Caller-owned recipe registration and two-pass object reconstruction.
 
 use std::collections::BTreeMap;
-use neocogi_com::{ComPtr, IUnknown, NcCopyFromBufferOffset, NcGuid, NcStatus, NC_E_INVALID_ARG, NC_E_NOT_FOUND, NC_E_OUT_OF_RANGE};
-use neocogi_com::persistence::{IPersistenceFactoryAbi, Limits, ObjectRecord};
+use neocogi_com_sdk::{ComPtr, IUnknown, NcCopyFromBufferOffset, NcGuid, NcStatus, NC_E_INVALID_ARG, NC_E_NOT_FOUND, NC_E_OUT_OF_RANGE};
+use neocogi_com_sdk::persistence::{IPersistenceFactoryAbi, Limits, ObjectRecord};
 
 /// An explicit set of context-bound factories selected by the application.
 #[derive(Default)]

@@ -5,9 +5,9 @@ with private ordinary Rust state and typed factory methods. It depends on the
 COM facade, runs IDL as a build dependency, and receives runtime access from its host:
 
 ```rust,ignore
-#[neocogi_com::plugin(name = "nc.examples.factory_plugin_component")]
-fn acquire_root(_runtime: neocogi_com::RuntimeHandle)
-    -> Result<neocogi_com::ComPtr<crate::contracts::ExampleFactoryAbi>, neocogi_com::NcStatus>
+#[neocogi_com_sdk::plugin(name = "nc.examples.factory_plugin_component")]
+fn acquire_root(_runtime: neocogi_com_sdk::RuntimeHandle)
+    -> Result<neocogi_com_sdk::ComPtr<crate::contracts::ExampleFactoryAbi>, neocogi_com_sdk::NcStatus>
 {
     DynamicExampleFactory::from_value(DynamicExampleFactory).query()
 }
@@ -20,7 +20,7 @@ the shared SDK; contract generation uses `neocogi-idl` at build time. The
 why using the SDK or its `runtime` API wrappers selects no host implementation.
 
 The separate [host](../com-host) owns the runtime implementation. Its
-`#[neocogi_com::com_main]` entry receives a copyable handle and registers/acquires
+`#[neocogi_com_sdk::com_main]` entry receives a copyable handle and registers/acquires
 the provider. A dynamic provider uses the same host tables without importing
 runtime symbols or embedding an implementation. Core admission and discovery use
 the [current ABI versions](../../docs/abi-v3.md#abi-identities-and-versions).

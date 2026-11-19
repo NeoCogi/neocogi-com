@@ -1,6 +1,6 @@
 //! Stable GUID representation, qualified-name derivation, formatting, and parsing.
 //!
-//! neocogi-com identities use canonical UUID byte order and deterministic UUID-v5
+//! neocogi-com-sdk identities use canonical UUID byte order and deterministic UUID-v5
 //! derivation from validated qualified-name bytes. The module keeps the hashing
 //! implementation const-evaluable so plugin and low-level interface IDs can be
 //! emitted directly into static descriptor data.
@@ -22,7 +22,7 @@ pub struct NcGuid {
 /// The all-zero GUID used as a sentinel in ABI metadata.
 pub const NC_GUID_NIL: NcGuid = NcGuid::from_fields(0, 0, 0, [0; 8]);
 
-/// UUID namespace reserved for `neocogi-com` ABI identities.
+/// UUID namespace reserved for `neocogi-com-sdk` ABI identities.
 ///
 /// Plugin IDs and low-level `auto_guid` interface IDs are UUIDv5 values derived
 /// from this namespace and their exact qualified-name UTF-8 bytes. The IDL
@@ -234,7 +234,7 @@ impl core::fmt::Display for NcGuid {
 impl core::str::FromStr for NcGuid {
     type Err = ParseGuidError;
 
-    /// Parses the exact canonical UUID shape accepted by neocogi-com metadata.
+    /// Parses the exact canonical UUID shape accepted by neocogi-com-sdk metadata.
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         parse_nc_guid(value)
     }

@@ -10,10 +10,10 @@ use alloc::{
     vec::Vec,
     format, vec,
 };
-use neocogi_com::{ComPtr, ComBox, NcStatus, NcCopyFromBufferOffset, NcOutputWriter, NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE};
-use neocogi_com::serialization::*;
+use neocogi_com_sdk::{ComPtr, ComBox, NcStatus, NcCopyFromBufferOffset, NcOutputWriter, NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE};
+use neocogi_com_sdk::serialization::*;
 use grammar::{Node, Number, SyntaxBudget};
-use neocogi_com::serialization::Error as Failure;
+use neocogi_com_sdk::serialization::Error as Failure;
 
 /// A session has one root and no recovery after its first failed operation.
 enum Phase {
@@ -388,19 +388,19 @@ impl Reader {
 }
 
 /// One exclusive serializer; its ordinary COM gate protects all writer state.
-#[neocogi_com::com_object(interfaces(ISerializer, ISerializationOutput, ISerializationDiagnostics), ownership = exclusive)]
+#[neocogi_com_sdk::com_object(interfaces(ISerializer, ISerializationOutput, ISerializationDiagnostics), ownership = exclusive)]
 struct JsonSerializer {
     /// Provider-owned syntax construction, budgets and committed output.
     writer: Writer,
 }
 /// One exclusive deserializer owns its complete parsed input.
-#[neocogi_com::com_object(interfaces(IDeserializer, ISerializationDiagnostics), ownership = exclusive)]
+#[neocogi_com_sdk::com_object(interfaces(IDeserializer, ISerializationDiagnostics), ownership = exclusive)]
 struct JsonDeserializer {
     /// Parsed input, typed scopes and the immutable first failure.
     reader: Reader,
 }
 /// Shared immutable format selection; every method creates an independent session.
-#[neocogi_com::com_object(ISerializationFormat)]
+#[neocogi_com_sdk::com_object(ISerializationFormat)]
 struct JsonFormat;
 
 /// Creates a normal shared COM factory without a host or global format registry.

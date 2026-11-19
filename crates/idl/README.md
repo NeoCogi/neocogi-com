@@ -81,8 +81,9 @@ fn main() -> Result<(), neocogi_idl::BuildError> {
 ```
 
 The consuming crate declares `neocogi-idl` as a build dependency and
-`neocogi-com` as a normal dependency. It supplies an explicit self alias for the
-generated Rust paths and includes its own build output:
+`neocogi-com-sdk` as its normal COM dependency. Generated support paths use
+`::neocogi_com_sdk`. The application supplies the `my_app` self alias for its
+declared module location and includes its own build output:
 
 ```rust,ignore
 extern crate self as my_app;
@@ -178,7 +179,7 @@ module = "example.widgets"
 source = "schemas/example/widgets"
 
 [dependencies]
-neocogi-com = { version = "=0.4.0-alpha.1", default-features = false }
+neocogi-com-sdk = { version = "=0.4.0-alpha.1", default-features = false }
 
 [build-dependencies]
 neocogi-idl = "=0.4.0-alpha.1"

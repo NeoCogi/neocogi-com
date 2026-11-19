@@ -1,4 +1,4 @@
-use neocogi_com::com_object;
+use neocogi_com_sdk::com_object;
 
 /// Shared service constructors cannot publish exclusive instances.
 #[com_object(interfaces(), ownership = shared)]

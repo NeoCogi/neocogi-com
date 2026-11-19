@@ -61,7 +61,7 @@ fn generated_factories_transfer_one_owner_through_real_abi_calls() {
     std::fs::write(
         project.path().join("Cargo.toml"),
         format!(
-            "[package]\nname='exclusive-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\n",
+            "[package]\nname='exclusive-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com-sdk={{path={:?}}}\n",
             root.join("crates/com")
         ),
     )

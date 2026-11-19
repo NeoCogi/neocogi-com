@@ -93,7 +93,7 @@ fn copied_arrays_compile_and_cross_real_com_thunks() {
     std::fs::write(
         project.path().join("Cargo.toml"),
         format!(
-            "[package]\nname='array-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\n",
+            "[package]\nname='array-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com-sdk={{path={:?}}}\n",
             root.join("crates/com")
         ),
     )

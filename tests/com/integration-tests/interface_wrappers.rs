@@ -7,7 +7,7 @@ mod test_contracts {
 extern crate self as fixture_weak_com;
 test_contracts::weak_com!();
 
-use neocogi_com::{com_object, ComPtr, NcStatus, ThreadSafe, NC_E_BUSY, NC_E_CLOSED, NC_E_DROPPED};
+use neocogi_com_sdk::{com_object, ComPtr, NcStatus, ThreadSafe, NC_E_BUSY, NC_E_CLOSED, NC_E_DROPPED};
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
@@ -67,19 +67,19 @@ static DOWNGRADES: AtomicUsize = AtomicUsize::new(0);
 unsafe extern "C" fn retain(this: *mut core::ffi::c_void) -> u32 {
     RETAINS.fetch_add(1, Ordering::SeqCst);
     // SAFETY: the static table is used only with SharedValue allocations.
-    unsafe { (neocogi_com::lifetime::SHARED_UNKNOWN_VTABLE.add_ref)(this) }
+    unsafe { (neocogi_com_sdk::lifetime::SHARED_UNKNOWN_VTABLE.add_ref)(this) }
 }
 /// Forwards consumption of the instrumented projection's actual owner token.
 unsafe extern "C" fn release(this: *mut core::ffi::c_void) -> u32 {
     RELEASES.fetch_add(1, Ordering::SeqCst);
     // SAFETY: each caller consumes exactly one retained SharedValue token.
-    unsafe { (neocogi_com::lifetime::SHARED_UNKNOWN_VTABLE.release)(this) }
+    unsafe { (neocogi_com_sdk::lifetime::SHARED_UNKNOWN_VTABLE.release)(this) }
 }
 /// Forwards weak acquisition without changing the provider's canonical control.
-unsafe extern "C" fn downgrade(this: *mut core::ffi::c_void, out: *mut neocogi_com::NcSharedWeakRaw) -> NcStatus {
+unsafe extern "C" fn downgrade(this: *mut core::ffi::c_void, out: *mut neocogi_com_sdk::NcSharedWeakRaw) -> NcStatus {
     DOWNGRADES.fetch_add(1, Ordering::SeqCst);
     // SAFETY: the provider is live and out is the caller's writable token slot.
-    unsafe { (neocogi_com::lifetime::SHARED_UNKNOWN_VTABLE.downgrade.unwrap())(this, out) }
+    unsafe { (neocogi_com_sdk::lifetime::SHARED_UNKNOWN_VTABLE.downgrade.unwrap())(this, out) }
 }
 
 /// A real generated table with only lifecycle observation interposed.
@@ -87,7 +87,7 @@ static COUNTED_TABLE: IDerivedVTable = {
     let table = IDerivedVtblFor::<SharedValue>::VTABLE;
     IDerivedVTable {
         base: IValueVTable {
-            unknown: neocogi_com::IUnknownVTable {
+            unknown: neocogi_com_sdk::IUnknownVTable {
                 add_ref: retain,
                 release,
                 downgrade: Some(downgrade),
@@ -115,21 +115,21 @@ static OTHER_DERIVED_DIGEST: [u8; 32] = {
 /// The same physical contract with its digest stored independently.
 enum EquivalentDerived {}
 // SAFETY: identity contents, physical table and threading exactly match IDerived.
-unsafe impl neocogi_com::ComInterface for EquivalentDerived {
-    const INTERFACE_ID: neocogi_com::NcInterfaceId =
-        neocogi_com::NcInterfaceId::new(IDerivedAbi::IID, neocogi_com::NcAbiDigest::from_static(&EQUIVALENT_DERIVED_DIGEST));
+unsafe impl neocogi_com_sdk::ComInterface for EquivalentDerived {
+    const INTERFACE_ID: neocogi_com_sdk::NcInterfaceId =
+        neocogi_com_sdk::NcInterfaceId::new(IDerivedAbi::IID, neocogi_com_sdk::NcAbiDigest::from_static(&EQUIVALENT_DERIVED_DIGEST));
     type VTable = IDerivedVTable;
-    type Threading = <IDerivedAbi as neocogi_com::ComInterface>::Threading;
+    type Threading = <IDerivedAbi as neocogi_com_sdk::ComInterface>::Threading;
 }
 /// Hypothetical revision requested only for rejection; no provider publishes it.
 enum OtherDerivedRevision {}
 // SAFETY: the hypothetical revision uses this physical table and threading;
 // rejection tests never publish a provider or call through this unsupported view.
-unsafe impl neocogi_com::ComInterface for OtherDerivedRevision {
-    const INTERFACE_ID: neocogi_com::NcInterfaceId =
-        neocogi_com::NcInterfaceId::new(IDerivedAbi::IID, neocogi_com::NcAbiDigest::from_static(&OTHER_DERIVED_DIGEST));
+unsafe impl neocogi_com_sdk::ComInterface for OtherDerivedRevision {
+    const INTERFACE_ID: neocogi_com_sdk::NcInterfaceId =
+        neocogi_com_sdk::NcInterfaceId::new(IDerivedAbi::IID, neocogi_com_sdk::NcAbiDigest::from_static(&OTHER_DERIVED_DIGEST));
     type VTable = IDerivedVTable;
-    type Threading = <IDerivedAbi as neocogi_com::ComInterface>::Threading;
+    type Threading = <IDerivedAbi as neocogi_com_sdk::ComInterface>::Threading;
 }
 
 /// Content-equal static identity bypasses discovery but still adds one shared owner.
@@ -142,7 +142,7 @@ fn shared_identity_queries_retain_once_and_reject_the_last_digest_byte() {
     // SAFETY: COUNTED_TABLE has the exact generated IDerived identity and method
     // thunks for this concrete allocation. Move, rather than duplicate, the root owner.
     let owner = unsafe {
-        ComPtr::<IDerivedAbi>::from_raw_owned(neocogi_com::ComRaw {
+        ComPtr::<IDerivedAbi>::from_raw_owned(neocogi_com_sdk::ComRaw {
             object: root.into_raw().object,
             vtable: &COUNTED_TABLE,
         })
@@ -156,7 +156,7 @@ fn shared_identity_queries_retain_once_and_reject_the_last_digest_byte() {
         unsafe { IDerivedAbi::ABI_SIGNATURE.as_digest() }.unwrap().as_ptr(),
         EQUIVALENT_DERIVED_DIGEST.as_ptr()
     );
-    assert_eq!(owner.query::<OtherDerivedRevision>().unwrap_err(), neocogi_com::NC_E_ABI_VERSION);
+    assert_eq!(owner.query::<OtherDerivedRevision>().unwrap_err(), neocogi_com_sdk::NC_E_ABI_VERSION);
     assert_eq!(owner.as_raw(), original);
     assert_eq!(RETAINS.load(Ordering::SeqCst), retains);
     assert_eq!(RELEASES.load(Ordering::SeqCst), releases);
@@ -186,7 +186,7 @@ fn boxed_identity_queries_transfer_once_and_reject_the_last_digest_byte() {
     let weak = owner.downgrade();
     let original = owner.as_raw();
     let (status, owner) = owner.query::<OtherDerivedRevision>().unwrap_err();
-    assert_eq!(status, neocogi_com::NC_E_ABI_VERSION);
+    assert_eq!(status, neocogi_com_sdk::NC_E_ABI_VERSION);
     assert_eq!(owner.as_raw(), original);
     assert_eq!(owner.value(), Ok(42));
     let equivalent = owner.query::<EquivalentDerived>().unwrap();
@@ -215,7 +215,7 @@ fn method_view_reborrows_have_no_lifecycle_traffic() {
     // SAFETY: this table has the exact generated identity, method thunks and
     // allocation type. It consumes the original owner token without retaining.
     let owner = unsafe {
-        ComPtr::<IDerivedAbi>::from_raw_owned(neocogi_com::ComRaw {
+        ComPtr::<IDerivedAbi>::from_raw_owned(neocogi_com_sdk::ComRaw {
             object: raw.object,
             vtable: &COUNTED_TABLE,
         })
@@ -230,7 +230,7 @@ fn method_view_reborrows_have_no_lifecycle_traffic() {
         )
     };
     let before = counts();
-    let wrapper: &<IDerivedAbi as neocogi_com::ComRustInterface>::Wrapper<neocogi_com::ThreadLocal> = &owner;
+    let wrapper: &<IDerivedAbi as neocogi_com_sdk::ComRustInterface>::Wrapper<neocogi_com_sdk::ThreadLocal> = &owner;
     let named: &IDerivedWrapper = wrapper;
     assert_eq!(named.value(), Ok(42));
     {

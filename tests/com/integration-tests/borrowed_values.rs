@@ -4,7 +4,7 @@
 mod test_contracts {
     include!(concat!(env!("OUT_DIR"), "/test_contracts.rs"));
 }
-use neocogi_com::{com_object, ComPtr, NcStatus, NcValueRef};
+use neocogi_com_sdk::{com_object, ComPtr, NcStatus, NcValueRef};
 use std::sync::LazyLock;
 
 extern crate self as fixture_borrowed_values;

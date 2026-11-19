@@ -1,6 +1,6 @@
 extern crate self as example_bindings;
 pub mod example { include!(env!("IDL_EXAMPLE_BINDINGS")); include!(env!("NC_COM_TEST_EXAMPLE_HELPERS")); }
-use neocogi_com::idl_metadata::{InterfaceIdentity, InterfaceMetadata};
+use neocogi_com_sdk::idl_metadata::{InterfaceIdentity, InterfaceMetadata};
 use crate::example::ExampleObjectAbi;
 
 static FIRST: [u8; 32] = [7; 32];

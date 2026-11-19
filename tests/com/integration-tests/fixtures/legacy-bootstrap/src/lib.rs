@@ -2,9 +2,9 @@
 //! The legacy descriptor has valid static storage and the exact current factory
 //! identity, but must be rejected using its prefix before its callback is read.
 
-use neocogi_com::{persistence::IObjectChildrenAbi, NcStatus};
+use neocogi_com_sdk::{persistence::IObjectChildrenAbi, NcStatus};
 #[cfg(feature = "current")]
-use neocogi_com::{persistence::IObjectChildren, ComPtr, IUnknown, NC_E_OUT_OF_RANGE};
+use neocogi_com_sdk::{persistence::IObjectChildren, ComPtr, IUnknown, NC_E_OUT_OF_RANGE};
 
 /// Makes successful current bootstrap observable independently of a returned root.
 fn record_marker(value: &[u8]) {
@@ -14,7 +14,7 @@ fn record_marker(value: &[u8]) {
 
 /// Ordinary provider-local object for the compatible control.
 #[cfg(feature = "current")]
-#[neocogi_com::com_object(neocogi_com::persistence::IObjectChildren)]
+#[neocogi_com_sdk::com_object(neocogi_com_sdk::persistence::IObjectChildren)]
 struct EmptyChildren;
 
 #[cfg(feature = "current")]
@@ -29,8 +29,8 @@ impl IObjectChildren for EmptyChildren {
 
 /// The normal generated adapter validates the supplied current host before here.
 #[cfg(feature = "current")]
-#[neocogi_com::plugin(name = "nc.tests.legacy_bootstrap")]
-fn acquire(_runtime: neocogi_com::RuntimeHandle) -> Result<ComPtr<IObjectChildrenAbi>, NcStatus> {
+#[neocogi_com_sdk::plugin(name = "nc.tests.legacy_bootstrap")]
+fn acquire(_runtime: neocogi_com_sdk::RuntimeHandle) -> Result<ComPtr<IObjectChildrenAbi>, NcStatus> {
     record_marker(b"current");
     EmptyChildren::from_value(EmptyChildren).query()
 }
@@ -38,7 +38,7 @@ fn acquire(_runtime: neocogi_com::RuntimeHandle) -> Result<ComPtr<IObjectChildre
 #[cfg(not(feature = "current"))]
 mod legacy {
     use super::{IObjectChildrenAbi, NcStatus, record_marker};
-    use neocogi_com_core::{
+    use neocogi_com::{
         ComInterface, ComRaw, IUnknown, NcGuid, NcInterfaceId, NcPluginDependencyDescriptor, NcStaticUtf8, NC_E_POINTER, NC_OK, ThreadingModel,
         guid_from_qualified_name,
     };
@@ -86,7 +86,7 @@ mod legacy {
         description_abi_version: if cfg!(feature = "legacy-v2-symbol") {
             2
         } else {
-            neocogi_com_core::NC_PLUGIN_DESCRIPTOR_ABI_VERSION
+            neocogi_com::NC_PLUGIN_DESCRIPTOR_ABI_VERSION
         },
         core_abi_version: 19,
         plugin_id: guid_from_qualified_name("nc.tests.legacy_bootstrap"),

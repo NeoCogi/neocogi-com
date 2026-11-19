@@ -5,8 +5,8 @@ use std::{
     path::{Path, PathBuf},
     process::Command,
 };
-use neocogi_com::*;
-use neocogi_com_core::NcAcquirePluginFactory;
+use neocogi_com_sdk::*;
+use neocogi_com::NcAcquirePluginFactory;
 
 #[path = "fixtures/plugin-inspection/src/descriptors.rs"]
 mod descriptors;
@@ -137,7 +137,7 @@ fn inspection_and_registration_share_admission_without_sharing_publication() {
 extern crate neocogi_com_host as _;
 
 /// Initializes this final test executable's selected host and admits its static tables.
-fn host_runtime() -> neocogi_com::RuntimeHandle {
+fn host_runtime() -> neocogi_com_sdk::RuntimeHandle {
     // SAFETY: the explicit implementation owns its complete process-lived graph.
-    unsafe { neocogi_com::RuntimeHandle::__from_host_api(neocogi_com_host::initialize_process()) }.expect("test host API is compatible")
+    unsafe { neocogi_com_sdk::RuntimeHandle::__from_host_api(neocogi_com_host::initialize_process()) }.expect("test host API is compatible")
 }

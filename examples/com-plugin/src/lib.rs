@@ -4,7 +4,7 @@ use neocogi_com_serialization::ncb as binary;
 extern crate self as neocogi_example_com_plugin;
 /// Independently generated bindings from the common example IDL.
 pub mod contracts;
-use neocogi_com::{ComPtr, NcValueRef, IUnknown, NcBytes, INcBytesAbi, NcGuid, NcStatus, NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE, com_object};
+use neocogi_com_sdk::{ComPtr, NcValueRef, IUnknown, NcBytes, INcBytesAbi, NcGuid, NcStatus, NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE, com_object};
 #[path = "../../com-host/support/extent_state.rs"]
 mod extent_state;
 use extent_state::{ExtentState, PERSISTENT_KIND};
@@ -12,7 +12,7 @@ use extent_state::{ExtentState, PERSISTENT_KIND};
 use crate::contracts::{ExampleFactory, ExampleObject, ExampleObjectAbi, Extent, ExtentReport, IMeasured};
 
 /// Private mutable object constructed only through `ExampleFactory`.
-#[com_object(interfaces(crate::contracts::ExampleObject, neocogi_com::persistence::IPersistable))]
+#[com_object(interfaces(crate::contracts::ExampleObject, neocogi_com_sdk::persistence::IPersistable))]
 struct DynamicExampleObject {
     /// Dimensions owned entirely by this COM object allocation.
     extent: Extent,
@@ -26,7 +26,7 @@ impl IMeasured for DynamicExampleObject {
         Ok(self.extent)
     }
     /// Writes only fresh copied records into caller storage, without provider scratch.
-    fn reports(&self, mut output: neocogi_com::NcOutputWriter<'_, ExtentReport>) -> Result<u32, NcStatus> {
+    fn reports(&self, mut output: neocogi_com_sdk::NcOutputWriter<'_, ExtentReport>) -> Result<u32, NcStatus> {
         if output.capacity() >= 2 {
             output.extend_from_slice(&[ExtentReport::Current { extent: self.extent, usable: true }, ExtentReport::Empty])?;
         }
@@ -63,14 +63,14 @@ impl ExampleFactory for DynamicExampleFactory {
 }
 
 /// Acquires one owned root; object construction remains on its typed methods.
-#[neocogi_com::plugin(name = "nc.examples.factory_plugin_component")]
-fn acquire_root(_runtime: ::neocogi_com::RuntimeHandle) -> Result<neocogi_com::ComPtr<crate::contracts::ExampleFactoryAbi>, neocogi_com::NcStatus> {
+#[neocogi_com_sdk::plugin(name = "nc.examples.factory_plugin_component")]
+fn acquire_root(_runtime: ::neocogi_com_sdk::RuntimeHandle) -> Result<neocogi_com_sdk::ComPtr<crate::contracts::ExampleFactoryAbi>, neocogi_com_sdk::NcStatus> {
     DynamicExampleFactory::from_value(DynamicExampleFactory).query()
 }
 
 // Only the final DSO exports this symbol; monoliths call the Rust getter.
 
-impl neocogi_com::persistence::IPersistable for DynamicExampleObject {
+impl neocogi_com_sdk::persistence::IPersistable for DynamicExampleObject {
     /// Returns a recipe identity independent from ABI revisions.
     fn type_id(&self) -> Result<NcGuid, NcStatus> {
         Ok(PERSISTENT_KIND)

@@ -81,7 +81,7 @@ fn parameter_and_output_expressions_cannot_merge_with_following_siblings() {
     fs::write(
         project.path().join("Cargo.toml"),
         format!(
-            "[package]\nname='canonical-framing-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\n",
+            "[package]\nname='canonical-framing-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com-sdk={{path={:?}}}\n",
             root.join("crates/com")
         ),
     )
@@ -101,14 +101,14 @@ fn parameter_and_output_expressions_cannot_merge_with_following_siblings() {
         project.path().join("src/lib.rs"),
         r#"
         pub mod small; pub mod large; pub mod control;
-        use neocogi_com::{ComInterface,ComValue,NcValueRef,NcStatus,NC_E_ABI_VERSION};
-        #[neocogi_com::com_object(small::Exchange)] struct Small;
+        use neocogi_com_sdk::{ComInterface,ComValue,NcValueRef,NcStatus,NC_E_ABI_VERSION};
+        #[neocogi_com_sdk::com_object(small::Exchange)] struct Small;
         impl small::Exchange for Small {
             fn accept(&self,value:NcValueRef<'_,small::Shell>)->Result<u32,NcStatus> {
                 let _:()=value.to_owned()?.inner.data; Ok(17)
             }
         }
-        #[neocogi_com::com_object(large::Exchange)] struct Large;
+        #[neocogi_com_sdk::com_object(large::Exchange)] struct Large;
         impl large::Exchange for Large {
             fn accept(&self,value:NcValueRef<'_,large::Shell>)->Result<u32,NcStatus> { Ok(value.to_owned()?.inner.data) }
         }

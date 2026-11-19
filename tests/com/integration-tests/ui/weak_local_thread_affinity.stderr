@@ -5,7 +5,7 @@ error[E0277]: `WeakComPtr<IUnknown>` cannot be sent between threads safely
    |            ^^^^^^^^^^^^^^^^^^^ `WeakComPtr<IUnknown>` cannot be sent between threads safely
    |
    = help: within `WeakLocalCom<Local>`, the trait `Send` is not implemented for `WeakComPtr<IUnknown>`
-help: the trait `Send` is implemented for `WeakComPtr<T, neocogi_com::ThreadSafe>`
+help: the trait `Send` is implemented for `WeakComPtr<T, neocogi_com_sdk::ThreadSafe>`
   --> $WORKSPACE/crates/core/src/weak.rs
    |
    | unsafe impl<T: ComInterface + ?Sized> Send for WeakComPtr<T, ThreadSafe> {}
@@ -28,7 +28,7 @@ error[E0277]: `WeakComPtr<IUnknown>` cannot be shared between threads safely
    |            ^^^^^^^^^^^^^^^^^^^ `WeakComPtr<IUnknown>` cannot be shared between threads safely
    |
    = help: within `WeakLocalCom<Local>`, the trait `Sync` is not implemented for `WeakComPtr<IUnknown>`
-help: the trait `Sync` is implemented for `WeakComPtr<T, neocogi_com::ThreadSafe>`
+help: the trait `Sync` is implemented for `WeakComPtr<T, neocogi_com_sdk::ThreadSafe>`
   --> $WORKSPACE/crates/core/src/weak.rs
    |
    | unsafe impl<T: ComInterface + ?Sized> Sync for WeakComPtr<T, ThreadSafe> {}

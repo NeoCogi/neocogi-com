@@ -354,7 +354,7 @@ fn temporary_cargo_projects_do_not_join_the_copied_workspace() -> Result<()> {
         assert!(target.starts_with(checkout.join("target")));
         // Real stable Cargo must compile this SDK without discovering nightly
         // profile-rustflags or rebuilding std from the development checkout.
-        fixture.cargo("stable", &["check", "-p", "neocogi-com-core", "--no-default-features", "--locked", "--offline"])?;
+        fixture.cargo("stable", &["check", "-p", "neocogi-com", "--no-default-features", "--locked", "--offline"])?;
         require_independent_temporary_package(&fixture)
     })();
     crate::process::retire(owner, result)?;

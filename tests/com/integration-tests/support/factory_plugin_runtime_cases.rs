@@ -7,7 +7,7 @@ pub mod example { include!(env!("IDL_EXAMPLE_BINDINGS")); include!(concat!(env!(
 extern crate self as fixture_factory_plugin_runtime;
 test_contracts::factory_plugin_runtime!();
 
-use neocogi_com::{ComPtr, NcStatus, com_object, guid_from_qualified_name};
+use neocogi_com_sdk::{ComPtr, NcStatus, com_object, guid_from_qualified_name};
 use crate::example::{ExampleFactory, ExampleFactoryAbi, ExampleObject, ExampleObjectAbi, Extent, IMeasured};
 
 /// Private mutable implementation of the constructor-free IDL class.
@@ -25,7 +25,7 @@ impl IMeasured for ExampleObjectImplementation {
         Ok(self.extent)
     }
     /// Emits a fresh checked prefix using the same contract as the independent plugin.
-    fn reports(&self, mut output: neocogi_com::NcOutputWriter<'_, example::ExtentReport>) -> Result<u32, NcStatus> {
+    fn reports(&self, mut output: neocogi_com_sdk::NcOutputWriter<'_, example::ExtentReport>) -> Result<u32, NcStatus> {
         use crate::example::ExtentReport;
         if output.capacity() >= 2 {
             output.extend_from_slice(&[ExtentReport::Current { extent: self.extent, usable: true }, ExtentReport::Empty])?;
@@ -51,7 +51,7 @@ impl ExampleFactory for ExampleFactoryImplementation {
     fn create(
         &self,
         extent: Extent,
-        events: neocogi_com::NcValueRef<'_, example::ExtentBinding>,
+        events: neocogi_com_sdk::NcValueRef<'_, example::ExtentBinding>,
     ) -> Result<ComPtr<ExampleObjectAbi>, NcStatus> {
         let binding = events.to_owned()?;
         let local = ExampleObjectImplementation::into_local(ExampleObjectImplementation {
@@ -65,8 +65,8 @@ impl ExampleFactory for ExampleFactoryImplementation {
 }
 
 /// Acquires one owned root; object construction remains on its typed methods.
-#[neocogi_com::plugin(name = "nc.tests.generated_factory_plugin", version = "1.0.0")]
-fn acquire_root(_runtime: ::neocogi_com::RuntimeHandle) -> Result<neocogi_com::ComPtr<example::ExampleFactoryAbi>, neocogi_com::NcStatus> {
+#[neocogi_com_sdk::plugin(name = "nc.tests.generated_factory_plugin", version = "1.0.0")]
+fn acquire_root(_runtime: ::neocogi_com_sdk::RuntimeHandle) -> Result<neocogi_com_sdk::ComPtr<example::ExampleFactoryAbi>, neocogi_com_sdk::NcStatus> {
     ExampleFactoryImplementation::from_value(ExampleFactoryImplementation).query()
 }
 
@@ -86,7 +86,7 @@ fn generated_contract_factory_acquires_without_a_class_table() {
     let mut object = factory
         .create(
             Extent { width: 20, height: 10 },
-            neocogi_com::NcValueRef::new(&example::ExtentBinding::Unobserved).unwrap(),
+            neocogi_com_sdk::NcValueRef::new(&example::ExtentBinding::Unobserved).unwrap(),
         )
         .expect("interface object creation failed");
     assert_eq!(object.extent().expect("extent query failed"), Extent { width: 20, height: 10 });
@@ -100,14 +100,14 @@ fn generated_contract_factory_acquires_without_a_class_table() {
         .expect("plugin inspection failed")
         .expect("registered interface plugin missing from inspection");
     assert_eq!(info.qualified_name, "nc.tests.generated_factory_plugin");
-    assert_eq!(info.origin, neocogi_com::PluginOrigin::Static);
+    assert_eq!(info.origin, neocogi_com_sdk::PluginOrigin::Static);
 }
 
 /// Verifies registered factory metadata inspection and direct acquisition on registered
 /// static plugins, without reopening files or requiring caller-supplied root interface IDs.
 #[test]
 fn complete_plugin_info_and_direct_acquisition_work_without_filesystem_path() {
-    use neocogi_com::{ComInterface, NC_E_NOT_FOUND, NcGuid};
+    use neocogi_com_sdk::{ComInterface, NC_E_NOT_FOUND, NcGuid};
 
     let runtime = crate::host_runtime();
     let plugin_id = guid_from_qualified_name("nc.tests.generated_factory_plugin");
@@ -125,7 +125,7 @@ fn complete_plugin_info_and_direct_acquisition_work_without_filesystem_path() {
 
     assert_eq!(factory_info.plugin_id, plugin_id);
     assert_eq!(factory_info.factory.interface, ExampleFactoryAbi::INTERFACE_ID);
-    assert_eq!(factory_info.factory.threading, neocogi_com::NcAbiThreadingMode::ThreadLocal);
+    assert_eq!(factory_info.factory.threading, neocogi_com_sdk::NcAbiThreadingMode::ThreadLocal);
 
     // Direct root acquisition without knowing the interface type in advance.
     let root = runtime.acquire_registered_plugin_root(plugin_id).expect("direct root acquisition failed");
@@ -135,7 +135,7 @@ fn complete_plugin_info_and_direct_acquisition_work_without_filesystem_path() {
     let object = factory
         .create(
             Extent { width: 10, height: 10 },
-            neocogi_com::NcValueRef::new(&example::ExtentBinding::Unobserved).unwrap(),
+            neocogi_com_sdk::NcValueRef::new(&example::ExtentBinding::Unobserved).unwrap(),
         )
         .expect("interface object creation failed");
     assert_eq!(object.extent().expect("extent query failed"), Extent { width: 10, height: 10 });
@@ -148,7 +148,7 @@ fn complete_plugin_info_and_direct_acquisition_work_without_filesystem_path() {
 
 /// A plugin may publish a finished service without a construction-role marker.
 mod service_root {
-    use neocogi_com::{ComInterface, ComPtr, NcStatus, ThreadSafe, com_object};
+    use neocogi_com_sdk::{ComInterface, ComPtr, NcStatus, ThreadSafe, com_object};
     use std::sync::atomic::{AtomicU32, Ordering};
 
     /// Tracks initialization separately from metadata inspection.
@@ -181,9 +181,9 @@ mod service_root {
         }
     }
 
-    #[neocogi_com::plugin(name = "nc.tests.plugin.service")]
+    #[neocogi_com_sdk::plugin(name = "nc.tests.plugin.service")]
     /// Creates one initialized service with the interface's declared threading.
-    fn acquire(_runtime: ::neocogi_com::RuntimeHandle) -> Result<ComPtr<IServiceAbi, ThreadSafe>, NcStatus> {
+    fn acquire(_runtime: ::neocogi_com_sdk::RuntimeHandle) -> Result<ComPtr<IServiceAbi, ThreadSafe>, NcStatus> {
         Service::from_value(Service {
             sequence: ACQUIRED.fetch_add(1, Ordering::SeqCst),
         })
@@ -213,18 +213,18 @@ mod service_root {
 
 /// Fallible provider initialization obeys the same fixed output contract.
 mod failed_root {
-    use neocogi_com::{ComPtr, ComRaw, IUnknown, NcStatus, NC_E_POINTER};
+    use neocogi_com_sdk::{ComPtr, ComRaw, IUnknown, NcStatus, NC_E_POINTER};
     use crate::example::ExampleFactoryAbi;
     use std::sync::atomic::{AtomicU32, Ordering};
 
     /// Records provider execution so invalid output storage cannot enter it.
     static CALLED: AtomicU32 = AtomicU32::new(0);
 
-    #[neocogi_com::plugin(name = "nc.tests.plugin.failure", version = "2.3.4")]
+    #[neocogi_com_sdk::plugin(name = "nc.tests.plugin.failure", version = "2.3.4")]
     /// Deliberately misuses a successful status as an error to test normalization.
-    fn acquire(_runtime: ::neocogi_com::RuntimeHandle) -> Result<ComPtr<ExampleFactoryAbi>, NcStatus> {
+    fn acquire(_runtime: ::neocogi_com_sdk::RuntimeHandle) -> Result<ComPtr<ExampleFactoryAbi>, NcStatus> {
         CALLED.fetch_add(1, Ordering::SeqCst);
-        Err(neocogi_com::NC_OK)
+        Err(neocogi_com_sdk::NC_OK)
     }
 
     /// Null output is rejected before provider code; errors clear valid storage.
@@ -246,7 +246,7 @@ mod failed_root {
         let mut incompatible = *neocogi_com_host::initialize_process();
         incompatible.runtime_abi_version += 1;
         // SAFETY: Readable unsupported prefix; all child tables remain static.
-        assert_eq!(unsafe { acquire(&incompatible, &mut rejected) }, neocogi_com::NC_E_ABI_VERSION);
+        assert_eq!(unsafe { acquire(&incompatible, &mut rejected) }, neocogi_com_sdk::NC_E_ABI_VERSION);
         assert!(rejected.is_null());
         assert_eq!(CALLED.load(Ordering::SeqCst), 0);
         let mut out = ComRaw::<IUnknown> {
@@ -261,7 +261,7 @@ mod failed_root {
 }
 
 /// Initializes this final test executable's selected host and admits its static tables.
-fn host_runtime() -> neocogi_com::RuntimeHandle {
+fn host_runtime() -> neocogi_com_sdk::RuntimeHandle {
     // SAFETY: the explicit implementation owns its complete process-lived graph.
-    unsafe { neocogi_com::RuntimeHandle::__from_host_api(neocogi_com_host::initialize_process()) }.expect("test host API is compatible")
+    unsafe { neocogi_com_sdk::RuntimeHandle::__from_host_api(neocogi_com_host::initialize_process()) }.expect("test host API is compatible")
 }

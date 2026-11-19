@@ -98,7 +98,8 @@ pub fn plugin(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// `neocogi_com_host` dependency; facade features never select
 /// that implementation. Services survive main's return for scheduled callbacks.
 /// Reusable libraries and plugins receive access rather than using this macro.
-/// `neocogi_com = path` and `neocogi_com_host = path` support renamed dependencies.
+/// `neocogi_com = path` selects a renamed `neocogi-com-sdk` dependency.
+/// `neocogi_com_host = path` selects a renamed `neocogi-com-host` dependency.
 /// A selected module must return an already admitted handle; the macro never
 /// adopts raw service pointers on behalf of that module.
 #[proc_macro_attribute]

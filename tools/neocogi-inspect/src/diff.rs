@@ -72,7 +72,7 @@ fn push_changed<T: Eq + serde::Serialize>(differences: &mut Vec<String>, path: &
 mod tests {
     use super::*;
     use crate::schema::sample_artifact;
-    use neocogi_com_core::guid_from_qualified_name;
+    use neocogi_com::guid_from_qualified_name;
 
     #[test]
     fn identical_artifacts_have_no_differences() {

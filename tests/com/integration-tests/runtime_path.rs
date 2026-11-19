@@ -42,6 +42,6 @@ fn macro_output_and_rustdoc_support_an_explicit_runtime_facade() {
         .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target"));
     let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_string());
 
-    run_fixture_cargo(&cargo, &manifest, &target_dir, "check", &[], false);
+    run_fixture_cargo(&cargo, &manifest, &target_dir, "test", &[], false);
     run_fixture_cargo(&cargo, &manifest, &target_dir, "doc", &["--no-deps"], true);
 }

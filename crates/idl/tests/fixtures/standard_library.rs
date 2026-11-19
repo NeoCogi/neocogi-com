@@ -3,7 +3,7 @@ pub mod contract;
 #[cfg(test)]
 mod tests {
     use super::contract::*;
-    use neocogi_com::{com_object, ComPtr, ComValue, NcValueRef, NcStatus, NcCopyFromBufferOffset, NC_E_INVALID_TAG, NC_E_INVALID_ARG};
+    use neocogi_com_sdk::{com_object, ComPtr, ComValue, NcValueRef, NcStatus, NcCopyFromBufferOffset, NC_E_INVALID_TAG, NC_E_INVALID_ARG};
 
     /// An independently owned live capability used to check receiver retention.
     #[com_object(IToken)]
@@ -89,14 +89,14 @@ mod tests {
             // SAFETY: the tag is valid i64 storage and an uninspected union has
             // no field-validity invariant. The None decoder must not read it.
             let absent = absent.assume_init();
-            assert_eq!(((*view.vtable).number)(view.object, absent, out.as_mut_ptr()), neocogi_com::NC_OK);
+            assert_eq!(((*view.vtable).number)(view.object, absent, out.as_mut_ptr()), neocogi_com_sdk::NC_OK);
         }
     }
 
     /// COM authoring metadata reaches the ordinary enum and its payload references.
     #[test]
     fn inspection_exposes_option_as_an_enum_definition() {
-        use neocogi_com::idl_metadata::{TypeShape, ValueType};
+        use neocogi_com_sdk::idl_metadata::{TypeShape, ValueType};
         let description = IValuesAbi::IDL_INTERFACE;
         let options = description.values.iter().filter(|value| value.qualified_name.starts_with("neocogi.lang.OptionInstance")).collect::<Vec<_>>();
         assert_eq!(options.len(), 4);

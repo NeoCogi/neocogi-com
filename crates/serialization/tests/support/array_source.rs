@@ -1,6 +1,6 @@
 //! Fault injection wraps a real owning NCB COM session; data/framing stays real.
-use neocogi_com::{ComBox, NcStatus, NcCopyFromBufferOffset, NcOutputWriter, NC_E_INVALID_ARG, NC_E_BUSY, NC_E_CLOSED, NC_E_NOT_FOUND, NC_E_OUT_OF_RANGE};
-use neocogi_com::serialization::{IDeserializer, IDeserializerAbi, Limits};
+use neocogi_com_sdk::{ComBox, NcStatus, NcCopyFromBufferOffset, NcOutputWriter, NC_E_INVALID_ARG, NC_E_BUSY, NC_E_CLOSED, NC_E_NOT_FOUND, NC_E_OUT_OF_RANGE};
+use neocogi_com_sdk::serialization::{IDeserializer, IDeserializerAbi, Limits};
 
 /// One controlled failure boundary; the first failure remains terminal.
 #[derive(Clone, Copy, PartialEq, Eq)]

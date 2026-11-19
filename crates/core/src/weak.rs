@@ -38,12 +38,12 @@ impl NcSharedWeakRaw {
 ///
 /// Thread-local weak references cannot be sent or shared with another thread:
 /// ```compile_fail
-/// use neocogi_com_core::{WeakComPtr, IUnknown};
+/// use neocogi_com::{WeakComPtr, IUnknown};
 /// fn require_send<T: Send>() {}
 /// require_send::<WeakComPtr<IUnknown>>();
 /// ```
 /// ```compile_fail
-/// use neocogi_com_core::{WeakComPtr, IUnknown};
+/// use neocogi_com::{WeakComPtr, IUnknown};
 /// fn require_sync<T: Sync>() {}
 /// require_sync::<WeakComPtr<IUnknown>>();
 /// ```
@@ -66,7 +66,7 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> WeakComPtr<T, M> {
     ///
     /// Shared and boxed raw states are distinct pointer types:
     /// ```compile_fail
-    /// use neocogi_com_core::{NcSharedWeakRaw, lifetime::NcBoxedLifetimeState};
+    /// use neocogi_com::{NcSharedWeakRaw, lifetime::NcBoxedLifetimeState};
     /// let _ = NcSharedWeakRaw { control: core::ptr::null_mut::<NcBoxedLifetimeState>() };
     /// ```
     pub unsafe fn from_raw_owned(raw: NcSharedWeakRaw) -> Option<Self> {

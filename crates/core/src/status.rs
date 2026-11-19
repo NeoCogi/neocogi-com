@@ -1,4 +1,4 @@
-//! Stable status-code representation and built-in neocogi-com error categories.
+//! Stable status-code representation and built-in neocogi-com-sdk error categories.
 //!
 //! ABI calls use non-negative values for success and negative values for
 //! failure. [`NcStatus`] preserves unknown extension codes, supplies symbolic
@@ -43,7 +43,7 @@ impl NcStatus {
         if self.is_err() { self } else { NC_E_INVALID_ARG }
     }
 
-    /// Returns `true` when this status is one of the built-in `neocogi-com` codes.
+    /// Returns `true` when this status is one of the built-in `neocogi-com-sdk` codes.
     pub const fn is_known(self) -> bool {
         matches!(
             self,
@@ -112,7 +112,7 @@ pub const NC_E_INVALID_TAG: NcStatus = NcStatus::from_code(-3);
 /// requested operation.
 pub const NC_E_INVALID_ARG: NcStatus = NcStatus::from_code(-4);
 
-/// Returned when a shared library exposes an incompatible `neocogi-com` ABI version
+/// Returned when a shared library exposes an incompatible `neocogi-com-sdk` ABI version
 /// or an object supports an interface ID with a different ABI signature.
 pub const NC_E_ABI_VERSION: NcStatus = NcStatus::from_code(-5);
 

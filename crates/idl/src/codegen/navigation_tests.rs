@@ -29,7 +29,7 @@ fn assert_origin(tokens: TokenStream, name: &str, expected: Span) {
 fn typed_interface_and_value_names_keep_their_supplied_identifier_spans() {
     use quote::quote;
     use crate::codegen::model::{AbiMethod, AbiReceiver, AbiReturn, AbiReturnKind};
-    let definition: syn::ItemTrait = syn::parse_str("\n\n pub trait Counter { fn value(&self) -> Result<u32, ::neocogi_com::NcStatus>; }").unwrap();
+    let definition: syn::ItemTrait = syn::parse_str("\n\n pub trait Counter { fn value(&self) -> Result<u32, ::neocogi_com_sdk::NcStatus>; }").unwrap();
     let expected = definition.ident.span();
     let method = AbiMethod {
         ident: syn::parse_quote!(value),
@@ -38,7 +38,7 @@ fn typed_interface_and_value_names_keep_their_supplied_identifier_spans() {
         args: Vec::new(),
         ok: AbiReturn {
             rust_ty: syn::parse_quote!(u32),
-            abi_ty: syn::parse_quote!(<u32 as ::neocogi_com::ComValue>::AbiRepr),
+            abi_ty: syn::parse_quote!(<u32 as ::neocogi_com_sdk::ComValue>::AbiRepr),
             kind: AbiReturnKind::Plain,
         },
     };
@@ -67,7 +67,7 @@ fn typed_interface_and_value_names_keep_their_supplied_identifier_spans() {
             _ => None,
         })
         .collect::<std::collections::BTreeSet<_>>();
-    let public = neocogi_com_core::NcComInterfaceCompanion::ALL
+    let public = neocogi_com::NcComInterfaceCompanion::ALL
         .into_iter()
         .map(|companion| format!("Counter{}", companion.suffix()))
         .collect::<std::collections::BTreeSet<_>>();
@@ -94,10 +94,10 @@ fn typed_interface_and_value_names_keep_their_supplied_identifier_spans() {
         &enumeration.ident,
         &enumeration.vis,
         &cases,
-        quote! { ::neocogi_com::NcAbiDigest::from_static(&[3;32]) },
+        quote! { ::neocogi_com_sdk::NcAbiDigest::from_static(&[3;32]) },
         true,
         false,
-        &syn::parse_quote!(::neocogi_com),
+        &syn::parse_quote!(::neocogi_com_sdk),
     );
     assert_origin(expanded, "Track", enumeration.ident.span());
 }

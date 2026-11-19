@@ -10,7 +10,7 @@ description = "Checkout-only IDL and inspector integration suites"
 
 [dev-dependencies]
 neocogi-idl.workspace = true
-neocogi-com-core.workspace = true
+neocogi-com.workspace = true
 proc-macro2.workspace = true
 quote.workspace = true
 syn = { workspace = true, features = ["visit"] }

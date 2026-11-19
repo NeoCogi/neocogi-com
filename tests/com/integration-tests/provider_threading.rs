@@ -11,7 +11,7 @@ fn shared_provider_minimum_is_independent_of_class_mode() {
     let project = tempfile::tempdir().unwrap();
     fs::create_dir(project.path().join("src")).unwrap();
     fs::write(project.path().join("Cargo.toml"), format!(
-        "[package]\nname='provider-threading-admission'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={facade:?}}}\n[build-dependencies]\nneocogi-idl={{path={compiler:?}}}\n"
+        "[package]\nname='provider-threading-admission'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com-sdk={{path={facade:?}}}\n[build-dependencies]\nneocogi-idl={{path={compiler:?}}}\n"
     )).unwrap();
     fs::write(
         project.path().join("contract.ncidl"),
@@ -45,7 +45,7 @@ fn shared_provider_minimum_is_independent_of_class_mode() {
             format!(
                 r#"
             #![allow(dead_code, unused_imports)]
-            use neocogi_com::{{com_object, ComInterface, ComObject, ComPtr, NcStatus, ThreadLocal, ThreadSafe, ThreadingModel}};
+            use neocogi_com_sdk::{{com_object, ComInterface, ComObject, ComPtr, NcStatus, ThreadLocal, ThreadSafe, ThreadingModel}};
             use std::{{cell::Cell, marker::PhantomData, rc::Rc, sync::{{Arc, MutexGuard}}}};
             mod bindings {{ include!(concat!(env!("OUT_DIR"), "/bindings.rs")); }}
             use bindings::*;

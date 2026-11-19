@@ -11,7 +11,7 @@ pub use values::{Choice, Owned, Record};
 mod keyword_dispatch {
     //! Weak keywords remain unchanged through generated value codecs and calls.
     use super::values::*;
-    use neocogi_com::*;
+    use neocogi_com_sdk::*;
 
     /// Bool fields force checked conversion on both sides of the COM call.
     #[com_object(IKeywordNames)]
@@ -45,7 +45,7 @@ mod keyword_dispatch {
 mod capability_dispatch {
     //! Ordinary handle syntax must enter each legal generated provider method.
     use super::values::*;
-    use neocogi_com::*;
+    use neocogi_com_sdk::*;
     use std::sync::{
         Arc,
         atomic::{AtomicUsize, Ordering},
@@ -118,7 +118,7 @@ mod capability_dispatch {
 #[cfg(test)]
 mod tests {
     use super::values::*;
-    use neocogi_com::*;
+    use neocogi_com_sdk::*;
 
     #[com_object(IValues)]
     /// Echoes copied values and inspects an owned value received through COM.
@@ -213,7 +213,7 @@ mod tests {
         }
     }
 
-    #[derive(neocogi_com::ComSerialize, neocogi_com::ComDeserialize)]
+    #[derive(neocogi_com_sdk::ComSerialize, neocogi_com_sdk::ComDeserialize)]
     /// Handwritten Rust permits names outside IDL's snake-case spelling policy.
     struct PrivateSpelling {
         /// Forces conversion of restricted bits.
@@ -300,8 +300,8 @@ mod tests {
     fn positional_arguments_keep_outputs_and_metadata() {
         let object = Arguments::from_value(Arguments).query::<IArgumentsAbi>().unwrap();
         assert_eq!(object.scalars(1, 2, 3, 4).unwrap(), 4321);
-        let mut status = neocogi_com::NcOutputBuffer::new();
-        let mut result = neocogi_com::NcOutputBuffer::new();
+        let mut status = neocogi_com_sdk::NcOutputBuffer::new();
+        let mut result = neocogi_com_sdk::NcOutputBuffer::new();
         assert_eq!(
             object
                 .buffers(status.output(3, 1), result.output(5, 1), NcCopyFromBufferOffset::new(7, &[record()]), 89)
@@ -321,7 +321,7 @@ mod tests {
 
 #[cfg(test)]
 mod private_arguments {
-    use neocogi_com::*;
+    use neocogi_com_sdk::*;
 
     use super::arguments::*;
     #[com_object(interfaces(IToken), ownership = exclusive)]
@@ -400,8 +400,8 @@ mod support_shadow {
     /// Normal and printed metadata must resolve support through the facade.
     #[test]
     fn local_metadata_keeps_its_identity_type_out_of_application_scope() {
-        let identity: ::neocogi_com::idl_metadata::InterfaceIdentity = IShadowAbi::IDL_INTERFACE.identity;
-        assert_eq!(identity.iid, <IShadowAbi as ::neocogi_com::ComInterface>::IID);
+        let identity: ::neocogi_com_sdk::idl_metadata::InterfaceIdentity = IShadowAbi::IDL_INTERFACE.identity;
+        assert_eq!(identity.iid, <IShadowAbi as ::neocogi_com_sdk::ComInterface>::IID);
         assert_eq!(IShadowAbi::IDL_INTERFACE.chain, &[identity]);
     }
 }
@@ -413,11 +413,11 @@ mod semantic_primitive_shadow {
     type u32 = ::core::primitive::u64;
     include!("support.rs");
 
-    #[neocogi_com::com_object(IShadow)]
+    #[neocogi_com_sdk::com_object(IShadow)]
     struct Echo;
     impl IShadow for Echo {
         fn echo(&self, value: ::core::primitive::u32, other: ::core::primitive::bool)
-            -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus>
+            -> ::core::result::Result<::core::primitive::u32, ::neocogi_com_sdk::NcStatus>
         {
             assert!(other);
             Ok(value + 17)
@@ -427,7 +427,7 @@ mod semantic_primitive_shadow {
     /// Independent primitive expectations accompany an actual generated ABI call.
     #[test]
     fn idl_u32_keeps_identity_and_physical_abi() {
-        use neocogi_com::{ComInterface, NC_ABI_TYPE_U32};
+        use neocogi_com_sdk::{ComInterface, NC_ABI_TYPE_U32};
         assert_eq!(IShadowAbi::INTERFACE_ID, super::support_shadow::IShadowAbi::INTERFACE_ID);
         assert_eq!(ABI_FINGERPRINT, super::support_shadow::ABI_FINGERPRINT);
         assert_eq!(IShadowAbi::METHOD_DESCRIPTORS[0].returns.ty.tag, NC_ABI_TYPE_U32);
@@ -444,7 +444,7 @@ mod primitive_shadow {
     macro_rules! body {
         () => {
             use ::core::primitive as p;
-            use ::neocogi_com::*;
+            use ::neocogi_com_sdk::*;
             include!("support.rs");
 
             /// All provider types are independent expectations of the IDL contract.
@@ -603,7 +603,7 @@ mod primitive_shadow {
     /// Both environments execute independently through their own compatible tables.
     #[test]
     fn primitives_and_helpers_keep_owned_types() {
-        use neocogi_com::ComInterface;
+        use neocogi_com_sdk::ComInterface;
         assert_eq!(ordinary::IPrimitivesAbi::INTERFACE_ID, hostile::IPrimitivesAbi::INTERFACE_ID);
         assert_eq!(ordinary::ABI_FINGERPRINT, hostile::ABI_FINGERPRINT);
         ordinary::exercise();

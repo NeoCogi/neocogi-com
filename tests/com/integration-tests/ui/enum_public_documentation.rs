@@ -2,7 +2,7 @@
 #![deny(missing_docs)]
 #[allow(unused_imports, unused_macros)]
 mod test_contracts { include!(env!("NC_COM_TEST_CONTRACTS")); }
-use neocogi_com::{ComValue};
+use neocogi_com_sdk::{ComValue};
 
 extern crate self as fixture_ui_enum_public_documentation;
 test_contracts::ui_enum_public_documentation!();

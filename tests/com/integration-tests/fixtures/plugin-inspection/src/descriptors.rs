@@ -1,6 +1,6 @@
 //! Immutable readable metadata cases shared by host registration and independently built DSOs.
 use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
-use neocogi_com_core::*;
+use neocogi_com::*;
 
 /// Actual factory entries, independent of metadata discovery/inspection operations.
 static ACQUISITIONS: AtomicUsize = AtomicUsize::new(0);
@@ -11,7 +11,7 @@ pub fn acquisition_count() -> usize {
 }
 
 /// The first deliberate acquisition returns CLOSED; any earlier implicit entry changes that result.
-unsafe extern "C" fn acquire(_host: *const neocogi_com_core::NcHostApiV3, out: *mut ComRaw<IUnknown>) -> NcStatus {
+unsafe extern "C" fn acquire(_host: *const neocogi_com::NcHostApiV3, out: *mut ComRaw<IUnknown>) -> NcStatus {
     if out.is_null() {
         return NC_E_POINTER;
     }

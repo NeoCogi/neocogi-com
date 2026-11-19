@@ -4,7 +4,7 @@ extern crate self as linked_host_app;
 pub mod contracts {
     include!(env!("LINKED_HOST_BINDINGS"));
 }
-use neocogi_com::guid_from_qualified_name;
+use neocogi_com_sdk::guid_from_qualified_name;
 
 /// Loads the two generated providers and checks nested access to the linked host.
 fn main() {

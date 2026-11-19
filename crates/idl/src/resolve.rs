@@ -8,7 +8,7 @@ use std::{
     fmt,
 };
 
-use neocogi_com_core::{NcComDenseEnumMember, NcGuid, guid_from_name, guid_from_qualified_name};
+use neocogi_com::{NcComDenseEnumMember, NcGuid, guid_from_name, guid_from_qualified_name};
 
 use crate::{
     LabelStyle, IdlType, BitEnum, Declaration, DeclarationKind, Diagnostic, Enum, EnumRepr, Method, Module, NamedType, SourceFile, SourceSpan, Threading,
@@ -558,7 +558,7 @@ fn build_entries(modules: Vec<Module>) -> Result<Vec<ModuleEntry>, ResolutionErr
                 }
                 // Owned object composition supplies the canonical IUnknown
                 // projection even without an authored reference to it.
-                if id == neocogi_com_core::IID_IUNKNOWN {
+                if id == neocogi_com::IID_IUNKNOWN {
                     return Err(source_error(
                         "EIDL075",
                         &declaration.span,
@@ -1197,7 +1197,7 @@ fn validate_method_names(interface: &crate::Interface) -> Result<(), ResolutionE
     let diagnostics = interface
         .methods
         .iter()
-        .filter(|method| neocogi_com_core::is_reserved_com_method(&method.name) || method.name == prefix.name())
+        .filter(|method| neocogi_com::is_reserved_com_method(&method.name) || method.name == prefix.name())
         .map(|method| {
             Diagnostic::new(
                 "EIDL100",
@@ -2359,12 +2359,12 @@ fn error(module: Option<&str>, message: impl Into<String>) -> ResolutionError {
 }
 
 /// Recognizes core object capabilities without manufacturing IDL declarations.
-pub(crate) fn builtin_object(name: &NamedType) -> Option<neocogi_com_core::NcInterfaceId> {
-    use neocogi_com_core::ComInterface;
+pub(crate) fn builtin_object(name: &NamedType) -> Option<neocogi_com::NcInterfaceId> {
+    use neocogi_com::ComInterface;
     match name.binding {
-        Binding::Intrinsic(Intrinsic::Unknown) => Some(neocogi_com_core::IUnknown::INTERFACE_ID),
-        Binding::Intrinsic(Intrinsic::Bytes) => Some(neocogi_com_core::INcBytesAbi::INTERFACE_ID),
-        Binding::Intrinsic(Intrinsic::String) => Some(neocogi_com_core::INcStringAbi::INTERFACE_ID),
+        Binding::Intrinsic(Intrinsic::Unknown) => Some(neocogi_com::IUnknown::INTERFACE_ID),
+        Binding::Intrinsic(Intrinsic::Bytes) => Some(neocogi_com::INcBytesAbi::INTERFACE_ID),
+        Binding::Intrinsic(Intrinsic::String) => Some(neocogi_com::INcStringAbi::INTERFACE_ID),
         _ => None,
     }
 }

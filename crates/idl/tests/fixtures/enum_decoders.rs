@@ -3,7 +3,7 @@ pub mod contract;
 #[cfg(test)]
 mod tests {
     use crate::contract;
-    use neocogi_com::ComSerialize;
+    use neocogi_com_sdk::ComSerialize;
     use neocogi_com_serialization::ncb as binary;
     /// Copied active fields cover every enum payload convention.
     #[derive(ComSerialize)]
@@ -67,8 +67,8 @@ mod tests {
     #[test]
     fn scalar_and_sequence_persistence_is_symmetric() {
         let value = contract::Scalars {
-            id: neocogi_com::NcGuid::from_uuid_bytes([0xAB; 16]),
-            status: neocogi_com::NcStatus::from_code(-12345),
+            id: neocogi_com_sdk::NcGuid::from_uuid_bytes([0xAB; 16]),
+            status: neocogi_com_sdk::NcStatus::from_code(-12345),
             flags: contract::Flags::from_raw(0x8003),
             mode: contract::Mode::from_raw(250),
         };
@@ -80,7 +80,7 @@ mod tests {
         let bytes = binary::to_vec(&position).unwrap();
         assert_eq!(binary::from_slice::<contract::Position>(&bytes).unwrap(), position);
         assert_eq!(binary::from_slice::<[i32; 2]>(&bytes).unwrap(), [-2, 9]);
-        assert!(binary::from_slice::<neocogi_com::NcGuid>(&binary::to_vec(&[0u8; 15]).unwrap()).is_err());
+        assert!(binary::from_slice::<neocogi_com_sdk::NcGuid>(&binary::to_vec(&[0u8; 15]).unwrap()).is_err());
     }
 
 }

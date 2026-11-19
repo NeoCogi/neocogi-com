@@ -1,6 +1,6 @@
 //! Strict custom JSON grammar, Unicode, numeric precision and error coordinates.
 #![cfg(feature = "json")]
-use neocogi_com::serialization::{Format, Limits, ISerializationDiagnosticsAbi};
+use neocogi_com_sdk::serialization::{Format, Limits, ISerializationDiagnosticsAbi};
 
 #[path = "support/json_numbers.rs"]
 mod json_numbers;
@@ -158,15 +158,15 @@ fn syntax_errors_identify_the_exact_byte_line_and_column() {
 fn collection_admission_stops_before_the_next_subtree() {
     let format = Format::new(neocogi_com_serialization::json::factory(), Limits { elements: 0, ..Limits::default() });
     let error = format.deserialize::<Vec<()>>(b"[null,null,INVALID]").unwrap_err();
-    assert_eq!(error.status, neocogi_com::NC_E_OUT_OF_RANGE);
+    assert_eq!(error.status, neocogi_com_sdk::NC_E_OUT_OF_RANGE);
     assert_eq!(error.byte_offset, Some(11));
 }
 
 /// Entered, selected and missing fields share the unambiguous name rendering.
 #[test]
 fn logical_paths_quote_ambiguous_literal_field_names() {
-    use neocogi_com::{ComDeserialize, NC_E_INVALID_ARG, NcCopyFromBufferOffset, NcStatus};
-    use neocogi_com::serialization::{Deserializer, Error};
+    use neocogi_com_sdk::{ComDeserialize, NC_E_INVALID_ARG, NcCopyFromBufferOffset, NcStatus};
+    use neocogi_com_sdk::serialization::{Deserializer, Error};
 
     #[derive(Debug, ComDeserialize)]
     #[allow(dead_code)]
@@ -222,7 +222,7 @@ fn logical_paths_quote_ambiguous_literal_field_names() {
             } else {
                 view.fail(NcCopyFromBufferOffset::new(0, b"missing field")).unwrap_err()
             };
-            assert_eq!(error, if present { neocogi_com::NC_E_OUT_OF_RANGE } else { NC_E_INVALID_ARG });
+            assert_eq!(error, if present { neocogi_com_sdk::NC_E_OUT_OF_RANGE } else { NC_E_INVALID_ARG });
             let first = Error::capture(error, &source);
             assert_eq!(first.path, path);
             assert_eq!(view.finish(), Err(error));

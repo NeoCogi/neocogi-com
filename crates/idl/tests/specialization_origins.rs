@@ -1,7 +1,7 @@
 //! UUID collisions cannot erase bound meaning before capability validation.
 
 use std::path::Path;
-use neocogi_com_core::{guid_from_name, guid_from_qualified_name, NcGuid};
+use neocogi_com::{guid_from_name, guid_from_qualified_name, NcGuid};
 use neocogi_idl::{parse_module, resolve_modules, Module, ModuleGraphError};
 
 /// Parses source under a real logical module name.

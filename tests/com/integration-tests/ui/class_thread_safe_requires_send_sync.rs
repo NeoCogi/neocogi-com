@@ -1,6 +1,6 @@
 #[allow(unused_imports, unused_macros)]
 mod test_contracts { include!(env!("NC_COM_TEST_CONTRACTS")); }
-use neocogi_com::{NcStatus, com_object};
+use neocogi_com_sdk::{NcStatus, com_object};
 use std::rc::Rc;
 
 extern crate self as fixture_ui_class_thread_safe_requires_send_sync;

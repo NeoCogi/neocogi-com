@@ -1,14 +1,14 @@
 [package]
-name = "neocogi-com-core"
+name = "neocogi-com"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-documentation = "https://docs.rs/neocogi-com-core"
+documentation = "https://docs.rs/neocogi-com"
 readme = "README.md"
-description = "Experimental core ABI types for neocogi-com"
+description = "NeoCogi COM ABI contracts, pointers, and portable value support"
 keywords = ["com", "abi", "ffi", "plugin"]
 categories = ["api-bindings", "development-tools::ffi"]
 

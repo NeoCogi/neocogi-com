@@ -1,7 +1,7 @@
 //! The production thin shim exposes the same factories and diagnostics as static linking.
 use std::{path::Path, process::Command};
-use neocogi_com::{ComSerialize, ComDeserialize, NcCopyFromBufferOffset};
-use neocogi_com::serialization::{ISerializationPluginAbi, Format, Limits};
+use neocogi_com_sdk::{ComSerialize, ComDeserialize, NcCopyFromBufferOffset};
+use neocogi_com_sdk::serialization::{ISerializationPluginAbi, Format, Limits};
 
 #[path = "../../../crates/serialization/tests/support/json_numbers.rs"]
 mod json_numbers;
@@ -79,8 +79,8 @@ fn native_shim_supplies_formats_and_failure_details() {
 
 /// Exercises host persistence with the actual independently built deployment DLL.
 /// This process never registers a static serialization descriptor.
-fn persistence_round_trip(runtime: &neocogi_com::RuntimeHandle) {
-    use neocogi_com::persistence::{FactoryRegistry, IPersistableAbi, ObjectRecord, snapshot};
+fn persistence_round_trip(runtime: &neocogi_com_sdk::RuntimeHandle) {
+    use neocogi_com_sdk::persistence::{FactoryRegistry, IPersistableAbi, ObjectRecord, snapshot};
     let value = Persistent::from_value(Persistent);
     let bytes = snapshot(runtime, value.as_com_ref()).unwrap();
     let expected = neocogi_com_serialization::ncb::to_vec(&ObjectRecord {
@@ -99,54 +99,54 @@ fn persistence_round_trip(runtime: &neocogi_com::RuntimeHandle) {
     assert_eq!(restored.query::<IPersistableAbi>().unwrap().schema_version().unwrap(), 1);
     assert_eq!(snapshot(runtime, restored.as_com_ref()).unwrap(), bytes);
     for end in 0..bytes.len() {
-        assert_eq!(registry.restore(&bytes[..end]).unwrap_err(), neocogi_com::NC_E_INVALID_ARG);
+        assert_eq!(registry.restore(&bytes[..end]).unwrap_err(), neocogi_com_sdk::NC_E_INVALID_ARG);
     }
     let mut trailing = bytes;
     trailing.push(0);
-    assert_eq!(registry.restore(&trailing).unwrap_err(), neocogi_com::NC_E_INVALID_ARG);
+    assert_eq!(registry.restore(&trailing).unwrap_err(), neocogi_com_sdk::NC_E_INVALID_ARG);
 }
 
 /// Explicit recipe identity for an application object crossing the loaded codec.
-const PERSISTENT_KIND: neocogi_com::NcGuid = neocogi_com::guid_from_qualified_name("nc.tests.loaded-serialization.persistence");
+const PERSISTENT_KIND: neocogi_com_sdk::NcGuid = neocogi_com_sdk::guid_from_qualified_name("nc.tests.loaded-serialization.persistence");
 
 /// Opaque application state; the host and codec own only its persistence envelope.
-#[neocogi_com::com_object(neocogi_com::persistence::IPersistable)]
+#[neocogi_com_sdk::com_object(neocogi_com_sdk::persistence::IPersistable)]
 struct Persistent;
-impl neocogi_com::persistence::IPersistable for Persistent {
-    fn type_id(&self) -> Result<neocogi_com::NcGuid, neocogi_com::NcStatus> {
+impl neocogi_com_sdk::persistence::IPersistable for Persistent {
+    fn type_id(&self) -> Result<neocogi_com_sdk::NcGuid, neocogi_com_sdk::NcStatus> {
         Ok(PERSISTENT_KIND)
     }
-    fn schema_version(&self) -> Result<u32, neocogi_com::NcStatus> {
+    fn schema_version(&self) -> Result<u32, neocogi_com_sdk::NcStatus> {
         Ok(1)
     }
-    fn save_state(&self) -> Result<neocogi_com::ComPtr<neocogi_com::INcBytesAbi>, neocogi_com::NcStatus> {
-        Ok(neocogi_com::NcBytes::from_vec(vec![1, 2, 3]))
+    fn save_state(&self) -> Result<neocogi_com_sdk::ComPtr<neocogi_com_sdk::INcBytesAbi>, neocogi_com_sdk::NcStatus> {
+        Ok(neocogi_com_sdk::NcBytes::from_vec(vec![1, 2, 3]))
     }
-    fn child_count(&self) -> Result<u32, neocogi_com::NcStatus> {
+    fn child_count(&self) -> Result<u32, neocogi_com_sdk::NcStatus> {
         Ok(0)
     }
-    fn child(&self, _: u32) -> Result<neocogi_com::ComPtr<neocogi_com::IUnknown>, neocogi_com::NcStatus> {
-        Err(neocogi_com::NC_E_OUT_OF_RANGE)
+    fn child(&self, _: u32) -> Result<neocogi_com_sdk::ComPtr<neocogi_com_sdk::IUnknown>, neocogi_com_sdk::NcStatus> {
+        Err(neocogi_com_sdk::NC_E_OUT_OF_RANGE)
     }
 }
 
 /// Reconstruction validates the initialization received through real COM calls.
-#[neocogi_com::com_object(neocogi_com::persistence::IPersistenceFactory)]
+#[neocogi_com_sdk::com_object(neocogi_com_sdk::persistence::IPersistenceFactory)]
 struct PersistenceFactory;
-impl neocogi_com::persistence::IPersistenceFactory for PersistenceFactory {
-    fn validate(&self, version: u32, state: NcCopyFromBufferOffset<'_, u8>, count: u32) -> Result<(), neocogi_com::NcStatus> {
+impl neocogi_com_sdk::persistence::IPersistenceFactory for PersistenceFactory {
+    fn validate(&self, version: u32, state: NcCopyFromBufferOffset<'_, u8>, count: u32) -> Result<(), neocogi_com_sdk::NcStatus> {
         if version == 1 && state.offset() == 0 && state.as_slice() == [1, 2, 3] && count == 0 {
             Ok(())
         } else {
-            Err(neocogi_com::NC_E_INVALID_ARG)
+            Err(neocogi_com_sdk::NC_E_INVALID_ARG)
         }
     }
     fn restore(
         &self,
         version: u32,
         state: NcCopyFromBufferOffset<'_, u8>,
-        children: neocogi_com::ComRef<'_, neocogi_com::persistence::IObjectChildrenAbi>,
-    ) -> Result<neocogi_com::ComPtr<neocogi_com::IUnknown>, neocogi_com::NcStatus> {
+        children: neocogi_com_sdk::ComRef<'_, neocogi_com_sdk::persistence::IObjectChildrenAbi>,
+    ) -> Result<neocogi_com_sdk::ComPtr<neocogi_com_sdk::IUnknown>, neocogi_com_sdk::NcStatus> {
         self.validate(version, state, children.count()?)?;
         Persistent::from_value(Persistent).query()
     }
@@ -157,7 +157,7 @@ impl neocogi_com::persistence::IPersistenceFactory for PersistenceFactory {
 /// either production crate. This corpus avoids intentional range/duplicate-key
 /// policy differences and exercises the actual parser inside the loaded library.
 fn compare_json_grammar(format: &Format) {
-    use neocogi_com::serialization::ISerializationDiagnosticsAbi;
+    use neocogi_com_sdk::serialization::ISerializationDiagnosticsAbi;
     let original = "[true,false,null,17,-2,0.5,\"é\\n\",{\"nested\":[0,1]}]".as_bytes();
     let mut bytes = original.to_vec();
     for index in 0..bytes.len() {

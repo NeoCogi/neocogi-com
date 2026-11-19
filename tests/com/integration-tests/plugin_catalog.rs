@@ -2,12 +2,12 @@
 
 use core::{mem::MaybeUninit, ptr};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use neocogi_com::*;
+use neocogi_com_sdk::*;
 
 /// Counts bootstrap calls so metadata operations cannot silently acquire objects.
 static ACQUIRES: AtomicUsize = AtomicUsize::new(0);
 /// Returns a distinctive ordinary acquisition error without transferring ownership.
-unsafe extern "C" fn acquire(_host: *const neocogi_com::NcHostApiV3, out: *mut ComRaw<IUnknown>) -> NcStatus {
+unsafe extern "C" fn acquire(_host: *const neocogi_com_sdk::NcHostApiV3, out: *mut ComRaw<IUnknown>) -> NcStatus {
     unsafe { out.write(ComRaw::null()) };
     ACQUIRES.fetch_add(1, Ordering::SeqCst);
     NC_E_CLOSED
@@ -117,7 +117,7 @@ fn complete_records_are_coherent_owned_and_stable_across_growth() {
 extern crate neocogi_com_host as _;
 
 /// Initializes this final test executable's selected host and admits its static tables.
-fn host_runtime() -> neocogi_com::RuntimeHandle {
+fn host_runtime() -> neocogi_com_sdk::RuntimeHandle {
     // SAFETY: the explicit implementation owns its complete process-lived graph.
-    unsafe { neocogi_com::RuntimeHandle::__from_host_api(neocogi_com_host::initialize_process()) }.expect("test host API is compatible")
+    unsafe { neocogi_com_sdk::RuntimeHandle::__from_host_api(neocogi_com_host::initialize_process()) }.expect("test host API is compatible")
 }

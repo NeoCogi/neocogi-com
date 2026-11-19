@@ -59,7 +59,7 @@ fn rust_ownership_rejections_match_the_invalid_expressions() {
         ("local_guard_thread_affinity", [("E0277", "scope.spawn")].as_slice()),
     ];
     let mut manifest = format!(
-        "[package]\nname='ownership-rejections'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\n",
+        "[package]\nname='ownership-rejections'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com-sdk={{path={:?}}}\n",
         owner.join("../../crates/com"),
     );
     for (name, _) in &cases {
@@ -145,7 +145,7 @@ fn generated_objects_require_their_interface_implementation() {
     let project = tempfile::tempdir().unwrap();
     fs::create_dir(project.path().join("src")).unwrap();
     fs::write(project.path().join("Cargo.toml"), format!(
-        "[package]\nname='missing-generated-impl'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\n[build-dependencies]\nneocogi-idl={{path={:?}}}\n",
+        "[package]\nname='missing-generated-impl'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com-sdk={{path={:?}}}\n[build-dependencies]\nneocogi-idl={{path={:?}}}\n",
         owner.join("../../crates/com"), owner.join("../../crates/idl"),
     )).unwrap();
     fs::write(
@@ -169,7 +169,7 @@ fn generated_objects_require_their_interface_implementation() {
         r#"
         extern crate self as missing_generated_impl;
         pub mod abi { include!(env!("MISSING_IMPL_BINDINGS")); }
-        #[neocogi_com::com_object(abi::IMissingImpl)]
+        #[neocogi_com_sdk::com_object(abi::IMissingImpl)]
         pub struct MissingImpl;
     "#,
     )

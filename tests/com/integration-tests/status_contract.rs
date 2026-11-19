@@ -2,7 +2,7 @@
 mod test_contracts {
     include!(concat!(env!("OUT_DIR"), "/test_contracts.rs"));
 }
-use neocogi_com::{ComPtr, IUnknown, NC_E_INVALID_ARG, NC_OK, NcStatus, com_object};
+use neocogi_com_sdk::{ComPtr, IUnknown, NC_E_INVALID_ARG, NC_OK, NcStatus, com_object};
 
 extern crate self as fixture_status_contract;
 test_contracts::status_contract!();
@@ -48,7 +48,7 @@ fn generated_thunks_normalize_only_non_negative_errors_for_every_return_shape() 
         assert_eq!(plain_out, 0xfeed_beef);
         assert_eq!(invalid.plain(invalid_error), Err(expected));
 
-        let sentinel = neocogi_com::ComRaw::<IUnknown> {
+        let sentinel = neocogi_com_sdk::ComRaw::<IUnknown> {
             object: core::ptr::dangling_mut(),
             vtable: core::ptr::null(),
         };
@@ -78,8 +78,8 @@ fn keyword_shaped_payload_variants_round_trip_without_identifier_collisions() {
         KeywordPayload::Crate(9),
         KeywordPayload::Empty(10),
     ] {
-        let wire = neocogi_com::encode_inline(&value).unwrap();
+        let wire = neocogi_com_sdk::encode_inline(&value).unwrap();
         // SAFETY: checked inline encoding supplies valid self-contained storage.
-        assert_eq!(unsafe { neocogi_com::decode_inline::<KeywordPayload>(&wire) }, Ok(value));
+        assert_eq!(unsafe { neocogi_com_sdk::decode_inline::<KeywordPayload>(&wire) }, Ok(value));
     }
 }

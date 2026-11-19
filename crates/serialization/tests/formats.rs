@@ -1,8 +1,8 @@
 //! Production codecs share typed values, bounded sessions and static registration.
 #![cfg(feature = "plugin")]
 use std::collections::BTreeMap;
-use neocogi_com::{ComSerialize, ComDeserialize, NcCopyFromBufferOffset, NC_E_NOINTERFACE};
-use neocogi_com::serialization::{Format, Limits};
+use neocogi_com_sdk::{ComSerialize, ComDeserialize, NcCopyFromBufferOffset, NC_E_NOINTERFACE};
+use neocogi_com_sdk::serialization::{Format, Limits};
 
 /// Exercises all derived payload shapes and named case probing.
 #[derive(Debug, PartialEq, ComSerialize, ComDeserialize)]
@@ -175,7 +175,7 @@ fn named_formats_validate_syntax_and_schema() {
 /// API, and remain queryable directly through the read-only COM projection.
 #[test]
 fn failures_report_their_message_and_location() {
-    use neocogi_com::serialization::{ISerializationDiagnosticsAbi, Deserializer};
+    use neocogi_com_sdk::serialization::{ISerializationDiagnosticsAbi, Deserializer};
     for (name, format) in formats() {
         let broken: &[u8] = match name {
             "ncb" => b"bad!",
@@ -188,7 +188,7 @@ fn failures_report_their_message_and_location() {
         let status = details.failure_status().unwrap();
         assert!(status.is_err());
         assert!(details.message_len().unwrap() > 0);
-        let mut short = neocogi_com::NcOutputBuffer::<u8>::new();
+        let mut short = neocogi_com_sdk::NcOutputBuffer::<u8>::new();
         assert!(details.copy_message(short.output(0, 0)).is_err());
         assert!(short.is_empty());
         let error = format.deserialize::<Defaults>(broken).unwrap_err();

@@ -97,7 +97,7 @@ impl<'ast> Visit<'ast> for Docs {
 #[test]
 fn descriptions_are_literals_across_all_method_shapes_and_printed_consumers() {
     let source = r#"
-        /// Authored α "quotes" and :: neocogi_com remain literal prose.
+        /// Authored α "quotes" and :: neocogi_com_sdk remain literal prose.
         interface Owned {}
         struct Payload { text: String }
         interface Shapes {
@@ -114,7 +114,7 @@ fn descriptions_are_literals_across_all_method_shapes_and_printed_consumers() {
     let mut docs = Docs::default();
     docs.visit_file(&file);
     for expected in [
-        "Authored α \"quotes\" and :: neocogi_com remain literal prose.",
+        "Authored α \"quotes\" and :: neocogi_com_sdk remain literal prose.",
         "Calls [`Shapes::echo`]",
         "- `raw_0`",
         "- `value`",
@@ -158,8 +158,8 @@ fn descriptions_are_literals_across_all_method_shapes_and_printed_consumers() {
                 // A separate actual provider proves this consumer can make COM calls.
                 mod calls {{
                     $CALL_BINDING
-                    #[neocogi_com::com_object(interfaces(Call))] struct Provider;
-                    impl Call for Provider {{ fn echo(&self, raw_0: [u8;2]) -> Result<[u8;2], neocogi_com::NcStatus> {{ Ok(raw_0) }} }}
+                    #[neocogi_com_sdk::com_object(interfaces(Call))] struct Provider;
+                    impl Call for Provider {{ fn echo(&self, raw_0: [u8;2]) -> Result<[u8;2], neocogi_com_sdk::NcStatus> {{ Ok(raw_0) }} }}
                     #[test] fn real_call() {{
                         let owner = Provider::from_value(Provider).query::<CallAbi>().unwrap();
                         ::core::assert_eq!(owner.echo([17,73]), Ok([17,73]));
@@ -279,7 +279,7 @@ fn raw_documentation_matches_physical_slots_and_returned_ownership() {
     let implementation = r#"
         #![allow(dead_code)]
         $BINDING
-        use neocogi_com::*;
+        use neocogi_com_sdk::*;
         #[com_object(Owned)] struct SharedValue;
         impl Owned for SharedValue {}
         #[com_object(interfaces(Owned), ownership = exclusive)] struct UniqueValue;
@@ -348,18 +348,18 @@ fn crate_relative_bootstrap_with_consuming_proofs_builds_against_core_only() {
     let generated = crate::generate::generate_bootstrap(&graph, "proof.bootstrap").unwrap();
     assert!(generated.abi.contains("crate::ComValue"));
     assert!(generated.abi.contains("[`crate::NcOutput`]"));
-    assert!(!generated.abi.contains("::neocogi_com::ComValue"));
+    assert!(!generated.abi.contains("::neocogi_com_sdk::ComValue"));
     assert!(generated.abi.contains("Literal :: neocogi_com text"));
     assert!(generated.abi.contains("MAX_COST.is_some()"));
     let mut docs = Docs::default();
     docs.visit_file(&syn::parse_file(&generated.abi).unwrap());
     assert!(docs.text.iter().any(|text| text.contains("[`::neocogi_com::ComBox`]")));
     let manifest = consumer.directory.path().join("Cargo.toml");
-    fs::write(&manifest, format!("[package]\nname='bootstrap-core-root-control'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com-core={{path={:?},default-features=false}}\n", consumer.core)).unwrap();
+    fs::write(&manifest, format!("[package]\nname='bootstrap-core-root-control'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?},default-features=false}}\n", consumer.core)).unwrap();
     fs::write(consumer.directory.path().join("src/abi.rs"), &generated.abi).unwrap();
     fs::write(
         consumer.directory.path().join("src/lib.rs"),
-        "#![no_std]\n#![allow(dead_code)]\npub use neocogi_com_core::*;\ninclude!(\"abi.rs\");\n",
+        "#![no_std]\n#![allow(dead_code)]\npub use neocogi_com::*;\ninclude!(\"abi.rs\");\n",
     )
     .unwrap();
     for command in [vec!["check", "--offline"], vec!["doc", "--offline", "--no-deps"]] {

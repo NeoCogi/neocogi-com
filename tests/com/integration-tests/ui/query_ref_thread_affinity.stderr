@@ -1,13 +1,13 @@
-error[E0277]: `neocogi_com::ComRef<'_, IUnknown>` cannot be sent between threads safely
+error[E0277]: `neocogi_com_sdk::ComRef<'_, IUnknown>` cannot be sent between threads safely
  --> integration-tests/ui/query_ref_thread_affinity.rs:5:18
   |
 5 |     require_send(owner.query_ref::<IUnknown>().unwrap());
-  |     ------------ ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `neocogi_com::ComRef<'_, IUnknown>` cannot be sent between threads safely
+  |     ------------ ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `neocogi_com_sdk::ComRef<'_, IUnknown>` cannot be sent between threads safely
   |     |
   |     required by a bound introduced by this call
   |
-  = help: the trait `Send` is not implemented for `neocogi_com::ComRef<'_, IUnknown>`
-help: the trait `Send` is implemented for `neocogi_com::ComRef<'_, T, neocogi_com::ThreadSafe>`
+  = help: the trait `Send` is not implemented for `neocogi_com_sdk::ComRef<'_, IUnknown>`
+help: the trait `Send` is implemented for `neocogi_com_sdk::ComRef<'_, T, neocogi_com_sdk::ThreadSafe>`
  --> $WORKSPACE/crates/core/src/ptr.rs
   |
   | unsafe impl<T: ComInterface + ?Sized> Send for ComRef<'_, T, ThreadSafe> {}

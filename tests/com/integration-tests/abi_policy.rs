@@ -2,15 +2,15 @@
 mod test_contracts {
     include!(concat!(env!("OUT_DIR"), "/test_contracts.rs"));
 }
-use neocogi_com::{
+use neocogi_com_sdk::{
     ComInterface, ComPtr, IUnknown, NC_ABI_THREADING_THREAD_LOCAL, NC_OK, NcAbiDigest, NcPluginDescriptor, NcStatus, write_plugin_root, com_object,
     format_abi_signature, format_method_signature, guid_from_qualified_name, validate_plugin_descriptor,
 };
 
 mod external_fields {
-    use neocogi_com::{ComPtr, NcCopyFromBufferOffset, NcStatus, com_object};
+    use neocogi_com_sdk::{ComPtr, NcCopyFromBufferOffset, NcStatus, com_object};
 
-    // Models a C-layout dependency type with no neocogi-com traits.
+    // Models a C-layout dependency type with no neocogi-com-sdk traits.
     #[repr(C)]
     #[derive(Clone, Copy, Debug, PartialEq)]
     struct Pair {
@@ -21,20 +21,20 @@ mod external_fields {
     // SAFETY: this external C record contains only unrestricted f32 leaves.
     // External layout alone is insufficient; the adapter explicitly provides
     // the same checked conversion contract required of every other field.
-    unsafe impl neocogi_com::ComValue for Pair {
-        type AbiRepr = <ContractPair as neocogi_com::ComValue>::AbiRepr;
+    unsafe impl neocogi_com_sdk::ComValue for Pair {
+        type AbiRepr = <ContractPair as neocogi_com_sdk::ComValue>::AbiRepr;
         type KeepAlive = ();
-        fn encode_value(&self, budget: &mut neocogi_com::ValueBudget) -> Result<(Self::AbiRepr, ()), NcStatus> {
-            neocogi_com::ComValue::encode_value(&ContractPair { x: self.x, y: self.y }, budget)
+        fn encode_value(&self, budget: &mut neocogi_com_sdk::ValueBudget) -> Result<(Self::AbiRepr, ()), NcStatus> {
+            neocogi_com_sdk::ComValue::encode_value(&ContractPair { x: self.x, y: self.y }, budget)
         }
-        unsafe fn decode_value(wire: &Self::AbiRepr, budget: &mut neocogi_com::ValueBudget) -> Result<Self, NcStatus> {
+        unsafe fn decode_value(wire: &Self::AbiRepr, budget: &mut neocogi_com_sdk::ValueBudget) -> Result<Self, NcStatus> {
             // SAFETY: the caller supplies the explicit generated ContractPair wire.
-            let pair = unsafe { <ContractPair as neocogi_com::ComValue>::decode_value(wire, budget) }?;
+            let pair = unsafe { <ContractPair as neocogi_com_sdk::ComValue>::decode_value(wire, budget) }?;
             Ok(Self { x: pair.x, y: pair.y })
         }
     }
     // SAFETY: Pair has no pointer or ownership-bearing field.
-    unsafe impl neocogi_com::ComInlineValue for Pair {}
+    unsafe impl neocogi_com_sdk::ComInlineValue for Pair {}
 
     #[allow(unused_imports)]
     pub use fixture_abi_policy::{ExternalFieldsContractPair as ContractPair};
@@ -73,7 +73,7 @@ mod external_fields {
 
     #[test]
     fn native_adapter_uses_the_generated_contract_wire() {
-        use neocogi_com::ComValue;
+        use neocogi_com_sdk::ComValue;
         let interface: ComPtr<IExternalFieldsAbi> = ExternalFields::from_value(ExternalFields).query().unwrap();
         let native = Pair { x: 1.25, y: -2.5 };
         let (pair_wire, _storage) = native.encode_value(&mut Default::default()).unwrap();
@@ -82,7 +82,7 @@ mod external_fields {
         let raw = interface.as_raw();
         let mut output = core::mem::MaybeUninit::uninit();
         // SAFETY: real checked input wire, live owned provider and writable exact output.
-        assert_eq!(unsafe { ((*raw.vtable).echo)(raw.object, input, output.as_mut_ptr()) }, neocogi_com::NC_OK);
+        assert_eq!(unsafe { ((*raw.vtable).echo)(raw.object, input, output.as_mut_ptr()) }, neocogi_com_sdk::NC_OK);
         let decoded = unsafe { Sample::decode_value(output.assume_init_ref(), &mut Default::default()) }.unwrap();
         let (returned, _) = decoded.pairs[0].encode_value(&mut Default::default()).unwrap();
         let result = unsafe { Pair::decode_value(&returned, &mut Default::default()) }.unwrap();
@@ -127,8 +127,8 @@ impl ValueFactory for ValueFactoryObject {
 }
 
 /// Acquires one owned root; object construction remains on its typed methods.
-#[neocogi_com::plugin(name = "nc.tests.factory_plugin", version = "1.0.0")]
-fn acquire_root(_runtime: ::neocogi_com::RuntimeHandle) -> Result<neocogi_com::ComPtr<ValueFactoryAbi>, neocogi_com::NcStatus> {
+#[neocogi_com_sdk::plugin(name = "nc.tests.factory_plugin", version = "1.0.0")]
+fn acquire_root(_runtime: ::neocogi_com_sdk::RuntimeHandle) -> Result<neocogi_com_sdk::ComPtr<ValueFactoryAbi>, neocogi_com_sdk::NcStatus> {
     ValueFactoryObject::from_value(ValueFactoryObject).query()
 }
 
@@ -150,7 +150,7 @@ fn idl_descriptions_separate_shape_from_construction() {
 /// Confirms factory implementation metadata and typed bootstrap agree.
 #[test]
 fn factory_bootstrap_transfers_the_exact_typed_root() {
-    let mut unknown = neocogi_com::ComRaw::<IUnknown>::null();
+    let mut unknown = neocogi_com_sdk::ComRaw::<IUnknown>::null();
     // SAFETY: The local output slot accepts one erased owned factory pair.
     assert_eq!(unsafe { write_plugin_root(&mut unknown, || acquire_root(crate::host_runtime())) }, NC_OK);
     // SAFETY: Successful acquisition transferred exactly one live reference.
@@ -173,12 +173,12 @@ fn factory_plugin_metadata_has_no_repeated_root_contract() {
     let mut exported = core::ptr::null::<NcPluginDescriptor>();
     // SAFETY: `exported` supplies one writable pointer slot to the generated
     // dynamic-library entrypoint.
-    assert_eq!(unsafe { neocogi_com::return_plugin_descriptor(&mut exported, plugin_descriptor()) }, NC_OK);
+    assert_eq!(unsafe { neocogi_com_sdk::return_plugin_descriptor(&mut exported, plugin_descriptor()) }, NC_OK);
     assert!(core::ptr::eq(exported, description));
     // The renamed C export preserves the null-output error contract.
     assert_eq!(
-        unsafe { neocogi_com::return_plugin_descriptor(core::ptr::null_mut(), plugin_descriptor()) },
-        neocogi_com::NC_E_POINTER
+        unsafe { neocogi_com_sdk::return_plugin_descriptor(core::ptr::null_mut(), plugin_descriptor()) },
+        neocogi_com_sdk::NC_E_POINTER
     );
 }
 
@@ -242,7 +242,7 @@ fn generated_method_order_and_signatures_are_stable() {
 }
 
 /// Initializes this final test executable's selected host and admits its static tables.
-fn host_runtime() -> neocogi_com::RuntimeHandle {
+fn host_runtime() -> neocogi_com_sdk::RuntimeHandle {
     // SAFETY: the explicit implementation owns its complete process-lived graph.
-    unsafe { neocogi_com::RuntimeHandle::__from_host_api(neocogi_com_host::initialize_process()) }.expect("test host API is compatible")
+    unsafe { neocogi_com_sdk::RuntimeHandle::__from_host_api(neocogi_com_host::initialize_process()) }.expect("test host API is compatible")
 }

@@ -6,6 +6,10 @@ Historical draft numbers do not define additional supported COM baselines.
 
 ## Unreleased
 
+- Rename the ABI and pointer package to `neocogi-com` and the Rust SDK to
+  `neocogi-com-sdk`. The compiler uses the base package. Regenerated bindings
+  and procedural macros use the SDK, which reexports the same ABI types.
+
 - Applications link `neocogi-com-host` and pass its runtime access to providers.
   The optional alpha.1 host shim and its SDK loader are retired. The linked host
   continues to load native provider libraries, including the serialization

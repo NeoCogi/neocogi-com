@@ -13,7 +13,7 @@ use core::ffi::c_void;
 use std::sync::{Arc, Condvar, Mutex};
 use std::vec::Vec;
 
-use neocogi_com_core::{
+use neocogi_com::{
     NC_COM_RUNTIME_MAX_ACTIVE_DEBUG_MESSENGERS, NC_DEBUG_SEVERITY_ALL, NC_DEBUG_TYPE_ALL, NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_OK,
     NcDebugCallbackV3, NcDebugMessageV3, NcDebugMessengerCreateInfoV3, NcStatus,
 };
@@ -234,7 +234,7 @@ pub(crate) unsafe extern "C" fn destroy_messenger(handle: u64) {
 mod tests {
     use super::*;
     use core::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-    use neocogi_com_core::{NC_DEBUG_SEVERITY_ERROR, NC_DEBUG_TYPE_RUNTIME, NcDebugMessengerCreateInfoV3, NcUtf8View};
+    use neocogi_com::{NC_DEBUG_SEVERITY_ERROR, NC_DEBUG_TYPE_RUNTIME, NcDebugMessengerCreateInfoV3, NcUtf8View};
     use std::sync::{Arc, Barrier};
 
     unsafe extern "C" fn count_callback(_severity: u32, _value_type: u32, _message: *const NcDebugMessageV3, user_data: *mut c_void) {

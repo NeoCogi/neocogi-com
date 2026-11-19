@@ -270,7 +270,7 @@ pub struct BuildOutput {
     /// Exact dotted logical module name.
     pub module_name: String,
     /// Stable identity derived from the module name.
-    pub module_id: neocogi_com_core::NcGuid,
+    pub module_id: neocogi_com::NcGuid,
     /// Transitive canonical ABI fingerprint.
     pub abi_fingerprint: [u8; 32],
     /// Generated Rust definitions loaded as a normal module by `include`.

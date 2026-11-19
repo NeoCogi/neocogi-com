@@ -2,17 +2,17 @@
 
 use neocogi_com_serialization::ncb as binary;
 use std::{cell::Cell, rc::Rc};
-use neocogi_com::{
+use neocogi_com_sdk::{
     com_object, ComInterface, ComPtr, ComRef, IUnknown, IUnknownVTable, INcBytesAbi, LocalCom, NcBytes, NcGuid, NcStatus, WeakComPtr, NC_E_BUSY,
     NC_E_INVALID_ARG, NC_E_NOT_FOUND, NC_E_OUT_OF_RANGE,
 };
-use neocogi_com::persistence::{IPersistable, IPersistableAbi, IPersistableVtblFor, Limits, ObjectRecord};
+use neocogi_com_sdk::persistence::{IPersistable, IPersistableAbi, IPersistableVtblFor, Limits, ObjectRecord};
 
 // A valid exact IUnknown table copy for generated common-header allocations.
 // It changes dispatch storage, with identical lifecycle methods and identity.
 static ALTERNATE: IUnknownVTable = IUnknownVTable {
     interface_id: &<IUnknown as ComInterface>::INTERFACE_ID,
-    ..neocogi_com::lifetime::SHARED_UNKNOWN_VTABLE
+    ..neocogi_com_sdk::lifetime::SHARED_UNKNOWN_VTABLE
 };
 
 /// Legal alternate exact IUnknown view transfers the same retained allocation.
@@ -145,7 +145,7 @@ impl IPersistable for Node {
 thread_local! {
     /// Thread-confined immutable tables; each capture releases byte owners before
     /// thread teardown. OnceCell supplies stable addresses without a Send promise.
-    static BYTE_TABLES: std::cell::OnceCell<[neocogi_com::INcBytesVTable; 3]> = const { std::cell::OnceCell::new() };
+    static BYTE_TABLES: std::cell::OnceCell<[neocogi_com_sdk::INcBytesVTable; 3]> = const { std::cell::OnceCell::new() };
     /// Synchronous capture stays on this thread; independent tests cannot alter counts.
     static BYTE_ERRORS: Cell<[usize; 2]> = const { Cell::new([0, 0]) };
 }
@@ -187,7 +187,7 @@ unsafe extern "C" fn oversized_length(_: *mut core::ffi::c_void, out: *mut u64) 
     });
     // SAFETY: The checked COM caller lends a live, writable length output.
     unsafe { out.write(isize::MAX as u64 + 1) };
-    neocogi_com::NC_OK
+    neocogi_com_sdk::NC_OK
 }
 
 /// Transfers one actual NcBytes owner through a table with one selected probe.
@@ -197,7 +197,7 @@ fn failing_bytes(owner: ComPtr<INcBytesAbi>, stage: usize) -> ComPtr<INcBytesAbi
         let tables = cell.get_or_init(|| {
             // SAFETY: this owned actual byte object protects its immutable static table.
             let original = unsafe { &*raw.vtable };
-            let table = |len, copy_to| neocogi_com::INcBytesVTable {
+            let table = |len, copy_to| neocogi_com_sdk::INcBytesVTable {
                 unknown: IUnknownVTable {
                     interface_id: original.unknown.interface_id,
                     query_interface: original.unknown.query_interface,
@@ -273,7 +273,7 @@ impl Entry {
     /// Raw delivery stays untouched on capture failure and matches safe bytes on success.
     fn capture(self, root: ComRef<'_, IUnknown>, limits: Limits) -> Result<Vec<u8>, NcStatus> {
         match self {
-            Self::Safe => neocogi_com::persistence::snapshot_with_limits(&crate::host_runtime(), root, limits),
+            Self::Safe => neocogi_com_sdk::persistence::snapshot_with_limits(&crate::host_runtime(), root, limits),
             Self::Raw => {
                 let mut sink = Sink { bytes: Vec::new(), calls: 0 };
                 // SAFETY: linked table is static; root and exclusive sink outlive the call.
@@ -306,7 +306,7 @@ unsafe extern "C" fn deliver(context: *mut core::ffi::c_void, bytes: *const u8, 
     let sink = unsafe { &mut *context.cast::<Sink>() };
     sink.calls += 1;
     sink.bytes.extend_from_slice(unsafe { core::slice::from_raw_parts(bytes, length) });
-    neocogi_com::NC_OK
+    neocogi_com_sdk::NC_OK
 }
 
 /// Run an identified graph through each real API and assert status/work/final cleanup.

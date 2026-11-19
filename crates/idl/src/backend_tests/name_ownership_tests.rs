@@ -202,30 +202,30 @@ pub(crate) fn contract(source: &str) -> String {
 fn object_bindings_preserve_owned_generic_state_after_printing() {
     let bindings = contract("interface IValue { fn value(&self) -> Result<u32>; fn replace(&mut self, value: u32) -> Result<()>; }");
     let implementations = r#"
-        #[neocogi_com::com_object(interfaces(IValue))]
+        #[neocogi_com_sdk::com_object(interfaces(IValue))]
         struct Object<const value: usize, const contracts: usize, const __nc_initial_value: usize> { saved: u32 }
-        #[neocogi_com::com_object(interfaces(IValue), ownership = exclusive)]
+        #[neocogi_com_sdk::com_object(interfaces(IValue), ownership = exclusive)]
         struct Exclusive<const value: usize, const contracts: usize, const __nc_initial_value: usize> { saved: u32 }
         macro_rules! implement {
             ($object:ident) => {
                 impl<const value: usize, const contracts: usize, const __nc_initial_value: usize> $object<value, contracts, __nc_initial_value> { const COM_VTABLES: u8 = 91; }
                 impl<const value: usize, const contracts: usize, const __nc_initial_value: usize> IValue for $object<value, contracts, __nc_initial_value> {
-                    fn value(&self) -> Result<u32, neocogi_com::NcStatus> { Ok(self.saved) }
-                    fn replace(&mut self, replacement: u32) -> Result<(), neocogi_com::NcStatus> { self.saved=replacement; Ok(()) }
+                    fn value(&self) -> Result<u32, neocogi_com_sdk::NcStatus> { Ok(self.saved) }
+                    fn replace(&mut self, replacement: u32) -> Result<(), neocogi_com_sdk::NcStatus> { self.saved=replacement; Ok(()) }
                 }
             };
         }
         implement!(Object); implement!(Exclusive);
         // The binder belongs to the application; only the generated count is primitive usize.
-        #[neocogi_com::com_object(interfaces(IValue))]
+        #[neocogi_com_sdk::com_object(interfaces(IValue))]
         struct Generic<usize: Copy + From<::core::primitive::u32> + Into<::core::primitive::u32> + 'static> { saved: usize }
-        #[neocogi_com::com_object(interfaces(IValue), ownership = exclusive)]
+        #[neocogi_com_sdk::com_object(interfaces(IValue), ownership = exclusive)]
         struct GenericExclusive<usize: Copy + From<::core::primitive::u32> + Into<::core::primitive::u32> + 'static> { saved: usize }
         macro_rules! generic {
             ($object:ident) => {
                 impl<usize: Copy + From<::core::primitive::u32> + Into<::core::primitive::u32> + 'static> IValue for $object<usize> {
-                    fn value(&self) -> Result<::core::primitive::u32, neocogi_com::NcStatus> { Ok(self.saved.into()) }
-                    fn replace(&mut self, replacement: ::core::primitive::u32) -> Result<(), neocogi_com::NcStatus> {
+                    fn value(&self) -> Result<::core::primitive::u32, neocogi_com_sdk::NcStatus> { Ok(self.saved.into()) }
+                    fn replace(&mut self, replacement: ::core::primitive::u32) -> Result<(), neocogi_com_sdk::NcStatus> {
                         self.saved = replacement.into(); Ok(())
                     }
                 }
@@ -257,7 +257,7 @@ fn object_bindings_preserve_owned_generic_state_after_printing() {
                 let weak_shared = shared.downgrade().unwrap(); let weak_exclusive = exclusive.downgrade();
                 drop(shared); drop(exclusive);
                 assert!(weak_shared.upgrade().unwrap().is_none());
-                assert_eq!(weak_exclusive.value(), Err(neocogi_com::NC_E_DROPPED));
+                assert_eq!(weak_exclusive.value(), Err(neocogi_com_sdk::NC_E_DROPPED));
             }}
         "#
             ),
@@ -284,19 +284,19 @@ fn plugin_implementation_items_have_private_lexical_ownership() {
         {
             for rejected in [false, true] {
                 let acquisition = if rejected {
-                    "Err(neocogi_com::NC_E_CLOSED)"
+                    "Err(neocogi_com_sdk::NC_E_CLOSED)"
                 } else {
                     "Root::from_value(Root).query()"
                 };
                 let declarations = format!(
                     r#"
-                    const {identifier}: neocogi_com::NcGuid = neocogi_com::guid_from_qualified_name("test.naming.Plugin");
-                    const NC_COM_PLUGIN_DEPENDENCIES: neocogi_com::NcGuid = neocogi_com::guid_from_qualified_name("test.naming.Dependency");
+                    const {identifier}: neocogi_com_sdk::NcGuid = neocogi_com_sdk::guid_from_qualified_name("test.naming.Plugin");
+                    const NC_COM_PLUGIN_DEPENDENCIES: neocogi_com_sdk::NcGuid = neocogi_com_sdk::guid_from_qualified_name("test.naming.Dependency");
                     {bindings}
-                    #[neocogi_com::com_object(interfaces(IRoot))] struct Root;
-                    impl IRoot for Root {{ fn value(&self) -> Result<u32, neocogi_com::NcStatus> {{ Ok(73) }} }}
-                    #[neocogi_com::plugin(name = "test.naming.Plugin", plugin_id({identifier}), version = "1.2.3", dependencies = [NC_COM_PLUGIN_DEPENDENCIES])]
-                    fn __nc_acquire_plugin_root(_runtime: ::neocogi_com::RuntimeHandle) -> Result<neocogi_com::ComPtr<IRootAbi>, neocogi_com::NcStatus> {{ {acquisition} }}
+                    #[neocogi_com_sdk::com_object(interfaces(IRoot))] struct Root;
+                    impl IRoot for Root {{ fn value(&self) -> Result<u32, neocogi_com_sdk::NcStatus> {{ Ok(73) }} }}
+                    #[neocogi_com_sdk::plugin(name = "test.naming.Plugin", plugin_id({identifier}), version = "1.2.3", dependencies = [NC_COM_PLUGIN_DEPENDENCIES])]
+                    fn __nc_acquire_plugin_root(_runtime: ::neocogi_com_sdk::RuntimeHandle) -> Result<neocogi_com_sdk::ComPtr<IRootAbi>, neocogi_com_sdk::NcStatus> {{ {acquisition} }}
                 "#
                 );
                 let declarations = source_items(&declarations, expand);
@@ -304,7 +304,7 @@ fn plugin_implementation_items_have_private_lexical_ownership() {
                     r#"
                     mod case_{index}_{rejected} {{
                         {declarations}
-                        const DESCRIPTOR: &neocogi_com::NcPluginDescriptor = plugin_descriptor();
+                        const DESCRIPTOR: &neocogi_com_sdk::NcPluginDescriptor = plugin_descriptor();
                         #[test] fn typed_descriptor_and_acquisition_use_authored_references() {{
                             let descriptor = plugin_descriptor();
                             assert!(::core::ptr::eq(descriptor, DESCRIPTOR));
@@ -317,16 +317,16 @@ fn plugin_implementation_items_have_private_lexical_ownership() {
                             let mut raw = root.as_raw();
                             let status = unsafe {{ descriptor.acquire.unwrap()(neocogi_com_host::initialize_process(), &mut raw) }};
                             if {rejected} {{
-                                assert_eq!(status, neocogi_com::NC_E_CLOSED);
+                                assert_eq!(status, neocogi_com_sdk::NC_E_CLOSED);
                                 assert!(raw.is_null());
                             }} else {{
                                 assert!(status.is_ok());
                                 // SAFETY: success supplies a live common prefix. Erasure must
                                 // retain the root's identity rather than certify IUnknown.
-                                assert_eq!(unsafe {{ neocogi_com::raw::validate_interface(raw) }}, Err(neocogi_com::NC_E_NOINTERFACE));
+                                assert_eq!(unsafe {{ neocogi_com_sdk::raw::validate_interface(raw) }}, Err(neocogi_com_sdk::NC_E_NOINTERFACE));
                                 // SAFETY: the live transferred owner is releasable; checked
                                 // adoption proves the actual factory contract before use.
-                                let acquired = unsafe {{ neocogi_com::ComPtr::<IRootAbi>::__nc_from_raw_owned_checked(raw.cast()) }}.unwrap();
+                                let acquired = unsafe {{ neocogi_com_sdk::ComPtr::<IRootAbi>::__nc_from_raw_owned_checked(raw.cast()) }}.unwrap();
                                 assert_eq!(acquired.value().unwrap(), 73);
                             }}
                             assert_eq!(root.query::<IRootAbi>().unwrap().value().unwrap(), 73);
@@ -361,7 +361,7 @@ fn value_and_decoder_locals_do_not_capture_authored_const_expressions() {
         const __NC_CASE_COST: usize = 2;
         const __nc_require_plain: usize = 2;
         const __nc_require_inline: usize = 2;
-        #[derive(neocogi_com::ComSerialize, neocogi_com::ComDeserialize)]
+        #[derive(neocogi_com_sdk::ComSerialize, neocogi_com_sdk::ComDeserialize)]
         struct Data {
             first: [u32; __nc_budget],
             second: [u32; __nc_reader],
@@ -408,18 +408,18 @@ fn field_types_keep_application_self_and_opaque_macro_scope() {
         const __nc_reader: usize = 2;
         macro_rules! bytes_for { ($owner:ty) => { [u8; <$owner>::WIDTH] }; }
         macro_rules! ambient_bytes { () => { [u8; __nc_reader] }; }
-        #[derive(neocogi_com::ComSerialize, neocogi_com::ComDeserialize)]
+        #[derive(neocogi_com_sdk::ComSerialize, neocogi_com_sdk::ComDeserialize)]
         struct Fixed { direct: [u8; Self::WIDTH], opaque: bytes_for!(Self) }
         impl Fixed { const WIDTH: usize = 2; }
-        #[derive(neocogi_com::ComSerialize, neocogi_com::ComDeserialize)]
+        #[derive(neocogi_com_sdk::ComSerialize, neocogi_com_sdk::ComDeserialize)]
         struct Tree { bytes: bytes_for!(Self), children: Vec<Self> }
         impl Tree { const WIDTH: usize = 2; }
         // Persistence alone must not require any live COM value contract.
-        #[derive(neocogi_com::ComSerialize, neocogi_com::ComDeserialize)]
+        #[derive(neocogi_com_sdk::ComSerialize, neocogi_com_sdk::ComDeserialize)]
         struct Persistent { bytes: ambient_bytes!() }
-        #[derive(neocogi_com::ComSerialize, neocogi_com::ComDeserialize)]
+        #[derive(neocogi_com_sdk::ComSerialize, neocogi_com_sdk::ComDeserialize)]
         pub struct PublicPersistent { inner: Persistent }
-        #[derive(neocogi_com::ComSerialize, neocogi_com::ComDeserialize)]
+        #[derive(neocogi_com_sdk::ComSerialize, neocogi_com_sdk::ComDeserialize)]
         pub struct Envelope { inner: Tree, tag: u8 }
         pub fn envelope() -> Envelope {
             Envelope { inner: Tree { bytes: [3, 17], children: vec![] }, tag: 17 }
@@ -428,23 +428,23 @@ fn field_types_keep_application_self_and_opaque_macro_scope() {
         // Opaque expansion manufactures a name absent from the derive input tokens.
         #[allow(non_camel_case_types)] type __NcNativeFields = ::core::primitive::u32;
         macro_rules! native_type { () => { __NcNativeFields }; }
-        #[derive(Debug, PartialEq, neocogi_com::ComSerialize, neocogi_com::ComDeserialize)]
+        #[derive(Debug, PartialEq, neocogi_com_sdk::ComSerialize, neocogi_com_sdk::ComDeserialize)]
         struct Opaque { value: native_type!() }
-        #[derive(neocogi_com::ComSerialize, neocogi_com::ComDeserialize)]
+        #[derive(neocogi_com_sdk::ComSerialize, neocogi_com_sdk::ComDeserialize)]
         struct Explicit { value: ::core::primitive::u32 }
-        #[derive(neocogi_com::ComSerialize, neocogi_com::ComDeserialize)]
+        #[derive(neocogi_com_sdk::ComSerialize, neocogi_com_sdk::ComDeserialize)]
         struct Visible { value: __NcNativeFields }
-        #[derive(Debug, PartialEq, neocogi_com::ComSerialize, neocogi_com::ComDeserialize)]
+        #[derive(Debug, PartialEq, neocogi_com_sdk::ComSerialize, neocogi_com_sdk::ComDeserialize)]
         struct Positional(u8, native_type!());
-        #[derive(Debug, PartialEq, neocogi_com::ComSerialize, neocogi_com::ComDeserialize)]
+        #[derive(Debug, PartialEq, neocogi_com_sdk::ComSerialize, neocogi_com_sdk::ComDeserialize)]
         enum Shapes { Empty, Wrapped(native_type!()), Pair(u8, native_type!()), Named { value: native_type!() } }
-        #[derive(Debug, PartialEq, neocogi_com::ComSerialize, neocogi_com::ComDeserialize)]
+        #[derive(Debug, PartialEq, neocogi_com_sdk::ComSerialize, neocogi_com_sdk::ComDeserialize)]
         #[com_deserialize(default)]
         struct Defaulted { prefix: u8, value: native_type!() }
         impl ::core::default::Default for Defaulted {
             fn default() -> Self { Self { prefix: 11, value: 29 } }
         }
-        #[derive(neocogi_com::ComSerialize)] struct Prefix { prefix: u8 }
+        #[derive(neocogi_com_sdk::ComSerialize)] struct Prefix { prefix: u8 }
         pub fn opaque_round_trips() {
             let native = Opaque { value: 73 };
             let bytes = neocogi_com_serialization::ncb::to_vec(&native).unwrap();
@@ -472,7 +472,7 @@ fn field_types_keep_application_self_and_opaque_macro_scope() {
     let aliases = r#"
         #[allow(non_camel_case_types)] type u32 = ::core::primitive::u64;
         #[allow(non_camel_case_types)] type usize = ::core::primitive::u8;
-        #[derive(neocogi_com::ComSerialize, neocogi_com::ComDeserialize)]
+        #[derive(neocogi_com_sdk::ComSerialize, neocogi_com_sdk::ComDeserialize)]
         struct Aliased { large: u32, small: usize }
         pub(super) fn round_trip() {
             let large = ::core::primitive::u64::from(::core::primitive::u32::MAX) + 73;
@@ -629,12 +629,12 @@ fn value_case(family: ValueFamily, incompatible: bool) -> String {
     let encode_return = if incompatible {
         "u32"
     } else {
-        "Result<(<Self as neocogi_com::ComValue>::AbiRepr, <Self as neocogi_com::ComValue>::KeepAlive), neocogi_com::NcStatus>"
+        "Result<(<Self as neocogi_com_sdk::ComValue>::AbiRepr, <Self as neocogi_com_sdk::ComValue>::KeepAlive), neocogi_com_sdk::NcStatus>"
     };
     let decode = if incompatible {
-        "fn decode_prechecked(_: <Self as neocogi_com::ComValue>::AbiRepr) -> u32 { 99 }".to_owned()
+        "fn decode_prechecked(_: <Self as neocogi_com_sdk::ComValue>::AbiRepr) -> u32 { 99 }".to_owned()
     } else {
-        format!("fn decode_prechecked(_: <Self as neocogi_com::ComValue>::AbiRepr) -> Result<Self, neocogi_com::NcStatus> {{ Ok({wrong}) }}")
+        format!("fn decode_prechecked(_: <Self as neocogi_com_sdk::ComValue>::AbiRepr) -> Result<Self, neocogi_com_sdk::NcStatus> {{ Ok({wrong}) }}")
     };
     format!(
         r#"
@@ -648,15 +648,15 @@ fn value_case(family: ValueFamily, incompatible: bool) -> String {
         const __nc_Record_abi_signature_bytes: u32 = 91;
         {declaration}
         impl Record {{
-            const FIXED_COST: Option<neocogi_com::ValueCost> = Some(neocogi_com::ValueCost::SCALAR);
+            const FIXED_COST: Option<neocogi_com_sdk::ValueCost> = Some(neocogi_com_sdk::ValueCost::SCALAR);
             const BORROW_ABI_REPR: u32 = 7;
             fn encode_prechecked(&self) -> {encode_return} {{ unreachable!("application encode must not run") }}
             {decode}
         }}
-        #[neocogi_com::com_object(interfaces(IValue))]
+        #[neocogi_com_sdk::com_object(interfaces(IValue))]
         struct Object;
         impl IValue for Object {{
-            fn observe(&self, value: neocogi_com::NcValueRef<'_, Record>) -> Result<u32, neocogi_com::NcStatus> {{
+            fn observe(&self, value: neocogi_com_sdk::NcValueRef<'_, Record>) -> Result<u32, neocogi_com_sdk::NcStatus> {{
                 let decoded = value.to_owned()?;
                 Ok({read})
             }}
@@ -665,13 +665,13 @@ fn value_case(family: ValueFamily, incompatible: bool) -> String {
         fn trait_codec_owns_conversion_and_accounting() {{
             let native = {native};
             // A record/alternative plus its u32 requires exactly two values/depth two.
-            assert!(<Record as neocogi_com::ComValue>::encode_value(&native, &mut neocogi_com::ValueBudget::new(0, 1, 1)).is_err());
-            let (wire, storage) = <Record as neocogi_com::ComValue>::encode_value(&native, &mut neocogi_com::ValueBudget::new(0, {cost}, 2)).unwrap();
-            let decoded = unsafe {{ <Record as neocogi_com::ComValue>::decode_value(&wire, &mut neocogi_com::ValueBudget::new(0, {cost}, 2)) }}.unwrap();
+            assert!(<Record as neocogi_com_sdk::ComValue>::encode_value(&native, &mut neocogi_com_sdk::ValueBudget::new(0, 1, 1)).is_err());
+            let (wire, storage) = <Record as neocogi_com_sdk::ComValue>::encode_value(&native, &mut neocogi_com_sdk::ValueBudget::new(0, {cost}, 2)).unwrap();
+            let decoded = unsafe {{ <Record as neocogi_com_sdk::ComValue>::decode_value(&wire, &mut neocogi_com_sdk::ValueBudget::new(0, {cost}, 2)) }}.unwrap();
             assert_eq!({read}, 73);
             drop(storage);
             let owner = Object::from_value(Object).query::<IValueAbi>().unwrap();
-            assert_eq!(owner.observe(neocogi_com::NcValueRef::new(&native).unwrap()).unwrap(), 73);
+            assert_eq!(owner.observe(neocogi_com_sdk::NcValueRef::new(&native).unwrap()).unwrap(), 73);
         }}
     "#
     )
@@ -715,8 +715,8 @@ fn authored_wire_names_are_distinct_from_private_wire_definitions() {
             {first} {second}
             #[test] fn associated_wire_type_is_the_only_required_locator() {{
                 for native in [Selection::AbiRepr(AbiRepr {{ value: 73 }}), Selection::KeepAlive(AbiRepr {{ value: 91 }})] {{
-                    let wire = neocogi_com::encode_inline(&native).unwrap();
-                    let decoded = unsafe {{ neocogi_com::decode_inline::<Selection>(&wire) }}.unwrap();
+                    let wire = neocogi_com_sdk::encode_inline(&native).unwrap();
+                    let decoded = unsafe {{ neocogi_com_sdk::decode_inline::<Selection>(&wire) }}.unwrap();
                     match (native, decoded) {{
                         (Selection::AbiRepr(a), Selection::AbiRepr(b)) | (Selection::KeepAlive(a), Selection::KeepAlive(b)) => assert_eq!(a.value, b.value),
                         _ => panic!("variant changed"),
@@ -750,28 +750,28 @@ fn core_support_cannot_be_replaced_by_application_traits_or_macros() {
             macro_rules! panic {{ ($($input:tt)*) => {{ compile_error!("application panic selected") }}; }}
             impl Tag {{
                 fn encode_prechecked(&self) -> u32 {{ 99 }}
-                fn decode_prechecked(_: u8) -> Result<Self, neocogi_com::NcStatus> {{ Ok(Self::Other) }}
+                fn decode_prechecked(_: u8) -> Result<Self, neocogi_com_sdk::NcStatus> {{ Ok(Self::Other) }}
             }}
             impl Flags {{
                 fn encode_prechecked(&self) -> u32 {{ 99 }}
                 fn decode_prechecked(_: u8) -> u32 {{ 99 }}
             }}
             {declaration}
-            #[neocogi_com::com_object(interfaces(IValue))] struct Object;
-            impl IValue for Object {{ fn echo(&self, value: u32) -> Result<u32, neocogi_com::NcStatus> {{ Ok(value) }} }}
+            #[neocogi_com_sdk::com_object(interfaces(IValue))] struct Object;
+            impl IValue for Object {{ fn echo(&self, value: u32) -> Result<u32, neocogi_com_sdk::NcStatus> {{ Ok(value) }} }}
             #[test] fn values_masks_and_metadata_keep_their_meaning() {{
                 ::core::assert!(!Tag::from_raw(99).is_known());
-                ::core::assert_eq!(neocogi_com::encode_inline(&Tag::from_raw(99)).unwrap_err(), neocogi_com::NC_E_INVALID_TAG);
-                ::core::assert_eq!(neocogi_com::encode_inline(&Tag::Ready).unwrap(), 1);
-                let decoded = unsafe {{ <Tag as neocogi_com::ComValue>::decode_value(&1, &mut neocogi_com::ValueBudget::default()) }}.unwrap();
+                ::core::assert_eq!(neocogi_com_sdk::encode_inline(&Tag::from_raw(99)).unwrap_err(), neocogi_com_sdk::NC_E_INVALID_TAG);
+                ::core::assert_eq!(neocogi_com_sdk::encode_inline(&Tag::Ready).unwrap(), 1);
+                let decoded = unsafe {{ <Tag as neocogi_com_sdk::ComValue>::decode_value(&1, &mut neocogi_com_sdk::ValueBudget::default()) }}.unwrap();
                 ::core::assert_eq!(decoded.raw(), 1);
                 let flags = Flags::KNOWN_BITS | Flags::WRITABLE;
                 ::core::assert!(flags.is_valid());
                 ::core::assert!(!Flags::from_raw(4).is_valid());
                 ::core::assert_eq!(<Flags as ::core::default::Default>::default().raw(), 0);
-                ::core::assert_eq!(neocogi_com::encode_inline(&flags).unwrap(), 3);
-                ::core::assert_eq!(neocogi_com::encode_inline(&Flags::from_raw(4)).unwrap_err(), neocogi_com::NC_E_INVALID_TAG);
-                let decoded = unsafe {{ <Flags as neocogi_com::ComValue>::decode_value(&3, &mut neocogi_com::ValueBudget::default()) }}.unwrap();
+                ::core::assert_eq!(neocogi_com_sdk::encode_inline(&flags).unwrap(), 3);
+                ::core::assert_eq!(neocogi_com_sdk::encode_inline(&Flags::from_raw(4)).unwrap_err(), neocogi_com_sdk::NC_E_INVALID_TAG);
+                let decoded = unsafe {{ <Flags as neocogi_com_sdk::ComValue>::decode_value(&3, &mut neocogi_com_sdk::ValueBudget::default()) }}.unwrap();
                 ::core::assert_eq!(decoded.raw(), 3);
                 let method = IValueAbi::METHOD_DESCRIPTORS[0];
                 ::core::assert_eq!(unsafe {{ method.name.as_str() }}.unwrap(), "echo");

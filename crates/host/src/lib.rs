@@ -1,4 +1,4 @@
-//! Process-global runtime implementation for `neocogi-com`.
+//! Process-global runtime implementation for `neocogi-com-sdk`.
 //!
 //! One append-only plugin catalog owns validated descriptors, borrowed hard
 //! dependencies and registration provenance. Dynamic records retain their first
@@ -18,7 +18,7 @@
 //! return statuses. Caller-owned persistence contexts stay outside the catalog.
 //!
 //! The host role belongs to the final application that selects this package.
-//! Interface callers and providers share the separate `neocogi-com` SDK. A
+//! Interface callers and providers share the separate `neocogi-com-sdk` SDK. A
 //! provider can call other providers, and a host can implement callbacks. This
 //! implementation uses SDK ownership/contracts with `std` and core raw
 //! service records. The SDK's normal dependencies do not select this host.
@@ -56,13 +56,13 @@ pub use loader::{
 /// invoke no provider and load no library. Returning a typed handle keeps proof
 /// of the complete service graph here; safe callers need not adopt raw pointers.
 /// A mismatch in this implementation's canonical tables is an internal error.
-pub fn initialize_runtime() -> neocogi_com::RuntimeHandle {
+pub fn initialize_runtime() -> neocogi_com_sdk::RuntimeHandle {
     let host = initialize_process();
     // SAFETY: this host owns HOST_API and every reachable table and callback as
     // immutable linked statics. RuntimeState is process-lived; shared catalog
     // and debug callbacks synchronize access. Persistence contexts retain their
     // explicit caller-owned, thread-local and exclusive-operation contract.
-    unsafe { neocogi_com::RuntimeHandle::__from_host_api(host) }.expect("invalid canonical neocogi-com host API")
+    unsafe { neocogi_com_sdk::RuntimeHandle::__from_host_api(host) }.expect("invalid canonical neocogi-com-sdk host API")
 }
 
 /// Initializes the selected host implementation and lends its canonical C API.
@@ -77,7 +77,7 @@ pub fn initialize_runtime() -> neocogi_com::RuntimeHandle {
 /// retain their thread-local and exclusive-operation requirements.
 /// Ordinary Rust startup uses [`initialize_runtime`]; this raw description is
 /// for code that explicitly works with the service ABI.
-pub fn initialize_process() -> &'static neocogi_com::NcHostApiV3 {
+pub fn initialize_process() -> &'static neocogi_com_sdk::NcHostApiV3 {
     let _ = state::RuntimeState::global();
     &api::HOST_API
 }

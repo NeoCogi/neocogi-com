@@ -1,7 +1,7 @@
 //! Private JSON syntax, never an application payload ABI.
 use alloc::{collections::BTreeMap, string::String, vec::Vec};
-use neocogi_com::{NcStatus, NC_E_OUT_OF_RANGE, NC_E_OUT_OF_MEMORY};
-use neocogi_com::serialization::Limits;
+use neocogi_com_sdk::{NcStatus, NC_E_OUT_OF_RANGE, NC_E_OUT_OF_MEMORY};
+use neocogi_com_sdk::serialization::Limits;
 
 /// Exact numeric categories retained until a typed COM scalar is requested.
 #[derive(Debug)]

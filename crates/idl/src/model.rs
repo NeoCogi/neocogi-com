@@ -1,6 +1,6 @@
 //! Owned syntax model shared by generation, build integration, and tools.
 
-use neocogi_com_core::NcGuid;
+use neocogi_com::NcGuid;
 
 use crate::SourceSpan;
 

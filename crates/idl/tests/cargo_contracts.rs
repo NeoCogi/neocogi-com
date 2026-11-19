@@ -48,7 +48,7 @@ fn colliding_display_names_build_and_call_together() {
         let source = path.join("idl").join(&source_path);
         fs::create_dir_all(source.parent().unwrap()).unwrap();
         let mut manifest = format!(
-            "[package]\nname='{package}'\nversion='0.0.0'\nedition='2024'\nlinks={:?}\n[dependencies]\nneocogi-com={{path={:?}}}\n",
+            "[package]\nname='{package}'\nversion='0.0.0'\nedition='2024'\nlinks={:?}\n[dependencies]\nneocogi-com-sdk={{path={:?}}}\n",
             contract_links_name(module),
             root.join("crates/com"),
         );
@@ -68,7 +68,7 @@ fn colliding_display_names_build_and_call_together() {
         let idl = if package == "host" {
             library.push_str(
                 r#"
-use neocogi_com::{com_object, NcStatus};
+use neocogi_com_sdk::{com_object, NcStatus};
 #[com_object(Host)]
 struct Probe;
 impl Host for Probe {
@@ -232,7 +232,7 @@ fn imported_generics_use_typed_routes_through_direct_providers() {
         fs::create_dir_all(source.parent().unwrap()).unwrap();
         fs::create_dir_all(path.join("src")).unwrap();
         let mut manifest = format!(
-            "[package]\nname='{package}'\nversion='0.0.0'\nedition='2024'\nlinks={:?}\n[dependencies]\nneocogi-com={{path={:?}}}\n",
+            "[package]\nname='{package}'\nversion='0.0.0'\nedition='2024'\nlinks={:?}\n[dependencies]\nneocogi-com-sdk={{path={:?}}}\n",
             contract_links_name(module),
             root.join("crates/com"),
         );
@@ -260,7 +260,7 @@ fn imported_generics_use_typed_routes_through_direct_providers() {
                 r#"
 {entry}
 use bridge::{{Fixed, Service, ServiceAbi, ServiceVtblFor}};
-use neocogi_com::{{com_object, ComRef, NcStatus}};
+use neocogi_com_sdk::{{com_object, ComRef, NcStatus}};
 #[com_object(Service)] struct Source;
 impl Service for Source {{ fn read(&self) -> Result<Fixed, NcStatus> {{ Ok(Fixed {{ count: 40 }}) }} }}
 #[com_object(Client)] struct Controller;

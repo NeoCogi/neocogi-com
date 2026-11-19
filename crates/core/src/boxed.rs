@@ -26,7 +26,7 @@ use crate::lifetime::{try_box_cast, NcBoxedLifetimeState};
 /// only storage and code lifetime, never the initialized value.
 ///
 /// ```compile_fail
-/// use neocogi_com_core::{ComBox, IUnknown};
+/// use neocogi_com::{ComBox, IUnknown};
 /// fn duplicate(owner: ComBox<IUnknown>) { let second = owner.clone(); }
 /// ```
 #[repr(transparent)]
@@ -46,7 +46,7 @@ pub struct ComBox<T: ComInterface + ?Sized, M: ThreadingModel = ThreadLocal> {
 /// Clone/drop affect only weak bookkeeping; they never prolong the object's value lifetime.
 ///
 /// ```compile_fail
-/// use neocogi_com_core::{WeakComBox, IUnknown};
+/// use neocogi_com::{WeakComBox, IUnknown};
 /// fn require_send<T: Send>() {}
 /// require_send::<WeakComBox<IUnknown>>();
 /// ```

@@ -1,9 +1,9 @@
-//! Core ABI types for `neocogi-com`.
+//! Portable ABI contracts and typed interface pointers for NeoCogi COM.
 //!
 //! This crate contains the small C-shaped binary contract shared by hosts and
 //! plugins: status codes, GUIDs, `IUnknown`, descriptor metadata, versioned
 //! runtime table layouts, common read-only bytes/string raw interfaces, and ABI version
-//! constants. Higher-level Rust ergonomics and allocation-backed objects live in `neocogi-com`;
+//! constants. Higher-level Rust ergonomics and allocation-backed objects live in `neocogi-com-sdk`;
 //! process-global dynamic loading and registry state live in `neocogi-com-host`.
 //!
 //! Descriptor metadata supports runtime validation and inspection. It exposes

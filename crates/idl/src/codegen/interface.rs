@@ -6,7 +6,7 @@
 //! surface, so pointer ownership, buffer bounds, and documentation stay aligned.
 
 use quote::{format_ident, quote};
-use neocogi_com_core::NcComInterfaceCompanion as Companion;
+use neocogi_com::NcComInterfaceCompanion as Companion;
 use syn::Result;
 
 use crate::codegen::method_docs::{literal_doc, raw_vtable_method_docs, safe_method_docs};

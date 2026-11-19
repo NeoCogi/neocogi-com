@@ -1,4 +1,4 @@
-use neocogi_com::NcValueRef;
+use neocogi_com_sdk::NcValueRef;
 
 fn main() {
     let guard;

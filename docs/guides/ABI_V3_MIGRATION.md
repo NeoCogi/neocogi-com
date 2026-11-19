@@ -37,6 +37,23 @@ must switch to linked startup via `#[com_main]` or `initialize_runtime()`.
 Copying access does not create another registry. Persistence still requires
 explicit registration/loading of `nc.serialization` and selects named `ncb`.
 
+## Update the SDK packages together
+
+Applications and providers move from the old SDK package `neocogi-com` to
+`neocogi-com-sdk` and import it as `neocogi_com_sdk`. Code that used the old
+low-level `neocogi-com-core` package now uses `neocogi-com` and imports it as
+`neocogi_com`. The SDK reexports the very same ABI and pointer types. Ordinary
+IDL consumers keep `neocogi-idl` as a build dependency and regenerate bindings
+against `neocogi-com-sdk`.
+
+Pin the COM packages to one release and update the final host, all providers,
+and any Rust libraries with COM dependencies in the same migration. An older
+manifest with a loose pre-release requirement on `neocogi-com` can resolve the
+new base under that name. Use `=0.4.0-alpha.1` if keeping an existing alpha.1
+application on its old SDK while planning the upgrade. Keeping that old manifest
+in the same dependency graph as the new SDK can conflict with the new base's
+exact version requirement.
+
 ## Update Rust method-wrapper names
 
 Regenerate bindings and replace `ComClientInterface` with `ComRustInterface`,
@@ -133,7 +150,7 @@ Handwritten interface support can use the same constant construction:
 
 <!-- checked-example: lifetime-prefix -->
 ```rust
-use neocogi_com::{ComObject, IUnknownVTable, NcInterfaceId};
+use neocogi_com_sdk::{ComObject, IUnknownVTable, NcInterfaceId};
 
 pub const fn interface_prefix<T: ComObject>(id: &'static NcInterfaceId) -> IUnknownVTable {
     IUnknownVTable {

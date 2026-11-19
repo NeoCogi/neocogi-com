@@ -1,6 +1,6 @@
 #[allow(unused_imports, unused_macros)]
 mod test_contracts { include!(env!("NC_COM_TEST_CONTRACTS")); }
-use neocogi_com::{ComPtr, ComRef, NcStatus};
+use neocogi_com_sdk::{ComPtr, ComRef, NcStatus};
 
 extern crate self as fixture_ui_interface_inherited_lookup;
 test_contracts::ui_interface_inherited_lookup!();

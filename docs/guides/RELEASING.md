@@ -100,7 +100,7 @@ cargo test -p xtask --locked
 cargo xtask workspace
 cargo xtask quality
 cargo test --workspace --all-features --locked
-cargo test -p neocogi-com -p neocogi-com-host --lib --release --locked
+cargo test -p neocogi-com-sdk -p neocogi-com-host --lib --release --locked
 cargo xtask msrv
 cargo xtask packages
 cargo xtask compatibility --suite linked
@@ -169,10 +169,10 @@ satisfy the gate.
 Publish only the eight public packages, in dependency order:
 
 ```sh
-cargo publish --locked --registry crates-io -p neocogi-com-core
+cargo publish --locked --registry crates-io -p neocogi-com
 cargo publish --locked --registry crates-io -p neocogi-idl
 cargo publish --locked --registry crates-io -p neocogi-com-macros
-cargo publish --locked --registry crates-io -p neocogi-com
+cargo publish --locked --registry crates-io -p neocogi-com-sdk
 cargo publish --locked --registry crates-io -p neocogi-com-serialization
 cargo publish --locked --registry crates-io -p neocogi-com-serialization-dylib
 cargo publish --locked --registry crates-io -p neocogi-com-host

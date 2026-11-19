@@ -3,7 +3,7 @@
 mod test_contracts {
     include!(concat!(env!("OUT_DIR"), "/test_contracts.rs"));
 }
-use neocogi_com::{com_object, ComPtr, IUnknown, NcStatus, WeakComPtr, NC_E_CLOSED};
+use neocogi_com_sdk::{com_object, ComPtr, IUnknown, NcStatus, WeakComPtr, NC_E_CLOSED};
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
@@ -176,31 +176,34 @@ fn strong_handles_keep_two_words_and_weak_handles_use_one() {
     assert_eq!(std::mem::size_of::<ComPtr<IUnknown>>(), 2 * std::mem::size_of::<usize>());
     assert_eq!(std::mem::size_of::<WeakComPtr<IUnknown>>(), std::mem::size_of::<usize>());
     assert_eq!(std::mem::size_of::<Option<WeakComPtr<IUnknown>>>(), std::mem::size_of::<usize>());
-    assert_eq!(std::mem::size_of::<neocogi_com::NcSharedWeakRaw>(), std::mem::size_of::<usize>());
-    assert_eq!(std::mem::offset_of!(neocogi_com::NcSharedWeakRaw, control), 0);
+    assert_eq!(std::mem::size_of::<neocogi_com_sdk::NcSharedWeakRaw>(), std::mem::size_of::<usize>());
+    assert_eq!(std::mem::offset_of!(neocogi_com_sdk::NcSharedWeakRaw, control), 0);
     assert_eq!(
-        std::mem::size_of::<neocogi_com::lifetime::NcSharedLifetimeState>(),
+        std::mem::size_of::<neocogi_com_sdk::lifetime::NcSharedLifetimeState>(),
         3 * std::mem::size_of::<usize>()
     );
     assert_eq!(
-        std::mem::size_of::<neocogi_com::lifetime::NcBoxedLifetimeState>(),
+        std::mem::size_of::<neocogi_com_sdk::lifetime::NcBoxedLifetimeState>(),
         3 * std::mem::size_of::<usize>()
     );
-    assert_eq!(std::mem::size_of::<neocogi_com::lifetime::NcObjectTypeInfo>(), 4 * std::mem::size_of::<usize>());
+    assert_eq!(
+        std::mem::size_of::<neocogi_com_sdk::lifetime::NcObjectTypeInfo>(),
+        4 * std::mem::size_of::<usize>()
+    );
 }
 
 /// Providers can decline weak lifetime support without inventing a wrapper lifetime.
 #[test]
 fn handwritten_provider_without_weak_support_returns_an_explicit_error() {
-    let bytes = neocogi_com::NcBytes::from_slice(b"data");
-    assert!(matches!(bytes.downgrade(), Err(neocogi_com::NC_E_NOINTERFACE)));
+    let bytes = neocogi_com_sdk::NcBytes::from_slice(b"data");
+    assert!(matches!(bytes.downgrade(), Err(neocogi_com_sdk::NC_E_NOINTERFACE)));
 }
 
 /// Shape rejection never constructs a dropping owner for an empty token.
 #[test]
 fn absent_weak_tokens_are_rejected_without_accessing_their_pointers() {
     // SAFETY: absent records transfer no reference and require no readable allocation.
-    assert!(unsafe { WeakComPtr::<IUnknown>::from_raw_owned(neocogi_com::NcSharedWeakRaw::null()) }.is_none());
+    assert!(unsafe { WeakComPtr::<IUnknown>::from_raw_owned(neocogi_com_sdk::NcSharedWeakRaw::null()) }.is_none());
 }
 
 /// Generated weak selection preserves exact revision errors without acquiring owners.
@@ -213,7 +216,7 @@ fn weak_queries_check_exact_interface_revision() {
         origin: None,
     });
     let weak = owner.downgrade().unwrap();
-    assert_eq!(weak.query::<WrongRevision>().unwrap_err(), neocogi_com::NC_E_ABI_VERSION);
+    assert_eq!(weak.query::<WrongRevision>().unwrap_err(), neocogi_com_sdk::NC_E_ABI_VERSION);
     drop(owner);
     assert_eq!(drops.load(Ordering::SeqCst), 1);
     assert!(weak.upgrade().unwrap().is_none());
@@ -234,9 +237,9 @@ fn failed_factory_after_connection_drops_the_value_and_expires_its_weak_identity
         let origin = local.query::<IDerivedAbi>()?.downgrade()?;
         local.try_borrow_mut()?.origin = Some(origin.clone());
         escaped = Some(origin);
-        Err(neocogi_com::NC_E_INVALID_ARG)
+        Err(neocogi_com_sdk::NC_E_INVALID_ARG)
     })();
-    assert_eq!(result.unwrap_err(), neocogi_com::NC_E_INVALID_ARG);
+    assert_eq!(result.unwrap_err(), neocogi_com_sdk::NC_E_INVALID_ARG);
     assert_eq!(drops.load(Ordering::SeqCst), 1);
     assert!(escaped.unwrap().upgrade().unwrap().is_none());
 }
@@ -244,7 +247,7 @@ fn failed_factory_after_connection_drops_the_value_and_expires_its_weak_identity
 /// Generated promotion transfers one owner and does not prolong expiration after it drops.
 #[test]
 fn typed_promotion_balances_owners_and_expiration() {
-    use neocogi_com::{NC_E_NOINTERFACE, raw};
+    use neocogi_com_sdk::{NC_E_NOINTERFACE, raw};
     let drops = Arc::new(AtomicUsize::new(0));
     let owner = Value::from_value(Value {
         drops: drops.clone(),
@@ -334,7 +337,7 @@ fn weak_unknown_conversion_preserves_identity_without_retaining_the_value() {
 /// debug builds: code sharing does not depend on linker folding or generics.
 #[test]
 fn unrelated_classes_publish_the_same_lifetime_functions() {
-    use neocogi_com::lifetime::SHARED_UNKNOWN_VTABLE;
+    use neocogi_com_sdk::lifetime::SHARED_UNKNOWN_VTABLE;
     let drops = Arc::new(AtomicUsize::new(0));
     let make = || Value {
         drops: drops.clone(),
@@ -374,16 +377,17 @@ fn weak_identity_sent_after_configuration_observes_the_complete_value() {
 enum WrongRevision {}
 // SAFETY: this marker describes IValue's physical table with a different revision;
 // only rejection tests use it, and no provider publishes that revision.
-unsafe impl neocogi_com::ComInterface for WrongRevision {
-    const INTERFACE_ID: neocogi_com::NcInterfaceId = neocogi_com::NcInterfaceId::new(IValueAbi::IID, neocogi_com::NcAbiDigest::from_static(&[0; 32]));
+unsafe impl neocogi_com_sdk::ComInterface for WrongRevision {
+    const INTERFACE_ID: neocogi_com_sdk::NcInterfaceId =
+        neocogi_com_sdk::NcInterfaceId::new(IValueAbi::IID, neocogi_com_sdk::NcAbiDigest::from_static(&[0; 32]));
     type VTable = IValueVTable;
-    type Threading = neocogi_com::ThreadLocal;
+    type Threading = neocogi_com_sdk::ThreadLocal;
 }
 
 /// Wire checking validates immutable metadata even when promotion is impossible.
 #[test]
 fn checked_weak_wire_preserves_expiration_and_rejects_wrong_contracts() {
-    use neocogi_com::{ComValue, NcSharedWeakRaw, ValueBudget, NC_E_ABI_VERSION, NC_E_NOINTERFACE, NC_E_POINTER};
+    use neocogi_com_sdk::{ComValue, NcSharedWeakRaw, ValueBudget, NC_E_ABI_VERSION, NC_E_NOINTERFACE, NC_E_POINTER};
     let drops = Arc::new(AtomicUsize::new(0));
     let owner = Value::from_value(Value {
         drops: drops.clone(),

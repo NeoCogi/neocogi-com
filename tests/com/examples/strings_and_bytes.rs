@@ -1,4 +1,4 @@
-use neocogi_com::{ComPtr, ComRef, INcBytesAbi, ComBytesExt, ComStringExt, IUnknown, NcBytes, NcStatus, NcString, com_object};
+use neocogi_com_sdk::{ComPtr, ComRef, INcBytesAbi, ComBytesExt, ComStringExt, IUnknown, NcBytes, NcStatus, NcString, com_object};
 
 const NC_E_EXAMPLE_INVALID_ARG_CODE: i32 = -101;
 const NC_E_EXAMPLE_INVALID_ARG: NcStatus = NcStatus::from_code(NC_E_EXAMPLE_INVALID_ARG_CODE);

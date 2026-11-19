@@ -7,7 +7,7 @@ use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
 };
-use neocogi_com::{com_object, ComInterface, IUnknown, NcInterfaceId, NcStatus, NC_E_ABI_VERSION, NC_E_BUSY, NC_E_NOINTERFACE, NC_OK};
+use neocogi_com_sdk::{com_object, ComInterface, IUnknown, NcInterfaceId, NcStatus, NC_E_ABI_VERSION, NC_E_BUSY, NC_E_NOINTERFACE, NC_OK};
 
 extern crate self as fixture_diamond;
 test_contracts::diamond!();
@@ -72,7 +72,7 @@ impl Drop for Lifetime {
 }
 
 /// Measures real allocated payload placement without naming generated storage.
-fn payload_offset<T: neocogi_com::ComObject>(local: &neocogi_com::LocalCom<T>) -> usize {
+fn payload_offset<T: neocogi_com_sdk::ComObject>(local: &neocogi_com_sdk::LocalCom<T>) -> usize {
     let root = local.query::<IUnknown>().unwrap();
     let value = local.try_borrow().unwrap();
     (&*value as *const T) as usize - root.as_raw().object as usize
@@ -85,7 +85,7 @@ fn repeated_diamond_adds_no_per_object_interface_storage() {
     assert_eq!(Diamond::<()>::COM_INTERFACE_COUNT, 16); // Includes canonical IUnknown.
     assert_eq!(
         payload_offset(&Diamond::into_local(Diamond { value: 0, _lifetime: () })),
-        core::mem::size_of::<neocogi_com::lifetime::NcSharedLifetimeState>() + core::mem::size_of::<usize>()
+        core::mem::size_of::<neocogi_com_sdk::lifetime::NcSharedLifetimeState>() + core::mem::size_of::<usize>()
     );
     // A second state specialization must use exactly the same contract set.
     assert_eq!(
@@ -93,7 +93,7 @@ fn repeated_diamond_adds_no_per_object_interface_storage() {
             value: 0,
             _lifetime: Lifetime { drops: Arc::new(AtomicUsize::new(0)) }
         })),
-        core::mem::size_of::<neocogi_com::lifetime::NcSharedLifetimeState>() + core::mem::size_of::<usize>()
+        core::mem::size_of::<neocogi_com_sdk::lifetime::NcSharedLifetimeState>() + core::mem::size_of::<usize>()
     );
     let object = Diamond::from_value(Diamond { value: 7, _lifetime: () });
     let top = object.query::<ITopAbi>().unwrap();
@@ -105,7 +105,7 @@ fn repeated_diamond_adds_no_per_object_interface_storage() {
 /// # Safety
 /// Source is a live projection of the retained test object. Success transfers
 /// one reference; the caller must release it through the returned common prefix.
-unsafe fn query(source: neocogi_com::ComRaw<IUnknown>, identity: &NcInterfaceId) -> Result<neocogi_com::ComRaw<IUnknown>, NcStatus> {
+unsafe fn query(source: neocogi_com_sdk::ComRaw<IUnknown>, identity: &NcInterfaceId) -> Result<neocogi_com_sdk::ComRaw<IUnknown>, NcStatus> {
     // Begin non-null so failures must actively clear the caller's output slot.
     let mut result = source.cast();
     // SAFETY: the fixture supplies a live allocation and valid independent argument slots.
@@ -126,7 +126,7 @@ unsafe fn query(source: neocogi_com::ComRaw<IUnknown>, identity: &NcInterfaceId)
 ///
 /// # Safety
 /// Source owns one reference returned by query; this consumes it exactly once.
-unsafe fn release(source: neocogi_com::ComRaw<IUnknown>) {
+unsafe fn release(source: neocogi_com_sdk::ComRaw<IUnknown>) {
     // SAFETY: source's complete vtable and allocation remain live until this release.
     unsafe {
         ((*source.vtable).release)(source.object);
@@ -167,9 +167,9 @@ fn all_projection_pairs_share_addresses_state_and_lifetime() {
                 release(target);
             }
             // Failure must transfer no reference and must clear its output.
-            let incompatible = NcInterfaceId::new(IA0Abi::IID, neocogi_com::NcAbiDigest::from_static(b"99999999999999999999999999999999"));
+            let incompatible = NcInterfaceId::new(IA0Abi::IID, neocogi_com_sdk::NcAbiDigest::from_static(b"99999999999999999999999999999999"));
             assert_eq!(query(source, &incompatible), Err(NC_E_ABI_VERSION));
-            let absent = NcInterfaceId::new(neocogi_com::guid_from_qualified_name("test.diamond.Absent:v1"), IA0Abi::ABI_SIGNATURE);
+            let absent = NcInterfaceId::new(neocogi_com_sdk::guid_from_qualified_name("test.diamond.Absent:v1"), IA0Abi::ABI_SIGNATURE);
             assert_eq!(query(source, &absent), Err(NC_E_NOINTERFACE));
             release(source);
         }
@@ -263,7 +263,7 @@ fn unknown_only_generic_owner_has_no_interface_storage() {
     assert!(matches!(unknown.query::<IA0Abi>(), Err(NC_E_NOINTERFACE)));
     assert_eq!(
         payload_offset(&owner),
-        core::mem::size_of::<neocogi_com::lifetime::NcSharedLifetimeState>() + core::mem::size_of::<usize>()
+        core::mem::size_of::<neocogi_com_sdk::lifetime::NcSharedLifetimeState>() + core::mem::size_of::<usize>()
     );
 }
 
@@ -299,7 +299,7 @@ fn explicit_roots_reuse_their_inherited_contracts() {
     assert_eq!(OverlappingRoots::COM_INTERFACE_COUNT, 4);
     assert_eq!(
         payload_offset(&OverlappingRoots::into_local(OverlappingRoots { value: 0 })),
-        core::mem::size_of::<neocogi_com::lifetime::NcSharedLifetimeState>() + core::mem::size_of::<usize>()
+        core::mem::size_of::<neocogi_com_sdk::lifetime::NcSharedLifetimeState>() + core::mem::size_of::<usize>()
     );
 }
 
@@ -326,7 +326,7 @@ fn generic_aligned_state_keeps_direct_object_access_correct() {
     assert_eq!(top.as_raw().object, owner);
     assert_eq!(base.as_raw().object, owner);
     assert_eq!(
-        owner as usize % core::mem::align_of::<neocogi_com::__ComSharedInner<Diamond<AlignedState>>>(),
+        owner as usize % core::mem::align_of::<neocogi_com_sdk::__ComSharedInner<Diamond<AlignedState>>>(),
         0
     );
     {

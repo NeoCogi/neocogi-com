@@ -62,7 +62,7 @@ mod tests {
     use std::path::{Path, PathBuf};
     use std::sync::{Arc, Barrier};
 
-    use neocogi_com_core::{IUnknown, NC_E_CLOSED, NC_E_NOT_FOUND, NcPluginDependencyDescriptor, NcPluginDescriptor, NcStaticUtf8};
+    use neocogi_com::{IUnknown, NC_E_CLOSED, NC_E_NOT_FOUND, NcPluginDependencyDescriptor, NcPluginDescriptor, NcStaticUtf8};
 
     use crate::factory_plugin_registry::PluginOrigin;
     use crate::factory_registration::prepare_factory_plugin;
@@ -70,21 +70,21 @@ mod tests {
     /// Registry fixtures use the same complete validation as production records.
     const fn description(name: &'static str) -> NcPluginDescriptor {
         /// Publication and lookup must never invoke this entrypoint.
-        unsafe extern "C" fn acquire(_host: *const neocogi_com_core::NcHostApiV3, out: *mut neocogi_com_core::ComRaw<IUnknown>) -> neocogi_com_core::NcStatus {
+        unsafe extern "C" fn acquire(_host: *const neocogi_com::NcHostApiV3, out: *mut neocogi_com::ComRaw<IUnknown>) -> neocogi_com::NcStatus {
             // SAFETY: the descriptor ABI grants one writable output on invocation.
-            unsafe { out.write(neocogi_com_core::ComRaw::null()) };
+            unsafe { out.write(neocogi_com::ComRaw::null()) };
             NC_E_CLOSED
         }
         NcPluginDescriptor {
-            description_abi_version: neocogi_com_core::NC_PLUGIN_DESCRIPTOR_ABI_VERSION,
-            core_abi_version: neocogi_com_core::NC_COM_CORE_ABI_VERSION,
-            plugin_id: neocogi_com_core::guid_from_qualified_name(name),
+            description_abi_version: neocogi_com::NC_PLUGIN_DESCRIPTOR_ABI_VERSION,
+            core_abi_version: neocogi_com::NC_COM_CORE_ABI_VERSION,
+            plugin_id: neocogi_com::guid_from_qualified_name(name),
             qualified_name: NcStaticUtf8::from_static(name),
             plugin_version: NcStaticUtf8::from_static("1.0.0"),
             dependencies: core::ptr::null(),
             dependency_count: 0,
             root_factory: IUnknown::INTERFACE_ID,
-            root_factory_threading: neocogi_com_core::NC_ABI_THREADING_THREAD_LOCAL,
+            root_factory_threading: neocogi_com::NC_ABI_THREADING_THREAD_LOCAL,
             acquire: Some(acquire),
         }
     }
@@ -95,7 +95,7 @@ mod tests {
         let runtime = RuntimeState::new();
         static DESCRIPTION: NcPluginDescriptor = description("nc.tests.state.dependency");
         let factory_id = DESCRIPTION.plugin_id;
-        let missing_id = neocogi_com_core::guid_from_qualified_name("nc.tests.state.missing");
+        let missing_id = neocogi_com::guid_from_qualified_name("nc.tests.state.missing");
 
         {
             let mut catalog = runtime.write_catalog();

@@ -1,4 +1,4 @@
-use neocogi_com::{ComPtr, ComRef, NcCopyFromBufferOffset, NcOutputWriter, NcStatus, NC_E_OUT_OF_RANGE, com_object};
+use neocogi_com_sdk::{ComPtr, ComRef, NcCopyFromBufferOffset, NcOutputWriter, NcStatus, NC_E_OUT_OF_RANGE, com_object};
 
 #[allow(dead_code, unused_imports)]
 mod bindings {
@@ -87,7 +87,7 @@ impl INativeChoice for Choice {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use neocogi_com::{ComInterface, IUnknown, NC_E_POINTER, NC_OK, NcDebugApiV3, NcInterfaceDescriptor, NcInterfaceId, NcPluginApiV3, NcPluginInfoV3};
+    use neocogi_com_sdk::{ComInterface, IUnknown, NC_E_POINTER, NC_OK, NcDebugApiV3, NcInterfaceDescriptor, NcInterfaceId, NcPluginApiV3, NcPluginInfoV3};
 
     #[repr(C)]
     struct NativeCResults {
@@ -107,7 +107,7 @@ mod tests {
         null_copy_to_status: i32,
         zero_copy_from_status: i32,
         zero_copy_to_status: i32,
-        aggregate: <NativeAggregate as neocogi_com::ComValue>::AbiRepr,
+        aggregate: <NativeAggregate as neocogi_com_sdk::ComValue>::AbiRepr,
     }
 
     impl Default for NativeCResults {
@@ -148,10 +148,10 @@ mod tests {
 
     unsafe extern "C" {
         /// Borrows one owner and checks C-local digest copies, every byte and absence.
-        fn nc_c_exercise_signature(object: neocogi_com::ComRaw<IUnknown>, expected: *const NcInterfaceId, mismatch: NcStatus) -> i32;
+        fn nc_c_exercise_signature(object: neocogi_com_sdk::ComRaw<IUnknown>, expected: *const NcInterfaceId, mismatch: NcStatus) -> i32;
 
         fn nc_c_exercise_calculator(
-            unknown: neocogi_com::ComRaw<IUnknown>,
+            unknown: neocogi_com_sdk::ComRaw<IUnknown>,
             calculator_interface_id: *const NcInterfaceId,
             results: *mut NativeCResults,
             pointer_status: NcStatus,
@@ -160,62 +160,62 @@ mod tests {
         fn nc_c_validate_abi_layouts(layouts: *const NativeAbiLayouts) -> i32;
         /// C supplies both concrete lifetime layouts and its own allocation callbacks.
         fn nc_c_exercise_split_lifetimes(
-            shared_root: *const neocogi_com::IUnknownVTable,
-            exclusive_root: *const neocogi_com::IUnknownVTable,
+            shared_root: *const neocogi_com_sdk::IUnknownVTable,
+            exclusive_root: *const neocogi_com_sdk::IUnknownVTable,
             dropped: NcStatus,
             invalid: NcStatus,
-            weak_retain: unsafe extern "C" fn(*mut neocogi_com::lifetime::NcSharedLifetimeState),
-            weak_release: unsafe extern "C" fn(*mut neocogi_com::lifetime::NcSharedLifetimeState),
-            upgrade: unsafe extern "C" fn(*mut neocogi_com::lifetime::NcSharedLifetimeState, *const NcInterfaceId, *mut neocogi_com::ComRaw<IUnknown>) -> NcStatus,
-            boxed_retain: unsafe extern "C" fn(*mut neocogi_com::lifetime::NcBoxedLifetimeState),
-            boxed_release: unsafe extern "C" fn(*mut neocogi_com::lifetime::NcBoxedLifetimeState),
+            weak_retain: unsafe extern "C" fn(*mut neocogi_com_sdk::lifetime::NcSharedLifetimeState),
+            weak_release: unsafe extern "C" fn(*mut neocogi_com_sdk::lifetime::NcSharedLifetimeState),
+            upgrade: unsafe extern "C" fn(*mut neocogi_com_sdk::lifetime::NcSharedLifetimeState, *const NcInterfaceId, *mut neocogi_com_sdk::ComRaw<IUnknown>) -> NcStatus,
+            boxed_retain: unsafe extern "C" fn(*mut neocogi_com_sdk::lifetime::NcBoxedLifetimeState),
+            boxed_release: unsafe extern "C" fn(*mut neocogi_com_sdk::lifetime::NcBoxedLifetimeState),
         ) -> i32;
 
         /// Consumes the supplied sole owner and verifies weak expiration in C.
         fn nc_c_exercise_weak(
-            owned: neocogi_com::ComRaw<IUnknown>,
+            owned: neocogi_com_sdk::ComRaw<IUnknown>,
             requested: *const NcInterfaceId,
             dropped: NcStatus,
-            retain: unsafe extern "C" fn(*mut neocogi_com::lifetime::NcSharedLifetimeState),
-            release: unsafe extern "C" fn(*mut neocogi_com::lifetime::NcSharedLifetimeState),
-            upgrade: unsafe extern "C" fn(*mut neocogi_com::lifetime::NcSharedLifetimeState, *const NcInterfaceId, *mut neocogi_com::ComRaw<IUnknown>) -> NcStatus,
+            retain: unsafe extern "C" fn(*mut neocogi_com_sdk::lifetime::NcSharedLifetimeState),
+            release: unsafe extern "C" fn(*mut neocogi_com_sdk::lifetime::NcSharedLifetimeState),
+            upgrade: unsafe extern "C" fn(*mut neocogi_com_sdk::lifetime::NcSharedLifetimeState, *const NcInterfaceId, *mut neocogi_com_sdk::ComRaw<IUnknown>) -> NcStatus,
         ) -> i32;
 
     }
 
     /// Borrows a shared fixture token; its typed ABI argument proves backing.
-    unsafe fn clone_fixture_shared(control: *mut neocogi_com::lifetime::NcSharedLifetimeState) -> neocogi_com::NcSharedWeakRaw {
-        let borrowed = core::mem::ManuallyDrop::new(unsafe { neocogi_com::WeakComPtr::<IUnknown>::from_raw_owned(neocogi_com::NcSharedWeakRaw { control }) }.unwrap());
-        neocogi_com::WeakComPtr::clone(&borrowed).into_raw()
+    unsafe fn clone_fixture_shared(control: *mut neocogi_com_sdk::lifetime::NcSharedLifetimeState) -> neocogi_com_sdk::NcSharedWeakRaw {
+        let borrowed = core::mem::ManuallyDrop::new(unsafe { neocogi_com_sdk::WeakComPtr::<IUnknown>::from_raw_owned(neocogi_com_sdk::NcSharedWeakRaw { control }) }.unwrap());
+        neocogi_com_sdk::WeakComPtr::clone(&borrowed).into_raw()
     }
     /// Binding-owned shared retain callback; no lifetime kind is discovered.
-    unsafe extern "C" fn fixture_weak_retain(control: *mut neocogi_com::lifetime::NcSharedLifetimeState) {
+    unsafe extern "C" fn fixture_weak_retain(control: *mut neocogi_com_sdk::lifetime::NcSharedLifetimeState) {
         let _ = unsafe { clone_fixture_shared(control) };
     }
     /// Consumes one shared token using its declared state.
-    unsafe extern "C" fn fixture_weak_release(control: *mut neocogi_com::lifetime::NcSharedLifetimeState) {
-        drop(unsafe { neocogi_com::WeakComPtr::<IUnknown>::from_raw_owned(neocogi_com::NcSharedWeakRaw { control }) });
+    unsafe extern "C" fn fixture_weak_release(control: *mut neocogi_com_sdk::lifetime::NcSharedLifetimeState) {
+        drop(unsafe { neocogi_com_sdk::WeakComPtr::<IUnknown>::from_raw_owned(neocogi_com_sdk::NcSharedWeakRaw { control }) });
     }
     /// Borrows one boxed fixture token; this callback's ABI declares boxed backing.
-    unsafe extern "C" fn fixture_boxed_weak_retain(control: *mut neocogi_com::lifetime::NcBoxedLifetimeState) {
-        let raw = neocogi_com::ComRaw::<IUnknown> { object: control.cast(), vtable: &neocogi_com::lifetime::EXCLUSIVE_UNKNOWN_VTABLE };
-        let borrowed = core::mem::ManuallyDrop::new(unsafe { neocogi_com::WeakComBox::<IUnknown>::from_raw_owned(raw) }.unwrap());
-        let _ = neocogi_com::WeakComBox::clone(&borrowed).into_raw();
+    unsafe extern "C" fn fixture_boxed_weak_retain(control: *mut neocogi_com_sdk::lifetime::NcBoxedLifetimeState) {
+        let raw = neocogi_com_sdk::ComRaw::<IUnknown> { object: control.cast(), vtable: &neocogi_com_sdk::lifetime::EXCLUSIVE_UNKNOWN_VTABLE };
+        let borrowed = core::mem::ManuallyDrop::new(unsafe { neocogi_com_sdk::WeakComBox::<IUnknown>::from_raw_owned(raw) }.unwrap());
+        let _ = neocogi_com_sdk::WeakComBox::clone(&borrowed).into_raw();
     }
     /// Consumes a boxed observer directly through its declared policy.
-    unsafe extern "C" fn fixture_boxed_weak_release(control: *mut neocogi_com::lifetime::NcBoxedLifetimeState) {
-        let raw = neocogi_com::ComRaw::<IUnknown> { object: control.cast(), vtable: &neocogi_com::lifetime::EXCLUSIVE_UNKNOWN_VTABLE };
-        drop(unsafe { neocogi_com::WeakComBox::<IUnknown>::from_raw_owned(raw) });
+    unsafe extern "C" fn fixture_boxed_weak_release(control: *mut neocogi_com_sdk::lifetime::NcBoxedLifetimeState) {
+        let raw = neocogi_com_sdk::ComRaw::<IUnknown> { object: control.cast(), vtable: &neocogi_com_sdk::lifetime::EXCLUSIVE_UNKNOWN_VTABLE };
+        drop(unsafe { neocogi_com_sdk::WeakComBox::<IUnknown>::from_raw_owned(raw) });
     }
 
     /// Test-only foreign adapter uses checked token adoption, typed promotion,
     /// then dynamic exact selection. Every temporary owner is balanced on error.
     unsafe extern "C" fn fixture_weak_upgrade(
-        object: *mut neocogi_com::lifetime::NcSharedLifetimeState,
+        object: *mut neocogi_com_sdk::lifetime::NcSharedLifetimeState,
         requested: *const NcInterfaceId,
-        output: *mut neocogi_com::ComRaw<IUnknown>,
+        output: *mut neocogi_com_sdk::ComRaw<IUnknown>,
     ) -> NcStatus {
-        use neocogi_com::{ComRaw, WeakComPtr, NC_E_DROPPED, NC_E_POINTER, NC_OK};
+        use neocogi_com_sdk::{ComRaw, WeakComPtr, NC_E_DROPPED, NC_E_POINTER, NC_OK};
         if output.is_null() {
             return NC_E_POINTER;
         }
@@ -233,7 +233,7 @@ mod tests {
             Ok(None) => return NC_E_DROPPED,
             Err(status) => return status,
         };
-        match unsafe { neocogi_com::raw::__nc_query_interface(owner.as_raw(), &*requested) } {
+        match unsafe { neocogi_com_sdk::raw::__nc_query_interface(owner.as_raw(), &*requested) } {
             Ok(raw) => {
                 unsafe { *output = raw };
                 NC_OK
@@ -245,7 +245,7 @@ mod tests {
     /// Independent C allocation declarations exercise both policies and expired-kind checks.
     #[test]
     fn native_c_uses_distinct_shared_and_boxed_lifetime_states() {
-        use neocogi_com::lifetime::{SHARED_UNKNOWN_VTABLE, EXCLUSIVE_UNKNOWN_VTABLE};
+        use neocogi_com_sdk::lifetime::{SHARED_UNKNOWN_VTABLE, EXCLUSIVE_UNKNOWN_VTABLE};
         // SAFETY: C retains every allocation, immutable metadata and output for the
         // complete call and frees both C-owned allocations through its callbacks.
         assert_eq!(
@@ -253,8 +253,8 @@ mod tests {
                 nc_c_exercise_split_lifetimes(
                     &SHARED_UNKNOWN_VTABLE,
                     &EXCLUSIVE_UNKNOWN_VTABLE,
-                    neocogi_com::NC_E_DROPPED,
-                    neocogi_com::NC_E_INVALID_ARG,
+                    neocogi_com_sdk::NC_E_DROPPED,
+                    neocogi_com_sdk::NC_E_INVALID_ARG,
                     fixture_weak_retain,
                     fixture_weak_release,
                     fixture_weak_upgrade,
@@ -273,7 +273,7 @@ mod tests {
         // SAFETY: The sole owner and static identity remain live; C balances
         // its successful query and never retains the borrowed stack digest.
         assert_eq!(
-            unsafe { nc_c_exercise_signature(owner.as_raw(), &INativeCalculatorAbi::INTERFACE_ID, neocogi_com::NC_E_ABI_VERSION) },
+            unsafe { nc_c_exercise_signature(owner.as_raw(), &INativeCalculatorAbi::INTERFACE_ID, neocogi_com_sdk::NC_E_ABI_VERSION) },
             1
         );
     }
@@ -284,8 +284,8 @@ mod tests {
             object: *mut core::ffi::c_void,
             echo: unsafe extern "C" fn(
                 *mut core::ffi::c_void,
-                <NativeChoice as neocogi_com::ComValue>::AbiRepr,
-                *mut <NativeChoice as neocogi_com::ComValue>::AbiRepr,
+                <NativeChoice as neocogi_com_sdk::ComValue>::AbiRepr,
+                *mut <NativeChoice as neocogi_com_sdk::ComValue>::AbiRepr,
             ) -> NcStatus,
             invalid_tag: NcStatus,
             invalid_bool: NcStatus,
@@ -300,7 +300,7 @@ mod tests {
         // SAFETY: the owned object/table outlive the C call; C provides initialized
         // wire inputs and writable outputs and never retains either pointer.
         assert_eq!(
-            unsafe { nc_c_exercise_choice(raw.object, (*raw.vtable).echo, neocogi_com::NC_E_INVALID_TAG, neocogi_com::NC_E_INVALID_ARG) },
+            unsafe { nc_c_exercise_choice(raw.object, (*raw.vtable).echo, neocogi_com_sdk::NC_E_INVALID_TAG, neocogi_com_sdk::NC_E_INVALID_ARG) },
             1
         );
     }
@@ -315,7 +315,7 @@ mod tests {
                 nc_c_exercise_weak(
                     owner.into_raw(),
                     &INativeCalculatorAbi::INTERFACE_ID,
-                    neocogi_com::NC_E_DROPPED,
+                    neocogi_com_sdk::NC_E_DROPPED,
                     fixture_weak_retain,
                     fixture_weak_release,
                     fixture_weak_upgrade,
@@ -342,16 +342,16 @@ mod tests {
             plugin_dependencies_offset: core::mem::offset_of!(NcPluginInfoV3, dependencies),
             plugin_dependency_count_offset: core::mem::offset_of!(NcPluginInfoV3, dependency_count),
             debug_first_function_offset: core::mem::offset_of!(NcDebugApiV3, create_messenger),
-            host_size: core::mem::size_of::<neocogi_com::NcHostApiV3>(),
-            host_runtime_version_offset: core::mem::offset_of!(neocogi_com::NcHostApiV3, runtime_abi_version),
-            host_core_version_offset: core::mem::offset_of!(neocogi_com::NcHostApiV3, core_abi_version),
-            host_runtime_offset: core::mem::offset_of!(neocogi_com::NcHostApiV3, runtime),
-            host_debug_offset: core::mem::offset_of!(neocogi_com::NcHostApiV3, debug),
-            host_persistence_offset: core::mem::offset_of!(neocogi_com::NcHostApiV3, persistence),
-            aggregate_size: core::mem::size_of::<<NativeAggregate as neocogi_com::ComValue>::AbiRepr>(),
-            aggregate_align: core::mem::align_of::<<NativeAggregate as neocogi_com::ComValue>::AbiRepr>(),
-            aggregate_count_offset: core::mem::offset_of!(<NativeAggregate as neocogi_com::ComValue>::AbiRepr, count),
-            aggregate_value_offset: core::mem::offset_of!(<NativeAggregate as neocogi_com::ComValue>::AbiRepr, value),
+            host_size: core::mem::size_of::<neocogi_com_sdk::NcHostApiV3>(),
+            host_runtime_version_offset: core::mem::offset_of!(neocogi_com_sdk::NcHostApiV3, runtime_abi_version),
+            host_core_version_offset: core::mem::offset_of!(neocogi_com_sdk::NcHostApiV3, core_abi_version),
+            host_runtime_offset: core::mem::offset_of!(neocogi_com_sdk::NcHostApiV3, runtime),
+            host_debug_offset: core::mem::offset_of!(neocogi_com_sdk::NcHostApiV3, debug),
+            host_persistence_offset: core::mem::offset_of!(neocogi_com_sdk::NcHostApiV3, persistence),
+            aggregate_size: core::mem::size_of::<<NativeAggregate as neocogi_com_sdk::ComValue>::AbiRepr>(),
+            aggregate_align: core::mem::align_of::<<NativeAggregate as neocogi_com_sdk::ComValue>::AbiRepr>(),
+            aggregate_count_offset: core::mem::offset_of!(<NativeAggregate as neocogi_com_sdk::ComValue>::AbiRepr, count),
+            aggregate_value_offset: core::mem::offset_of!(<NativeAggregate as neocogi_com_sdk::ComValue>::AbiRepr, value),
         }
     }
 
@@ -380,7 +380,7 @@ mod tests {
         assert_eq!(results.zero_copy_from_status, NC_OK.code());
         assert_eq!(results.zero_copy_to_status, NC_OK.code());
         assert_eq!(
-            unsafe { <NativeAggregate as neocogi_com::ComValue>::decode_value(&results.aggregate, &mut Default::default()) }.unwrap(),
+            unsafe { <NativeAggregate as neocogi_com_sdk::ComValue>::decode_value(&results.aggregate, &mut Default::default()) }.unwrap(),
             NativeAggregate { tag: 4, count: 7, value: 14 }
         );
         assert_eq!(unsafe { nc_c_validate_abi_layouts(&native_abi_layouts()) }, 1);
@@ -392,7 +392,7 @@ unsafe extern "C" {
     /// C reads the explicit prefix count and verifies inactive tail bytes stay untouched.
     fn nc_c_exercise_choice_output(
         object: *mut core::ffi::c_void,
-        output: unsafe extern "C" fn(*mut core::ffi::c_void, u64, u64, *mut <NativeChoice as neocogi_com::ComValue>::AbiRepr, *mut u64, *mut u32) -> NcStatus,
+        output: unsafe extern "C" fn(*mut core::ffi::c_void, u64, u64, *mut <NativeChoice as neocogi_com_sdk::ComValue>::AbiRepr, *mut u64, *mut u32) -> NcStatus,
         pointer_status: NcStatus,
     ) -> i32;
 }
@@ -405,7 +405,7 @@ fn c_output_getter_uses_fresh_wire_storage_and_separate_prefix_count() {
     let raw = source.as_raw();
     // SAFETY: C invokes the exact raw signature using live, aligned foreign slots.
     assert_eq!(
-        unsafe { nc_c_exercise_choice_output(raw.object, (*raw.vtable).output, neocogi_com::NC_E_POINTER) },
+        unsafe { nc_c_exercise_choice_output(raw.object, (*raw.vtable).output, neocogi_com_sdk::NC_E_POINTER) },
         1
     );
 }

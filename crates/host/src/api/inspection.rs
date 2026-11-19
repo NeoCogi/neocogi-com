@@ -3,7 +3,7 @@
 
 use core::{ffi::c_void, ptr};
 
-use neocogi_com_core::{NC_DEBUG_TYPE_PLUGIN, NC_E_NOT_FOUND, NC_E_POINTER, NC_OK, NcGuid, NcInspectPluginDescriptorCallbackV3, NcPluginInfoV3, NcStatus};
+use neocogi_com::{NC_DEBUG_TYPE_PLUGIN, NC_E_NOT_FOUND, NC_E_POINTER, NC_OK, NcGuid, NcInspectPluginDescriptorCallbackV3, NcPluginInfoV3, NcStatus};
 
 use crate::inspection as runtime_inspection;
 use crate::loader::open_plugin_descriptor;

@@ -1,7 +1,7 @@
 //! The same IID cannot select incompatible vtables through two ancestry paths.
 #[allow(unused_imports, unused_macros)]
 mod test_contracts { include!(env!("NC_COM_TEST_CONTRACTS")); }
-use neocogi_com::{com_object};
+use neocogi_com_sdk::{com_object};
 
 extern crate self as fixture_ui_interface_conflicting_diamond;
 test_contracts::ui_interface_conflicting_diamond!();
@@ -13,7 +13,7 @@ test_contracts::ui_conflicting_right!();
 struct Object;
 impl ILeft for Object {}
 impl IRight for Object {
-    fn changed(&self) -> Result<(), neocogi_com::NcStatus> {
+    fn changed(&self) -> Result<(), neocogi_com_sdk::NcStatus> {
         Ok(())
     }
 }

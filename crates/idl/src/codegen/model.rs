@@ -133,7 +133,7 @@ pub struct InterfacePlan {
     /// Declaration documentation and source-navigation attributes.
     pub docs: Vec<Attribute>,
     /// Canonical non-nil callable identity validated by the resolver.
-    pub id: neocogi_com_core::NcGuid,
+    pub id: neocogi_com::NcGuid,
     /// Computed declaration signature in the current canonical grammar.
     pub signature: [u8; 32],
     /// Canonical logical declaration name for explicit inspection.

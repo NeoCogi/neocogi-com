@@ -432,7 +432,7 @@ tracks the current canonical encoding independently of the core ABI.
 
 ## COM inspection graph
 
-`neocogi_com::idl_metadata::ValueType` describes scalar, text, named, object,
+`neocogi_com_sdk::idl_metadata::ValueType` describes scalar, text, named, object,
 weak capability, sequence and array fields as structured data. Optional fields
 reference an ordinary named enum definition. Each enum alternative records its
 exact tag. An interface's `IDL_INTERFACE.values` contains the definitions reached

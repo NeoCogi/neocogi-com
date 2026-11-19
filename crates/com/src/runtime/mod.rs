@@ -162,7 +162,7 @@ impl RuntimeHandle {
     ///
     /// # Safety
     ///
-    /// `path` must identify trusted neocogi-com factory plugin code. The runtime
+    /// `path` must identify trusted neocogi-com-sdk factory plugin code. The runtime
     /// requires the standard generated plugin-descriptor export.
     pub unsafe fn load_plugin_library(&self, path: impl AsRef<Path>) -> NcGuid {
         // Live loading is mandatory for every caller, including interactive tools.
@@ -187,7 +187,7 @@ impl RuntimeHandle {
     /// ABI v3 performs no path discovery or recursive loading. Callers must
     /// supply a dependency-first order, such as one produced by
     /// `neocogi-inspect plan`. Native libraries mapped as
-    /// platform dependencies are not automatically registered as neocogi-com
+    /// platform dependencies are not automatically registered as neocogi-com-sdk
     /// plugins.
     ///
     /// A later failure aborts the process rather than returning partial state.
@@ -195,7 +195,7 @@ impl RuntimeHandle {
     ///
     /// # Safety
     ///
-    /// Every path must identify trusted neocogi-com plugin code.
+    /// Every path must identify trusted neocogi-com-sdk plugin code.
     pub unsafe fn load_plugin_libraries<I, P>(&self, paths: I) -> Vec<NcGuid>
     where
         I: IntoIterator<Item = P>,
@@ -213,7 +213,7 @@ impl RuntimeHandle {
 
 /// Reports an unrecoverable plugin-loading failure and aborts the process.
 fn fatal_plugin_load(detail: impl fmt::Display) -> ! {
-    eprintln!("fatal neocogi-com plugin load failure: {detail}");
+    eprintln!("fatal neocogi-com-sdk plugin load failure: {detail}");
     std::process::abort()
 }
 

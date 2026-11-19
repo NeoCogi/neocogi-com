@@ -15,16 +15,16 @@ crate-type = ["rlib"]
 [features]
 default = ["plugin"]
 # NCB is unconditional, including without default features.
-alloc = ["neocogi-com/alloc", "neocogi-com/macros"]
-std = ["alloc", "neocogi-com/std"]
+alloc = ["neocogi-com-sdk/alloc", "neocogi-com-sdk/macros"]
+std = ["alloc", "neocogi-com-sdk/std"]
 plugin = ["alloc"]
 json = ["alloc"]
 
 [dependencies]
-neocogi-com.workspace = true
+neocogi-com-sdk.workspace = true
 
 [dev-dependencies]
-neocogi-com = { workspace = true, features = ["std", "macros"] }
+neocogi-com-sdk = { workspace = true, features = ["std", "macros"] }
 
 [[example]]
 name = "format_costs"

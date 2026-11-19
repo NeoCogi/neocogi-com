@@ -18,7 +18,7 @@ keywords = ["idl", "abi", "ffi", "plugin"]
 categories = ["development-tools::ffi", "parser-implementations"]
 
 [dependencies]
-neocogi-com-core.workspace = true
+neocogi-com.workspace = true
 proc-macro2.workspace = true
 quote.workspace = true
 syn = { workspace = true, features = ["visit"] }

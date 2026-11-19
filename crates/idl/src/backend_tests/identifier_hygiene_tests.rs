@@ -93,7 +93,7 @@ fn printed_object_bindings_keep_storage_and_support_names_private() {
     let consumer = super::test_consumer::Consumer::new("printed-object-storage-proof");
     let mut generated = String::from(
         r#"
-        use neocogi_com::NcStatus;
+        use neocogi_com_sdk::NcStatus;
         mod core {}
         type Result = ();
         type Send = ();
@@ -131,7 +131,7 @@ fn printed_object_bindings_keep_storage_and_support_names_private() {
             let projection = exclusive.query_weak::<IValueAbi>().unwrap();
             assert_eq!(projection.value(), ::core::result::Result::Ok(91));
             drop(exclusive);
-            assert_eq!(projection.value(), ::core::result::Result::Err(neocogi_com::NC_E_DROPPED));
+            assert_eq!(projection.value(), ::core::result::Result::Err(neocogi_com_sdk::NC_E_DROPPED));
         }
     "#;
     fs::write(consumer.directory.path().join("src/lib.rs"), generated).unwrap();

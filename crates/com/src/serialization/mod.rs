@@ -5,7 +5,7 @@
 //! state and NCB conveniences live in `neocogi-com-serialization`. Its scoped NCB
 //! objects support allocation-free fixed buffers without a host runtime.
 
-pub use neocogi_com_core::serialization::*;
+pub use neocogi_com::serialization::*;
 #[rustfmt::skip]
 mod providers;
 pub use providers::*;

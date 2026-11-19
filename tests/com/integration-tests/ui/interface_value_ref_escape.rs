@@ -1,6 +1,6 @@
 #[allow(unused_imports, unused_macros)]
 mod test_contracts { include!(env!("NC_COM_TEST_CONTRACTS")); }
-use neocogi_com::{com_object, NcStatus, NcValueRef};
+use neocogi_com_sdk::{com_object, NcStatus, NcValueRef};
 
 extern crate self as fixture_ui_interface_value_ref_escape;
 test_contracts::ui_interface_value_ref_escape!();

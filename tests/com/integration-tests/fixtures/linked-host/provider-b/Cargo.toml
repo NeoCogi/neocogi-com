@@ -10,7 +10,7 @@ build = "../build.rs"
 crate-type = ["cdylib"]
 
 [dependencies]
-neocogi-com.workspace = true
+neocogi-com-sdk.workspace = true
 
 [features]
 dynamic-plugin = []

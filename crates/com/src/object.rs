@@ -16,7 +16,7 @@ use core::ffi::c_void;
 use core::{cell::UnsafeCell, mem::MaybeUninit};
 use core::sync::atomic::{AtomicUsize, Ordering};
 
-use neocogi_com_core::{NC_E_BUSY, NcStatus, ThreadingModel};
+use neocogi_com::{NC_E_BUSY, NcStatus, ThreadingModel};
 
 /// Sentinel held while one generated COM method has exclusive object access.
 const EXCLUSIVE_CALL: usize = usize::MAX;
@@ -243,7 +243,7 @@ impl Drop for __ComWritePermit<'_> {
     }
 }
 
-pub use neocogi_com_core::{__com_add_ref_count, __com_release_ref_count};
+pub use neocogi_com::{__com_add_ref_count, __com_release_ref_count};
 
 /// Implementation proof emitted together with typed storage bindings.
 ///

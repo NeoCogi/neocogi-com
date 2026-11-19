@@ -11,7 +11,7 @@ GPU handles, receivers, pointers, caches, and parent links are excluded. Parent
 state owns edge properties such as grid placement. Repeated noncyclic references
 are copied as separate tree instances; graph aliasing is not preserved.
 
-Through `neocogi_com::persistence`, the application registers context-bound `IPersistenceFactory` objects in a
+Through `neocogi_com_sdk::persistence`, the application registers context-bound `IPersistenceFactory` objects in a
 `FactoryRegistry`. Creating a registry is fallible: `FactoryRegistry::new(&runtime)?`. `restore` decodes a bounded `ObjectRecord` tree, validates
 all recipe IDs, revisions and provider state, then constructs descendants
 before their parents. Provider `validate` must be observational; `restore`
@@ -159,7 +159,7 @@ registration never require codec availability.
 
 ## Rust access
 
-Snapshot and restore callers enable `neocogi-com/runtime`. Construct an owned
+Snapshot and restore callers enable `neocogi-com-sdk/runtime`. Construct an owned
 context with `FactoryRegistry::new(&runtime)?`; capture with
 `snapshot(&runtime, object)` or `snapshot_with_limits(&runtime, object, limits)`.
 The supplied handle already admits the required runtime/core versions. Contexts

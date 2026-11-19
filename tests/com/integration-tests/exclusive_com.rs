@@ -3,7 +3,7 @@
 mod test_contracts {
     include!(concat!(env!("OUT_DIR"), "/test_contracts.rs"));
 }
-use neocogi_com::{com_object, ComInterface, ComBox, WeakComBox, IUnknown, NcStatus, NC_E_BUSY, NC_E_DROPPED, NC_E_INVALID_ARG};
+use neocogi_com_sdk::{com_object, ComInterface, ComBox, WeakComBox, IUnknown, NcStatus, NC_E_BUSY, NC_E_DROPPED, NC_E_INVALID_ARG};
 use std::sync::{
     Arc, Barrier,
     atomic::{AtomicUsize, Ordering},
@@ -89,10 +89,11 @@ static STALE_VALUE_DIGEST: [u8; 32] = {
     bytes
 };
 /// Exact IID with an intentionally different expected contract revision.
-static STALE_VALUE_ID: neocogi_com::NcInterfaceId = neocogi_com::NcInterfaceId::new(IValueAbi::IID, neocogi_com::NcAbiDigest::from_static(&STALE_VALUE_DIGEST));
+static STALE_VALUE_ID: neocogi_com_sdk::NcInterfaceId =
+    neocogi_com_sdk::NcInterfaceId::new(IValueAbi::IID, neocogi_com_sdk::NcAbiDigest::from_static(&STALE_VALUE_DIGEST));
 /// Matching Value entry points with stale incoming identity for raw rejection tests.
 static STALE_VALUE_TABLE: IValueVTable = IValueVTable {
-    unknown: neocogi_com::IUnknownVTable {
+    unknown: neocogi_com_sdk::IUnknownVTable {
         interface_id: &STALE_VALUE_ID,
         ..COPIED_VALUE_TABLE.unknown
     },
@@ -100,14 +101,14 @@ static STALE_VALUE_TABLE: IValueVTable = IValueVTable {
 };
 
 /// Transfers a genuine Value owner into its equivalent noncanonical table.
-fn copied_value_owner(state: Value) -> ComBox<IValueAbi, neocogi_com::ThreadSafe> {
+fn copied_value_owner(state: Value) -> ComBox<IValueAbi, neocogi_com_sdk::ThreadSafe> {
     let expected = state.value;
     let raw = Value::into_box(state).query::<IValueAbi>().unwrap().into_raw();
     assert_ne!(raw.vtable, &COPIED_VALUE_TABLE as *const _);
     // SAFETY: object, threading, identity and methods match this concrete Value.
     // Move its existing sole owner; the copied table and provider code are static.
-    let owner: ComBox<IValueAbi, neocogi_com::ThreadSafe> = unsafe {
-        ComBox::from_raw_owned(neocogi_com::ComRaw {
+    let owner: ComBox<IValueAbi, neocogi_com_sdk::ThreadSafe> = unsafe {
+        ComBox::from_raw_owned(neocogi_com_sdk::ComRaw {
             object: raw.object,
             vtable: &COPIED_VALUE_TABLE,
         })
@@ -128,7 +129,7 @@ fn container_owner_destruction_expires_all_cached_interfaces() {
     let mut weak = owner.downgrade();
     let identity = owner.query_weak::<IUnknown>().unwrap();
     // Failed observation must leave the unique owner and existing observers live.
-    assert!(matches!(owner.query_weak::<IContainerAbi>(), Err(neocogi_com::NC_E_NOINTERFACE)));
+    assert!(matches!(owner.query_weak::<IContainerAbi>(), Err(neocogi_com_sdk::NC_E_NOINTERFACE)));
     assert!(identity.same_object(&weak));
     owner.set(7).unwrap();
     assert_eq!(weak.value(), Ok(7));
@@ -162,7 +163,7 @@ fn weak_erasure_reprojects_live_and_expired_generated_interfaces() {
             }
             false => Some(owner),
         };
-        let erased: WeakComBox<IUnknown, neocogi_com::ThreadSafe> = source.into_unknown();
+        let erased: WeakComBox<IUnknown, neocogi_com_sdk::ThreadSafe> = source.into_unknown();
         assert_eq!(erased.as_raw().object, object);
         assert_eq!(erased.as_raw().vtable, canonical_unknown);
         assert_eq!(erased.is_alive(), !expired);
@@ -177,8 +178,8 @@ fn weak_erasure_reprojects_live_and_expired_generated_interfaces() {
         if let Some(owner) = &owner {
             assert_eq!(owner.value(), Ok(57));
         }
-        let local: WeakComBox<IValueAbi, neocogi_com::ThreadLocal> = projected.clone().into_thread_local();
-        let local_root: WeakComBox<IUnknown, neocogi_com::ThreadLocal> = local.into_unknown();
+        let local: WeakComBox<IValueAbi, neocogi_com_sdk::ThreadLocal> = projected.clone().into_thread_local();
+        let local_root: WeakComBox<IUnknown, neocogi_com_sdk::ThreadLocal> = local.into_unknown();
         assert!(erased.same_object(&local_root));
         assert_eq!(local_root.as_raw().vtable, canonical_unknown);
         let local_projection = local_root.query::<IValueAbi>().unwrap();
@@ -202,11 +203,11 @@ fn borrowed_arguments_and_raw_queries_cannot_create_shared_owners() {
     assert!(matches!(borrow.try_add_ref(), Err(NC_E_INVALID_ARG)));
     assert!(matches!(borrow.downgrade(), Err(NC_E_INVALID_ARG)));
     let raw = owner.as_raw();
-    let mut out = neocogi_com::ComRaw::null();
+    let mut out = neocogi_com_sdk::ComRaw::null();
     // SAFETY: exact live common prefix and distinct writable output; the call
     // attempts a prohibited ownership acquisition, never malformed storage.
     unsafe {
-        let table = &*raw.vtable.cast::<neocogi_com::IUnknownVTable>();
+        let table = &*raw.vtable.cast::<neocogi_com_sdk::IUnknownVTable>();
         assert_eq!((table.add_ref)(raw.object), 0);
         assert_eq!((table.query_interface)(raw.object, &IValueAbi::INTERFACE_ID, &mut out), NC_E_INVALID_ARG);
         assert!(!out.is_present());
@@ -294,12 +295,12 @@ fn failed_factory_after_allocation_expires_its_exclusive_identity() {
     let state = value();
     let drops = state.drops.clone();
     let mut escaped = None;
-    let result = (|| -> Result<neocogi_com::ComBox<IValueAbi, neocogi_com::ThreadSafe>, NcStatus> {
+    let result = (|| -> Result<neocogi_com_sdk::ComBox<IValueAbi, neocogi_com_sdk::ThreadSafe>, NcStatus> {
         let local = Value::into_local_box(state);
         escaped = Some(local.query::<IValueAbi>()?);
-        Err(neocogi_com::NC_E_INVALID_ARG)
+        Err(neocogi_com_sdk::NC_E_INVALID_ARG)
     })();
-    assert_eq!(result.unwrap_err(), neocogi_com::NC_E_INVALID_ARG);
+    assert_eq!(result.unwrap_err(), neocogi_com_sdk::NC_E_INVALID_ARG);
     assert_eq!(drops.load(Ordering::SeqCst), 1);
     assert_eq!(escaped.unwrap().value(), Err(NC_E_DROPPED));
 }
@@ -341,15 +342,15 @@ fn owners_and_cached_weak_handles_are_two_words() {
 /// Ordinary owned state is sufficient; the ABI gate coordinates access.
 struct Container {
     /// The only strong owner, transferred into this field by insert.
-    child: Option<ComBox<IValueAbi, neocogi_com::ThreadSafe>>,
+    child: Option<ComBox<IValueAbi, neocogi_com_sdk::ThreadSafe>>,
 }
 impl IContainer for Container {
     /// Validation failure leaves the input for caller-side Drop after this call.
     fn insert(
         &mut self,
-        child: neocogi_com::ComBox<IValueAbi, neocogi_com::ThreadSafe>,
+        child: neocogi_com_sdk::ComBox<IValueAbi, neocogi_com_sdk::ThreadSafe>,
         reject: bool,
-    ) -> Result<(), (NcStatus, neocogi_com::ComBox<IValueAbi, neocogi_com::ThreadSafe>)> {
+    ) -> Result<(), (NcStatus, neocogi_com_sdk::ComBox<IValueAbi, neocogi_com_sdk::ThreadSafe>)> {
         // Admission must give the implementation canonical dispatch, even when
         // the caller supplies a distinct equivalent table or this method rejects.
         assert_eq!(child.as_raw().vtable, child.query_ref::<IValueAbi>().unwrap().as_raw().vtable);
@@ -360,8 +361,8 @@ impl IContainer for Container {
         Ok(())
     }
     /// Cached weak output crosses the same C ABI without a shared owner.
-    fn child(&self) -> Result<WeakComBox<IValueAbi, neocogi_com::ThreadSafe>, NcStatus> {
-        self.child.as_ref().map(ComBox::downgrade).ok_or(neocogi_com::NC_E_NOT_FOUND)
+    fn child(&self) -> Result<WeakComBox<IValueAbi, neocogi_com_sdk::ThreadSafe>, NcStatus> {
+        self.child.as_ref().map(ComBox::downgrade).ok_or(neocogi_com_sdk::NC_E_NOT_FOUND)
     }
     /// Releasing the owner expires every external weak projection.
     fn remove(&mut self) -> Result<(), NcStatus> {
@@ -416,7 +417,7 @@ fn raw_transfer_rejection_preserves_the_input_slot() {
         assert_eq!(slot.object, raw.object);
         assert_eq!(slot.vtable, raw.vtable);
         assert_eq!(weak.value(), Ok(42), "malformed later argument cannot consume input");
-        drop(ComBox::<IValueAbi, neocogi_com::ThreadSafe>::from_raw_owned(slot));
+        drop(ComBox::<IValueAbi, neocogi_com_sdk::ThreadSafe>::from_raw_owned(slot));
     }
     assert_eq!(weak.value(), Err(NC_E_DROPPED));
     assert_eq!(container.remove(), Ok(()));
@@ -441,7 +442,7 @@ fn copied_boxed_input_tables_preserve_rejections_and_commit_canonical_dispatch()
     unsafe {
         slot.vtable = &STALE_VALUE_TABLE;
         let stale = slot;
-        assert_eq!(((*target.vtable).insert)(target.object, &mut slot, 0), neocogi_com::NC_E_ABI_VERSION);
+        assert_eq!(((*target.vtable).insert)(target.object, &mut slot, 0), neocogi_com_sdk::NC_E_ABI_VERSION);
         assert_eq!(slot, stale);
         slot = original;
         assert_eq!(((*target.vtable).insert)(target.object, &mut slot, 2), NC_E_INVALID_ARG);
@@ -455,7 +456,7 @@ fn copied_boxed_input_tables_preserve_rejections_and_commit_canonical_dispatch()
         assert_eq!(weak.value(), Ok(42));
         assert_eq!(drops.load(Ordering::SeqCst), 0);
         // Rebuild the same live owner only after proving the slot was returned.
-        let child = ComBox::<IValueAbi, neocogi_com::ThreadSafe>::from_raw_owned(slot).unwrap();
+        let child = ComBox::<IValueAbi, neocogi_com_sdk::ThreadSafe>::from_raw_owned(slot).unwrap();
         let (status, child) = container.insert(child, true).unwrap_err();
         assert_eq!(status, NC_E_INVALID_ARG);
         assert_eq!(child.as_raw(), original);
@@ -504,21 +505,28 @@ fn local_box_observers_follow_owner_transfer_and_gate_conflicts() {
 /// Ordinary fields own accepted values; dispatch admission belongs to COM.
 struct Pair {
     /// Both inputs commit together, or neither is retained.
-    values: Option<[ComBox<IValueAbi, neocogi_com::ThreadSafe>; 2]>,
+    values: Option<[ComBox<IValueAbi, neocogi_com_sdk::ThreadSafe>; 2]>,
 }
 impl IPair for Pair {
     /// Match expresses the whole rejection/commit decision without transfer flags.
     fn offer(
         &mut self,
-        left: ComBox<IValueAbi, neocogi_com::ThreadSafe>,
-        right: ComBox<IValueAbi, neocogi_com::ThreadSafe>,
+        left: ComBox<IValueAbi, neocogi_com_sdk::ThreadSafe>,
+        right: ComBox<IValueAbi, neocogi_com_sdk::ThreadSafe>,
         accept: bool,
-    ) -> Result<u32, (NcStatus, ComBox<IValueAbi, neocogi_com::ThreadSafe>, ComBox<IValueAbi, neocogi_com::ThreadSafe>)> {
+    ) -> Result<
+        u32,
+        (
+            NcStatus,
+            ComBox<IValueAbi, neocogi_com_sdk::ThreadSafe>,
+            ComBox<IValueAbi, neocogi_com_sdk::ThreadSafe>,
+        ),
+    > {
         for owner in [&left, &right] {
             assert_eq!(owner.as_raw().vtable, owner.query_ref::<IValueAbi>().unwrap().as_raw().vtable);
         }
         match accept {
-            false => Err((neocogi_com::NC_OK, left, right)),
+            false => Err((neocogi_com_sdk::NC_OK, left, right)),
             true => {
                 self.values = Some([left, right]);
                 Ok(2)
@@ -576,15 +584,15 @@ fn copied_multi_owner_inputs_restore_each_original_table_before_retry() {
         let stale = right_slot;
         assert_eq!(
             ((*target.vtable).offer)(target.object, &mut left_slot, &mut right_slot, 1, &mut output),
-            neocogi_com::NC_E_ABI_VERSION
+            neocogi_com_sdk::NC_E_ABI_VERSION
         );
         assert_eq!(left_slot, originals[0]);
         assert_eq!(right_slot, stale);
         assert_eq!(output, 17);
         right_slot = originals[1];
         (
-            ComBox::<IValueAbi, neocogi_com::ThreadSafe>::from_raw_owned(left_slot).unwrap(),
-            ComBox::<IValueAbi, neocogi_com::ThreadSafe>::from_raw_owned(right_slot).unwrap(),
+            ComBox::<IValueAbi, neocogi_com_sdk::ThreadSafe>::from_raw_owned(left_slot).unwrap(),
+            ComBox::<IValueAbi, neocogi_com_sdk::ThreadSafe>::from_raw_owned(right_slot).unwrap(),
         )
     };
     let (status, left, right) = pair.offer(left, right, false).unwrap_err();
@@ -610,7 +618,7 @@ fn rejected_owner_query_returns_the_same_live_owner() {
     let owner = Value::into_box(value()).query::<IValueAbi>().unwrap();
     let weak = owner.downgrade();
     let (status, owner) = owner.query::<IContainerAbi>().unwrap_err();
-    assert_eq!(status, neocogi_com::NC_E_NOINTERFACE);
+    assert_eq!(status, neocogi_com_sdk::NC_E_NOINTERFACE);
     assert_eq!(owner.value(), Ok(42));
     drop(owner);
     assert_eq!(weak.value(), Err(NC_E_DROPPED));
@@ -644,7 +652,7 @@ fn owner_projection_checks_the_complete_revision_before_reusing_a_table() {
     let original = owner.as_raw();
     assert_eq!(IValueAbi::IID, IValueOtherRevisionAbi::IID);
     let (status, owner) = owner.query::<IValueOtherRevisionAbi>().unwrap_err();
-    assert_eq!(status, neocogi_com::NC_E_ABI_VERSION);
+    assert_eq!(status, neocogi_com_sdk::NC_E_ABI_VERSION);
     assert_eq!(owner.as_raw(), original);
     assert_eq!(owner.value(), Ok(42));
 }
@@ -705,15 +713,15 @@ fn borrowed_interface_queries_preserve_identity_errors_and_the_call_gate() {
             scope.spawn(|| assert_eq!(projection.value(), Ok(53))).join().unwrap();
         });
     }
-    assert!(matches!(owner.query_ref::<IContainerAbi>(), Err(neocogi_com::NC_E_NOINTERFACE)));
-    assert!(matches!(owner.query_ref::<IValueOtherRevisionAbi>(), Err(neocogi_com::NC_E_ABI_VERSION)));
+    assert!(matches!(owner.query_ref::<IContainerAbi>(), Err(neocogi_com_sdk::NC_E_NOINTERFACE)));
+    assert!(matches!(owner.query_ref::<IValueOtherRevisionAbi>(), Err(neocogi_com_sdk::NC_E_ABI_VERSION)));
     assert_eq!(owner.value(), Ok(53));
 }
 
 /// Root and generated projections reuse only the exclusive callback family.
 #[test]
 fn generated_exclusive_projections_select_their_policy_prefix() {
-    use neocogi_com::lifetime::{SHARED_UNKNOWN_VTABLE, EXCLUSIVE_UNKNOWN_VTABLE};
+    use neocogi_com_sdk::lifetime::{SHARED_UNKNOWN_VTABLE, EXCLUSIVE_UNKNOWN_VTABLE};
     let state = value();
     let drops = state.drops.clone();
     let owner = Value::into_box(state);

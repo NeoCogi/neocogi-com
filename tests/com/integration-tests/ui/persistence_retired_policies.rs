@@ -1,5 +1,5 @@
 //! NCB has one positional schema; retired adapter options must fail explicitly.
-use neocogi_com::{ComDeserialize, ComSerialize};
+use neocogi_com_sdk::{ComDeserialize, ComSerialize};
 
 /// Sequence selection no longer changes the record representation.
 #[derive(ComDeserialize)]

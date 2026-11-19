@@ -70,7 +70,7 @@ pub fn generate(root: &Path) {
         for declaration in declarations {
             exports.push(declaration.name.clone());
             if matches!(declaration.kind, neocogi_idl::DeclarationKind::Interface(_)) {
-                for companion in neocogi_com_core::NcComInterfaceCompanion::ALL {
+                for companion in neocogi_com::NcComInterfaceCompanion::ALL {
                     exports.push(format!("{}{}", declaration.name, companion.suffix()));
                 }
             }

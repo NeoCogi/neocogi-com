@@ -2,7 +2,7 @@
 
 use std::fmt::Write as _;
 
-use neocogi_com_core::NcAbiThreadingMode;
+use neocogi_com::NcAbiThreadingMode;
 use neocogi_com_host::{FactoryInspection, PluginInspection};
 
 use crate::compat::CompatibilityReport;
@@ -106,13 +106,13 @@ fn render_compatibility_group(out: &mut String, label: &str, changes: &[String])
 #[cfg(test)]
 mod tests {
     use super::*;
-    use neocogi_com_core::NcGuid;
+    use neocogi_com::NcGuid;
     use neocogi_com_host::FactoryInspection;
 
     /// Constructs a minimal inspected factory plugin for rendering tests.
     fn inspection_with_thread_safe_factory() -> PluginInspection {
         PluginInspection {
-            description_abi_version: neocogi_com_core::NC_PLUGIN_DESCRIPTOR_ABI_VERSION,
+            description_abi_version: neocogi_com::NC_PLUGIN_DESCRIPTOR_ABI_VERSION,
             core_abi_version: 7,
             plugin_id: NcGuid::from_fields(1, 2, 3, [4; 8]),
             qualified_name: "nc.tests.inspect".to_string(),

@@ -32,10 +32,10 @@ qualification and standalone builds once the alpha packages are available.
 
 | Package | Purpose |
 | --- | --- |
-| `neocogi-com-core` | Raw ABI types and traits; `no_std` by default |
+| `neocogi-com` | Raw ABI types and traits; `no_std` by default |
 | `neocogi-idl` | Contract compiler, shared code generation, Cargo integration |
 | `neocogi-com-macros` | Object, plugin, persistence, and host entry macros |
-| `neocogi-com` | Shared SDK for interface callers and providers, ownership, values, and runtime API wrappers |
+| `neocogi-com-sdk` | Shared SDK for interface callers and providers, ownership, values, and runtime API wrappers |
 | `neocogi-com-serialization` | Reusable serialization rlib; unconditional NCB and optional lightweight JSON |
 | `neocogi-com-serialization-dylib` | Thin native plugin with built-in NCB and JSON; NCB is default |
 | `neocogi-com-host` | Host-owned runtime and native plugin loader (`neocogi_com_host` rlib) |
@@ -52,7 +52,7 @@ See the [provider migration guide](docs/guides/ABI_V3_MIGRATION.md) when adoptin
 A **host** is the final application that owns one runtime implementation. An
 **interface caller** calls a COM interface; a **provider** implements one. These
 roles can overlap: hosts can implement callbacks, and plugins can call other
-providers or host services. Both use the shared `neocogi-com` SDK. Static hosts
+providers or host services. Both use the shared `neocogi-com-sdk` SDK. Static hosts
 link `neocogi-com-host`.
 The SDK's `runtime` feature supplies access to the selected host.
 

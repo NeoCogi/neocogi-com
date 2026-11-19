@@ -81,7 +81,7 @@ fn accepted_generic_deserializers_compile_and_reconstruct_values() {
     fs::write(
         project.path().join("Cargo.toml"),
         format!(
-            "[package]\nname='operation-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\nneocogi-com-serialization={{path={:?},default-features=false,features=['std']}}\n",
+            "[package]\nname='operation-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com-sdk={{path={:?}}}\nneocogi-com-serialization={{path={:?},default-features=false,features=['std']}}\n",
             root.join("crates/com"), root.join("crates/serialization")
         ),
     )
@@ -112,19 +112,19 @@ fn accepted_generic_deserializers_compile_and_reconstruct_values() {
         impl Default for contract::Config {
             fn default() -> Self { Self { enabled: true } }
         }
-        #[derive(neocogi_com::ComSerialize)]
+        #[derive(neocogi_com_sdk::ComSerialize)]
         /// A finite tree with the same schema as the generated closed Node<String>.
         struct Node { value: String, children: Vec<Node> }
-        #[derive(neocogi_com::ComSerialize)]
+        #[derive(neocogi_com_sdk::ComSerialize)]
         /// A named inner record used through an optional field.
         struct Flags { enabled: bool }
-        #[derive(neocogi_com::ComSerialize)]
+        #[derive(neocogi_com_sdk::ComSerialize)]
         /// Matches the ordinary enum schema supplied by the bundled IDL library.
         enum OptionalFlags { None, Some(Flags) }
-        #[derive(neocogi_com::ComSerialize)]
+        #[derive(neocogi_com_sdk::ComSerialize)]
         /// Independent writer exercises generated record and sequence decoders.
         struct Snapshot { root: Node, optional: OptionalFlags, mask: [bool; 3], pair: [u32; 2], units: Vec<()> }
-        #[derive(neocogi_com::ComSerialize)]
+        #[derive(neocogi_com_sdk::ComSerialize)]
         /// Writes an empty named record through the actual format encoder.
         struct EmptyRecord {}
         #[test]
@@ -193,7 +193,7 @@ fn generated_ncb_values_execute_without_allocation_features() {
     let project = tempfile::tempdir().unwrap();
     fs::create_dir(project.path().join("src")).unwrap();
     fs::write(project.path().join("Cargo.toml"), format!(
-        "[package]\nname='noalloc-ncb-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?},default-features=false,features=['macros']}}\nneocogi-com-serialization={{path={:?},default-features=false}}\n",
+        "[package]\nname='noalloc-ncb-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com-sdk={{path={:?},default-features=false,features=['macros']}}\nneocogi-com-serialization={{path={:?},default-features=false}}\n",
         root.join("crates/com"), root.join("crates/serialization"),
     )).unwrap();
     fs::write(

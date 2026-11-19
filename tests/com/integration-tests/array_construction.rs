@@ -3,7 +3,7 @@ use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
 };
-use neocogi_com::*;
+use neocogi_com_sdk::*;
 #[allow(unused_imports, unused_macros)]
 mod test_contracts {
     include!(concat!(env!("OUT_DIR"), "/test_contracts.rs"));

@@ -1,7 +1,7 @@
 //! Matched static-size target and typed-array conversion throughput probe.
 use std::{hint::black_box, time::Instant};
-use neocogi_com::{ComDeserialize, ComSerialize, ComValue, NcValueRef};
-use neocogi_com::serialization::{Format, Limits};
+use neocogi_com_sdk::{ComDeserialize, ComSerialize, ComValue, NcValueRef};
+use neocogi_com_sdk::serialization::{Format, Limits};
 
 /// Times fresh COM decoding and destruction of one already encoded document.
 fn format_case<T: ComSerialize + ComDeserialize>(name: &str, format: &Format, value: &T, iterations: usize) {

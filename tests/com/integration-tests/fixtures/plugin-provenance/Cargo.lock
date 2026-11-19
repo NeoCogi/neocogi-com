@@ -6,9 +6,9 @@ version = 4
 name = "nc-plugin-provenance-fixture"
 version = "0.0.0"
 dependencies = [
- "neocogi-com-core",
+ "neocogi-com",
 ]
 
 [[package]]
-name = "neocogi-com-core"
+name = "neocogi-com"
 version = "0.4.0-alpha.1"

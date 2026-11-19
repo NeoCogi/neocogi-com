@@ -3,7 +3,7 @@
 //! The module defines their stable identities, C-shaped handle contracts and
 //! vtables, and the complete typed method metadata used to calculate and
 //! validate ABI signatures. Concrete allocation-backed Rust implementations live in
-//! the higher-level `neocogi-com` crate; this core module contains only ABI contracts.
+//! the higher-level `neocogi-com-sdk` crate; this core module contains only ABI contracts.
 
 use crate::guid::{NcGuid, guid_from_qualified_name};
 use crate::signature::NcAbiDigest;
@@ -29,7 +29,7 @@ pub const IID_INC_STRING: NcGuid = guid_from_qualified_name(QUALIFIED_NAME_INC_S
 /// Read-only byte sequence ABI interface.
 ///
 /// This is the C-shaped ABI representation for Rust-owned `Vec<u8>` or
-/// bit-preserving `Vec<i8>` data crossing an `neocogi-com` boundary. Ownership is
+/// bit-preserving `Vec<i8>` data crossing an `neocogi-com-sdk` boundary. Ownership is
 /// still carried by COM reference counting; Rust vector layout and allocator
 /// ownership never cross the boundary.
 pub enum INcBytesAbi {}
@@ -159,7 +159,7 @@ impl INcBytesAbi {
 /// Read-only UTF-8 string ABI interface.
 ///
 /// This is the C-shaped ABI representation for Rust-owned `String` data crossing
-/// an `neocogi-com` boundary. The bytes exposed by this interface are guaranteed by
+/// an `neocogi-com-sdk` boundary. The bytes exposed by this interface are guaranteed by
 /// the object contract to be valid UTF-8 and can be copied in bounded bulk
 /// ranges through [`INcStringVTable::copy_to`].
 pub enum INcStringAbi {}

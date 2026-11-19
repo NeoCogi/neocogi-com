@@ -9,7 +9,7 @@ use std::path::Path;
 use std::string::String;
 use std::vec::Vec;
 
-use neocogi_com_core::{NcAbiThreadingMode, NcGuid};
+use neocogi_com::{NcAbiThreadingMode, NcGuid};
 
 use super::{PluginLoadError, open_plugin_descriptor};
 

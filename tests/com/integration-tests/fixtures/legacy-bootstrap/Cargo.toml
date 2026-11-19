@@ -18,5 +18,5 @@ legacy-v2-symbol = []
 dynamic-plugin = []
 
 [dependencies]
-neocogi-com = { path = "../../../../../crates/com" }
-neocogi-com-core = { path = "../../../../../crates/core" }
+neocogi-com-sdk = { path = "../../../../../crates/com" }
+neocogi-com = { path = "../../../../../crates/core" }

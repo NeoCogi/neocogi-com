@@ -95,12 +95,12 @@ fn broad_copied_values_generate_shallow_proofs_and_call_across_bindings() {
         format!(
             r#"
         mod producer; mod consumer;
-        #[neocogi_com::com_object(producer::Echo)] struct Probe;
+        #[neocogi_com_sdk::com_object(producer::Echo)] struct Probe;
         impl producer::Echo for Probe {{
-            fn echo(&self, value: producer::Wide) -> Result<producer::Wide, neocogi_com::NcStatus> {{ Ok(value) }}
+            fn echo(&self, value: producer::Wide) -> Result<producer::Wide, neocogi_com_sdk::NcStatus> {{ Ok(value) }}
         }}
         #[test] fn real_call() {{
-            use neocogi_com::ComValue;
+            use neocogi_com_sdk::ComValue;
             assert!(producer::Wide::BORROW_ABI_REPR);
             assert!(consumer::Wide::BORROW_ABI_REPR);
             assert_eq!(producer::ABI_FINGERPRINT, consumer::ABI_FINGERPRINT);

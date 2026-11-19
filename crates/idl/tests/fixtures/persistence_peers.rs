@@ -1,13 +1,13 @@
 //! Identical providers use freshly generated or checked-in contracts without sharing declarations.
 #[allow(dead_code)]
 mod peer;
-use neocogi_com::{com_object, ComPtr, ComRef, IUnknown, INcBytesAbi, NcBytes, NcCopyFromBufferOffset, NcGuid, NcStatus, NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE};
-use neocogi_com::persistence as builtin;
+use neocogi_com_sdk::{com_object, ComPtr, ComRef, IUnknown, INcBytesAbi, NcBytes, NcCopyFromBufferOffset, NcGuid, NcStatus, NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE};
+use neocogi_com_sdk::persistence as builtin;
 
 /// One exact initialization value passed through both interface representations.
 const STATE: &[u8] = b"current persistence peer";
 /// Persistent recipe identity, independent of the COM contract identities.
-const KIND: NcGuid = neocogi_com::guid_from_qualified_name("test.persistence.peers");
+const KIND: NcGuid = neocogi_com_sdk::guid_from_qualified_name("test.persistence.peers");
 
 /// Supplies the same behavior through each module's independently defined vtables.
 macro_rules! provider {
@@ -83,7 +83,7 @@ macro_rules! exercise {
         assert_eq!(persistent.schema_version().unwrap(), 7);
         assert_eq!(persistent.child_count().unwrap(), 0);
         assert_eq!(persistent.child(0).err(), Some(NC_E_OUT_OF_RANGE));
-        use neocogi_com::ComBytesExt;
+        use neocogi_com_sdk::ComBytesExt;
         assert_eq!(persistent.save_state().unwrap().to_vec().unwrap(), STATE);
         let factory = root.query::<$api::IPersistenceFactoryAbi>().unwrap();
         assert_eq!(factory.validate(7, NcCopyFromBufferOffset::new(0, STATE), 0), Ok(()));

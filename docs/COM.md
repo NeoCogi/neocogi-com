@@ -1,4 +1,4 @@
-# neocogi-com
+# NeoCogi COM
 
 NeoCogi's component layer lets separately built Rust artifacts communicate
 through an explicit C-shaped ABI. Rust-like IDL is the source of public contract
@@ -83,47 +83,55 @@ provider can call another provider, so it is a caller during those calls. A host
 that implements an observer callback is a provider of that callback interface.
 These are roles in an interaction, not mutually exclusive kinds of Rust crate.
 
-`neocogi-com` is the **shared SDK**, used by callers and providers. It supplies
-ownership handles, object implementation helpers, codecs, generated-wrapper
-support and optional runtime API wrappers. `neocogi_com::RuntimeHandle` is a copyable
-access handle to the selected host's immutable service tables. Copying it creates
-no registry, loads no implementation and grants no ownership of the host state.
+`neocogi-com` is the **portable base**. It defines the ABI records, typed
+interface pointers, lifetime rules, value representations and serialization
+traits. It can be used directly for ABI and fixed-buffer code.
+
+`neocogi-com-sdk` is the **shared SDK** used by ordinary callers and providers.
+It reexports those same types and adds concrete object helpers, owned bytes and
+strings, optional macros and wrappers over host services. Its
+`RuntimeHandle` copies access to the linked host's immutable C service tables.
 
 ### Dependencies
 
-Arrows below mean a normal Cargo dependency, not the direction of a COM call:
+Solid arrows show Cargo dependencies. The dashed arrows mark optional macro
+support and a consumer's build dependency.
 
 ```mermaid
 flowchart TD
     App[Host application] --> Host[neocogi-com-host]
-    App --> SDK[neocogi-com shared SDK]
+    App --> SDK[neocogi-com-sdk]
     Provider[Plugin or provider] --> SDK
     Host --> SDK
-    Host --> Core[neocogi-com-core]
-    SDK --> Core
+    Host --> Base[neocogi-com]
+    SDK --> Base
+    SDK -.->|macros| Macros[neocogi-com-macros]
+    Macros --> IDL[neocogi-idl]
+    IDL --> Base
+    Provider -.->|build| IDL
 ```
 
 | Assembly or package | Dependencies and purpose |
 | --- | --- |
-| Host application | `neocogi-com` with `runtime` and `macros` for runtime API wrappers and `com_main`, plus `neocogi-com-host` for the selected implementation. Static composition also adds the provider's rlib. |
-| Plugin/provider | `neocogi-com` with the features needed for its objects and values. `macros` exposes `com_object` and `plugin`; `runtime` is needed only when it calls the supplied runtime API wrappers. It receives `RuntimeHandle` from bootstrap. |
-| Ordinary interface caller | `neocogi-com` and its generated contract bindings, with `alloc`/`std` as its values require. Local interface calls do not need the host package or SDK `runtime` feature. |
-| `neocogi-com-host` | `neocogi-com` with `default-features = false, features = ["std"]` for shared ownership, persistence contracts and codecs; `neocogi-com-core` with `std` for raw service tables and validation. These dependencies identify one set of shared ABI types. |
-| `neocogi-com` | `neocogi-com-core`, plus optional `neocogi-com-macros`. It has no host dependency, including when `runtime` is enabled or its unit tests run. Host-dependent integration tests live in the unpublished `tests/com` package. |
-| Contract generation | A crate that generates bindings uses `neocogi-idl` in `[build-dependencies]`. Enabling SDK `macros` builds `neocogi-com-macros`, whose backend depends on IDL and core. |
+| Host application | `neocogi-com-sdk` with `runtime` and `macros` for runtime API wrappers and `com_main`, plus `neocogi-com-host` for the selected implementation. Static composition also adds the provider's rlib. |
+| Plugin/provider | `neocogi-com-sdk` with the features needed for its objects and values. `macros` exposes `com_object` and `plugin`; `runtime` is needed only when it calls the supplied runtime API wrappers. It receives `RuntimeHandle` from bootstrap. |
+| Ordinary interface caller | `neocogi-com-sdk` and its generated contract bindings, with `alloc`/`std` as its values require. Local interface calls do not need the host package or SDK `runtime` feature. |
+| `neocogi-com-host` | `neocogi-com-sdk` with `default-features = false, features = ["std", "runtime"]` for ownership and host-facing wrappers; `neocogi-com` with `std` for raw service tables and validation. These dependencies identify one set of shared ABI types. |
+| `neocogi-com-sdk` | `neocogi-com`, plus optional `neocogi-com-macros`. It has no host dependency, including when `runtime` is enabled or its unit tests run. Host-dependent integration tests live in the unpublished `tests/com` package. |
+| Contract generation | A crate that generates bindings uses `neocogi-idl` in `[build-dependencies]`. The compiler itself depends on `neocogi-com`. Generated Rust uses `::neocogi_com_sdk`, so the consumer needs only the SDK as its normal COM dependency. |
 
 The shared SDK remains usable with reduced features; all defaults disabled retain
 its `no_std` interface/ownership surface. The host implementation requires `std`.
-The package names are `neocogi-com` and `neocogi-com-host`; their ordinary Rust
-paths are `neocogi_com` and `neocogi_com_host`, respectively.
+The Rust import roots are `neocogi_com`, `neocogi_com_sdk` and `neocogi_com_host`.
 
 ### Startup and calls
 
 1. The final host explicitly depends on `neocogi-com-host` and uses
-   `#[neocogi_com::com_main]`. The generated entry calls
+   `#[neocogi_com_sdk::com_main]`. The generated entry calls
    `neocogi_com_host::initialize_runtime()`, obtains an admitted `RuntimeHandle` and
-   passes a `neocogi_com::RuntimeHandle` to the authored main body. Explicit
-   `neocogi_com = path, neocogi_com_host = path` arguments support Cargo aliases.
+   passes a `neocogi_com_sdk::RuntimeHandle` to the authored main body. Explicit
+   `neocogi_com = path` selects an aliased SDK dependency.
+   `neocogi_com_host = path` selects an aliased host or an initializer module.
 2. The host registers a statically linked descriptor or loads an
    application-selected provider library. Registration checks the descriptor and
    dependencies before publishing the plugin in that host's catalog.
@@ -143,7 +151,7 @@ paths are `neocogi_com` and `neocogi_com_host`, respectively.
 For example, the [sample host](../examples/com-host) acquires the
 [extent provider](../examples/com-plugin), calls its factory, and supplies an
 observer. The host is the caller of the extent object; the extent object is the
-caller of the host's observer. Both use `neocogi-com`. Only the final application
+caller of the host's observer. Both use `neocogi-com-sdk`. Only the final application
 selects `neocogi-com-host`. Inspection tools may also depend on the host package
 for its descriptor/loader utilities without initializing a second catalog.
 
@@ -190,7 +198,7 @@ the `.ncidl` source and transitive module graph, generates Rust bindings into
 `OUT_DIR`, and publishes the graph through Cargo metadata. Ordinary Cargo
 regenerates bindings after an IDL edit; no separate native artifact is built.
 
-`neocogi_com::idl_metadata` supplies static descriptions that tools can read
+`neocogi_com_sdk::idl_metadata` supplies static descriptions that tools can read
 without depending on the compiler. `InterfaceAbi::IDL_INTERFACE` describes
 methods and their argument/result types; `Value::IDL_TYPE` describes fields,
 enum cases or bit flags. These records stay local to their defining binary.
@@ -204,7 +212,7 @@ interface contract, including an interface whose methods create other objects:
 
 <!-- checked-example: implementation -->
 ```rust,ignore
-use neocogi_com::{ComPtr, NcStatus, com_object};
+use neocogi_com_sdk::{ComPtr, NcStatus, com_object};
 use example_contracts::*;
 
 /// Private state; shared COM ownership protects its allocation.
@@ -254,8 +262,8 @@ Use `&mut self` for mutation and keep ordinary state in plain fields.
 <!-- checked-example: plugin -->
 ```rust,ignore
 /// Acquires one initialized provider; returns its exact interface projection.
-#[neocogi_com::plugin(name = "example.component", version = "1.0.0")]
-fn acquire_root(_runtime: neocogi_com::RuntimeHandle) -> Result<neocogi_com::ComPtr<example_contracts::ExampleFactoryAbi>, neocogi_com::NcStatus> {
+#[neocogi_com_sdk::plugin(name = "example.component", version = "1.0.0")]
+fn acquire_root(_runtime: neocogi_com_sdk::RuntimeHandle) -> Result<neocogi_com_sdk::ComPtr<example_contracts::ExampleFactoryAbi>, neocogi_com_sdk::NcStatus> {
     ExampleFactoryImpl::from_value(ExampleFactoryImpl).query()
 }
 ```
@@ -272,7 +280,7 @@ may be a finished service or an ordinary provider with typed creation methods.
 
 ## Host acquisition
 
-For a monolith, enable `neocogi-com/runtime`, directly depend on
+For a monolith, enable `neocogi-com-sdk/runtime`, directly depend on
 `neocogi-com-host`, and retain that implementation in the final assembly.
 Register the linked provider before requesting its exact factory. The following complete function
 accepts access supplied by the host entry and uses the declarations above:
@@ -280,15 +288,15 @@ accepts access supplied by the host entry and uses the declarations above:
 <!-- checked-example: static-host -->
 ```rust,ignore
 /// Executes bootstrap, construction, inherited reads and a mutable COM call.
-fn static_example(runtime: neocogi_com::RuntimeHandle) -> Result<(), NcStatus> {
+fn static_example(runtime: neocogi_com_sdk::RuntimeHandle) -> Result<(), NcStatus> {
     let descriptor = plugin_descriptor();
     // SAFETY: linked plugin code and macro-generated static metadata remain
     // available for the process lifetime, including every returned COM handle.
     unsafe { runtime.register_plugin_descriptor(descriptor) }?;
     let info = runtime.plugin_info(descriptor.plugin_id)?
-        .ok_or(neocogi_com::NC_E_NOT_FOUND)?;
+        .ok_or(neocogi_com_sdk::NC_E_NOT_FOUND)?;
     assert_eq!(info.factory.interface, descriptor.root_factory);
-    assert_eq!(info.origin, neocogi_com::PluginOrigin::Static);
+    assert_eq!(info.origin, neocogi_com_sdk::PluginOrigin::Static);
     let factory = runtime.acquire_plugin_root::<ExampleFactoryAbi>(info.plugin_id)?;
     let mut object = factory.create(Extent { width: 10, height: 20 })?;
     assert_eq!(object.extent()?, Extent { width: 10, height: 20 });
@@ -383,9 +391,9 @@ retains explicit reconstruction recipes and an NCB envelope by default.
 
 ## Crates
 
-- `neocogi-com-core`: raw ABI layouts and traits (`no_std` by default).
+- `neocogi-com`: raw ABI layouts and traits (`no_std` by default).
 - `neocogi-com-macros`: thin procedural entrypoints over IDL's shared backend.
-- `neocogi-com`: typed object/data helpers and optional supplied runtime API wrappers.
+- `neocogi-com-sdk`: typed object/data helpers and optional supplied runtime API wrappers.
 - `neocogi-com-serialization`: reusable NCB/JSON codecs and static plugin descriptor.
 - `neocogi-com-serialization-dylib`: thin native entry point for that rlib.
 - `neocogi-com-host`: plugin catalog, loader, and persistence implementation;
@@ -406,7 +414,7 @@ marketplace. Applications own installation, trust, signatures, and path policy.
 
 ## Experimental object persistence and typed integration
 
-[`neocogi_com::persistence`](../crates/host/PERSISTENCE.md) provides runtime-owned opt-in semantic snapshots and explicit,
+[`neocogi_com_sdk::persistence`](../crates/host/PERSISTENCE.md) provides runtime-owned opt-in semantic snapshots and explicit,
 context-bound factory reconstruction. The portable value codec remains separate
 from object acquisition; arbitrary private object memory is never serialized.
 The [host/provider example](../examples/com-plugin/README.md) reconstructs saved
@@ -435,7 +443,7 @@ backend and cross-platform driver checks retain their separate CI rows.
 Run these commands from the workspace root:
 
 ```sh
-cargo test -p neocogi-com-core -p neocogi-com --doc --all-features
+cargo test -p neocogi-com -p neocogi-com-sdk --doc --all-features
 cargo xtask markdown
 cargo xtask quality
 ```

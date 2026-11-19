@@ -13,7 +13,7 @@ use core::ffi::c_void;
 use core::mem::{ManuallyDrop, MaybeUninit};
 use core::sync::atomic::AtomicU32;
 
-use neocogi_com_core::{
+use neocogi_com::{
     ComInterface, INcBytesAbi, INcBytesVTable, INcStringAbi, INcStringVTable, IUnknown, IUnknownVTable, NC_E_ABI_VERSION, NC_E_INVALID_ARG, NC_E_NOINTERFACE,
     NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_OK, NcInterfaceId, NcStatus,
 };
@@ -54,12 +54,12 @@ pub struct NcBytes;
 /// address. Import [`ComStringExt`] to obtain an owned Rust string:
 ///
 /// ```
-/// use neocogi_com::{ComStringExt, NcString};
+/// use neocogi_com_sdk::{ComStringExt, NcString};
 ///
 /// let value = NcString::from_utf8_str("hello");
 /// let text = value.to_string()?;
 /// assert_eq!(text.as_str(), "hello");
-/// # Ok::<(), neocogi_com::NcStatus>(())
+/// # Ok::<(), neocogi_com_sdk::NcStatus>(())
 /// ```
 pub struct NcString;
 

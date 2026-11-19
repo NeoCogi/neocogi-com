@@ -43,7 +43,7 @@ fn consumer(name: &str, extra: &str) -> Module {
 }
 
 /// Extracts semantic identities without depending on generated specialization names.
-fn instances(graph: &ResolvedModules, owner: &str) -> Vec<(String, neocogi_com_core::NcGuid, [u8; 32])> {
+fn instances(graph: &ResolvedModules, owner: &str) -> Vec<(String, neocogi_com::NcGuid, [u8; 32])> {
     let module = graph.module(owner).unwrap();
     module
         .source
@@ -136,7 +136,7 @@ fn closed_generic_calls_cross_generated_module_boundaries() {
     fs::write(
         project.path().join("Cargo.toml"),
         format!(
-            "[package]\nname='generic-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\nneocogi-com-host={{path={:?}}}\n",
+            "[package]\nname='generic-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com-sdk={{path={:?}}}\nneocogi-com-host={{path={:?}}}\n",
             root.join("crates/com"), root.join("crates/host")
         ),
     )
@@ -154,28 +154,28 @@ fn closed_generic_calls_cross_generated_module_boundaries() {
             r#"
         pub mod producer;
         pub mod consumer;
-        #[neocogi_com::com_object(producer::Counter)]
+        #[neocogi_com_sdk::com_object(producer::Counter)]
         /// Concrete storage implements one generated specialization.
         struct Counter {{ value: u32 }}
         impl producer::Counter for Counter {{}}
         impl producer::{contract} for Counter {{
             /// Reads ordinary exclusively owned state through COM.
-            fn get(&self) -> Result<u32, neocogi_com::NcStatus> {{ Ok(self.value) }}
+            fn get(&self) -> Result<u32, neocogi_com_sdk::NcStatus> {{ Ok(self.value) }}
             /// Mutates the same state through either independently generated wrapper.
-            fn set(&mut self, value: u32) -> Result<(), neocogi_com::NcStatus> {{ self.value = value; Ok(()) }}
+            fn set(&mut self, value: u32) -> Result<(), neocogi_com_sdk::NcStatus> {{ self.value = value; Ok(()) }}
         }}
-        #[neocogi_com::plugin(name = "proof.closed.generic")]
+        #[neocogi_com_sdk::plugin(name = "proof.closed.generic")]
         /// Closed generic projections are ordinary plugin roots.
-        fn acquire_root(_runtime: ::neocogi_com::RuntimeHandle) -> Result<neocogi_com::ComPtr<producer::{contract}Abi>, neocogi_com::NcStatus> {{
+        fn acquire_root(_runtime: ::neocogi_com_sdk::RuntimeHandle) -> Result<neocogi_com_sdk::ComPtr<producer::{contract}Abi>, neocogi_com_sdk::NcStatus> {{
             Counter::from_value(Counter {{ value: 7 }}).query()
         }}
         #[test]
         fn calls_peer_specialization() {{
-            let mut raw = neocogi_com::ComRaw::null();
+            let mut raw = neocogi_com_sdk::ComRaw::null();
             // SAFETY: the generated adapter receives valid raw output storage.
-            assert_eq!(unsafe {{ (plugin_descriptor().acquire.unwrap())(neocogi_com_host::initialize_process(), &mut raw) }}, neocogi_com::NC_OK);
+            assert_eq!(unsafe {{ (plugin_descriptor().acquire.unwrap())(neocogi_com_host::initialize_process(), &mut raw) }}, neocogi_com_sdk::NC_OK);
             // SAFETY: the adapter transferred the exact generated specialization.
-            let owner = unsafe {{ neocogi_com::ComPtr::<producer::{contract}Abi>::__nc_from_raw_owned_checked(raw.cast()) }}.unwrap();
+            let owner = unsafe {{ neocogi_com_sdk::ComPtr::<producer::{contract}Abi>::__nc_from_raw_owned_checked(raw.cast()) }}.unwrap();
             let mut peer = owner.query::<consumer::{contract}Abi>().unwrap();
             assert_eq!(peer.get(), Ok(7));
             peer.set(41).unwrap();
@@ -304,7 +304,7 @@ fn parameter_renames_preserve_cross_module_calls_and_event_adapters() {
     fs::write(
         project.path().join("Cargo.toml"),
         format!(
-            "[package]\nname='generic-values-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\nneocogi-com-host={{path={:?}}}\n",
+            "[package]\nname='generic-values-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com-sdk={{path={:?}}}\nneocogi-com-host={{path={:?}}}\n",
             root.join("crates/com"), root.join("crates/host")
         ),
     )
@@ -319,13 +319,13 @@ fn parameter_renames_preserve_cross_module_calls_and_event_adapters() {
         pub mod producer;
         pub mod consumer;
         pub mod rebound;
-        #[neocogi_com::com_object(producer::Exchange)]
+        #[neocogi_com_sdk::com_object(producer::Exchange)]
         /// A real COM implementation uses its own generated Pair specialization.
         struct Exchange;
         impl producer::Exchange for Exchange {{}}
         impl producer::{exchange} for Exchange {{
             /// Returning the acquired value exercises both generated wire directions.
-            fn roundtrip(&self, value: producer::{pair}) -> Result<producer::{pair}, neocogi_com::NcStatus> {{ Ok(value) }}
+            fn roundtrip(&self, value: producer::{pair}) -> Result<producer::{pair}, neocogi_com_sdk::NcStatus> {{ Ok(value) }}
         }}
         /// Renamed template binders negotiate and round-trip copied boolean fields.
         #[test]
@@ -340,23 +340,23 @@ fn parameter_renames_preserve_cross_module_calls_and_event_adapters() {
         #[test]
         fn changed_parameter_positions_fail_interface_negotiation() {{
             let object = Exchange::from_value(Exchange);
-            assert_eq!(object.query::<rebound::{exchange}Abi>().err(), Some(neocogi_com::NC_E_ABI_VERSION));
+            assert_eq!(object.query::<rebound::{exchange}Abi>().err(), Some(neocogi_com_sdk::NC_E_ABI_VERSION));
         }}
         /// A renamed peer receives an owned recursive enum through a real COM queue.
         #[test]
         fn recursive_value_and_generic_event_receiver_acquire_snapshots() {{
             let node = producer::{node} {{ value: "parent".into(), children: vec![producer::{node} {{ value: "child".into(), children: vec![] }}] }};
             let value = producer::{change}::Set(node);
-            let copied = neocogi_com::NcValueRef::new(&value).unwrap().to_owned().unwrap();
+            let copied = neocogi_com_sdk::NcValueRef::new(&value).unwrap().to_owned().unwrap();
             let producer::{change}::Set(node) = copied else {{ panic!("selected alternative changed") }};
             assert_eq!(node.children[0].value, "child");
-            #[neocogi_com::com_object(consumer::Receiver)]
+            #[neocogi_com_sdk::com_object(consumer::Receiver)]
             /// Consumer-owned concrete queue is compiled against renamed template parameters.
             struct Queue;
             impl consumer::Receiver for Queue {{}}
             impl consumer::{receiver} for Queue {{
                 /// Decode through the peer's own generated recursive wire representation.
-                fn accept(&mut self, value: neocogi_com::NcValueRef<'_, consumer::{change}>) -> Result<(), neocogi_com::NcStatus> {{
+                fn accept(&mut self, value: neocogi_com_sdk::NcValueRef<'_, consumer::{change}>) -> Result<(), neocogi_com_sdk::NcStatus> {{
                     let consumer::{change}::Set(node) = value.to_owned()? else {{ panic!("wrong event") }};
                     assert_eq!(node.value, "parent");
                     assert_eq!(node.children[0].value, "child");
@@ -365,7 +365,7 @@ fn parameter_renames_preserve_cross_module_calls_and_event_adapters() {
             }}
             let receiver = Queue::from_value(Queue);
             let producer_view = receiver.query::<producer::{receiver}Abi>().unwrap();
-            producer_view.as_com_ref().accept(neocogi_com::NcValueRef::new(&value).unwrap()).unwrap();
+            producer_view.as_com_ref().accept(neocogi_com_sdk::NcValueRef::new(&value).unwrap()).unwrap();
             let descriptor = producer::ReceiverAbi::IDL_INTERFACE;
             assert!(descriptor.values.iter().any(|value| value.qualified_name == producer::{node}::IDL_TYPE.qualified_name));
             assert_eq!(producer::{node}::IDL_TYPE.qualified_name, consumer::{node}::IDL_TYPE.qualified_name);

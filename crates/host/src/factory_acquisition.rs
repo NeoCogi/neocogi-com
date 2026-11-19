@@ -4,7 +4,7 @@
 //! after that guard is released. The runtime validates the returned object's
 //! complete factory interface identity before transferring ownership to a host.
 
-use neocogi_com_core::{
+use neocogi_com::{
     IUnknown, NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE, NC_E_NOINTERFACE, NC_E_NOT_FOUND, NC_E_POINTER, NC_OK, NcAcquirePluginFactory,
     NcGuid, NcInterfaceId, NcStatus, raw,
 };
@@ -27,12 +27,12 @@ pub(crate) fn resolve_factory(
     // contract before invoking plugin bootstrap code, including transitive IDL
     // changes that preserve the factory's nominal IID.
     if description.root_factory.abi_signature != factory_interface.abi_signature {
-        return Err(neocogi_com_core::NC_E_ABI_VERSION);
+        return Err(neocogi_com::NC_E_ABI_VERSION);
     }
     if !threading_request_is_compatible(description.root_factory_threading, requested_threading) {
-        return Err(neocogi_com_core::NC_E_INVALID_ARG);
+        return Err(neocogi_com::NC_E_INVALID_ARG);
     }
-    description.acquire.ok_or(neocogi_com_core::NC_E_INVALID_ARG)
+    description.acquire.ok_or(neocogi_com::NC_E_INVALID_ARG)
 }
 
 /// Applies the declared factory capability to one host threading request.
@@ -54,13 +54,13 @@ fn threading_request_is_compatible(declared: u32, requested: u32) -> bool {
 pub(crate) unsafe fn acquire_factory(
     acquire: Result<NcAcquirePluginFactory, NcStatus>,
     factory_interface: NcInterfaceId,
-    out: *mut neocogi_com_core::ComRaw<IUnknown>,
+    out: *mut neocogi_com::ComRaw<IUnknown>,
 ) -> NcStatus {
     if out.is_null() {
         return NC_E_POINTER;
     }
     // SAFETY: The caller grants one output write and null was rejected above.
-    unsafe { *out = neocogi_com_core::ComRaw::null() };
+    unsafe { *out = neocogi_com::ComRaw::null() };
     let acquire = match acquire {
         Ok(acquire) => acquire,
         Err(status) => return status,
@@ -73,7 +73,7 @@ pub(crate) unsafe fn acquire_factory(
         // A plugin must clear failed outputs. Clear defensively without
         // dereferencing an untrusted value supplied on an error path.
         // SAFETY: `out` was validated above.
-        unsafe { *out = neocogi_com_core::ComRaw::null() };
+        unsafe { *out = neocogi_com::ComRaw::null() };
         return status;
     }
     // SAFETY: The output slot remains readable after the plugin returns.
@@ -81,7 +81,7 @@ pub(crate) unsafe fn acquire_factory(
     if !root.is_present() {
         // Reject both absence and half-null records before any table access.
         // SAFETY: the caller's output slot is still writable.
-        unsafe { *out = neocogi_com_core::ComRaw::null() };
+        unsafe { *out = neocogi_com::ComRaw::null() };
         return NC_E_POINTER;
     }
     // SAFETY: acquisition success promises a matching live allocation/table pair.
@@ -96,7 +96,7 @@ pub(crate) unsafe fn acquire_factory(
         }
         Err(status) => {
             // SAFETY: the common query already consumed any rejected reference.
-            unsafe { *out = neocogi_com_core::ComRaw::null() };
+            unsafe { *out = neocogi_com::ComRaw::null() };
             return status;
         }
     }
@@ -108,9 +108,7 @@ mod tests {
     use core::ffi::c_void;
     use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
 
-    use neocogi_com_core::{
-        IUnknownVTable, NC_ABI_THREADING_THREAD_LOCAL, NC_E_ABI_VERSION, NcAbiDigest, NcPluginDescriptor, NcStaticUtf8, guid_from_qualified_name,
-    };
+    use neocogi_com::{IUnknownVTable, NC_ABI_THREADING_THREAD_LOCAL, NC_E_ABI_VERSION, NcAbiDigest, NcPluginDescriptor, NcStaticUtf8, guid_from_qualified_name};
 
     use super::*;
     use crate::factory_plugin_registry::PluginOrigin;
@@ -135,12 +133,12 @@ mod tests {
     }
 
     /// Returns the same fixture projection when its complete identity matches.
-    unsafe extern "C" fn query_interface(this: *mut c_void, requested: *const NcInterfaceId, out: *mut neocogi_com_core::ComRaw<IUnknown>) -> NcStatus {
+    unsafe extern "C" fn query_interface(this: *mut c_void, requested: *const NcInterfaceId, out: *mut neocogi_com::ComRaw<IUnknown>) -> NcStatus {
         if this.is_null() || requested.is_null() || out.is_null() {
             return NC_E_POINTER;
         }
         // SAFETY: The caller grants one output write.
-        unsafe { *out = neocogi_com_core::ComRaw::null() };
+        unsafe { *out = neocogi_com::ComRaw::null() };
         // SAFETY: Non-null requested identity remains readable for the call.
         let requested = unsafe { &*requested };
         if requested.iid != FACTORY_INTERFACE.iid {
@@ -152,7 +150,7 @@ mod tests {
         // SAFETY: The paired table describes this live fixture allocation.
         unsafe { add_ref(this) };
         // SAFETY: `out` is writable and this fixture has one projection address.
-        unsafe { *out = neocogi_com_core::ComRaw { object: this, vtable: &VTABLE } };
+        unsafe { *out = neocogi_com::ComRaw { object: this, vtable: &VTABLE } };
         NC_OK
     }
 
@@ -188,7 +186,7 @@ mod tests {
     };
 
     /// Allocates and transfers one fake root factory reference.
-    unsafe extern "C" fn acquire(_host: *const neocogi_com_core::NcHostApiV3, out: *mut neocogi_com_core::ComRaw<IUnknown>) -> NcStatus {
+    unsafe extern "C" fn acquire(_host: *const neocogi_com::NcHostApiV3, out: *mut neocogi_com::ComRaw<IUnknown>) -> NcStatus {
         if out.is_null() {
             return NC_E_POINTER;
         }
@@ -196,14 +194,14 @@ mod tests {
         let object = Box::new(TestFactory { references: AtomicU32::new(1) });
         let raw = Box::into_raw(object);
         // SAFETY: The caller grants one output write and ownership transfers.
-        unsafe { *out = neocogi_com_core::ComRaw { object: raw.cast(), vtable: &VTABLE } };
+        unsafe { *out = neocogi_com::ComRaw { object: raw.cast(), vtable: &VTABLE } };
         NC_OK
     }
 
     /// Minimal validated registry record used only by resolution tests.
     static DESCRIPTION: NcPluginDescriptor = NcPluginDescriptor {
-        description_abi_version: neocogi_com_core::NC_PLUGIN_DESCRIPTOR_ABI_VERSION,
-        core_abi_version: neocogi_com_core::NC_COM_CORE_ABI_VERSION,
+        description_abi_version: neocogi_com::NC_PLUGIN_DESCRIPTOR_ABI_VERSION,
+        core_abi_version: neocogi_com::NC_COM_CORE_ABI_VERSION,
         plugin_id: guid_from_qualified_name("nc.tests.acquisition"),
         qualified_name: NcStaticUtf8::from_static("nc.tests.acquisition"),
         plugin_version: NcStaticUtf8::from_static("1.0.0"),
@@ -223,7 +221,7 @@ mod tests {
         // SAFETY: DESCRIPTION and all referenced code/buffers are immutable statics.
         registry.insert(unsafe { prepare_factory_plugin(&DESCRIPTION, PluginOrigin::Static) }.unwrap());
         let resolved = resolve_factory(&registry, DESCRIPTION.plugin_id, FACTORY_INTERFACE, NC_ABI_THREADING_THREAD_LOCAL);
-        let mut out = neocogi_com_core::ComRaw::null();
+        let mut out = neocogi_com::ComRaw::null();
         // SAFETY: The local output slot receives one owned fixture reference.
         assert_eq!(unsafe { acquire_factory(resolved, FACTORY_INTERFACE, &mut out) }, NC_OK);
         assert!(!out.is_null());
@@ -249,7 +247,7 @@ mod tests {
         for signature in [NcAbiDigest::EMPTY, NcAbiDigest::from_static(&DIFFERENT_LAST_BYTE)] {
             let mismatched = NcInterfaceId::new(FACTORY_ID, signature);
             let resolved = resolve_factory(&registry, DESCRIPTION.plugin_id, mismatched, NC_ABI_THREADING_THREAD_LOCAL);
-            let mut out = neocogi_com_core::ComRaw {
+            let mut out = neocogi_com::ComRaw {
                 object: core::ptr::dangling_mut(),
                 vtable: &VTABLE,
             };
@@ -269,7 +267,7 @@ mod tests {
         let _fixture = FIXTURE_LOCK.lock().unwrap();
         FACTORY_DROPS.store(0, Ordering::SeqCst);
         let mismatched = NcInterfaceId::new(FACTORY_ID, NcAbiDigest::from_static(&MISMATCHED_SIGNATURE));
-        let mut out = neocogi_com_core::ComRaw::null();
+        let mut out = neocogi_com::ComRaw::null();
         // SAFETY: The acquisition function and local output slot satisfy the ABI.
         assert_eq!(unsafe { acquire_factory(Ok(acquire), mismatched, &mut out) }, NC_E_ABI_VERSION);
         assert!(out.is_null());
@@ -281,10 +279,10 @@ mod tests {
 #[cfg(test)]
 mod malformed_bootstrap_tests {
     use super::*;
-    use neocogi_com_core::ComRaw;
+    use neocogi_com::ComRaw;
 
     /// Simulates a producer writing an object word without a method table.
-    unsafe extern "C" fn missing_table(_host: *const neocogi_com_core::NcHostApiV3, out: *mut ComRaw<IUnknown>) -> NcStatus {
+    unsafe extern "C" fn missing_table(_host: *const neocogi_com::NcHostApiV3, out: *mut ComRaw<IUnknown>) -> NcStatus {
         // SAFETY: the test supplies one writable output record; no object is acquired.
         unsafe {
             *out = ComRaw {
@@ -295,7 +293,7 @@ mod malformed_bootstrap_tests {
         NC_OK
     }
     /// Simulates the opposite half-null shape; its table must never be read.
-    unsafe extern "C" fn missing_object(_host: *const neocogi_com_core::NcHostApiV3, out: *mut ComRaw<IUnknown>) -> NcStatus {
+    unsafe extern "C" fn missing_object(_host: *const neocogi_com::NcHostApiV3, out: *mut ComRaw<IUnknown>) -> NcStatus {
         // SAFETY: the test supplies one writable output record; shape rejection comes first.
         unsafe {
             *out = ComRaw {

@@ -80,7 +80,7 @@ fn header_byte_limit_is_a_range_failure() {
         assert_eq!(binary::to_slice_with_limits(&(), &mut [0; 4], limits), Err(error));
         #[cfg(feature = "alloc")]
         {
-            use neocogi_com::NC_E_OUT_OF_RANGE;
+            use neocogi_com_sdk::NC_E_OUT_OF_RANGE;
             let format = binary::format(limits);
             assert_eq!(format.serializer().err(), Some(NC_E_OUT_OF_RANGE));
             let error = format.serialize(&()).unwrap_err();
@@ -105,7 +105,7 @@ fn header_byte_limit_is_a_range_failure() {
         let format = binary::format(limits);
         assert_eq!(format.serialize(&()).unwrap(), b"NCB\x01");
         let error = format.serialize(&1u8).unwrap_err();
-        assert_eq!(error.status, neocogi_com::NC_E_OUT_OF_RANGE);
+        assert_eq!(error.status, neocogi_com_sdk::NC_E_OUT_OF_RANGE);
         assert_eq!(error.message, "document byte limit");
         assert_eq!(error.byte_offset, Some(4));
     }
@@ -137,7 +137,7 @@ fn fixed_paths_charge_depth_without_refunding_values() {
 #[cfg(feature = "alloc")]
 #[test]
 fn owning_ncb_admits_exact_protocol_ceiling_and_rejects_the_next_frame() {
-    use neocogi_com::{NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE};
+    use neocogi_com_sdk::{NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE};
     let format = binary::format(Limits { depth: 200, ..Limits::default() });
     let writer = format.serializer().unwrap();
     let mut sink = writer.as_com_ref();

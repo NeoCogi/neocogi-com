@@ -616,7 +616,7 @@ fn dense_member_conflicts_are_source_aware_and_policy_specific() {
 /// identifier, against both local and separately imported declarations.
 #[test]
 fn imported_interface_companions_have_source_aware_collision_admission() {
-    for kind in neocogi_com_core::NcComInterfaceCompanion::ALL {
+    for kind in neocogi_com::NcComInterfaceCompanion::ALL {
         let name = format!("IBase{}", kind.suffix());
         for separate_import in [false, true] {
             let base = module("proof/base.ncidl", "interface IBase {}");

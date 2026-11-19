@@ -14,7 +14,7 @@ fn generated_consuming_outputs_prepare_before_acceptance() {
     fs::write(
         project.path().join("Cargo.toml"),
         format!(
-            "[package]\nname='output-completion-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\n",
+            "[package]\nname='output-completion-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com-sdk={{path={:?}}}\n",
             root.join("crates/com"),
         ),
     )
@@ -22,7 +22,7 @@ fn generated_consuming_outputs_prepare_before_acceptance() {
     let generated = neocogi_idl::generate_rust(&graph, "proof.completion").unwrap();
     let support = root.join("tests/com/integration-tests/support");
     fs::write(project.path().join("src/lib.rs"), format!(
-        "{generated}\n#[cfg(test)] use neocogi_com::*;\n#[cfg(test)] type Excessive = [[bool; 0]; MAX_VALUE_COUNT];\n#[cfg(test)] #[path={:?}] mod allocation_probe;\n#[cfg(test)] #[path={:?}] mod generated_calls;\n",
+        "{generated}\n#[cfg(test)] use neocogi_com_sdk::*;\n#[cfg(test)] type Excessive = [[bool; 0]; MAX_VALUE_COUNT];\n#[cfg(test)] #[path={:?}] mod allocation_probe;\n#[cfg(test)] #[path={:?}] mod generated_calls;\n",
         support.join("allocation_probe.rs"), support.join("output_completion_fixture.rs"),
     )).unwrap();
     let result = Command::new("cargo")

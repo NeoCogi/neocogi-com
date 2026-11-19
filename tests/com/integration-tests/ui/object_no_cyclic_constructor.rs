@@ -1,4 +1,4 @@
-use neocogi_com::{com_object, IUnknown};
+use neocogi_com_sdk::{com_object, IUnknown};
 
 /// Shared objects accept initialized values, with no initializer closure API.
 #[com_object(interfaces())]

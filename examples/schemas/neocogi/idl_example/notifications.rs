@@ -1,6 +1,6 @@
 //! Domain-specific construction-bound observation, without a generic event system.
 use super::{ExampleObjectAbi, Extent, ExtentBinding, ExtentNotification, IExtentObserverAbi};
-use neocogi_com::{ComPtr, ComRef, NcStatus, NcValueRef, WeakComPtr};
+use neocogi_com_sdk::{ComPtr, ComRef, NcStatus, NcValueRef, WeakComPtr};
 
 impl ExtentBinding {
     /// Retains the selected shared observer; exclusive borrows cannot grant shared ownership.

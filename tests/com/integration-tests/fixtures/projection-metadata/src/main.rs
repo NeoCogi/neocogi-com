@@ -1,5 +1,5 @@
 //! Linked-binary proof that using COM does not implicitly retain inspection schemas.
-use neocogi_com::{com_object, ComInterface, NcStatus};
+use neocogi_com_sdk::{com_object, ComInterface, NcStatus};
 use std::hint::black_box;
 
 #[allow(dead_code, unused_imports)]

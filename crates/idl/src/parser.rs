@@ -6,7 +6,7 @@ use std::{
     path::{Component, Path},
 };
 
-use neocogi_com_core::NcGuid;
+use neocogi_com::NcGuid;
 use proc_macro2::Span;
 use syn::{
     Attribute, Expr, ExprLit, Ident, Lit, LitInt, LitStr, Token, braced, parenthesized,
@@ -828,8 +828,8 @@ fn require_snake_case(identifier: &Ident, role: &str) -> syn::Result<()> {
     // rejection: metadata's length bound does not constrain member names, and
     // every reserved word is shorter than that bound.
     if matches!(
-        neocogi_com_core::validate_rust_path(&value),
-        Err(neocogi_com_core::NcRustPathError::ReservedIdentifier { .. })
+        neocogi_com::validate_rust_path(&value),
+        Err(neocogi_com::NcRustPathError::ReservedIdentifier { .. })
     ) {
         Err(syn::Error::new_spanned(
             identifier,

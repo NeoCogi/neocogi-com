@@ -206,7 +206,7 @@ equal contracts stored in different libraries.
 The public static constructor makes digest width a compile-time obligation:
 
 ```rust
-use neocogi_com::{NcAbiDigest, NC_COM_CORE_ABI_VERSION};
+use neocogi_com_sdk::{NcAbiDigest, NC_COM_CORE_ABI_VERSION};
 assert_eq!(NC_COM_CORE_ABI_VERSION, 21);
 static FIRST: [u8; 32] = [7; 32];
 static SECOND: [u8; 32] = [7; 32];
@@ -218,7 +218,7 @@ assert!(NcAbiDigest::EMPTY.is_empty());
 ```
 
 ```compile_fail
-use neocogi_com::NcAbiDigest;
+use neocogi_com_sdk::NcAbiDigest;
 static WRONG_WIDTH: [u8; 17] = [0; 17];
 let _ = NcAbiDigest::from_static(&WRONG_WIDTH);
 ```
@@ -572,7 +572,7 @@ sequence indirection permits finite recursive values. See the
 Built-in data interfaces exercise shared ownership and checked native calls:
 
 ```rust
-use neocogi_com::{INcBytesAbi, ComBytesExt, ComStringExt, IUnknown, NcString};
+use neocogi_com_sdk::{INcBytesAbi, ComBytesExt, ComStringExt, IUnknown, NcString};
 let text = NcString::from_utf8_str("ABI v3");
 let another = text.clone();
 let bytes = text.query::<INcBytesAbi>().unwrap();
@@ -949,15 +949,15 @@ Registered metadata is available directly on `RuntimeHandle`; no intermediate
 The executable explicitly selects the host implementation in Cargo and uses:
 
 ```rust
-#[neocogi_com::com_main]
-fn main(runtime: neocogi_com::RuntimeHandle) {
+#[neocogi_com_sdk::com_main]
+fn main(runtime: neocogi_com_sdk::RuntimeHandle) {
     for plugin in runtime.plugins().unwrap() {
         println!("{} {}", plugin.qualified_name, plugin.version);
     }
 }
 ```
 
-Its manifest enables `neocogi-com`'s `runtime` API wrappers and directly depends on
+Its manifest enables `neocogi-com-sdk`'s `runtime` API wrappers and directly depends on
 `neocogi-com-host`. The handle itself is available without `std` or `runtime`;
 only richer API wrappers require that feature. `com_main` supports safe synchronous
 nongeneric `fn main(runtime: RuntimeHandle)`, preserving normal `()`/`ExitCode`/`Result`

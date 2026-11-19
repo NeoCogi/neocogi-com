@@ -1,6 +1,6 @@
 //! The same numeric contract crosses statically linked and native COM factories.
-use neocogi_com::{ComDeserialize, NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE};
-use neocogi_com::serialization::{Deserializer, Error, Format, ISerializationDiagnosticsAbi};
+use neocogi_com_sdk::{ComDeserialize, NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE};
+use neocogi_com_sdk::serialization::{Deserializer, Error, Format, ISerializationDiagnosticsAbi};
 
 /// Generated construction must mix narrow and wide fields without narrowing the
 /// wide-only value or losing the path of a later narrow acquisition failure.

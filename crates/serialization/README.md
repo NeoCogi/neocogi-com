@@ -6,7 +6,7 @@ included and is the default; there is no feature that disables it. `json` adds o
 always enables both NCB and JSON in its shared library.
 
 ```rust
-use neocogi_com::serialization::Limits;
+use neocogi_com_sdk::serialization::Limits;
 let format = neocogi_com_serialization::ncb::format(Limits::default());
 let bytes = format.serialize(&42u32).unwrap();
 assert_eq!(format.deserialize::<u32>(&bytes).unwrap(), 42);

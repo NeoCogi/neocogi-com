@@ -23,12 +23,12 @@ fn metadata_diamond_order_and_independent_com_calls() {
         root.join("src/lib.rs"),
         r#"
         mod producer; mod consumer;
-        #[neocogi_com::com_object(producer::Leaf)] struct Probe;
-        impl producer::Base for Probe { fn base(&self) -> Result<u32,neocogi_com::NcStatus> { Ok(11) } }
-        impl producer::Left for Probe { fn left(&self) -> Result<u32,neocogi_com::NcStatus> { Ok(22) } }
-        impl producer::Right for Probe { fn right(&self) -> Result<u32,neocogi_com::NcStatus> { Ok(33) } }
+        #[neocogi_com_sdk::com_object(producer::Leaf)] struct Probe;
+        impl producer::Base for Probe { fn base(&self) -> Result<u32,neocogi_com_sdk::NcStatus> { Ok(11) } }
+        impl producer::Left for Probe { fn left(&self) -> Result<u32,neocogi_com_sdk::NcStatus> { Ok(22) } }
+        impl producer::Right for Probe { fn right(&self) -> Result<u32,neocogi_com_sdk::NcStatus> { Ok(33) } }
         impl producer::Leaf for Probe {
-            fn echo(&self, value: producer::Zeta) -> Result<producer::Zeta,neocogi_com::NcStatus> { Ok(value) }
+            fn echo(&self, value: producer::Zeta) -> Result<producer::Zeta,neocogi_com_sdk::NcStatus> { Ok(value) }
         }
         #[test] fn metadata_and_calls() {
             use consumer::{BaseAbi,LeftAbi,RightAbi,LeafAbi};

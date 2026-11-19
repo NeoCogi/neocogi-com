@@ -1,8 +1,8 @@
-# neocogi-com-core
+# neocogi-com
 
 The C-shaped ABI shared by generated contracts, hosts, plugins, and the process
 runtime. Its default configuration is allocation-free; optional `alloc` helpers
-own decoded values and binary documents. Most authors use the `neocogi-com`
+own decoded values and binary documents. Most authors use the `neocogi-com-sdk`
 facade. The [current object ABI](../../docs/abi-v3.md) remains experimental.
 
 The `0.4.0-alpha.1` candidate uses **provisional ABI v3/core generation 21**.
@@ -99,8 +99,8 @@ all fields prove identical layout and unrestricted contents. See the normative
 
 ## Descriptor text validation
 
-COM owns the shared descriptor grammars, exposed through both `neocogi-com-core`
-and the `neocogi-com` facade. The validators allocate nothing, work without
+COM owns the shared descriptor grammars, exposed through both `neocogi-com`
+and the `neocogi-com-sdk` facade. The validators allocate nothing, work without
 `std` or `alloc`, and may run in const contexts. Their concrete error enums
 report lengths or offending byte offsets; consumers add source/manifest context.
 
@@ -230,7 +230,7 @@ NCB bounds its structural stack to 128 open values in addition to caller limits.
 
 This supersedes the 0.1.0 NCB-only value-trait contract. The former generic Rust
 format/access traits stay retired; the new extensibility boundary is COM.
-Application code may select a format through `neocogi_com::serialization::Format`
+Application code may select a format through `neocogi_com_sdk::serialization::Format`
 or use core's COM interfaces and typed traversal facades directly. Unsupported
 format/value combinations return errors. Live object reconstruction still uses
 explicit `IPersistable` recipes; its runtime snapshot envelope remains NCB v1.

@@ -211,7 +211,7 @@ unsafe impl<T: ComInterface + ?Sized> Sync for ComPtr<T, ThreadSafe> {}
 /// whose types establish the ownership model. See ComPtr for the layout.
 ///
 /// ```compile_fail
-/// use neocogi_com_core::{ComPtr, ComRef, IUnknown};
+/// use neocogi_com::{ComPtr, ComRef, IUnknown};
 /// fn escape(owner: ComPtr<IUnknown>) -> ComRef<'static, IUnknown> {
 ///     owner.as_com_ref()
 /// }
@@ -449,7 +449,7 @@ impl<'a, T: ComInterface + ?Sized, M: ThreadingModel> ComRef<'a, T, M> {
     /// A caller already holding ComPtr should clone that proven shared owner.
     ///
     /// ```compile_fail
-    /// use neocogi_com_core::{ComRef, IUnknown};
+    /// use neocogi_com::{ComRef, IUnknown};
     /// fn retain(borrow: ComRef<'_, IUnknown>) { let _owner = borrow.add_ref(); }
     /// ```
     pub fn try_add_ref(&self) -> Result<ComPtr<T, M>, NcStatus> {

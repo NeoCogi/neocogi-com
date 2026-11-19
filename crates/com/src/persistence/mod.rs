@@ -14,7 +14,7 @@
 //! there is no implicit codec fallback. Creating a registry and registering its
 //! recipes remain independent of codec availability.
 
-pub use neocogi_com_core::persistence::*;
+pub use neocogi_com::persistence::*;
 #[rustfmt::skip]
 mod providers;
 #[doc(hidden)]

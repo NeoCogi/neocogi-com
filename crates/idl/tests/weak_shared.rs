@@ -37,7 +37,7 @@ fn weak_shared_identity_and_capabilities_are_distinct() {
     assert_eq!(value.persistence, neocogi_idl::Persistence::Unsupported);
     let source = generate_rust(&g, "proof.weak").unwrap();
     assert!(source.contains("ValueType::WeakObject"));
-    assert!(source.contains("WeakComPtr<::neocogi_com::INcStringAbi>"));
+    assert!(source.contains("WeakComPtr<::neocogi_com_sdk::INcStringAbi>"));
 }
 
 /// Weak handles require an interface target and borrowed aggregate input ownership.
@@ -93,7 +93,7 @@ fn generated_weak_values_and_results_preserve_lifetime_and_validation() {
     fs::write(
         project.path().join("Cargo.toml"),
         format!(
-            "[package]\nname='weak-shared-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\n",
+            "[package]\nname='weak-shared-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com-sdk={{path={:?}}}\n",
             root.join("crates/com"),
         ),
     )

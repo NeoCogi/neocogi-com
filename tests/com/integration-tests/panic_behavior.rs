@@ -4,7 +4,7 @@
 mod test_contracts {
     include!(concat!(env!("OUT_DIR"), "/test_contracts.rs"));
 }
-use neocogi_com::{ComPtr, IUnknown, NcStatus, com_object};
+use neocogi_com_sdk::{ComPtr, IUnknown, NcStatus, com_object};
 use std::os::unix::process::ExitStatusExt;
 use std::process::{Command, Output};
 

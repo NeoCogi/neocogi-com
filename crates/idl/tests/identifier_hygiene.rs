@@ -5,7 +5,7 @@ use std::{fs, path::Path, process::Command};
 /// inherited exposure and a closed generic, not just a simple top-level trait.
 #[test]
 fn public_handle_names_reject_before_rust_generation() {
-    for name in neocogi_com_core::NC_COM_HANDLE_METHOD_NAMES {
+    for name in neocogi_com::NC_COM_HANDLE_METHOD_NAMES {
         for source in [
             format!("interface ICollision {{ fn {name}(&self) -> Result<u32>; }}"),
             format!("interface Collision {{ fn {name}(&self) -> Result<u32>; }}"),
@@ -45,7 +45,7 @@ fn authored_names_preserve_values_across_generated_com() {
     fs::write(
         project.path().join("Cargo.toml"),
         format!(
-            "[package]\nname='identifier-hygiene-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\nneocogi-com-serialization={{path={:?},features=['std']}}\n",
+            "[package]\nname='identifier-hygiene-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com-sdk={{path={:?}}}\nneocogi-com-serialization={{path={:?},features=['std']}}\n",
             root.join("crates/com"),
             root.join("crates/serialization")
         ),

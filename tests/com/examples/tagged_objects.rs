@@ -1,4 +1,4 @@
-use neocogi_com::{ComPtr, IUnknown, NcStatus, com_object};
+use neocogi_com_sdk::{ComPtr, IUnknown, NcStatus, com_object};
 
 // Contract identity and wire codecs are compiled from examples/schemas/nc/examples/tagged_objects.ncidl.
 #[allow(dead_code, unused_imports)]

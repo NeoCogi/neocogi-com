@@ -26,7 +26,7 @@ pub struct PluginArgs {
     version: Option<LitStr>,
     /// Hard plugin dependencies that must already be registered.
     dependencies: Vec<Path>,
-    /// Optional path overriding automatic `neocogi-com` discovery.
+    /// Optional path overriding automatic `neocogi-com-sdk` discovery.
     runtime_crate: Option<Path>,
 }
 

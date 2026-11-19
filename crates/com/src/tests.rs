@@ -4,7 +4,7 @@
 //! ergonomics, owned byte/string implementations, bulk-copy bounds, threading
 //! markers, static UTF-8 metadata, and plugin ABI-version validation. Runtime
 //! integration and macro expansion have their own dedicated test targets, so
-//! this module stays focused on behavior implemented directly by `neocogi-com`.
+//! this module stays focused on behavior implemented directly by `neocogi-com-sdk`.
 
 use super::*;
 use core::ffi::c_void;

@@ -53,7 +53,7 @@ fn restore_checks_declared_child_slots_before_descending() {
     let api = unsafe { neocogi_com_host::initialize_process().persistence.as_ref() }.unwrap();
     let mut context = core::ptr::null_mut();
     // SAFETY: The writable local slot receives one thread-local context.
-    assert_eq!(unsafe { (api.create_context)(&mut context) }, neocogi_com::NC_OK);
+    assert_eq!(unsafe { (api.create_context)(&mut context) }, neocogi_com_sdk::NC_OK);
     let mut out = restored.as_raw();
     // SAFETY: The context is live on its creating thread, the prefix is readable,
     // and the output can be written without touching the borrowed sentinel owner.
@@ -94,7 +94,7 @@ fn restore_reports_host_child_storage_allocation_refusal() {
     let probe = allocation_probe::Probe::matching(std::alloc::Layout::new::<ObjectRecord>(), Some(1));
     let outcome = registry.restore(&bytes);
     let report = probe.finish();
-    assert_eq!(outcome.err(), Some(neocogi_com::NC_E_OUT_OF_MEMORY));
+    assert_eq!(outcome.err(), Some(neocogi_com_sdk::NC_E_OUT_OF_MEMORY));
     assert_eq!(report.attempts, 1);
     assert_eq!(report.denied, 1);
     assert_eq!(counts.validated.load(Ordering::Relaxed), 0);

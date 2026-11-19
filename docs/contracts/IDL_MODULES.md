@@ -500,22 +500,22 @@ fn documented_enum_wire_contract() {
     use enums::{Choice, Mode};
 
     for (native, expected) in [(Mode::Off, 0_u8), (Mode::On, 1_u8)] {
-        let wire: <Mode as neocogi_com::ComValue>::AbiRepr =
-            neocogi_com::encode_inline(&native).unwrap();
+        let wire: <Mode as neocogi_com_sdk::ComValue>::AbiRepr =
+            neocogi_com_sdk::encode_inline(&native).unwrap();
         let integer: u8 = wire;
         assert_eq!(core::mem::size_of_val(&wire), 1);
         assert_eq!(integer, expected);
     }
 
     for (native, expected) in [(Choice::Empty, 0_i64), (Choice::Data(7), 1_i64)] {
-        let wire: <Choice as neocogi_com::ComValue>::AbiRepr =
-            neocogi_com::encode_inline(&native).unwrap();
+        let wire: <Choice as neocogi_com_sdk::ComValue>::AbiRepr =
+            neocogi_com_sdk::encode_inline(&native).unwrap();
         let tag: i64 = wire.tag;
         assert_eq!(core::mem::size_of_val(&wire.tag), 8);
         assert_eq!(tag, expected);
         // SAFETY: encode_inline initialized the active wire record. These copied
         // scalar variants retain no borrowed backing storage during decoding.
-        let decoded = unsafe { neocogi_com::decode_inline::<Choice>(&wire) }.unwrap();
+        let decoded = unsafe { neocogi_com_sdk::decode_inline::<Choice>(&wire) }.unwrap();
         match (native, decoded) {
             (Choice::Empty, Choice::Empty) => {}
             (Choice::Data(expected), Choice::Data(actual)) => assert_eq!(actual, expected),
@@ -1153,8 +1153,8 @@ A plugin defines a typed acquisition function taking the host-supplied `RuntimeH
 in its implementation crate:
 
 ```rust,ignore
-#[neocogi_com::plugin(name = "example.plugin")]
-fn acquire_root(_runtime: neocogi_com::RuntimeHandle) -> Result<neocogi_com::ComPtr<api::IRootAbi>, neocogi_com::NcStatus> {
+#[neocogi_com_sdk::plugin(name = "example.plugin")]
+fn acquire_root(_runtime: neocogi_com_sdk::RuntimeHandle) -> Result<neocogi_com_sdk::ComPtr<api::IRootAbi>, neocogi_com_sdk::NcStatus> {
     Root::from_value(Root::new()).query()
 }
 ```
@@ -1200,7 +1200,7 @@ It cannot infer identity from the application's representation attribute.
 
 Generated contract definitions need no procedural macro feature. A package that
 also compiles concrete Rust objects, including handwritten event snapshots, must
-request `neocogi-com/macros` in its own normal dependency. Its name ending in
+request `neocogi-com-sdk/macros` in its own normal dependency. Its name ending in
 `contracts` does not make those implementations generated-only code. Enable `alloc`
 for owned values and `std` where required by local code.
 
@@ -1226,7 +1226,7 @@ removed runtime contract mechanism.
 
 ### Generated IDL metadata
 
-[`neocogi_com::idl_metadata`](../../crates/com/src/idl_metadata.rs) contains
+[`neocogi_com_sdk::idl_metadata`](../../crates/com/src/idl_metadata.rs) contains
 static descriptions of interfaces and values for tools that need to read a
 contract without linking the IDL compiler. `InterfaceAbi::IDL_INTERFACE` is an
 `InterfaceMetadata`: it describes methods, receiver access, argument/result

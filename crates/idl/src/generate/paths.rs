@@ -33,7 +33,7 @@ pub(crate) struct RustPath {
 impl RustPath {
     /// Admits the logical name and Rust location under the shared generator rules.
     pub(crate) fn validate_location(module: &str, rust_path: &str) -> Result<Self, GenerateError> {
-        neocogi_com_core::validate_qualified_name(module).map_err(|error| GenerateError::new(format!("invalid IDL module {module:?}: {error}")))?;
+        neocogi_com::validate_qualified_name(module).map_err(|error| GenerateError::new(format!("invalid IDL module {module:?}: {error}")))?;
         crate::ModuleName::validate_dotted(module).map_err(|error| GenerateError::new(format!("invalid IDL module {module:?}: {error}")))?;
         parse_rust_path(rust_path)
     }
@@ -159,7 +159,7 @@ fn dependency_alias(graph: &ResolvedModules, module: &str) -> Result<Ident, Gene
 /// Applies COM's binding-path contract before constructing the backend's syntax tree.
 /// `syn` is a token-construction dependency here, not a separate metadata policy.
 fn parse_rust_path(value: &str) -> Result<RustPath, GenerateError> {
-    neocogi_com_core::validate_rust_path(value).map_err(|error| GenerateError::new(format!("invalid Rust contract path {value:?}: {error}")))?;
+    neocogi_com::validate_rust_path(value).map_err(|error| GenerateError::new(format!("invalid Rust contract path {value:?}: {error}")))?;
     let path: syn::Path = syn::parse_str(value).map_err(|error| GenerateError::new(format!("cannot parse validated Rust contract path {value:?}: {error}")))?;
     // Equivalent optional-root spellings must not conflict during registration.
     Ok(RustPath::from_syntax(&path))

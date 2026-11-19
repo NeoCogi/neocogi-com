@@ -178,7 +178,7 @@ fn imported_interface_export_inventory_matches_both_actual_surfaces() {
     let emission = generate_module_emission(&graph, "proof.consumer", &paths, owner.path(), "consumer", "// test").unwrap();
     let family: BTreeSet<_> = std::iter::once("IBase".to_string())
         .chain(
-            neocogi_com_core::NcComInterfaceCompanion::ALL
+            neocogi_com::NcComInterfaceCompanion::ALL
                 .into_iter()
                 .map(|kind| format!("IBase{}", kind.suffix())),
         )

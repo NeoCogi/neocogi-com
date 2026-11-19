@@ -8,7 +8,7 @@ use crate::{
 };
 use proc_macro2::{Ident, Literal, TokenStream};
 use quote::quote;
-use neocogi_com_core::NcComInterfaceCompanion;
+use neocogi_com::NcComInterfaceCompanion;
 
 mod interface_metadata;
 mod lower;
@@ -361,7 +361,7 @@ fn public_rust_path(graph: &Generation<'_>, module: &ResolvedModule, name: &str)
     parts.push(name.to_owned());
     let result = parts.join("::");
     // The declaration suffix is part of the transported path and its byte limit.
-    neocogi_com_core::validate_rust_path(&result).map_err(|error| GenerateError::new(format!("invalid public Rust path {result:?}: {error}")))?;
+    neocogi_com::validate_rust_path(&result).map_err(|error| GenerateError::new(format!("invalid public Rust path {result:?}: {error}")))?;
     Ok(result)
 }
 
@@ -619,7 +619,7 @@ fn rust_ident(value: &str) -> Result<Ident, GenerateError> {
 }
 
 /// Emits a field-wise GUID expression independent of host byte order.
-fn guid_literal(nc: &syn::Path, value: neocogi_com_core::NcGuid) -> TokenStream {
+fn guid_literal(nc: &syn::Path, value: neocogi_com::NcGuid) -> TokenStream {
     let (data1, data2, data3, data4) = value.fields();
     quote! { #nc::NcGuid::from_fields(#data1, #data2, #data3, [#(#data4),*]) }
 }

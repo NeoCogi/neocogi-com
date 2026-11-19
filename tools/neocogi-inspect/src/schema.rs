@@ -7,7 +7,7 @@
 
 use std::collections::BTreeSet;
 
-use neocogi_com_core::{NcAbiThreadingMode, NcGuid, guid_from_qualified_name};
+use neocogi_com::{NcAbiThreadingMode, NcGuid, guid_from_qualified_name};
 use neocogi_com_host::PluginInspection;
 use serde::{Deserialize, Serialize};
 
@@ -317,12 +317,12 @@ fn parse_guid(value: &str, path: &str) -> Result<NcGuid, ArtifactValidationError
 
 /// Uses the same normative plugin-name grammar as runtime validation.
 fn validate_qualified_name(value: &str, path: &str) -> Result<(), ArtifactValidationError> {
-    neocogi_com_core::validate_qualified_name(value).map_err(|error| ArtifactValidationError::new(path, format!("invalid qualified name: {error}")))
+    neocogi_com::validate_qualified_name(value).map_err(|error| ArtifactValidationError::new(path, format!("invalid qualified name: {error}")))
 }
 
 /// Adds the JSON field location to COM's authoritative descriptor-version error.
 fn validate_version(value: &str, path: &str) -> Result<(), ArtifactValidationError> {
-    neocogi_com_core::validate_version_text(value).map_err(|error| ArtifactValidationError::new(path, format!("invalid version: {error}")))
+    neocogi_com::validate_version_text(value).map_err(|error| ArtifactValidationError::new(path, format!("invalid version: {error}")))
 }
 
 /// Converts validated native capabilities without exposing ABI integers in JSON.
@@ -351,8 +351,8 @@ pub(crate) fn sample_artifact() -> InspectionArtifact {
             pointer_width: 64,
             endianness: ArtifactEndianness::Little,
         },
-        description_abi_version: neocogi_com_core::NC_PLUGIN_DESCRIPTOR_ABI_VERSION,
-        core_abi_version: neocogi_com_core::NC_COM_CORE_ABI_VERSION,
+        description_abi_version: neocogi_com::NC_PLUGIN_DESCRIPTOR_ABI_VERSION,
+        core_abi_version: neocogi_com::NC_COM_CORE_ABI_VERSION,
         plugin: ArtifactPlugin {
             id: guid_from_qualified_name(plugin_name).to_string(),
             name: plugin_name.to_string(),
@@ -377,10 +377,7 @@ mod tests {
         for version in ["", "1.0 beta", "1.β", &"v".repeat(129)] {
             let error = validate_version(version, "plugin.version").unwrap_err().to_string();
             assert!(error.contains("plugin.version"), "{error}");
-            assert!(
-                error.contains(&neocogi_com_core::validate_version_text(version).unwrap_err().to_string()),
-                "{error}"
-            );
+            assert!(error.contains(&neocogi_com::validate_version_text(version).unwrap_err().to_string()), "{error}");
         }
         validate_version(&"v".repeat(128), "plugin.version").unwrap();
     }

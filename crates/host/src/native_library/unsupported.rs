@@ -1,4 +1,4 @@
-//! Explicit fallback for targets without an neocogi-com dynamic-loader implementation.
+//! Explicit fallback for targets without an neocogi-com-sdk dynamic-loader implementation.
 //!
 //! Both opening and symbol resolution return `UnsupportedPlatform` diagnostics,
 //! allowing offline inspection to fail normally and required live loading to

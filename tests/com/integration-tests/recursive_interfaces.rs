@@ -5,7 +5,7 @@
 mod test_contracts {
     include!(concat!(env!("OUT_DIR"), "/test_contracts.rs"));
 }
-use neocogi_com::{ComPtr, ComRef, IUnknown, NcStatus, NC_E_ABI_VERSION, NC_E_NOT_FOUND, com_object};
+use neocogi_com_sdk::{ComPtr, ComRef, IUnknown, NcStatus, NC_E_ABI_VERSION, NC_E_NOT_FOUND, com_object};
 use std::{cell::Cell, rc::Rc};
 
 /// First revision as understood by the consumer binary.
@@ -159,8 +159,8 @@ fn self_and_mutual_references_compile_and_preserve_identity() {
 /// Deliberately inconsistent dependency metadata exercises the raw boundary
 /// which the ordinary IDL compiler will not synthesize with equal signatures.
 static FOREIGN_EXCHANGE: consumer::IExchangeVTable = consumer::IExchangeVTable {
-    unknown: neocogi_com::IUnknownVTable {
-        interface_id: &<consumer::IExchangeAbi as neocogi_com::ComInterface>::INTERFACE_ID,
+    unknown: neocogi_com_sdk::IUnknownVTable {
+        interface_id: &<consumer::IExchangeAbi as neocogi_com_sdk::ComInterface>::INTERFACE_ID,
         ..producer::IExchangeVtblFor::<producer::Exchange>::VTABLE.unknown
     },
     accept: foreign_accept,
@@ -169,15 +169,15 @@ static FOREIGN_EXCHANGE: consumer::IExchangeVTable = consumer::IExchangeVTable {
 
 /// Forwards the same two-word C input to the real producer's checked thunk.
 /// The negative test supplies readable, strongly retained consumer storage.
-unsafe extern "C" fn foreign_accept(object: *mut core::ffi::c_void, value: neocogi_com::ComRaw<consumer::IValueAbi>) -> NcStatus {
+unsafe extern "C" fn foreign_accept(object: *mut core::ffi::c_void, value: neocogi_com_sdk::ComRaw<consumer::IValueAbi>) -> NcStatus {
     // SAFETY: object is the live concrete producer; marker casting preserves
     // both raw words. Its thunk checks the expected value identity before use.
     unsafe { (producer::IExchangeVtblFor::<producer::Exchange>::VTABLE.accept)(object, value.cast()) }
 }
 
 /// Publishes one owned, readable value with deliberately incompatible metadata.
-unsafe extern "C" fn foreign_produce(object: *mut core::ffi::c_void, output: *mut neocogi_com::ComRaw<consumer::IValueAbi>) -> NcStatus {
-    let mut value = neocogi_com::ComRaw::<producer::IValueAbi>::null();
+unsafe extern "C" fn foreign_produce(object: *mut core::ffi::c_void, output: *mut neocogi_com_sdk::ComRaw<consumer::IValueAbi>) -> NcStatus {
+    let mut value = neocogi_com_sdk::ComRaw::<producer::IValueAbi>::null();
     // SAFETY: object is retained by the test; the local output is aligned and
     // writable. Success transfers one real producer reference into value.
     let status = unsafe { (producer::IExchangeVtblFor::<producer::Exchange>::VTABLE.produce)(object, &mut value) };
@@ -207,7 +207,7 @@ fn full_pointer_checks_reject_incompatible_arguments_and_release_owned_returns()
     // lifetime remain the real producer's; no incompatible Rust value is formed.
     let raw = exchange_owner.as_raw();
     let exchange = unsafe {
-        ComRef::<consumer::IExchangeAbi>::__nc_from_raw_borrowed_checked(neocogi_com::ComRaw {
+        ComRef::<consumer::IExchangeAbi>::__nc_from_raw_borrowed_checked(neocogi_com_sdk::ComRaw {
             object: raw.object,
             vtable: &FOREIGN_EXCHANGE,
         })

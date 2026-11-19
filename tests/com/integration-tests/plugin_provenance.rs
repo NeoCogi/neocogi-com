@@ -5,7 +5,7 @@ use std::os::unix::process::ExitStatusExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use neocogi_com::{NC_E_CLOSED, NC_OK, NcGuid, PluginOrigin, guid_from_qualified_name};
+use neocogi_com_sdk::{NC_E_CLOSED, NC_OK, NcGuid, PluginOrigin, guid_from_qualified_name};
 
 /// Carries the parent's distinct native files into the fatal-conflict subprocess.
 const CONFLICT_PATHS: &str = "NC_COM_PROVENANCE_CONFLICT_PATHS";
@@ -114,7 +114,7 @@ fn build_library() -> PathBuf {
 extern crate neocogi_com_host as _;
 
 /// Initializes this final test executable's selected host and admits its static tables.
-fn host_runtime() -> neocogi_com::RuntimeHandle {
+fn host_runtime() -> neocogi_com_sdk::RuntimeHandle {
     // SAFETY: the explicit implementation owns its complete process-lived graph.
-    unsafe { neocogi_com::RuntimeHandle::__from_host_api(neocogi_com_host::initialize_process()) }.expect("test host API is compatible")
+    unsafe { neocogi_com_sdk::RuntimeHandle::__from_host_api(neocogi_com_host::initialize_process()) }.expect("test host API is compatible")
 }

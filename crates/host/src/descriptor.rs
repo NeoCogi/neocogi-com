@@ -1,5 +1,5 @@
 //! Validated immutable descriptor ownership at the process-runtime boundary.
-use neocogi_com_core::{NcAbiThreadingMode, NcGuid, NcPluginDependencyDescriptor, NcPluginDescriptor, NcStaticUtf8, NcStatus, validate_plugin_descriptor};
+use neocogi_com::{NcAbiThreadingMode, NcGuid, NcPluginDependencyDescriptor, NcPluginDescriptor, NcStaticUtf8, NcStatus, validate_plugin_descriptor};
 
 /// A descriptor whose complete immutable graph and code remain process-lived.
 /// Construction validates the raw schema once. Every inspection/catalog projection borrows

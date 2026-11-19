@@ -2,7 +2,7 @@
 //! Run with `cargo run --release -p neocogi-com-tests --example query_cost`.
 //! Each line reports integer nanoseconds per successful query plus balanced release;
 //! discard the first warmup line and compare the remaining samples on the same host.
-use neocogi_com::{com_object, ComInterface, IUnknown, NcInterfaceId, NC_OK};
+use neocogi_com_sdk::{com_object, ComInterface, IUnknown, NcInterfaceId, NC_OK};
 use std::{hint::black_box, time::Instant};
 
 // Contract identity and wire codecs are compiled from examples/schemas/nc/examples/query_cost.ncidl.
@@ -36,7 +36,7 @@ fn main() {
         let start = Instant::now();
         for _ in 0..200_000 {
             for identity in &identities {
-                let mut out = neocogi_com::ComRaw::null();
+                let mut out = neocogi_com_sdk::ComRaw::null();
                 // SAFETY: the owning handle retains source; identities are static
                 // generated contracts and every successful result is released once.
                 unsafe {

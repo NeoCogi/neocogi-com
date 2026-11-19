@@ -1,6 +1,6 @@
 //! Split wire/backing construction preserves prefix and child ownership.
 use std::cell::Cell;
-use neocogi_com_core::{ComValue, NcStatus, ValueBudget, ValueCost, ValueArray, NC_E_INVALID_ARG};
+use neocogi_com::{ComValue, NcStatus, ValueBudget, ValueCost, ValueArray, NC_E_INVALID_ARG};
 
 std::thread_local! {
     /// Independent test threads never share lifecycle observations.

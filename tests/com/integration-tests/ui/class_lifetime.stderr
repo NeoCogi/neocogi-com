@@ -5,9 +5,9 @@ error: COM implementation objects must own their state; lifetime parameters are 
   |              ^^^^
 
 warning: unused import: `NcStatus`
- --> integration-tests/ui/class_lifetime.rs:3:31
+ --> integration-tests/ui/class_lifetime.rs:3:35
   |
-3 | use neocogi_com::{com_object, NcStatus};
-  |                               ^^^^^^^^
+3 | use neocogi_com_sdk::{com_object, NcStatus};
+  |                                   ^^^^^^^^
   |
   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default

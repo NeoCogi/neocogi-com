@@ -1,7 +1,7 @@
 # neocogi-com-macros
 
 `neocogi-com-macros` implements the procedural macros re-exported by
-`neocogi-com`. Application and plugin crates should use those re-exports rather
+`neocogi-com-sdk`. Application and plugin crates should use those re-exports rather
 than depend on this implementation crate directly.
 
 Public contracts are written in `.ncidl` files. `neocogi-idl` passes bound typed
@@ -75,8 +75,8 @@ implementation's storage and lifetime; the acquisition function owns initializat
 #[com_object(my_contracts::UiFactory)]
 struct UiFactoryObject;
 
-#[neocogi_com::plugin(name = "example.ui")]
-fn acquire_root(_runtime: neocogi_com::RuntimeHandle) -> Result<neocogi_com::ComPtr<my_contracts::UiFactoryAbi>, neocogi_com::NcStatus> {
+#[neocogi_com_sdk::plugin(name = "example.ui")]
+fn acquire_root(_runtime: neocogi_com_sdk::RuntimeHandle) -> Result<neocogi_com_sdk::ComPtr<my_contracts::UiFactoryAbi>, neocogi_com_sdk::NcStatus> {
     UiFactoryObject::from_value(UiFactoryObject).query()
 }
 ```
@@ -129,7 +129,7 @@ decoding have independent normal/printed semantic controls. See [generated ident
 for the contract, the corruption it prevents, and executable regression coverage.
 
 Value wire/payload/storage definitions live in anonymous implementation scopes.
-Use `<Value as neocogi_com::ComValue>::AbiRepr` or `::KeepAlive` for explicit raw-slot
+Use `<Value as neocogi_com_sdk::ComValue>::AbiRepr` or `::KeepAlive` for explicit raw-slot
 integration; private sibling helper spellings are no longer generated APIs.
 Codec proofs and conversions select their trait explicitly, independently of
 same-named application methods/constants. Signature literals need no sibling static.

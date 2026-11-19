@@ -37,7 +37,7 @@ fn assert_load_aborts(case: &str, library: Option<&Path>) {
     // Check SIGABRT specifically: a segmentation fault, Rust test panic, or a
     // missing shared runtime must not masquerade as the intended fatal policy.
     assert_eq!(output.status.signal(), Some(6), "{case} did not abort: {:?}: {stderr}", output.status);
-    assert!(stderr.contains("fatal neocogi-com plugin load failure:"), "{case}: {stderr}");
+    assert!(stderr.contains("fatal neocogi-com-sdk plugin load failure:"), "{case}: {stderr}");
     let detail = match case {
         "missing" => "OpenLibrary",
         "missing_export" => "FindSymbol",
@@ -97,7 +97,7 @@ fn build_library(case: &str) -> PathBuf {
 extern crate neocogi_com_host as _;
 
 /// Initializes this final test executable's selected host and admits its static tables.
-fn host_runtime() -> neocogi_com::RuntimeHandle {
+fn host_runtime() -> neocogi_com_sdk::RuntimeHandle {
     // SAFETY: the explicit implementation owns its complete process-lived graph.
-    unsafe { neocogi_com::RuntimeHandle::__from_host_api(neocogi_com_host::initialize_process()) }.expect("test host API is compatible")
+    unsafe { neocogi_com_sdk::RuntimeHandle::__from_host_api(neocogi_com_host::initialize_process()) }.expect("test host API is compatible")
 }

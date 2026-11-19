@@ -5,7 +5,7 @@
 //! the plugin record and its lookup index together. Contract compatibility belongs to typed factory
 //! acquisition and interface transfers, so registration never traverses IDL.
 
-use neocogi_com_core::{NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS, NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE, NC_OK, NcPluginDescriptor, NcStatus};
+use neocogi_com::{NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS, NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE, NC_OK, NcPluginDescriptor, NcStatus};
 use crate::descriptor::ValidatedPluginDescriptor;
 
 use crate::factory_plugin_registry::{PluginRegistry, PluginOrigin, RegisteredPlugin};
@@ -68,14 +68,14 @@ impl PluginRegistry {
 #[cfg(test)]
 mod tests {
     use core::ptr;
-    use neocogi_com_core::{
+    use neocogi_com::{
         IUnknown, NC_ABI_THREADING_THREAD_LOCAL, NC_COM_CORE_ABI_VERSION, NC_PLUGIN_DESCRIPTOR_ABI_VERSION, NC_E_NOT_FOUND, NcAbiDigest, NcInterfaceId,
         NcPluginDependencyDescriptor, NcStaticUtf8, guid_from_qualified_name,
     };
     use super::*;
 
     /// Metadata-only fixture: registration must never call the bootstrap.
-    unsafe extern "C" fn acquire_stub(_host: *const neocogi_com_core::NcHostApiV3, _out: *mut neocogi_com_core::ComRaw<IUnknown>) -> NcStatus {
+    unsafe extern "C" fn acquire_stub(_host: *const neocogi_com::NcHostApiV3, _out: *mut neocogi_com::ComRaw<IUnknown>) -> NcStatus {
         panic!("registration must not invoke plugin code")
     }
 

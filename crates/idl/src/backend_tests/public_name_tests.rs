@@ -85,12 +85,12 @@ fn accepted_names_execute_through_shared_borrowed_exclusive_and_weak_handles() {
     );
     let source = r#"
         #![allow(dead_code)]
-        use neocogi_com::{ComPtr, NcStatus, NC_E_CLOSED};
+        use neocogi_com_sdk::{ComPtr, NcStatus, NC_E_CLOSED};
         use std::sync::atomic::{AtomicUsize, Ordering};
         $BINDINGS
         static ENTRIES: AtomicUsize = AtomicUsize::new(0);
-        #[neocogi_com::com_object(interfaces(Root, Child))] struct Shared;
-        #[neocogi_com::com_object(interfaces(Root, Child), ownership = exclusive)] struct Exclusive;
+        #[neocogi_com_sdk::com_object(interfaces(Root, Child))] struct Shared;
+        #[neocogi_com_sdk::com_object(interfaces(Root, Child), ownership = exclusive)] struct Exclusive;
         macro_rules! implement {
             ($ty:ty) => {
                 impl Parent for $ty {}
@@ -159,7 +159,7 @@ fn plugin_export_spelling_is_legal_with_dynamic_feature_off_and_on() {
     let bindings = super::name_ownership_tests::contract("interface Root { fn value(&self) -> Result<u32>; }");
     for printed in [false, true] {
         let function: syn::ItemFn = syn::parse_quote! {
-            fn nc_get_plugin_descriptor_v3(_runtime: neocogi_com::RuntimeHandle) -> Result<neocogi_com::ComPtr<RootAbi>, neocogi_com::NcStatus> {
+            fn nc_get_plugin_descriptor_v3(_runtime: neocogi_com_sdk::RuntimeHandle) -> Result<neocogi_com_sdk::ComPtr<RootAbi>, neocogi_com_sdk::NcStatus> {
                 Provider::from_value(Provider).query()
             }
         };
@@ -167,26 +167,26 @@ fn plugin_export_spelling_is_legal_with_dynamic_feature_off_and_on() {
         let plugin = if printed {
             crate::codegen::expand_plugin(syn::parse2(args).unwrap(), function).unwrap()
         } else {
-            quote::quote! { #[neocogi_com::plugin(#args)] #function }
+            quote::quote! { #[neocogi_com_sdk::plugin(#args)] #function }
         };
         let source = format!(
             r#"
             #![allow(dead_code)]
             {bindings}
-            #[neocogi_com::com_object(interfaces(Root))] struct Provider;
-            impl Root for Provider {{ fn value(&self) -> Result<u32, neocogi_com::NcStatus> {{ Ok(73) }} }}
+            #[neocogi_com_sdk::com_object(interfaces(Root))] struct Provider;
+            impl Root for Provider {{ fn value(&self) -> Result<u32, neocogi_com_sdk::NcStatus> {{ Ok(73) }} }}
             {plugin}
             #[test] fn acquire_through_actual_descriptor() {{
                 let descriptor = plugin_descriptor();
-                let mut raw = neocogi_com::ComRaw::null();
+                let mut raw = neocogi_com_sdk::ComRaw::null();
                 // SAFETY: live writable slot receives one owner from the actual adapter.
                 assert!(unsafe {{ descriptor.acquire.unwrap()(neocogi_com_host::initialize_process(), &mut raw) }}.is_ok());
                 // SAFETY: success supplies a live common prefix; erasure leaves
                 // the Root identity intact rather than converting to IUnknown.
-                assert_eq!(unsafe {{ neocogi_com::raw::validate_interface(raw) }}, Err(neocogi_com::NC_E_NOINTERFACE));
+                assert_eq!(unsafe {{ neocogi_com_sdk::raw::validate_interface(raw) }}, Err(neocogi_com_sdk::NC_E_NOINTERFACE));
                 // SAFETY: the checked adopter verifies Root before constructing
                 // its typed owner and releases a rejected transfer.
-                let owner = unsafe {{ neocogi_com::ComPtr::<RootAbi>::__nc_from_raw_owned_checked(raw.cast()) }}.unwrap();
+                let owner = unsafe {{ neocogi_com_sdk::ComPtr::<RootAbi>::__nc_from_raw_owned_checked(raw.cast()) }}.unwrap();
                 assert_eq!(owner.value(), Ok(73));
             }}
         "#
@@ -234,7 +234,7 @@ fn imported_template_conflicts_keep_the_definition_span() {
 fn accepted_wrapper_and_prelude_controls_compile_without_std_or_alloc() {
     let consumer = super::test_consumer::Consumer::new("public-name-no-std-controls");
     let manifest = consumer.directory.path().join("Cargo.toml");
-    fs::write(&manifest, format!("[package]\nname='public-name-no-std-controls'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?},default-features=false}}\n", consumer.facade)).unwrap();
+    fs::write(&manifest, format!("[package]\nname='public-name-no-std-controls'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com-sdk={{path={:?},default-features=false}}\n", consumer.facade)).unwrap();
     let bindings =
         super::name_ownership_tests::contract("interface Root { fn base(&self, into: u32, try_into: u32, to_owned: u32, clone_into: u32) -> Result<u32>; }");
     fs::write(
@@ -244,11 +244,11 @@ fn accepted_wrapper_and_prelude_controls_compile_without_std_or_alloc() {
         #![no_std]
         #![allow(dead_code)]
         {bindings}
-        pub fn call(value: neocogi_com::ComRef<'_, RootAbi>) -> Result<u32, neocogi_com::NcStatus> {{
+        pub fn call(value: neocogi_com_sdk::ComRef<'_, RootAbi>) -> Result<u32, neocogi_com_sdk::NcStatus> {{
             value.base(1, 2, 3, 67)
         }}
-        pub fn convert(value: neocogi_com::ComPtr<RootAbi>) -> neocogi_com::ComPtr<RootAbi> {{ value.into() }}
-        pub fn try_convert(value: neocogi_com::ComPtr<RootAbi>) -> Result<neocogi_com::ComPtr<RootAbi>, core::convert::Infallible> {{ value.try_into() }}
+        pub fn convert(value: neocogi_com_sdk::ComPtr<RootAbi>) -> neocogi_com_sdk::ComPtr<RootAbi> {{ value.into() }}
+        pub fn try_convert(value: neocogi_com_sdk::ComPtr<RootAbi>) -> Result<neocogi_com_sdk::ComPtr<RootAbi>, core::convert::Infallible> {{ value.try_into() }}
     "#
         ),
     )

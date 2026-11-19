@@ -1,7 +1,7 @@
 //! Reproducible static-executable size target and end-to-end COM throughput probe.
 use std::{collections::BTreeMap, hint::black_box, time::Instant};
-use neocogi_com::{ComSerialize, ComDeserialize, NcCopyFromBufferOffset};
-use neocogi_com::serialization::{Format, Limits};
+use neocogi_com_sdk::{ComSerialize, ComDeserialize, NcCopyFromBufferOffset};
+use neocogi_com_sdk::serialization::{Format, Limits};
 
 /// Representative scalar record, acquired through named or positional fields.
 #[derive(Debug, PartialEq, ComSerialize, ComDeserialize)]

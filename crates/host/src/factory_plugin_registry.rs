@@ -9,7 +9,7 @@ use std::vec::Vec;
 use std::path::PathBuf;
 
 use crate::descriptor::ValidatedPluginDescriptor;
-use neocogi_com_core::{NcPluginDependencyDescriptor, NcGuid};
+use neocogi_com::{NcPluginDependencyDescriptor, NcGuid};
 
 /// Append-only plugin records and identity lookup for the selected host owner.
 /// Each plugin exposes one typed root factory; entries are plugins rather than
@@ -59,9 +59,9 @@ impl PluginRegistry {
     }
 
     /// Requires every hard dependency to be registered before publication.
-    pub(crate) fn validate_plugin_dependencies(&self, dependencies: &[NcPluginDependencyDescriptor]) -> Result<(), neocogi_com_core::NcStatus> {
+    pub(crate) fn validate_plugin_dependencies(&self, dependencies: &[NcPluginDependencyDescriptor]) -> Result<(), neocogi_com::NcStatus> {
         if dependencies.iter().any(|dependency| !self.contains_plugin(dependency.plugin_id)) {
-            return Err(neocogi_com_core::NC_E_NOT_FOUND);
+            return Err(neocogi_com::NC_E_NOT_FOUND);
         }
         Ok(())
     }

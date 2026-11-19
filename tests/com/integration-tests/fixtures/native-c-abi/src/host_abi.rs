@@ -2,7 +2,7 @@
 //!
 //! These immutable fixture tables contain valid typed callbacks but no registry.
 //! Only count is exercised; every service callback otherwise fails closed.
-use neocogi_com::*;
+use neocogi_com_sdk::*;
 use core::{ffi::c_void, mem::size_of, ptr};
 
 /// Defines typed fail-closed callbacks; no synthetic allocator/registry is hidden here.

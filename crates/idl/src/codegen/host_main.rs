@@ -13,7 +13,7 @@ use crate::codegen::util::{PrivateNames, sdk_crate_path};
 /// Optional explicit paths for renamed facade and host implementation crates.
 #[derive(Default)]
 pub struct MainArgs {
-    /// Canonical facade path unless overridden with `neocogi_com = path`.
+    /// Canonical SDK path unless overridden with `neocogi_com = path`.
     facade: Option<Path>,
     /// Ordinary host implementation path unless overridden with `neocogi_com_host = path`.
     implementation: Option<Path>,

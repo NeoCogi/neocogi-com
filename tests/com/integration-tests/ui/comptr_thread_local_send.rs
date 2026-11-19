@@ -1,6 +1,6 @@
 #[allow(unused_imports, unused_macros)]
 mod test_contracts { include!(env!("NC_COM_TEST_CONTRACTS")); }
-use neocogi_com::{ComPtr, IUnknown, NcStatus, com_object};
+use neocogi_com_sdk::{ComPtr, IUnknown, NcStatus, com_object};
 
 extern crate self as fixture_ui_comptr_thread_local_send;
 test_contracts::ui_comptr_thread_local_send!();

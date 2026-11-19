@@ -14,7 +14,7 @@
 use core::ffi::c_void;
 use std::path::Path;
 
-use neocogi_com_core::{NC_E_POINTER, NC_GET_PLUGIN_DESCRIPTOR_SYMBOL, NcPluginDescriptor, NcGetPluginDescriptor, NcGuid};
+use neocogi_com::{NC_E_POINTER, NC_GET_PLUGIN_DESCRIPTOR_SYMBOL, NcPluginDescriptor, NcGetPluginDescriptor, NcGuid};
 
 use crate::factory_plugin_registry::{PluginOrigin, RegisteredPlugin};
 use crate::descriptor::ValidatedPluginDescriptor;
@@ -63,7 +63,7 @@ impl PinnedLibrary {
 
     /// Resolves and types the required plugin descriptor entrypoint.
     unsafe fn get_plugin_descriptor(&self, path: &Path) -> Result<NcGetPluginDescriptor, PluginLoadError> {
-        // SAFETY: The caller selected trusted neocogi-com plugin code and the
+        // SAFETY: The caller selected trusted neocogi-com-sdk plugin code and the
         // returned address is called with the exact public plugin-descriptor ABI type.
         let symbol = unsafe { self.library.symbol(NC_GET_PLUGIN_DESCRIPTOR_SYMBOL.as_bytes()) }
             .map_err(|message| PluginLoadError::new(PluginLoadErrorKind::FindSymbol, path, None, message))?;
@@ -89,10 +89,10 @@ impl RuntimeState {
     ///
     /// # Safety
     ///
-    /// `path` must identify a trusted neocogi-com plugin library. Loading a dynamic
+    /// `path` must identify a trusted neocogi-com-sdk plugin library. Loading a dynamic
     /// library can run arbitrary platform loader code, and the exported
     /// descriptor symbol is trusted FFI metadata until validation rejects it.
-    /// That code must not directly or indirectly start nested neocogi-com loading.
+    /// That code must not directly or indirectly start nested neocogi-com-sdk loading.
     pub unsafe fn load_plugin_library(&self, path: impl AsRef<Path>) -> Result<NcGuid, PluginLoadError> {
         let path = path.as_ref();
         // SAFETY: The selected library promises process-lived immutable metadata and code.

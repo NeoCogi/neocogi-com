@@ -1,8 +1,8 @@
 //! NCB implementations of the shared COM format sessions and their bounded state machine.
 
 use super::*;
-use neocogi_com::NcCopyFromBufferOffset;
-use neocogi_com::serialization::{ISerializer, IDeserializer};
+use neocogi_com_sdk::NcCopyFromBufferOffset;
+use neocogi_com_sdk::serialization::{ISerializer, IDeserializer};
 
 /// A session starts active and ends permanently on either success or first failure.
 #[derive(Clone, Copy)]
@@ -555,7 +555,7 @@ impl IDeserializer for Decoder<'_> {
             Ok((Value::StringPending(len), len))
         })
     }
-    fn copy_string(&mut self, mut output: neocogi_com::NcOutputWriter<'_, u8>) -> Result<u32, NcStatus> {
+    fn copy_string(&mut self, mut output: neocogi_com_sdk::NcOutputWriter<'_, u8>) -> Result<u32, NcStatus> {
         self.run(|reader| {
             if output.offset() != 0 {
                 return Err(reader.error("invalid output offset"));
@@ -679,13 +679,13 @@ fn read_text(value: NcCopyFromBufferOffset<'_, u8>) -> Result<&str, &'static str
 #[cfg(test)]
 mod tests {
     use super::*;
-    use neocogi_com::serialization::{scope::ScopedComProvider, ISerializerAbi, ScopedSerializer};
+    use neocogi_com_sdk::serialization::{scope::ScopedComProvider, ISerializerAbi, ScopedSerializer};
 
     /// Calls the generated scoped deserializer and recovers the private cursor.
-    fn decode_scoped<'a>(bytes: &'a [u8], call: impl FnOnce(neocogi_com::ComRef<'_, neocogi_com::serialization::IDeserializerAbi>)) -> Decoder<'a> {
+    fn decode_scoped<'a>(bytes: &'a [u8], call: impl FnOnce(neocogi_com_sdk::ComRef<'_, neocogi_com_sdk::serialization::IDeserializerAbi>)) -> Decoder<'a> {
         let scope = ScopedComProvider::new(Decoder::borrowed(bytes, Limits::default()).unwrap());
         // SAFETY: the generated table matches this exact retained decoder scope.
-        let view = unsafe { scope.interface(&neocogi_com::serialization::ScopedDeserializer::<Decoder<'_>>::VTABLE) };
+        let view = unsafe { scope.interface(&neocogi_com_sdk::serialization::ScopedDeserializer::<Decoder<'_>>::VTABLE) };
         call(view);
         scope.into_inner()
     }
@@ -693,7 +693,7 @@ mod tests {
     /// The real scoped prefix rejects out-of-phase byte reads before cursor movement.
     #[test]
     fn wrong_phase_byte_operations_preserve_the_cursor_and_first_failure() {
-        type Call = fn(&mut neocogi_com::ComRef<'_, neocogi_com::serialization::IDeserializerAbi>) -> Result<(), NcStatus>;
+        type Call = fn(&mut neocogi_com_sdk::ComRef<'_, neocogi_com_sdk::serialization::IDeserializerAbi>) -> Result<(), NcStatus>;
         let calls: [Call; 7] = [
             |view| view.deserialize_u8().map(|_| ()),
             |view| view.option_present().map(|_| ()),
@@ -767,7 +767,7 @@ mod tests {
     #[test]
     fn pending_string_copies_once_into_stack_slots() {
         use core::mem::MaybeUninit;
-        use neocogi_com::NcOutput;
+        use neocogi_com_sdk::NcOutput;
 
         for (bytes, expected) in [(b"NCB\x01\0\0\0\0".as_slice(), ""), (b"NCB\x01\x02\0\0\0\xc3\xa9".as_slice(), "é")] {
             let reader = decode_scoped(bytes, |mut view| {
@@ -842,18 +842,18 @@ mod tests {
     fn scoped_capabilities_reject_retention_and_reentrant_mutation() {
         let scope = ScopedComProvider::new(writer());
         // SAFETY: generated adapters use exactly this ScopedComProvider<Encoder> type.
-        let mut interface: neocogi_com::ComRef<'_, ISerializerAbi> = unsafe { scope.interface(&ScopedSerializer::<Encoder<'_>>::VTABLE) };
-        assert_eq!(interface.try_add_ref().unwrap_err(), neocogi_com::NC_E_INVALID_ARG);
-        assert_eq!(interface.downgrade().unwrap_err(), neocogi_com::NC_E_NOINTERFACE);
+        let mut interface: neocogi_com_sdk::ComRef<'_, ISerializerAbi> = unsafe { scope.interface(&ScopedSerializer::<Encoder<'_>>::VTABLE) };
+        assert_eq!(interface.try_add_ref().unwrap_err(), neocogi_com_sdk::NC_E_INVALID_ARG);
+        assert_eq!(interface.downgrade().unwrap_err(), neocogi_com_sdk::NC_E_NOINTERFACE);
         let raw = interface.as_raw();
-        let mut output = raw.cast::<neocogi_com::IUnknown>();
+        let mut output = raw.cast::<neocogi_com_sdk::IUnknown>();
         // SAFETY: the live capability and a real writable output slot meet the raw contract.
-        let status = unsafe { ((*raw.vtable).unknown.query_interface)(raw.object, &neocogi_com::IUnknown::INTERFACE_ID, &mut output) };
-        assert_eq!(status, neocogi_com::NC_E_INVALID_ARG);
+        let status = unsafe { ((*raw.vtable).unknown.query_interface)(raw.object, &neocogi_com_sdk::IUnknown::INTERFACE_ID, &mut output) };
+        assert_eq!(status, neocogi_com_sdk::NC_E_INVALID_ARG);
         assert!(output.is_null());
         // SAFETY: this scope and the generated table share the exact provider type.
         let lease = unsafe { ScopedComProvider::<Encoder<'_>>::borrow_mut(raw.object) }.unwrap();
-        assert_eq!(interface.serialize_u32(7), Err(neocogi_com::NC_E_BUSY));
+        assert_eq!(interface.serialize_u32(7), Err(neocogi_com_sdk::NC_E_BUSY));
         drop(lease);
         interface.serialize_u32(7).unwrap();
         interface.finish().unwrap();
@@ -864,10 +864,10 @@ mod tests {
     fn malformed_bool_wire_is_rejected_before_provider_state_changes() {
         let scope = ScopedComProvider::new(writer());
         // SAFETY: the exact generated table lends this retained scope's state.
-        let mut interface: neocogi_com::ComRef<'_, ISerializerAbi> = unsafe { scope.interface(&ScopedSerializer::<Encoder<'_>>::VTABLE) };
+        let mut interface: neocogi_com_sdk::ComRef<'_, ISerializerAbi> = unsafe { scope.interface(&ScopedSerializer::<Encoder<'_>>::VTABLE) };
         let raw = interface.as_raw();
         // SAFETY: only the scalar wire is malformed; the object/table pair is real and live.
-        assert_eq!(unsafe { ((*raw.vtable).serialize_bool)(raw.object, 2) }, neocogi_com::NC_E_INVALID_ARG);
+        assert_eq!(unsafe { ((*raw.vtable).serialize_bool)(raw.object, 2) }, neocogi_com_sdk::NC_E_INVALID_ARG);
         interface.serialize_bool(true).unwrap();
         interface.finish().unwrap();
     }

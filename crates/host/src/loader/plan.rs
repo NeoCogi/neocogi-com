@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use std::string::String;
 use std::vec::Vec;
 
-use neocogi_com_core::NcGuid;
+use neocogi_com::NcGuid;
 
 use super::PluginInspection;
 
@@ -175,7 +175,7 @@ mod tests {
 
     fn plugin(id: u32, dependencies: &[u32]) -> PluginInspection {
         PluginInspection {
-            description_abi_version: neocogi_com_core::NC_PLUGIN_DESCRIPTOR_ABI_VERSION,
+            description_abi_version: neocogi_com::NC_PLUGIN_DESCRIPTOR_ABI_VERSION,
             core_abi_version: 7,
             plugin_id: guid(id),
             qualified_name: format!("nc.tests.plugin{id}"),
@@ -183,7 +183,7 @@ mod tests {
             dependencies: dependencies.iter().copied().map(guid).collect(),
             factory: FactoryInspection {
                 root_factory_id: guid(99),
-                root_factory_threading: neocogi_com_core::NcAbiThreadingMode::ThreadLocal,
+                root_factory_threading: neocogi_com::NcAbiThreadingMode::ThreadLocal,
                 root_factory_signature: [1; 32],
             },
         }

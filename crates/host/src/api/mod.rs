@@ -9,7 +9,7 @@ use core::{mem, slice, str};
 use std::path::Path;
 
 use crate::debug;
-use neocogi_com_core::{
+use neocogi_com::{
     NC_COM_CORE_ABI_VERSION, NC_DEBUG_SEVERITY_ERROR, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG, NC_E_POINTER, NC_OK, NcDebugApiV3, NcDebugMessageV3,
     NcPluginApiV3, NcStatus, NcUtf8View,
 };
@@ -48,9 +48,9 @@ pub(super) static DEBUG_API_V3: NcDebugApiV3 = NcDebugApiV3 {
 /// Canonical immutable access description of this implementation's services.
 /// No owned container or registry address crosses the ABI: callbacks execute in
 /// the host and reach its private singleton. All backing survives main's return.
-pub(crate) static HOST_API: neocogi_com_core::NcHostApiV3 = neocogi_com_core::NcHostApiV3 {
-    size: mem::size_of::<neocogi_com_core::NcHostApiV3>(),
-    runtime_abi_version: neocogi_com_core::NC_COM_RUNTIME_ABI_VERSION,
+pub(crate) static HOST_API: neocogi_com::NcHostApiV3 = neocogi_com::NcHostApiV3 {
+    size: mem::size_of::<neocogi_com::NcHostApiV3>(),
+    runtime_abi_version: neocogi_com::NC_COM_RUNTIME_ABI_VERSION,
     core_abi_version: NC_COM_CORE_ABI_VERSION,
     runtime: &RUNTIME_API_V3,
     debug: &DEBUG_API_V3,
@@ -123,7 +123,7 @@ mod tests {
     use super::*;
     use core::ffi::c_void;
     use core::sync::atomic::{AtomicI32, Ordering};
-    use neocogi_com_core::{NC_DEBUG_SEVERITY_ERROR, NC_DEBUG_TYPE_VALIDATION, NC_E_NOT_FOUND, NcDebugMessengerCreateInfoV3, NcGuid, NcPluginDescriptor};
+    use neocogi_com::{NC_DEBUG_SEVERITY_ERROR, NC_DEBUG_TYPE_VALIDATION, NC_E_NOT_FOUND, NcDebugMessengerCreateInfoV3, NcGuid, NcPluginDescriptor};
 
     unsafe extern "C" fn accept_inspected_descriptor(_plugin: *const NcPluginDescriptor, _user_data: *mut c_void) -> NcStatus {
         NC_OK
@@ -152,7 +152,7 @@ mod tests {
         let debug = unsafe { &*crate::initialize_process().debug };
         let persistence = unsafe { &*crate::initialize_process().persistence };
 
-        assert_eq!(persistence.size, mem::size_of::<neocogi_com_core::NcPersistenceApiV3>());
+        assert_eq!(persistence.size, mem::size_of::<neocogi_com::NcPersistenceApiV3>());
         assert_eq!(persistence.core_abi_version, NC_COM_CORE_ABI_VERSION);
         assert_eq!(runtime.size, mem::size_of::<NcPluginApiV3>());
         assert_eq!(runtime.core_abi_version, NC_COM_CORE_ABI_VERSION);
@@ -164,7 +164,7 @@ mod tests {
         let api = unsafe { &*crate::initialize_process().runtime };
         let count = unsafe { (api.plugin_count)() };
         let mut out_len = usize::MAX;
-        let mut values = Vec::<neocogi_com_core::NcPluginInfoV3>::with_capacity(count);
+        let mut values = Vec::<neocogi_com::NcPluginInfoV3>::with_capacity(count);
         let status = unsafe { (api.plugin_infos)(values.as_mut_ptr(), count, &mut out_len) };
         assert_eq!(status, NC_OK);
         assert_eq!(out_len, count);
@@ -264,7 +264,7 @@ mod tests {
     #[test]
     fn complete_plugin_lookup_validates_pointer_and_unknown_id() {
         assert_eq!(unsafe { plugin_info(NcGuid::nil(), ptr::null_mut()) }, NC_E_POINTER);
-        let mut info = core::mem::MaybeUninit::<neocogi_com_core::NcPluginInfoV3>::uninit();
+        let mut info = core::mem::MaybeUninit::<neocogi_com::NcPluginInfoV3>::uninit();
         assert_eq!(unsafe { plugin_info(NcGuid::nil(), info.as_mut_ptr()) }, NC_E_NOT_FOUND);
     }
 }

@@ -4,7 +4,7 @@
 mod test_contracts {
     include!(concat!(env!("OUT_DIR"), "/test_contracts.rs"));
 }
-use neocogi_com::*;
+use neocogi_com_sdk::*;
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},

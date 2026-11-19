@@ -1,6 +1,6 @@
 //! Metadata-only native fixture: core types only, with no embedded runtime or registry.
 mod descriptors;
-use neocogi_com_core::{NcPluginDescriptor, NcStatus, NC_E_POINTER, NC_OK};
+use neocogi_com::{NcPluginDescriptor, NcStatus, NC_E_POINTER, NC_OK};
 
 /// Supplies one immutable case selected when this particular native binary is compiled.
 ///

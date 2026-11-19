@@ -2,7 +2,7 @@
 #[cfg(test)]
 mod tests {
     use super::*;
-    use neocogi_com::{com_object, ComPtr, NcStatus, NcCopyFromBufferOffset, NcOutputWriter, ValueArray, NC_E_INVALID_ARG};
+    use neocogi_com_sdk::{com_object, ComPtr, NcStatus, NcCopyFromBufferOffset, NcOutputWriter, ValueArray, NC_E_INVALID_ARG};
 
     /// Counts accepted input calls, so validation failures cannot hide dispatch.
     #[com_object(IArrays)]
@@ -39,7 +39,7 @@ mod tests {
         assert_eq!(arrays.echo([false, true, false]).unwrap(), [false, true, false]);
         assert_eq!(arrays.record(Flags { bits: [[true, false], [false, true]] }).unwrap().bits, [[true, false], [false, true]]);
         assert_eq!(arrays.input(NcCopyFromBufferOffset::new(0, &[[true; 3]])).unwrap(), 1);
-        let mut destination = neocogi_com::NcOutputBuffer::new();
+        let mut destination = neocogi_com_sdk::NcOutputBuffer::new();
         arrays.output(destination.output(0, 1)).unwrap();
         assert_eq!(destination.as_slice(), [[true, false, true]]);
         let raw = arrays.as_raw();

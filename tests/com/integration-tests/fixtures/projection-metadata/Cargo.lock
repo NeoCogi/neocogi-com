@@ -17,14 +17,6 @@ checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
 [[package]]
 name = "neocogi-com"
 version = "0.4.0-alpha.1"
-dependencies = [
- "neocogi-com-core",
- "neocogi-com-macros",
-]
-
-[[package]]
-name = "neocogi-com-core"
-version = "0.4.0-alpha.1"
 
 [[package]]
 name = "neocogi-com-macros"
@@ -35,10 +27,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "neocogi-com-sdk"
+version = "0.4.0-alpha.1"
+dependencies = [
+ "neocogi-com",
+ "neocogi-com-macros",
+]
+
+[[package]]
 name = "neocogi-idl"
 version = "0.4.0-alpha.1"
 dependencies = [
- "neocogi-com-core",
+ "neocogi-com",
  "prettyplease",
  "proc-macro2",
  "quote",
@@ -70,7 +70,7 @@ dependencies = [
 name = "projection-metadata-fixture"
 version = "0.0.0"
 dependencies = [
- "neocogi-com",
+ "neocogi-com-sdk",
  "neocogi-idl",
 ]
 

@@ -261,7 +261,7 @@ fn cargo_maps_resolve_transitive_templates_and_bundled_sources() {
         let directory = project.path().join(package);
         fs::create_dir_all(directory.join("src")).unwrap();
         let mut manifest = format!(
-            "[package]\nname={package:?}\nversion='0.0.0'\nedition='2024'\nlinks={:?}\n[dependencies]\nneocogi-com={{path={:?}}}\n",
+            "[package]\nname={package:?}\nversion='0.0.0'\nedition='2024'\nlinks={:?}\n[dependencies]\nneocogi-com-sdk={{path={:?}}}\n",
             neocogi_idl::cargo::contract_links_name(module),
             root.join("crates/com")
         );
@@ -314,21 +314,21 @@ fn cargo_maps_resolve_transitive_templates_and_bundled_sources() {
 #[cfg(test)]
 mod metadata_calls {
     use super::*;
-    #[neocogi_com::com_object(Plain)]
+    #[neocogi_com_sdk::com_object(Plain)]
     struct Provider;
     impl Plain for Provider {
-        fn read(&self) -> Result<u32, neocogi_com::NcStatus> { Ok(37) }
+        fn read(&self) -> Result<u32, neocogi_com_sdk::NcStatus> { Ok(37) }
     }
     #[test]
     fn metadata_and_actual_com_call_agree() {
-        let value: neocogi_com::idl_metadata::TypeMetadata = Item::IDL_TYPE;
+        let value: neocogi_com_sdk::idl_metadata::TypeMetadata = Item::IDL_TYPE;
         assert_eq!(value.qualified_name, "proof.maps.Item");
-        let neocogi_com::idl_metadata::TypeShape::Struct(fields) = value.shape else { panic!("record shape") };
+        let neocogi_com_sdk::idl_metadata::TypeShape::Struct(fields) = value.shape else { panic!("record shape") };
         assert_eq!(fields.len(), 1);
         assert_eq!(fields[0].name, "value");
-        let neocogi_com::idl_metadata::ValueType::Named(name) = fields[0].ty else { panic!("Option metadata must retain its named enum") };
+        let neocogi_com_sdk::idl_metadata::ValueType::Named(name) = fields[0].ty else { panic!("Option metadata must retain its named enum") };
         assert!(name.starts_with("neocogi.lang.OptionInstance"));
-        let interface: neocogi_com::idl_metadata::InterfaceMetadata = PlainAbi::IDL_INTERFACE;
+        let interface: neocogi_com_sdk::idl_metadata::InterfaceMetadata = PlainAbi::IDL_INTERFACE;
         assert!(interface.rust_abi.ends_with("::PlainAbi"));
         assert_eq!(interface.qualified_name, "proof.maps.Plain");
         assert_eq!(interface.identity.iid, PlainAbi::INTERFACE_DESCRIPTOR.interface_id);
@@ -341,10 +341,10 @@ mod metadata_calls {
             // SAFETY: generated physical signatures have immutable static backing.
             assert_eq!(local.abi_signature, unsafe { physical.abi_signature.as_digest().unwrap() });
         }
-        let method: &neocogi_com::idl_metadata::MethodMetadata = &interface.methods[0];
+        let method: &neocogi_com_sdk::idl_metadata::MethodMetadata = &interface.methods[0];
         assert_eq!(method.name, "read");
         assert!(method.parameters.is_empty());
-        assert_eq!(method.returns, neocogi_com::idl_metadata::MethodType::Value(neocogi_com::idl_metadata::ValueType::Scalar("u32")));
+        assert_eq!(method.returns, neocogi_com_sdk::idl_metadata::MethodType::Value(neocogi_com_sdk::idl_metadata::ValueType::Scalar("u32")));
         let owner = Provider::from_value(Provider);
         let projection = owner.query::<PlainAbi>().unwrap();
         assert_eq!(projection.read(), Ok(37));
@@ -642,7 +642,7 @@ fn grouped_interface_imports_preserve_each_origin_and_later_member_offsets() {
     let graph = resolve_modules(vec![owner, consumer]).unwrap();
     let generated = generate_rust_with_source_map(&graph, "proof.consumer").unwrap();
     for name in std::iter::once("IBase".to_owned()).chain(
-        neocogi_com_core::NcComInterfaceCompanion::ALL
+        neocogi_com::NcComInterfaceCompanion::ALL
             .into_iter()
             .map(|kind| format!("IBase{}", kind.suffix())),
     ) {

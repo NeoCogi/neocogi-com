@@ -117,7 +117,7 @@ fn push_diagnostic_change<T: serde::Serialize + PartialEq + ?Sized>(report: &mut
 mod tests {
     use super::*;
     use crate::schema::sample_artifact;
-    use neocogi_com_core::guid_from_qualified_name;
+    use neocogi_com::guid_from_qualified_name;
 
     #[test]
     fn identical_artifacts_are_compatible() {

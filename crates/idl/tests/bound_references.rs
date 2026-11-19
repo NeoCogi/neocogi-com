@@ -151,7 +151,7 @@ fn generated_bound_reference_peers_execute_real_com_and_method_metadata() {
     fs::write(
         project.path().join("Cargo.toml"),
         format!(
-            "[package]\nname='bound-reference-peers'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\n",
+            "[package]\nname='bound-reference-peers'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com-sdk={{path={:?}}}\n",
             root.join("crates/com")
         ),
     )
@@ -175,16 +175,16 @@ fn generated_bound_reference_peers_execute_real_com_and_method_metadata() {
             r#"
         extern crate self as bound_reference_peers;
         pub mod templates; pub mod first; pub mod second;
-        #[neocogi_com::com_object(first::Counter)]
+        #[neocogi_com_sdk::com_object(first::Counter)]
         struct Counter;
-        impl templates::IBase for Counter {{ fn value(&self) -> Result<u32, neocogi_com::NcStatus> {{ Ok(73) }} }}
+        impl templates::IBase for Counter {{ fn value(&self) -> Result<u32, neocogi_com_sdk::NcStatus> {{ Ok(73) }} }}
         impl first::{base} for Counter {{}}
         impl first::{events} for Counter {{}}
-        impl templates::IChanged for Counter {{ fn number(&self) -> Result<u32,neocogi_com::NcStatus> {{ Ok(91) }} }}
+        impl templates::IChanged for Counter {{ fn number(&self) -> Result<u32,neocogi_com_sdk::NcStatus> {{ Ok(91) }} }}
         impl first::Counter for Counter {{}}
-        #[neocogi_com::com_object(interfaces(templates::IChanged), ownership = exclusive)]
+        #[neocogi_com_sdk::com_object(interfaces(templates::IChanged), ownership = exclusive)]
         struct Fact;
-        impl templates::IChanged for Fact {{ fn number(&self) -> Result<u32,neocogi_com::NcStatus> {{ Ok(91) }} }}
+        impl templates::IChanged for Fact {{ fn number(&self) -> Result<u32,neocogi_com_sdk::NcStatus> {{ Ok(91) }} }}
         #[test]
         fn independently_generated_peers_negotiate() {{
             let object=Counter::from_value(Counter).query::<first::CounterAbi>().unwrap();

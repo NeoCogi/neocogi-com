@@ -6,7 +6,7 @@ use core::{
     slice,
 };
 use std::vec::Vec;
-use neocogi_com_core::{NcPersistenceApiV3, NcPersistenceContext};
+use neocogi_com::{NcPersistenceApiV3, NcPersistenceContext};
 use crate::{ComPtr, ComRef, IUnknown, NcGuid, NcStatus, RuntimeHandle, NC_E_INVALID_ARG, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_OK};
 use super::{IPersistenceFactoryAbi, Limits};
 

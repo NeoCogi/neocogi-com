@@ -44,7 +44,7 @@ impl Fixture {
             fs::write(
                 root.join(package).join("Cargo.toml"),
                 format!(
-                    "[package]\nname='binding-{package}'\nversion='0.0.0'\nedition='2024'\n[dependencies]\nneocogi-com={{path={:?}}}\n{extra}",
+                    "[package]\nname='binding-{package}'\nversion='0.0.0'\nedition='2024'\n[dependencies]\nneocogi-com-sdk={{path={:?}}}\n{extra}",
                     consumer.facade
                 ),
             )
@@ -79,7 +79,7 @@ impl Fixture {
         for (package, module) in [("helper", "proof.value"), ("provider", "proof.service")] {
             let extra = if package == "provider" { "binding-helper={path='../helper'}\n" } else { "" };
             self.write(&format!("{package}/Cargo.toml"), &format!(
-            "[package]\nname='binding-{package}'\nversion='0.0.0'\nedition='2024'\nlinks={:?}\n[dependencies]\nneocogi-com={{path={:?}}}\n{extra}[build-dependencies]\nneocogi-idl={{path={idl:?}}}\n",
+            "[package]\nname='binding-{package}'\nversion='0.0.0'\nedition='2024'\nlinks={:?}\n[dependencies]\nneocogi-com-sdk={{path={:?}}}\n{extra}[build-dependencies]\nneocogi-idl={{path={idl:?}}}\n",
             crate::cargo::contract_links_name(module), self.consumer.facade
         ));
         }
@@ -206,14 +206,14 @@ fn imported_declaration_identity_rejects_stale_and_nominal_facades() {
         SERVICE,
         "binding_helper::selected",
         r#"
-        #[neocogi_com::com_object(service::Service)] struct Counter;
+        #[neocogi_com_sdk::com_object(service::Service)] struct Counter;
         impl service::Service for Counter {
             fn increment(&self, value: binding_helper::selected::Value)
-                -> Result<binding_helper::selected::Value, neocogi_com::NcStatus> {
+                -> Result<binding_helper::selected::Value, neocogi_com_sdk::NcStatus> {
                 Ok(binding_helper::selected::Value { height: value.height, width: value.width + 1 })
             }
         }
-        pub fn root() -> neocogi_com::ComPtr<neocogi_com::IUnknown> { Counter::from_value(Counter) }
+        pub fn root() -> neocogi_com_sdk::ComPtr<neocogi_com_sdk::IUnknown> { Counter::from_value(Counter) }
     "#,
     );
     fixture.host(CURRENT_VALUES);
@@ -379,7 +379,7 @@ fn inherited_calls_use_checked_marker_associations_instead_of_stale_names() {
             );
             prettyplease::unparse(&syn::parse2(expanded).unwrap())
         } else {
-            "#[neocogi_com::com_object(service::Service)] struct Counter { height: u32 }".to_owned()
+            "#[neocogi_com_sdk::com_object(service::Service)] struct Counter { height: u32 }".to_owned()
         };
         fixture.provider(
             &current,
@@ -389,12 +389,12 @@ fn inherited_calls_use_checked_marker_associations_instead_of_stale_names() {
                 r#"
             {object}
             impl binding_helper::selected::Base for Counter {{
-                fn height(&self) -> Result<u32, neocogi_com::NcStatus> {{ Ok(self.height) }}
-                fn set(&mut self, value: u32) -> Result<(), neocogi_com::NcStatus> {{ self.height = value; Ok(()) }}
-                fn width(&self) -> Result<u32, neocogi_com::NcStatus> {{ Ok(4) }}
+                fn height(&self) -> Result<u32, neocogi_com_sdk::NcStatus> {{ Ok(self.height) }}
+                fn set(&mut self, value: u32) -> Result<(), neocogi_com_sdk::NcStatus> {{ self.height = value; Ok(()) }}
+                fn width(&self) -> Result<u32, neocogi_com_sdk::NcStatus> {{ Ok(4) }}
             }}
             impl service::Service for Counter {{}}
-            pub fn root() -> neocogi_com::ComPtr<neocogi_com::IUnknown> {{ Counter::from_value(Counter {{ height: 3 }}) }}
+            pub fn root() -> neocogi_com_sdk::ComPtr<neocogi_com_sdk::IUnknown> {{ Counter::from_value(Counter {{ height: 3 }}) }}
         "#
             ),
         );
@@ -434,14 +434,14 @@ fn shared_and_packaged_sources_certify_actual_imports_before_real_calls() {
         r#"
         extern crate self as binding_provider;
         pub mod service { include!(env!("SERVICE_BINDINGS")); }
-        #[neocogi_com::com_object(service::Service)] struct Counter;
+        #[neocogi_com_sdk::com_object(service::Service)] struct Counter;
         impl service::Service for Counter {
             fn increment(&self, value: binding_helper::selected::Value)
-                -> Result<binding_helper::selected::Value, neocogi_com::NcStatus> {
+                -> Result<binding_helper::selected::Value, neocogi_com_sdk::NcStatus> {
                 Ok(binding_helper::selected::Value { height: value.height, width: value.width + 1 })
             }
         }
-        pub fn root() -> neocogi_com::ComPtr<neocogi_com::IUnknown> { Counter::from_value(Counter) }
+        pub fn root() -> neocogi_com_sdk::ComPtr<neocogi_com_sdk::IUnknown> { Counter::from_value(Counter) }
     "#,
     );
     fixture.host(CURRENT_VALUES);
@@ -512,7 +512,7 @@ fn transitive_template_free_types_require_the_selected_leaf_identity() {
     ] {
         fixture.write(&format!("schemas/{}.ncidl", module.replace('.', "/")), source);
         fixture.write(&format!("{package}/Cargo.toml"), &format!(
-            "[package]\nname='binding-{package}'\nversion='0.0.0'\nedition='2024'\nlinks={:?}\n[dependencies]\nneocogi-com={{path={:?}}}\n{dependency}[build-dependencies]\nneocogi-idl={{path={idl:?}}}\n",
+            "[package]\nname='binding-{package}'\nversion='0.0.0'\nedition='2024'\nlinks={:?}\n[dependencies]\nneocogi-com-sdk={{path={:?}}}\n{dependency}[build-dependencies]\nneocogi-idl={{path={idl:?}}}\n",
             crate::cargo::contract_links_name(module), fixture.consumer.facade
         ));
         let rust_path = match package {
@@ -546,15 +546,15 @@ fn transitive_template_free_types_require_the_selected_leaf_identity() {
             r#"
         extern crate self as binding_provider;
         pub mod service {{ include!(env!("BINDINGS")); }}
-        #[neocogi_com::com_object(service::Service)] struct Counter;
+        #[neocogi_com_sdk::com_object(service::Service)] struct Counter;
         impl service::{forward} for Counter {{
             fn increment(&self, value: binding_bridge::Value, amount: u32)
-                -> Result<binding_bridge::Value, neocogi_com::NcStatus> {{
+                -> Result<binding_bridge::Value, neocogi_com_sdk::NcStatus> {{
                 Ok(binding_bridge::Value {{ height: value.height, width: value.width + amount }})
             }}
         }}
         impl service::Service for Counter {{}}
-        pub fn root() -> neocogi_com::ComPtr<neocogi_com::IUnknown> {{ Counter::from_value(Counter) }}
+        pub fn root() -> neocogi_com_sdk::ComPtr<neocogi_com_sdk::IUnknown> {{ Counter::from_value(Counter) }}
         "#
         ),
     );
@@ -641,17 +641,17 @@ fn object_projection_identity_still_rejects_a_stale_root_provider() {
         "interface Service {}",
         "binding_helper::selected",
         r#"
-        #[neocogi_com::com_object(interfaces(binding_helper::selected::Base))]
+        #[neocogi_com_sdk::com_object(interfaces(binding_helper::selected::Base))]
         struct Counter;
         impl binding_helper::current::Base for Counter {
-            fn height(&self) -> Result<u32, neocogi_com::NcStatus> { Ok(3) }
-            fn width(&self) -> Result<u32, neocogi_com::NcStatus> { Ok(4) }
+            fn height(&self) -> Result<u32, neocogi_com_sdk::NcStatus> { Ok(3) }
+            fn width(&self) -> Result<u32, neocogi_com_sdk::NcStatus> { Ok(4) }
         }
         impl binding_helper::old::Base for Counter {
-            fn height(&self) -> Result<u32, neocogi_com::NcStatus> { Ok(3) }
-            fn width(&self) -> Result<u32, neocogi_com::NcStatus> { Ok(4) }
+            fn height(&self) -> Result<u32, neocogi_com_sdk::NcStatus> { Ok(3) }
+            fn width(&self) -> Result<u32, neocogi_com_sdk::NcStatus> { Ok(4) }
         }
-        pub fn root() -> neocogi_com::ComPtr<neocogi_com::IUnknown> { Counter::from_value(Counter) }
+        pub fn root() -> neocogi_com_sdk::ComPtr<neocogi_com_sdk::IUnknown> { Counter::from_value(Counter) }
     "#,
     );
     fixture.write("src/lib.rs", "#[test] fn construct() { drop(binding_provider::root()); }");
@@ -683,24 +683,24 @@ fn imported_provider_source(path: &str, printed: bool, witnesses: bool) -> Strin
         );
         prettyplease::unparse(&syn::parse2(expanded).unwrap())
     } else {
-        format!("#[neocogi_com::com_object({path})] struct Provider;")
+        format!("#[neocogi_com_sdk::com_object({path})] struct Provider;")
     };
     let mut source = format!(
         r#"
         {object}
         impl service::IBase for Provider {{
-            fn get(&self) -> Result<u32, neocogi_com::NcStatus> {{ Ok(73) }}
+            fn get(&self) -> Result<u32, neocogi_com_sdk::NcStatus> {{ Ok(73) }}
         }}
-        pub fn root() -> neocogi_com::ComPtr<neocogi_com::IUnknown> {{ Provider::from_value(Provider) }}
+        pub fn root() -> neocogi_com_sdk::ComPtr<neocogi_com_sdk::IUnknown> {{ Provider::from_value(Provider) }}
     "#
     );
     if witnesses {
         // PhantomData accepts unsized Wrapper views and requires nominal type
         // equality, without allowing a reference-returning deref coercion.
-        for companion in neocogi_com_core::NcComInterfaceCompanion::ALL {
+        for companion in neocogi_com::NcComInterfaceCompanion::ALL {
             let name = format!("IBase{}", companion.suffix());
             let argument = match companion {
-                neocogi_com_core::NcComInterfaceCompanion::Provider => "<Provider>",
+                neocogi_com::NcComInterfaceCompanion::Provider => "<Provider>",
                 _ => "",
             };
             source.push_str(&format!(
@@ -721,7 +721,7 @@ fn imported_host_source() -> &'static str {
         let imported = root.query::<binding_provider::service::IBaseAbi>().unwrap();
         let original = root.query::<binding_helper::selected::IBaseAbi>().unwrap();
         assert_eq!(imported.get().unwrap(), 73);
-        let borrowed: neocogi_com::ComRef<'_, binding_provider::service::IBaseAbi> = imported.as_com_ref();
+        let borrowed: neocogi_com_sdk::ComRef<'_, binding_provider::service::IBaseAbi> = imported.as_com_ref();
         assert_eq!(borrowed.get().unwrap(), 73);
         assert_eq!(original.get().unwrap(), 73);
         assert!(imported.as_com_ref().same_object(original.as_com_ref()));
@@ -779,16 +779,14 @@ fn imported_rival_source() -> String {
     let mut source = String::from(
         "#[allow(dead_code)] pub mod rival { pub const MODULE_NAME: &str = \"wrong\"; pub const MODULE_ID: () = (); pub const ABI_FINGERPRINT: () = ();\n",
     );
-    for companion in neocogi_com_core::NcComInterfaceCompanion::ALL {
+    for companion in neocogi_com::NcComInterfaceCompanion::ALL {
         let name = format!("IBase{}", companion.suffix());
         match companion {
-            neocogi_com_core::NcComInterfaceCompanion::Provider => source.push_str(&format!("pub struct {name}<T>(core::marker::PhantomData<T>);\n")),
-            neocogi_com_core::NcComInterfaceCompanion::Wrapper => {
-                source.push_str(&format!("pub struct {name}<M = neocogi_com::ThreadLocal>(core::marker::PhantomData<M>);\n"))
+            neocogi_com::NcComInterfaceCompanion::Provider => source.push_str(&format!("pub struct {name}<T>(core::marker::PhantomData<T>);\n")),
+            neocogi_com::NcComInterfaceCompanion::Wrapper => {
+                source.push_str(&format!("pub struct {name}<M = neocogi_com_sdk::ThreadLocal>(core::marker::PhantomData<M>);\n"))
             }
-            neocogi_com_core::NcComInterfaceCompanion::Abi | neocogi_com_core::NcComInterfaceCompanion::VTable => {
-                source.push_str(&format!("pub struct {name};\n"))
-            }
+            neocogi_com::NcComInterfaceCompanion::Abi | neocogi_com::NcComInterfaceCompanion::VTable => source.push_str(&format!("pub struct {name};\n")),
         }
     }
     source.push_str("}\n");

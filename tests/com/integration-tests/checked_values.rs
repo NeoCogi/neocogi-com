@@ -7,7 +7,7 @@ mod test_contracts {
 // The depth-limit regression deliberately instantiates a 65-level wire type.
 // Stable std versions may wrap MaybeUninit in additional private types; leave
 // room for their Freeze/Copy proofs without changing the runtime depth policy.
-use neocogi_com::*;
+use neocogi_com_sdk::*;
 
 extern crate self as fixture_checked_values;
 test_contracts::checked_values!();
@@ -204,7 +204,7 @@ fn writable_identity_buffers_retain_the_original_allocation() {
 /// Fixed-shape optimization must preserve the exact nested count/depth contract.
 #[test]
 fn copied_aggregate_budget_boundaries_remain_exact() {
-    use neocogi_com::{ValueBudget, NC_E_OUT_OF_RANGE};
+    use neocogi_com_sdk::{ValueBudget, NC_E_OUT_OF_RANGE};
     let value = Settings { flags: Flags { enabled: true } };
     // Settings -> Flags -> bool is three logical values and three levels deep.
     let (wire, _) = value.encode_value(&mut ValueBudget::new(0, 3, 3)).unwrap();

@@ -8,7 +8,7 @@ license.workspace = true
 repository.workspace = true
 documentation = "https://docs.rs/neocogi-com-macros"
 readme = "README.md"
-description = "Proc macros for neocogi-com's portable C-ABI interface model"
+description = "Proc macros for neocogi-com-sdk's portable C-ABI interface model"
 keywords = ["com", "abi", "ffi", "proc-macro"]
 categories = ["development-tools::ffi"]
 

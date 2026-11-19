@@ -34,7 +34,7 @@ fn ordinary_enum_decoders_compile_and_reconstruct_every_payload_shape() {
     fs::write(
         project.path().join("Cargo.toml"),
         format!(
-            "[package]\nname='enum-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\nneocogi-com-serialization={{path={:?},default-features=false,features=['std']}}\n",
+            "[package]\nname='enum-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com-sdk={{path={:?}}}\nneocogi-com-serialization={{path={:?},default-features=false,features=['std']}}\n",
             root.join("crates/com"), root.join("crates/serialization")
         ),
     )
@@ -63,7 +63,7 @@ fn ordinary_enum_decoders_compile_and_reconstruct_every_payload_shape() {
     for capability in ["ComSerialize", "ComDeserialize"] {
         fs::write(
             project.path().join("src/main.rs"),
-            format!("mod contract; fn requires<T: neocogi_com::{capability}>() {{}} fn main() {{ requires::<contract::Live>(); }}"),
+            format!("mod contract; fn requires<T: neocogi_com_sdk::{capability}>() {{}} fn main() {{ requires::<contract::Live>(); }}"),
         )
         .unwrap();
         let rejected = Command::new("cargo")

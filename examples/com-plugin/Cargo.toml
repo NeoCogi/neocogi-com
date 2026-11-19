@@ -20,7 +20,7 @@ default = []
 dynamic-plugin = []
 [dependencies]
 neocogi-com-serialization = { workspace = true, features = ["std"] }
-neocogi-com = { workspace = true, features = ["macros", "std"] }
+neocogi-com-sdk = { workspace = true, features = ["macros", "std"] }
 
 [build-dependencies]
 neocogi-idl.workspace = true

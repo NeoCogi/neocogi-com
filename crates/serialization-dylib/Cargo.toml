@@ -13,5 +13,5 @@ description = "Native COM serialization plugin with built-in NCB and JSON format
 crate-type = ["cdylib"]
 
 [dependencies]
-neocogi-com = { workspace = true, features = ["alloc"] }
+neocogi-com-sdk = { workspace = true, features = ["alloc"] }
 neocogi-com-serialization = { workspace = true, features = ["plugin", "json"] }

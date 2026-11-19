@@ -1,7 +1,7 @@
 //! End-to-end ownership and malformed-wire tests for the recursive value contract.
 #![cfg(feature = "alloc")]
 
-use neocogi_com_core::{
+use neocogi_com::{
     ComValue, NcStatus, NcValueRef, ValueBudget, ValueOption, ValueSequenceKeepAlive, ValueSlice, NC_E_INVALID_ARG, NC_E_INVALID_TAG, NC_E_OUT_OF_RANGE,
 };
 
@@ -115,7 +115,7 @@ fn zero_sized_values_still_consume_work_and_nested_values_share_limits() {
 
 #[test]
 fn array_fields_check_each_boolean_and_preflight_text_shape() {
-    let raw = neocogi_com_core::ValueArray { elements: [1, 0, 3] };
+    let raw = neocogi_com::ValueArray { elements: [1, 0, 3] };
     assert_eq!(unsafe { <[bool; 3]>::decode_value(&raw, &mut ValueBudget::default()) }, Err(NC_E_INVALID_ARG));
     // Oversized lengths are rejected before dereferencing the intentionally null pointer.
     let raw = ValueSlice {

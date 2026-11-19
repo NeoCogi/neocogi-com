@@ -103,7 +103,7 @@ fn rust_locations_reject_invalid_and_conflicting_owners() {
     }
     // Raw binding metadata is independent of the logical namespace's spelling.
     paths.insert("proof.union", "api::r#type").unwrap();
-    let maximum = neocogi_com_core::NC_DESCRIPTOR_QUALIFIED_NAME_MAX_LEN;
+    let maximum = neocogi_com::NC_DESCRIPTOR_QUALIFIED_NAME_MAX_LEN;
     paths.insert(&"a".repeat(maximum), "api::events").unwrap();
     assert!(paths.insert(&"a".repeat(maximum + 1), "api::events").is_err());
     for path in [
@@ -131,7 +131,7 @@ fn rust_locations_reject_invalid_and_conflicting_owners() {
 #[test]
 fn public_metadata_paths_charge_the_complete_spelling() {
     let graph = resolve_modules(vec![parse_module(Path::new("example/value.ncidl"), "struct Value { value: u32 }").unwrap()]).unwrap();
-    let maximum = neocogi_com_core::NC_DESCRIPTOR_RUST_PATH_MAX_LEN;
+    let maximum = neocogi_com::NC_DESCRIPTOR_RUST_PATH_MAX_LEN;
     let mut paths = RustModulePaths::default();
     paths.insert("example.value", &"a".repeat(maximum - "::Value".len())).unwrap();
     generate_rust_with_paths(&graph, "example.value", &paths).unwrap();

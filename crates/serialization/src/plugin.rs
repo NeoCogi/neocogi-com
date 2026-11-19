@@ -1,9 +1,9 @@
 //! One shared plugin root selects independently compiled format implementations.
-use neocogi_com::{ComPtr, NcStatus, NcCopyFromBufferOffset, NC_E_NOINTERFACE, NC_E_INVALID_ARG};
-use neocogi_com::serialization::*;
+use neocogi_com_sdk::{ComPtr, NcStatus, NcCopyFromBufferOffset, NC_E_NOINTERFACE, NC_E_INVALID_ARG};
+use neocogi_com_sdk::serialization::*;
 
 /// Stateless selection service; it owns no document sessions or application values.
-#[neocogi_com::com_object(ISerializationPlugin)]
+#[neocogi_com_sdk::com_object(ISerializationPlugin)]
 struct Formats;
 
 impl ISerializationPlugin for Formats {
@@ -33,7 +33,7 @@ pub fn factory() -> ComPtr<ISerializationPluginAbi> {
 }
 
 /// Static registration and native loading share this exact acquisition contract.
-#[neocogi_com::plugin(name = "nc.serialization")]
-fn acquire(_runtime: neocogi_com::RuntimeHandle) -> Result<ComPtr<ISerializationPluginAbi>, NcStatus> {
+#[neocogi_com_sdk::plugin(name = "nc.serialization")]
+fn acquire(_runtime: neocogi_com_sdk::RuntimeHandle) -> Result<ComPtr<ISerializationPluginAbi>, NcStatus> {
     Ok(factory())
 }

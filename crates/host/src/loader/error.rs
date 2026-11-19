@@ -1,7 +1,7 @@
 //! Dynamic-library loading and plugin registration errors.
 //!
 //! Errors preserve the failing trusted path, a stable phase category, an
-//! optional neocogi-com status for metadata/registration failures, and detailed
+//! optional neocogi-com-sdk status for metadata/registration failures, and detailed
 //! platform text. Public C adapters later reduce these records to standardized
 //! status categories while sending the full text to debug messengers.
 //!
@@ -13,7 +13,7 @@
 use std::path::{Path, PathBuf};
 use std::string::String;
 
-use neocogi_com_core::NcStatus;
+use neocogi_com::NcStatus;
 
 /// Error category returned while loading a plugin shared library.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -53,7 +53,7 @@ pub struct PluginLoadError {
     kind: PluginLoadErrorKind,
     /// Caller-supplied path associated with the failed operation.
     path: PathBuf,
-    /// Precise neocogi-com status when the failure originated in ABI logic.
+    /// Precise neocogi-com-sdk status when the failure originated in ABI logic.
     status: Option<NcStatus>,
     /// Platform or validation detail intended for diagnostics.
     message: String,
@@ -107,7 +107,7 @@ impl std::error::Error for PluginLoadError {}
 #[cfg(test)]
 mod tests {
     use super::{PluginLoadError, PluginLoadErrorKind};
-    use neocogi_com_core::NC_E_ABI_VERSION;
+    use neocogi_com::NC_E_ABI_VERSION;
 
     /// All phases retain their spelling, path, detail and optional symbolic/raw
     /// status. Run under min-size as well: Debug is intentionally unavailable.

@@ -62,7 +62,7 @@ pub(crate) fn quality(runner: &Runner) -> Result<()> {
     args.extend(selectors(false, false));
     args.extend(words(&["--all-features", "--locked"]));
     stable(runner, "SDK features", args)?;
-    for (package, features) in [("neocogi-com", None), ("neocogi-com", Some("alloc")), ("neocogi-com-core", None)] {
+    for (package, features) in [("neocogi-com-sdk", None), ("neocogi-com-sdk", Some("alloc")), ("neocogi-com", None)] {
         let mut args = words(&["check", "-p", package, "--no-default-features", "--locked"]);
         if let Some(feature) = features {
             args.extend(words(&["--features", feature]));
@@ -79,7 +79,7 @@ pub(crate) fn quality(runner: &Runner) -> Result<()> {
             args.extend(selectors(false, false));
             args.push("--all-features".into());
         } else {
-            args.extend(words(&["-p", "neocogi-com"]));
+            args.extend(words(&["-p", "neocogi-com-sdk"]));
             if matches!(mode, "no-default" | "alloc") {
                 args.push("--no-default-features".into());
             }
@@ -135,10 +135,10 @@ pub(crate) fn msrv(runner: &Runner) -> Result<()> {
         for args in [
             vec!["test", "--manifest-path", "tests/abi-spec/Cargo.toml", "--doc", "--locked"],
             vec!["test", "-p", "neocogi-inspect", "--bin", "neocogi-inspect", "--locked"],
-            vec!["check", "-p", "neocogi-com", "--locked"],
+            vec!["check", "-p", "neocogi-com-sdk", "--locked"],
+            vec!["check", "-p", "neocogi-com-sdk", "--no-default-features", "--locked"],
+            vec!["check", "-p", "neocogi-com-sdk", "--no-default-features", "--features", "alloc", "--locked"],
             vec!["check", "-p", "neocogi-com", "--no-default-features", "--locked"],
-            vec!["check", "-p", "neocogi-com", "--no-default-features", "--features", "alloc", "--locked"],
-            vec!["check", "-p", "neocogi-com-core", "--no-default-features", "--locked"],
         ] {
             fixture.cargo("1.85.0", &args)?;
         }
@@ -284,7 +284,10 @@ pub(crate) fn workspace(runner: &Runner) -> Result<()> {
     // Package roles are a dependency invariant, not just naming convention.
     // Host-dependent integration tests belong to tests/com, keeping the SDK
     // independently testable and avoiding a development-only dependency cycle.
-    let sdk = packages.iter().find(|package| package["name"] == "neocogi-com").ok_or("missing shared SDK")?;
+    let sdk = packages
+        .iter()
+        .find(|package| package["name"] == "neocogi-com-sdk")
+        .ok_or("missing shared SDK")?;
     let host = packages
         .iter()
         .find(|package| package["name"] == "neocogi-com-host")
@@ -297,7 +300,7 @@ pub(crate) fn workspace(runner: &Runner) -> Result<()> {
         .as_array()
         .ok_or("missing host dependencies")?
         .iter()
-        .any(|dependency| dependency["name"] == "neocogi-com" && dependency["kind"].is_null())
+        .any(|dependency| dependency["name"] == "neocogi-com-sdk" && dependency["kind"].is_null())
     {
         return Err("host implementation must depend on the shared SDK".into());
     }
@@ -326,12 +329,12 @@ pub(crate) fn workspace(runner: &Runner) -> Result<()> {
         fs::write(
             root.join("Cargo.toml"),
             format!(
-                "[package]\nname='no-default-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={path},default-features=false}}\n"
+                "[package]\nname='no-default-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com-sdk={{path={path},default-features=false}}\n"
             ),
         )?;
         fs::write(
             root.join("src/lib.rs"),
-            "#![no_std]\npub fn identity() -> neocogi_com::NcGuid { neocogi_com::IID_IUNKNOWN }\n",
+            "#![no_std]\npub fn identity() -> neocogi_com_sdk::NcGuid { neocogi_com_sdk::IID_IUNKNOWN }\n",
         )?;
         let mut consumer = runner.clone();
         consumer.root = root.to_path_buf();
@@ -353,7 +356,7 @@ pub(crate) fn workspace(runner: &Runner) -> Result<()> {
                 "--prefix",
                 "none",
                 "--features",
-                "neocogi-com/macros,neocogi-com/runtime",
+                "neocogi-com-sdk/macros,neocogi-com-sdk/runtime",
             ],
         )?;
         if service_tree.contains("neocogi-com-host") {
@@ -368,7 +371,7 @@ pub(crate) fn abi_32(runner: &Runner) -> Result<()> {
     let target = std::env::var("NC_COM_32_BIT_TARGET").unwrap_or_else(|_| "i686-unknown-linux-gnu".into());
     runner.cargo(
         "stable",
-        &["test", "-p", "neocogi-com-core", "--target", &target, "--no-default-features", "--locked"],
+        &["test", "-p", "neocogi-com", "--target", &target, "--no-default-features", "--locked"],
     )?;
     let owner = runner.scratch("abi32-")?;
     let mut fixture = runner.clone();

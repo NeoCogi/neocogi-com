@@ -2,16 +2,16 @@
 #[cfg(test)]
 mod unit_tests {
     use super::*;
-    use neocogi_com::*;
+    use neocogi_com_sdk::*;
     use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
 
     /// Concrete state counts dispatch after validation and returned owner cleanup.
     #[com_object(IUnits)]
     struct Units { accepted: usize, drops: Arc<AtomicUsize> }
     /// A real returned owner must be released if another output is malformed.
-    #[com_object(neocogi_com::persistence::IObjectChildren)]
+    #[com_object(neocogi_com_sdk::persistence::IObjectChildren)]
     struct Item { drops: Arc<AtomicUsize> }
-    impl neocogi_com::persistence::IObjectChildren for Item {
+    impl neocogi_com_sdk::persistence::IObjectChildren for Item {
         fn count(&self)->Result<u32,NcStatus> { Ok(0) }
         fn get(&self,_:u32)->Result<ComPtr<IUnknown>,NcStatus> { Err(NC_E_OUT_OF_RANGE) }
     }
@@ -105,11 +105,11 @@ mod unit_tests {
         let _:unsafe extern "C" fn(*mut core::ffi::c_void)->NcStatus=table.status;
         let _:unsafe extern "C" fn(*mut core::ffi::c_void,<Completion as ComValue>::AbiRepr,*mut <Completion as ComValue>::AbiRepr)->NcStatus=table.completion;
         assert!(matches!(Completion::ABI_TYPE,NcAbiType::Aggregate(_)));
-        assert_eq!(Mixed::IDL_TYPE.shape, neocogi_com::idl_metadata::TypeShape::Struct(&[
-            neocogi_com::idl_metadata::FieldMetadata { name:"before",ty:neocogi_com::idl_metadata::ValueType::Scalar("u32") },
-            neocogi_com::idl_metadata::FieldMetadata { name:"unit",ty:neocogi_com::idl_metadata::ValueType::Unit },
-            neocogi_com::idl_metadata::FieldMetadata { name:"enabled",ty:neocogi_com::idl_metadata::ValueType::Scalar("bool") },
-            neocogi_com::idl_metadata::FieldMetadata { name:"after",ty:neocogi_com::idl_metadata::ValueType::Scalar("u32") },
+        assert_eq!(Mixed::IDL_TYPE.shape, neocogi_com_sdk::idl_metadata::TypeShape::Struct(&[
+            neocogi_com_sdk::idl_metadata::FieldMetadata { name:"before",ty:neocogi_com_sdk::idl_metadata::ValueType::Scalar("u32") },
+            neocogi_com_sdk::idl_metadata::FieldMetadata { name:"unit",ty:neocogi_com_sdk::idl_metadata::ValueType::Unit },
+            neocogi_com_sdk::idl_metadata::FieldMetadata { name:"enabled",ty:neocogi_com_sdk::idl_metadata::ValueType::Scalar("bool") },
+            neocogi_com_sdk::idl_metadata::FieldMetadata { name:"after",ty:neocogi_com_sdk::idl_metadata::ValueType::Scalar("u32") },
         ]));
         let pair=owner.into_raw();
         // SAFETY: exact same object/identity/thunks, with one checked output

@@ -173,7 +173,7 @@ fn inherited_value_metadata_keeps_the_supplying_projection_without_bystander_dep
         fs::write(
             project.path().join("Cargo.toml"),
             format!(
-                "[package]\nname='binding-peers'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\n",
+                "[package]\nname='binding-peers'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com-sdk={{path={:?}}}\n",
                 root.join("crates/com")
             ),
         )
@@ -209,17 +209,17 @@ fn inherited_value_metadata_keeps_the_supplying_projection_without_bystander_dep
                 r#"
         extern crate self as binding_peers;
         pub mod ext; pub mod mid; pub mod leaf;
-        #[neocogi_com::com_object(leaf::IChild)] struct Provider;
+        #[neocogi_com_sdk::com_object(leaf::IChild)] struct Provider;
         impl leaf::IChild for Provider {{}}
         impl mid::Fact for Provider {{
-            fn value(&self) -> Result<mid::{boxed},neocogi_com::NcStatus> {{ Ok(mid::{boxed} {{ nested:mid::{inner} {{ value:91 }} }}) }}
+            fn value(&self) -> Result<mid::{boxed},neocogi_com_sdk::NcStatus> {{ Ok(mid::{boxed} {{ nested:mid::{inner} {{ value:91 }} }}) }}
         }}
         impl mid::IBase for Provider {{
-            fn get(&self) -> Result<mid::{boxed}, neocogi_com::NcStatus> {{ Ok(mid::{boxed} {{ nested:mid::{inner} {{ value:73 }} }}) }}
+            fn get(&self) -> Result<mid::{boxed}, neocogi_com_sdk::NcStatus> {{ Ok(mid::{boxed} {{ nested:mid::{inner} {{ value:73 }} }}) }}
         }}
-        #[neocogi_com::com_object(interfaces(mid::Fact), ownership=exclusive)] struct Snapshot;
+        #[neocogi_com_sdk::com_object(interfaces(mid::Fact), ownership=exclusive)] struct Snapshot;
         impl mid::Fact for Snapshot {{
-            fn value(&self) -> Result<mid::{boxed},neocogi_com::NcStatus> {{ Ok(mid::{boxed} {{ nested:mid::{inner} {{ value:91 }} }}) }}
+            fn value(&self) -> Result<mid::{boxed},neocogi_com_sdk::NcStatus> {{ Ok(mid::{boxed} {{ nested:mid::{inner} {{ value:91 }} }}) }}
         }}
         #[test] fn supplying_metadata_and_real_calls() {{
             let values = leaf::IChildAbi::IDL_INTERFACE.values;

@@ -99,25 +99,25 @@ fn idl_methods_accept_builtin_serializers_from_the_shared_source_contract() {
     .unwrap();
     let graph = crate::resolve_modules(vec![format, user]).unwrap();
     let mut paths = crate::generate::RustModulePaths::default();
-    paths.insert("neocogi.com.serialization", "neocogi_com::serialization").unwrap();
+    paths.insert("neocogi.com.serialization", "neocogi_com_sdk::serialization").unwrap();
     let bindings = crate::generate::generate_rust_with_paths(&graph, "proof.serialization", &paths).unwrap();
     let source = format!(
         r#"
         {bindings}
-        #[neocogi_com::com_object(Emitter)] struct Object;
+        #[neocogi_com_sdk::com_object(Emitter)] struct Object;
         impl Emitter for Object {{
-            fn emit(&self,output:neocogi_com::ComRef<'_,ISerializerAbi>)->Result<(),neocogi_com::NcStatus>{{
-                neocogi_com::serialization::Serializer::new(output).serialize(&42u32)
+            fn emit(&self,output:neocogi_com_sdk::ComRef<'_,ISerializerAbi>)->Result<(),neocogi_com_sdk::NcStatus>{{
+                neocogi_com_sdk::serialization::Serializer::new(output).serialize(&42u32)
             }}
         }}
         #[test] fn real_format_call(){{
             use neocogi_com_serialization::ncb::NcbSerializer;
-            use neocogi_com::serialization::{{ISerializationOutputAbi,Limits}};
+            use neocogi_com_sdk::serialization::{{ISerializationOutputAbi,Limits}};
             let object=Object::from_value(Object).query::<EmitterAbi>().unwrap();
             let writer=NcbSerializer::create(Limits::default()).unwrap();
             object.emit(writer.as_com_ref()).unwrap();
             let output=writer.query_ref::<ISerializationOutputAbi>().unwrap();
-            let mut bytes=neocogi_com::NcOutputBuffer::new();
+            let mut bytes=neocogi_com_sdk::NcOutputBuffer::new();
             output.copy_to(bytes.output(0,output.byte_len().unwrap() as usize)).unwrap();
             assert_eq!(neocogi_com_serialization::ncb::from_slice::<u32>(bytes.as_slice()).unwrap(),42);
         }}

@@ -72,8 +72,8 @@ impl ModuleName {
         if segment == "_"
             || !is_identifier(segment)
             || matches!(
-                neocogi_com_core::validate_rust_path(segment),
-                Err(neocogi_com_core::NcRustPathError::ReservedIdentifier { .. })
+                neocogi_com::validate_rust_path(segment),
+                Err(neocogi_com::NcRustPathError::ReservedIdentifier { .. })
             )
         {
             return Err(ModulePathError::InvalidSegment(segment.to_owned()));
@@ -266,7 +266,7 @@ mod tests {
             let module = ModuleName::from_relative_source(Path::new(&format!("proof/{segment}.ncidl"))).unwrap();
             assert_eq!(module.to_string(), name);
         }
-        let long = "a".repeat(neocogi_com_core::NC_DESCRIPTOR_RUST_PATH_MAX_LEN + 1);
+        let long = "a".repeat(neocogi_com::NC_DESCRIPTOR_RUST_PATH_MAX_LEN + 1);
         ModuleName::validate_dotted(&long).unwrap();
         ModuleName::from_relative_source(Path::new(&format!("{long}.ncidl"))).unwrap();
         let names = ["proof/A_b.ncidl", "proof/a_b.ncidl", "proof/a/b.ncidl"].map(|path| ModuleName::from_relative_source(Path::new(path)).unwrap());

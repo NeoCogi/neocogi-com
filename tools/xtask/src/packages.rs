@@ -12,10 +12,10 @@ use crate::{
 
 /// The complete distributable SDK; this tool and all fixture packages are unpublished.
 pub(crate) const PUBLISHED: &[(&str, &str)] = &[
-    ("neocogi-com-core", "crates/core"),
+    ("neocogi-com", "crates/core"),
     ("neocogi-idl", "crates/idl"),
     ("neocogi-com-macros", "crates/macros"),
-    ("neocogi-com", "crates/com"),
+    ("neocogi-com-sdk", "crates/com"),
     ("neocogi-com-serialization", "crates/serialization"),
     ("neocogi-com-serialization-dylib", "crates/serialization-dylib"),
     ("neocogi-com-host", "crates/host"),
@@ -98,7 +98,7 @@ fn consumers(repository: &Path, root: &Path, version: &str) -> Result<()> {
     fs::write(
         strings.join("Cargo.toml"),
         format!(
-            "[package]\nname='archive-strings-consumer'\nversion='0.0.0'\nedition='2024'\n[dependencies]\nneocogi-com='={version}'\n[build-dependencies]\nneocogi-idl='={version}'\n"
+            "[package]\nname='archive-strings-consumer'\nversion='0.0.0'\nedition='2024'\n[dependencies]\nneocogi-com-sdk='={version}'\n[build-dependencies]\nneocogi-idl='={version}'\n"
         ),
     )?;
     fs::write(strings.join("build.rs"), include_str!("../fixtures/strings-build.rs"))?;
@@ -108,7 +108,7 @@ fn consumers(repository: &Path, root: &Path, version: &str) -> Result<()> {
     fs::write(
         consumer.join("Cargo.toml"),
         format!(
-            "[package]\nname='archive-consumer'\nversion='0.0.0'\nedition='2024'\nlinks='nc_contract_70726f6f662e61726368697665'\n[dependencies]\nneocogi-com={{version='={version}',features=['runtime']}}\nneocogi-com-host='={version}'\n[build-dependencies]\nneocogi-idl='={version}'\n"
+            "[package]\nname='archive-consumer'\nversion='0.0.0'\nedition='2024'\nlinks='nc_contract_70726f6f662e61726368697665'\n[dependencies]\nneocogi-com-sdk={{version='={version}',features=['runtime']}}\nneocogi-com-host='={version}'\n[build-dependencies]\nneocogi-idl='={version}'\n"
         ),
     )?;
     fs::write(consumer.join("build.rs"), include_str!("../fixtures/archive-build.rs"))?;
@@ -203,11 +203,7 @@ fn check_walkthrough_graph(graph: &serde_json::Value, extracted: &Path, manifest
         }
         let package = packages.get(id).ok_or("missing reachable tutorial package")?;
         let name = package["name"].as_str().ok_or("missing reachable tutorial package name")?;
-        let forbidden = if host {
-            name == "getting-started-plugin"
-        } else {
-            name == "neocogi-com-host"
-        };
+        let forbidden = if host { name == "getting-started-plugin" } else { name == "neocogi-com-host" };
         if forbidden {
             return Err(format!("tutorial dependency direction includes {name}").into());
         }
@@ -244,7 +240,7 @@ fn check_walkthrough_graph(graph: &serde_json::Value, extracted: &Path, manifest
             }
         }
     }
-    for (name, build) in [("neocogi-com", false), ("neocogi-idl", true)]
+    for (name, build) in [("neocogi-com-sdk", false), ("neocogi-idl", true)]
         .into_iter()
         .chain(host.then_some(("neocogi-com-host", false)))
     {
@@ -407,10 +403,10 @@ pub(crate) fn run(runner: &Runner) -> Result<()> {
         if output.trim() != "archive host: value=42; plugins=1" {
             return Err(format!("linked archive host did not complete its C calls: {output}").into());
         }
-        let facade = format!("neocogi-com-{version}/Cargo.toml");
+        let sdk = format!("neocogi-com-sdk-{version}/Cargo.toml");
         for options in [
-            vec!["check", "--manifest-path", &facade, "--no-default-features"],
-            vec!["check", "--manifest-path", &facade, "--no-default-features", "--features", "alloc"],
+            vec!["check", "--manifest-path", &sdk, "--no-default-features"],
+            vec!["check", "--manifest-path", &sdk, "--no-default-features", "--features", "alloc"],
         ] {
             verification.cargo("1.85.0", &options)?;
         }
@@ -534,13 +530,13 @@ mod tests {
             Ok(manifest)
         };
         let plugin = make_manifest("getting-started/plugin")?;
-        let facade = make_manifest("neocogi-com-0.3.0")?;
+        let facade = make_manifest("neocogi-com-sdk-0.3.0")?;
         let compiler = make_manifest("neocogi-idl-0.3.0")?;
         let wrong = make_manifest("different-checkout/crates/com")?;
         let mut graph = json!({
             "packages": [
                 {"id":"root", "name":"getting-started-plugin", "manifest_path":plugin},
-                {"id":"facade", "name":"neocogi-com", "version":"0.3.0", "source":null, "manifest_path":facade},
+                {"id":"facade", "name":"neocogi-com-sdk", "version":"0.3.0", "source":null, "manifest_path":facade},
                 {"id":"compiler", "name":"neocogi-idl", "version":"0.3.0", "source":null, "manifest_path":compiler},
                 {"id":"host", "name":"neocogi-com-host"}
             ],
@@ -558,7 +554,7 @@ mod tests {
         graph["packages"][1]["manifest_path"] = json!(wrong);
         graph["packages"][1]["source"] = json!("registry+https://github.com/rust-lang/crates.io-index");
         let error = check_walkthrough_graph(&graph, extracted, &plugin, "0.3.0", false).unwrap_err();
-        assert!(error.to_string().contains("neocogi-com must resolve to"), "{error}");
+        assert!(error.to_string().contains("neocogi-com-sdk must resolve to"), "{error}");
         graph["packages"][1]["source"] = json!(null);
         let error = check_walkthrough_graph(&graph, extracted, &plugin, "0.3.0", false).unwrap_err();
         assert!(error.to_string().contains("different-checkout"), "{error}");
@@ -608,7 +604,7 @@ mod tests {
                 "--offline",
                 "--no-deps",
                 "--manifest-path",
-                "neocogi-com-core-0.0.0/Cargo.toml",
+                "neocogi-com-0.0.0/Cargo.toml",
             ],
         )?)?;
         assert_eq!(Path::new(graph["workspace_root"].as_str().unwrap()).canonicalize()?, root.canonicalize()?);

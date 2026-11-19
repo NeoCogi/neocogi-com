@@ -1,11 +1,11 @@
-//! Parsers and normalized option records for neocogi-com attribute macros.
+//! Parsers and normalized option records for neocogi-com-sdk attribute macros.
 //!
 //! Each public macro accepts a small purpose-built grammar. This module parses
 //! those tokens once, validates mutually exclusive or all-or-nothing options,
 //! and derives the generated ABI/vtable paths needed by later expansion stages.
 
 use quote::ToTokens;
-use neocogi_com_core::NcComInterfaceCompanion as Companion;
+use neocogi_com::NcComInterfaceCompanion as Companion;
 use syn::parse::{Parse, ParseStream};
 use syn::spanned::Spanned;
 use syn::{Ident, LitStr, Path, Result, Token, parenthesized};
@@ -20,7 +20,7 @@ pub struct ObjectArgs {
     pub ownership: ObjectOwnership,
     /// Whether generated object storage may be shared across threads.
     pub thread_safe: bool,
-    /// Optional path overriding automatic `neocogi-com` crate discovery.
+    /// Optional path overriding automatic `neocogi-com-sdk` crate discovery.
     pub runtime_crate: Option<Path>,
     /// Optional generated ABI path for a factory-created interface contract.
     pub primary_interface: Option<Path>,
