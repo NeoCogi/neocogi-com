@@ -105,6 +105,9 @@ jobs:
       - name: Native inspector argument tests
         if: ${{ !cancelled() }}
         run: cargo test -p neocogi-inspect --bin neocogi-inspect --locked
+      - name: Native inspector integration tests
+        if: ${{ !cancelled() }}
+        run: cargo test -p neocogi-tooling-tests --test factory_plugin --locked -- --test-threads=1
       - name: Extracted SDK and independent first-use tutorial
         if: ${{ !cancelled() }}
         run: cargo xtask packages
@@ -145,6 +148,9 @@ jobs:
       - name: Native inspector argument tests
         if: ${{ !cancelled() }}
         run: cargo test -p neocogi-inspect --bin neocogi-inspect --locked
+      - name: Native inspector integration tests
+        if: ${{ !cancelled() }}
+        run: cargo test -p neocogi-tooling-tests --test factory_plugin --locked -- --test-threads=1
       - name: Extracted SDK and independent first-use tutorial
         if: ${{ !cancelled() }}
         run: cargo xtask packages

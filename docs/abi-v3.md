@@ -1428,7 +1428,10 @@ cache; cleanup leaves that shared compiler cache intact.
 The Linux SDK job runs quality, workspace/release tests, Rust 1.85, archive
 qualification and the linked row. A second Linux job runs the three mixed-build
 rows, Miri, AddressSanitizer and ThreadSanitizer sequentially. macOS and Windows
-have one linked job each. Grouped Linux checks still run after an earlier check
+have one linked job each. All three native platforms run the checkout inspector
+integration cases for relocated plugins, Unicode paths, dependency plans and
+exact root mismatches. Linux also compares the inspector's min-size diagnostics
+and exercises native paths with invalid UTF-8 bytes. Grouped Linux checks still run after an earlier check
 fails, unless the run is cancelled; each failure keeps the job unsuccessful.
 A platform job is not evidence until it actually runs successfully; local Linux
 validation does not imply macOS/Windows execution.

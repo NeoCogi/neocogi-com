@@ -445,19 +445,20 @@ fn inspects_a_standalone_plugin_and_its_exact_factory_signature() {
     assert_eq!(factory["root_factory_signature"].as_str().unwrap().len(), 64);
     assert!(factory.get("modules").is_none());
     assert!(factory.get("direct_contracts").is_none());
+    let output = Command::new(&inspector)
+        .arg("check")
+        .arg(&plugin)
+        .env_remove("LD_LIBRARY_PATH")
+        .env_remove("DYLD_LIBRARY_PATH")
+        .output()
+        .expect("failed to check relocated plugin");
+    assert_success("standalone plugin check", &output);
 
-    let default_diagnostics = snapshot_diagnostics(&inspector, &artifact, staging.path());
+    let _default_diagnostics = snapshot_diagnostics(&inspector, &artifact, staging.path());
     let rejected = rejected_plugins(staging.path());
-    let default_load_diagnostics = native_load_diagnostics(&inspector, &rejected, staging.path());
-    let min_size_inspector = build_inspector("min-size");
-    assert_eq!(snapshot_diagnostics(&min_size_inspector, &artifact, staging.path()), default_diagnostics);
-    assert_eq!(
-        native_load_diagnostics(&min_size_inspector, &rejected, staging.path()),
-        default_load_diagnostics
-    );
+    let _default_load_diagnostics = native_load_diagnostics(&inspector, &rejected, staging.path());
 
     assert_native_source_paths(&inspector, &plugin, staging.path());
-    assert_native_source_paths(&min_size_inspector, &plugin, staging.path());
 
     assert_native_output_paths(
         &inspector,
@@ -468,6 +469,14 @@ fn inspects_a_standalone_plugin_and_its_exact_factory_signature() {
     #[cfg(target_os = "linux")]
     {
         use std::os::unix::ffi::OsStringExt;
+        // Linux qualifies the checkout's min-size profile and native byte paths.
+        let min_size_inspector = build_inspector("min-size");
+        assert_eq!(snapshot_diagnostics(&min_size_inspector, &artifact, staging.path()), _default_diagnostics);
+        assert_eq!(
+            native_load_diagnostics(&min_size_inspector, &rejected, staging.path()),
+            _default_load_diagnostics
+        );
+        assert_native_source_paths(&min_size_inspector, &plugin, staging.path());
         let intended = staging.path().join(std::ffi::OsString::from_vec(b"report-\xff.json".to_vec()));
         let neighbor = staging.path().join("report-\u{fffd}.json");
         assert_native_output_paths(&inspector, &plugin, &intended, &neighbor);
