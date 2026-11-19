@@ -8,16 +8,17 @@ use crate::__alloc::boxed::Box;
 use core::{cell::UnsafeCell, ffi::c_void, mem::MaybeUninit};
 use crate::{ComBox, ComObject, ComPtr, ComRaw, IUnknown, NcStatus, NC_E_POINTER};
 use crate::lifetime::{BoxRead, BoxWrite, NcObjectTypeInfo, NcSharedLifetimeState, NcBoxedLifetimeState};
-use super::{ComBorrowState, ComReadGuard, ComWriteGuard, __ComExclusiveCall, __ComSharedCall};
+use super::{ComBorrowGate, ComReadGuard, ComWriteGuard, __ComWritePermit, __ComReadPermit};
 
-/// Typed allocation parameterized by one concrete lifetime policy and access gate.
+/// Heap allocation for a concrete Rust COM implementation.
 ///
 /// Lifetime is the concrete shared or boxed header. Access is the shared gate
 /// or unit, selected statically; neither policy nor the concrete Rust layout
-/// crosses an interface call boundary.
+/// crosses an interface call boundary. Weak owners can retain this block after
+/// `T` is destroyed, so the value slot does not itself own a `T` destructor.
 #[doc(hidden)]
 #[repr(C)]
-pub struct __ComStorage<T, Lifetime, Access> {
+pub struct ComObjectInner<T, Lifetime, Access> {
     /// Concrete shared or boxed lifetime header, selected statically at offset zero.
     control: Lifetime,
     /// Shared classes' call gate; exclusive classes borrow through `control`.
@@ -28,13 +29,13 @@ pub struct __ComStorage<T, Lifetime, Access> {
 
 /// Allocation layout for a shared provider with its own Rust borrow gate.
 #[doc(hidden)]
-pub type __ComSharedStorage<T> = __ComStorage<T, NcSharedLifetimeState, ComBorrowState>;
+pub type __ComSharedInner<T> = ComObjectInner<T, NcSharedLifetimeState, ComBorrowGate>;
 
 /// Allocation layout for an exclusive provider using common-header admission.
 #[doc(hidden)]
-pub type __ComBoxStorage<T> = __ComStorage<T, NcBoxedLifetimeState, ()>;
+pub type __ComBoxedInner<T> = ComObjectInner<T, NcBoxedLifetimeState, ()>;
 
-impl<T: ComObject, Lifetime: 'static, Access: 'static> __ComStorage<T, Lifetime, Access> {
+impl<T: ComObject, Lifetime: 'static, Access: 'static> ComObjectInner<T, Lifetime, Access> {
     /// Builds immutable interface metadata and callbacks for this exact storage layout.
     const fn type_info() -> NcObjectTypeInfo {
         NcObjectTypeInfo {
@@ -75,7 +76,7 @@ impl<T: ComObject, Lifetime: 'static, Access: 'static> __ComStorage<T, Lifetime,
     }
 }
 
-impl<T: ComObject> __ComSharedStorage<T> {
+impl<T: ComObject> __ComSharedInner<T> {
     /// Callbacks and interfaces belong to this concrete shared storage instantiation.
     const CLASS: NcObjectTypeInfo = Self::type_info();
 
@@ -85,7 +86,7 @@ impl<T: ComObject> __ComSharedStorage<T> {
     /// T's ComObject implementation and every paired table must recover exactly
     /// this storage layout and use its gate. T's threading proof must hold.
     pub unsafe fn into_shared(value: T) -> ComPtr<IUnknown, T::Threading> {
-        let raw = Self::allocate(value, NcSharedLifetimeState::new(&Self::CLASS), ComBorrowState::new());
+        let raw = Self::allocate(value, NcSharedLifetimeState::new(&Self::CLASS), ComBorrowGate::new());
         // SAFETY: allocation initialized one strong reference and its canonical table.
         unsafe { ComPtr::from_raw_owned(raw) }.expect("new shared object is present")
     }
@@ -95,7 +96,7 @@ impl<T: ComObject> __ComSharedStorage<T> {
     /// # Safety
     /// A non-null object must identify this exact initialized storage, retained
     /// by a strong owner for the entire returned lifetime. All T access uses its gate.
-    pub unsafe fn borrow_ref<'a>(object: *mut c_void) -> Result<ComReadGuard<'a, T, __ComSharedCall<'a>>, NcStatus> {
+    pub unsafe fn borrow_ref<'a>(object: *mut c_void) -> Result<ComReadGuard<'a, T, __ComReadPermit<'a>>, NcStatus> {
         // SAFETY: caller retains matching storage; null is rejected before field access.
         let storage = unsafe { object.cast::<Self>().as_ref() }.ok_or(NC_E_POINTER)?;
         // SAFETY: the guard acquires the gate before constructing a reference to T.
@@ -106,7 +107,7 @@ impl<T: ComObject> __ComSharedStorage<T> {
     ///
     /// # Safety
     /// The same matching-storage and retained-owner obligations as borrow_ref apply.
-    pub unsafe fn borrow_mut<'a>(object: *mut c_void) -> Result<ComWriteGuard<'a, T, __ComExclusiveCall<'a>>, NcStatus> {
+    pub unsafe fn borrow_mut<'a>(object: *mut c_void) -> Result<ComWriteGuard<'a, T, __ComWritePermit<'a>>, NcStatus> {
         // SAFETY: caller retains matching storage throughout the guard.
         let storage = unsafe { object.cast::<Self>().as_ref() }.ok_or(NC_E_POINTER)?;
         // SAFETY: acquisition rejects readers/reentrant writers before creating &mut T.
@@ -114,7 +115,7 @@ impl<T: ComObject> __ComSharedStorage<T> {
     }
 }
 
-impl<T: ComObject> __ComBoxStorage<T> {
+impl<T: ComObject> __ComBoxedInner<T> {
     /// Callbacks and interfaces belong to this concrete boxed storage instantiation.
     const CLASS: NcObjectTypeInfo = Self::type_info();
 
@@ -163,11 +164,11 @@ mod tests {
     #[test]
     fn layouts_preserve_header_prefix_and_exclusive_zero_sized_access() {
         let word = size_of::<usize>();
-        assert_eq!(offset_of!(__ComSharedStorage<u8>, control), 0);
-        assert_eq!(offset_of!(__ComBoxStorage<u8>, control), 0);
-        assert_eq!(offset_of!(__ComSharedStorage<u8>, value), 4 * word);
-        assert_eq!(offset_of!(__ComBoxStorage<u8>, value), 3 * word);
-        assert_eq!(size_of::<__ComSharedStorage<u8>>(), 5 * word);
-        assert_eq!(size_of::<__ComBoxStorage<u8>>(), 4 * word);
+        assert_eq!(offset_of!(__ComSharedInner<u8>, control), 0);
+        assert_eq!(offset_of!(__ComBoxedInner<u8>, control), 0);
+        assert_eq!(offset_of!(__ComSharedInner<u8>, value), 4 * word);
+        assert_eq!(offset_of!(__ComBoxedInner<u8>, value), 3 * word);
+        assert_eq!(size_of::<__ComSharedInner<u8>>(), 5 * word);
+        assert_eq!(size_of::<__ComBoxedInner<u8>>(), 4 * word);
     }
 }

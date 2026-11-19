@@ -4,6 +4,13 @@ Development uses provisional **[ABI v3](docs/abi-v3.md#abi-identities-and-versio
 Entries below record development; later entries can supersede older implementation details.
 Historical draft numbers do not define additional supported COM baselines.
 
+## Unreleased
+
+- Name the provider allocation `ComObjectInner`, its shared-object gate
+  `ComBorrowGate`, and its read/write permits by access mode. Generated Rust uses
+  `__ComSharedInner` and `__ComBoxedInner`. Mutable local access returns
+  `LocalRefMut` alongside `LocalRef`.
+
 ## 0.4.0-alpha.1 candidate
 
 This candidate versions all nine SDK packages together, including the optional

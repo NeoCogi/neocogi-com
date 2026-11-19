@@ -326,7 +326,7 @@ fn generic_aligned_state_keeps_direct_object_access_correct() {
     assert_eq!(top.as_raw().object, owner);
     assert_eq!(base.as_raw().object, owner);
     assert_eq!(
-        owner as usize % core::mem::align_of::<neocogi_com::__ComSharedStorage<Diamond<AlignedState>>>(),
+        owner as usize % core::mem::align_of::<neocogi_com::__ComSharedInner<Diamond<AlignedState>>>(),
         0
     );
     {

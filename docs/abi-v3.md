@@ -349,7 +349,7 @@ the final weak reference frees storage through its allocating provider.
 
 Generated exclusive storage places `UnsafeCell<MaybeUninit<T>>` after the header.
 It contains no separate call gate. Generated shared storage retains its separate
-`ComBorrowState` because its header word counts strong owners. This one atomic
+`ComBorrowGate` because its header word counts strong owners. This one atomic
 state admits shared readers or one exclusive writer across every projection;
 conflicts return `NC_E_BUSY` without waiting for an active call to finish.
 Both policies produce a two-word provider-local `ComReadGuard` or `ComWriteGuard`:
@@ -367,7 +367,7 @@ the shared borrow gate does not acquire a replacement ownership reference.
 These Rust guard names replace `__ComSharedLease`/`__ComExclusiveLease`;
 rebuild generated Rust consumers with the matching SDK/compiler. The rename does
 not change the C ABI, interface signatures, storage layout or borrowing behavior.
-`ComBorrowState` replaces the former `__ComCallGate` name.
+`ComBorrowGate` issues read and write permits for shared-object access.
 
 Exclusive objects have one `ComBox` owner and cached `WeakComBox` observers.
 Their shared `AddRef` slot returns zero without retaining; shared query and

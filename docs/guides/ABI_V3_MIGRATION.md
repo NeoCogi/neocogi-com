@@ -53,6 +53,14 @@ checked owned-base queries. It changes the Rust API and generated names, not
 C record layouts, method signatures, IID/digest bytes or the current ABI/core
 versions. WIP ABI v3/core21 remains the current candidate.
 
+## Update generated object support names
+
+Regenerate provider bindings for `__ComSharedInner` and `__ComBoxedInner`.
+These two types select the shared and the boxed layout of `ComObjectInner`.
+`ComBorrowGate` issues `__ComReadPermit` and `__ComWritePermit` for a shared
+object's reader/writer admission. In handwritten Rust, use `LocalRefMut` for
+the mutable guard returned by `LocalCom::try_borrow_mut`, alongside `LocalRef`.
+
 ## Choose one concrete ownership header
 
 Ordinary `#[com_object]` users keep their shared/exclusive declaration and
@@ -79,7 +87,7 @@ The `destroy_value` and `deallocate` callbacks receive the canonical allocation
 address as `*mut c_void`. Recover the exact concrete provider allocation type
 inside its own callback. Destroy the initialized application value once, then
 free its storage only after final weak release, using the allocating provider.
-The SDK uses concrete `__ComStorage<T, Lifetime, Access>` instantiations; the ABI
+The SDK uses concrete `ComObjectInner<T, Lifetime, Access>` instantiations; the ABI
 address does not introduce an application payload registry or dynamic downcast.
 
 `NcWeakRaw.control` is now `*mut NcSharedLifetimeState`, with the same one-word
@@ -138,7 +146,7 @@ C interface slots and interface identities remain unchanged.
 
 A shared `strong_count` contains only a number. Positive counts retain the value;
 zero is terminal and weak promotion reports `NC_E_DROPPED`. Shared method access
-uses the separate `ComBorrowState`, so strong ownership does not grant a mutable
+uses the separate `ComBorrowGate`, so strong ownership does not grant a mutable
 borrow. `QueryInterface` still transfers one shared owner on success.
 
 A boxed allocation has no strong counter. `owner_and_borrows` combines the owner

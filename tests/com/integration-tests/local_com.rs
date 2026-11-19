@@ -4,7 +4,7 @@
 mod test_contracts {
     include!(concat!(env!("OUT_DIR"), "/test_contracts.rs"));
 }
-use neocogi_com::{com_object, NcStatus, NC_E_BUSY};
+use neocogi_com::{com_object, LocalRef, LocalRefMut, NcStatus, NC_E_BUSY};
 use std::{
     rc::Rc,
     sync::atomic::{AtomicUsize, Ordering},
@@ -49,7 +49,7 @@ fn local_and_foreign_calls_share_one_gate_and_one_model() {
     let alias = local.clone();
     let mut foreign = local.query::<ICounterAbi>().unwrap();
     {
-        let mut model = local.try_borrow_mut().unwrap();
+        let mut model: LocalRefMut<'_, Counter> = local.try_borrow_mut().unwrap();
         model.value = 2;
         assert_eq!(foreign.value(), Err(NC_E_BUSY));
         assert_eq!(foreign.set_value(3), Err(NC_E_BUSY));
@@ -58,7 +58,7 @@ fn local_and_foreign_calls_share_one_gate_and_one_model() {
     }
     assert_eq!(foreign.value(), Ok(2));
     {
-        let model = local.try_borrow().unwrap();
+        let model: LocalRef<'_, Counter> = local.try_borrow().unwrap();
         assert_eq!(foreign.value(), Ok(model.value));
         assert_eq!(foreign.set_value(3), Err(NC_E_BUSY));
         assert_eq!(alias.try_borrow().unwrap().value, 2);

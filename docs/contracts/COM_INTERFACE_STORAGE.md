@@ -204,7 +204,7 @@ For shared ownership, strong_count is positive while owners exist. Clone and
 successful weak promotion acquire one owner; zero is terminal. Promotion that
 acquires provisionally but then fails exact interface validation releases that
 owner and preserves the original error. Shared method borrowing still uses
-its separate ComBorrowState, not strong_count.
+its separate ComBorrowGate, not strong_count.
 
 For boxed ownership, owner presence and admitted readers/writer remain in one
 atomic owner_and_borrows word. Splitting their atomics would allow admission to

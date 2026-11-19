@@ -77,7 +77,7 @@ a separately named storage companion or implement `ComAbiObject` and
 `ThreadSafeComObject`. Both primary-interface and explicit-list providers prove
 threading through the same mode-dependent bound, including generic specializations.
 
-Facade support owns `__ComStorage<T, Lifetime, Access>`: shared providers select
+Facade support owns `ComObjectInner<T, Lifetime, Access>`: shared providers select
 NcSharedLifetimeState and the existing call gate; exclusive providers select
 NcBoxedLifetimeState and zero-sized access. The boxed header combines owner
 presence and borrowing without a shared strong counter. The macro emits only bindings, small typed borrow

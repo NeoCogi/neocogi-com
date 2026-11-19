@@ -58,14 +58,14 @@ impl<T: ComObject> core::ops::Deref for LocalRef<'_, T> {
 }
 
 /// Exclusive local access carrying both the borrow lifetime and COM threading mode.
-pub struct LocalMut<'a, T: ComObject> {
+pub struct LocalRefMut<'a, T: ComObject> {
     /// Holds the same writer guard used by generated interface thunks.
     guard: ComWriteGuard<'a, T, T::ExclusiveGuard<'a>>,
     /// Retains the owner's lifetime and conservative thread-affinity constraints.
     owner: PhantomData<&'a LocalCom<T>>,
 }
 
-impl<T: ComObject> core::ops::Deref for LocalMut<'_, T> {
+impl<T: ComObject> core::ops::Deref for LocalRefMut<'_, T> {
     type Target = T;
     /// Observes state while this guard excludes every competing call.
     fn deref(&self) -> &T {
@@ -73,7 +73,7 @@ impl<T: ComObject> core::ops::Deref for LocalMut<'_, T> {
     }
 }
 
-impl<T: ComObject> core::ops::DerefMut for LocalMut<'_, T> {
+impl<T: ComObject> core::ops::DerefMut for LocalRefMut<'_, T> {
     /// Mutates state only while this guard owns the exclusive allocation gate.
     fn deref_mut(&mut self) -> &mut T {
         &mut self.guard
@@ -126,12 +126,12 @@ impl<T: ComObject> LocalCom<T> {
     ///
     /// Release this guard before a runtime calls this object's COM methods.
     /// Reentry while it is held reports BUSY rather than creating another borrow.
-    pub fn try_borrow_mut(&self) -> Result<LocalMut<'_, T>, NcStatus> {
+    pub fn try_borrow_mut(&self) -> Result<LocalRefMut<'_, T>, NcStatus> {
         // SAFETY: The constructor proves T's storage layout, self keeps the
         // allocation live, and the generated exclusive guard excludes all
         // competing local and COM borrows for the returned guard's lifetime.
         let guard = unsafe { T::borrow_abi_mut(self.owner.as_raw().object) }?;
-        Ok(LocalMut { guard, owner: PhantomData })
+        Ok(LocalRefMut { guard, owner: PhantomData })
     }
 }
 

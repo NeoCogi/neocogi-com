@@ -94,9 +94,9 @@ pub fn expand_com_object(args: ObjectArgs, input: ItemStruct) -> proc_macro2::To
     };
     let (storage, shared_guard, exclusive_guard, constructors) = match args.ownership {
         ObjectOwnership::Shared => (
-            quote! { #nc::__ComSharedStorage<Self> },
-            quote! { #nc::__ComSharedCall<'a> },
-            quote! { #nc::__ComExclusiveCall<'a> },
+            quote! { #nc::__ComSharedInner<Self> },
+            quote! { #nc::__ComReadPermit<'a> },
+            quote! { #nc::__ComWritePermit<'a> },
             quote! {
                 /// Owns this exact implementation with checked local access.
                 #object_vis fn into_local(#initial: Self) -> #nc::LocalCom<Self> {
@@ -106,19 +106,19 @@ pub fn expand_com_object(args: ObjectArgs, input: ItemStruct) -> proc_macro2::To
                 /// Wraps a complete Rust value in one shared COM allocation.
                 #object_vis fn from_value(#initial: Self) -> #nc::ComPtr<#nc::IUnknown, #pointer_threading_model> {
                     // SAFETY: this impl's borrow adapters select the same shared layout.
-                    unsafe { #nc::__ComSharedStorage::<Self>::into_shared(#initial) }
+                    unsafe { #nc::__ComSharedInner::<Self>::into_shared(#initial) }
                 }
             },
         ),
         ObjectOwnership::Exclusive => (
-            quote! { #nc::__ComBoxStorage<Self> },
+            quote! { #nc::__ComBoxedInner<Self> },
             quote! { #nc::lifetime::BoxRead },
             quote! { #nc::lifetime::BoxWrite },
             quote! {
                 /// Transfers one exclusive owner of a fully initialized value.
                 #object_vis fn into_box(#initial: Self) -> #nc::ComBox<#nc::IUnknown, #pointer_threading_model> {
                     // SAFETY: borrow adapters use this layout's header admission.
-                    unsafe { #nc::__ComBoxStorage::<Self>::into_exclusive(#initial) }
+                    unsafe { #nc::__ComBoxedInner::<Self>::into_exclusive(#initial) }
                 }
                 /// Retains concrete construction proof until owner transfer.
                 #object_vis fn into_local_box(#initial: Self) -> #nc::LocalBox<Self> {

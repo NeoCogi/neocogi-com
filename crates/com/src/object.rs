@@ -10,7 +10,7 @@
 #[cfg(feature = "alloc")]
 mod storage;
 #[cfg(feature = "alloc")]
-pub use storage::{__ComBoxStorage, __ComSharedStorage, __ComStorage};
+pub use storage::{__ComBoxedInner, __ComSharedInner};
 
 use core::ffi::c_void;
 use core::{cell::UnsafeCell, mem::MaybeUninit};
@@ -22,7 +22,7 @@ use neocogi_com_core::{NC_E_BUSY, NcStatus, ThreadingModel};
 const EXCLUSIVE_CALL: usize = usize::MAX;
 
 #[doc(hidden)]
-/// Object-wide reader/writer borrow state for shared COM classes.
+/// Object-wide reader/writer gate for shared COM classes.
 /// Exclusive classes store their borrow state in the common lifetime header.
 ///
 /// Shared calls may overlap. A mutable call succeeds only while no other call
@@ -32,41 +32,41 @@ const EXCLUSIVE_CALL: usize = usize::MAX;
 /// borrow of the same allocation. Reader acquisition increments the atomic
 /// count; writer acquisition changes idle to the exclusive sentinel. Conflicts
 /// return `NC_E_BUSY` without blocking until an existing call finishes.
-/// Dropping the selected call token restores reader capacity or the idle state.
+/// Dropping the selected permit restores reader capacity or the idle state.
 ///
 /// This state controls access to T, not ownership. Shared-object callers retain
 /// a strong owner for the entire borrow. Exclusive allocations instead combine
 /// borrow admission with owner-presence checks in their common lifetime header.
-pub struct ComBorrowState {
+pub struct ComBorrowGate {
     /// Zero means idle, `EXCLUSIVE_CALL` means mutable, and other values count readers.
     state: AtomicUsize,
 }
 
-impl ComBorrowState {
+impl ComBorrowGate {
     /// Creates idle borrow state for a newly allocated COM object.
     pub const fn new() -> Self {
         Self { state: AtomicUsize::new(0) }
     }
 
     /// Acquires one reader slot without blocking or permitting counter overflow.
-    fn try_shared(&self) -> Result<__ComSharedCall<'_>, NcStatus> {
+    fn try_shared(&self) -> Result<__ComReadPermit<'_>, NcStatus> {
         let mut current = self.state.load(Ordering::Acquire);
         loop {
             if current == EXCLUSIVE_CALL || current == EXCLUSIVE_CALL - 1 {
                 return Err(NC_E_BUSY);
             }
             match self.state.compare_exchange_weak(current, current + 1, Ordering::Acquire, Ordering::Relaxed) {
-                Ok(_) => return Ok(__ComSharedCall { gate: self }),
+                Ok(_) => return Ok(__ComReadPermit { gate: self }),
                 Err(observed) => current = observed,
             }
         }
     }
 
     /// Acquires the unique writer sentinel without waiting on active readers.
-    fn try_exclusive(&self) -> Result<__ComExclusiveCall<'_>, NcStatus> {
+    fn try_exclusive(&self) -> Result<__ComWritePermit<'_>, NcStatus> {
         self.state
             .compare_exchange(0, EXCLUSIVE_CALL, Ordering::Acquire, Ordering::Relaxed)
-            .map(|_| __ComExclusiveCall { gate: self })
+            .map(|_| __ComWritePermit { gate: self })
             .map_err(|_| NC_E_BUSY)
     }
 }
@@ -80,7 +80,7 @@ impl ComBorrowState {
 /// function can protect that reference until after its gate has been released.
 /// G selects the allocation's existing read-admission token; it adds no second
 /// gate. This provider-local Rust guard never crosses a COM interface boundary.
-pub struct ComReadGuard<'a, T, G = __ComSharedCall<'a>> {
+pub struct ComReadGuard<'a, T, G = __ComReadPermit<'a>> {
     /// Retained storage remains valid after T is destroyed. UnsafeCell permits
     /// a newly admitted writer/destructor after this guard releases its gate.
     value: &'a UnsafeCell<MaybeUninit<T>>,
@@ -97,7 +97,7 @@ impl<'a, T> ComReadGuard<'a, T> {
     /// the same allocation as `gate`. Every value access uses this gate. The
     /// caller retains slot storage through the complete guard/drop invocation;
     /// a newly admitted writer may change T immediately after guard release.
-    pub unsafe fn acquire(gate: &'a ComBorrowState, value: &'a UnsafeCell<MaybeUninit<T>>) -> Result<Self, NcStatus> {
+    pub unsafe fn acquire(gate: &'a ComBorrowGate, value: &'a UnsafeCell<MaybeUninit<T>>) -> Result<Self, NcStatus> {
         let call = gate.try_shared()?;
         Ok(Self { value, _call: call })
     }
@@ -137,7 +137,7 @@ impl<T, G> core::ops::Deref for ComReadGuard<'_, T, G> {
 /// borrow implementation is emitted per concrete class rather than per ABI method.
 /// G selects the existing writer token for shared storage or exclusive-header
 /// admission. This provider-local Rust guard never crosses the COM interface ABI.
-pub struct ComWriteGuard<'a, T, G = __ComExclusiveCall<'a>> {
+pub struct ComWriteGuard<'a, T, G = __ComWritePermit<'a>> {
     /// Typed retained slot, without a T reference protected across gate release.
     value: &'a UnsafeCell<MaybeUninit<T>>,
     /// Writer slot whose destructor restores the gate to its idle state.
@@ -153,7 +153,7 @@ impl<'a, T> ComWriteGuard<'a, T> {
     /// the same allocation as `gate`. Every value access uses this gate. The
     /// caller retains slot storage through the complete guard/drop invocation,
     /// including after a new operation can obtain admission.
-    pub unsafe fn acquire(gate: &'a ComBorrowState, value: &'a UnsafeCell<MaybeUninit<T>>) -> Result<Self, NcStatus> {
+    pub unsafe fn acquire(gate: &'a ComBorrowGate, value: &'a UnsafeCell<MaybeUninit<T>>) -> Result<Self, NcStatus> {
         let call = gate.try_exclusive()?;
         Ok(Self { value, _call: call })
     }
@@ -206,20 +206,21 @@ unsafe impl<T: Send, G: Send> Send for ComWriteGuard<'_, T, G> {}
 // to the guard, while G's Sync proof governs sharing the admission token.
 unsafe impl<T: Sync, G: Sync> Sync for ComWriteGuard<'_, T, G> {}
 
-impl Default for ComBorrowState {
-    /// Creates the same idle state as [`ComBorrowState::new`].
+impl Default for ComBorrowGate {
+    /// Creates the same idle state as [`ComBorrowGate::new`].
     fn default() -> Self {
         Self::new()
     }
 }
 
-/// Shared-call admission token that restores its reader slot on every return path.
-pub struct __ComSharedCall<'a> {
+/// Reader permit for a shared object's borrow gate.
+/// Releases its reader slot on drop.
+pub struct __ComReadPermit<'a> {
     /// Gate whose reader count this token owns.
-    gate: &'a ComBorrowState,
+    gate: &'a ComBorrowGate,
 }
 
-impl Drop for __ComSharedCall<'_> {
+impl Drop for __ComReadPermit<'_> {
     /// Releases exactly one reader slot after the delegated Rust call ends.
     fn drop(&mut self) {
         let previous = self.gate.state.fetch_sub(1, Ordering::Release);
@@ -227,13 +228,14 @@ impl Drop for __ComSharedCall<'_> {
     }
 }
 
-/// Mutable-call admission token that restores the idle state on every return path.
-pub struct __ComExclusiveCall<'a> {
+/// Writer permit for a shared object's borrow gate.
+/// Restores the idle gate on drop.
+pub struct __ComWritePermit<'a> {
     /// Gate whose exclusive sentinel this token owns.
-    gate: &'a ComBorrowState,
+    gate: &'a ComBorrowGate,
 }
 
-impl Drop for __ComExclusiveCall<'_> {
+impl Drop for __ComWritePermit<'_> {
     /// Releases the exclusive sentinel after the delegated Rust call ends.
     fn drop(&mut self) {
         let previous = self.gate.state.swap(0, Ordering::Release);
@@ -308,7 +310,7 @@ pub unsafe trait ComObject: Sized + 'static {
 
 #[cfg(test)]
 mod tests {
-    use super::{ComBorrowState, ComWriteGuard, ComReadGuard};
+    use super::{ComBorrowGate, ComWriteGuard, ComReadGuard};
     use core::{cell::UnsafeCell, mem::MaybeUninit};
     use crate::NC_E_BUSY;
 
@@ -319,7 +321,7 @@ mod tests {
         /// Admission being handed off, consumed exactly once in Drop.
         call: Option<G>,
         /// The same real gate must admit the following write.
-        gate: &'a ComBorrowState,
+        gate: &'a ComBorrowGate,
         /// Typed storage, deliberately containing no reference to the value.
         value: &'a UnsafeCell<MaybeUninit<u32>>,
     }
@@ -336,7 +338,7 @@ mod tests {
     /// Passing a guard by value to Drop must not protect T after gate release.
     #[test]
     fn guard_release_does_not_keep_a_protected_value_reference() {
-        let gate = ComBorrowState::new();
+        let gate = ComBorrowGate::new();
         let value = UnsafeCell::new(MaybeUninit::new(7));
         // SAFETY: all accesses participate in this gate and storage outlives
         // every guard, including the release callback's next admission.
@@ -391,7 +393,7 @@ mod tests {
     /// Confirms shared calls compose while an exclusive call requires an idle object.
     #[test]
     fn borrow_state_enforces_rust_borrowing_across_reentry() {
-        let gate = ComBorrowState::new();
+        let gate = ComBorrowGate::new();
         let value = UnsafeCell::new(MaybeUninit::new(7));
 
         // SAFETY: `value` remains live and every test access participates in
