@@ -7,15 +7,15 @@ separate release actions; preparation and local dry-runs upload nothing.
 ## Prepare the source before choosing a version
 
 Finish implementation, documentation, examples and compatibility changes first.
-Keep the nine SDK packages on one version and their internal dependency requirements
+Keep the eight SDK packages on one version and their internal dependency requirements
 exact. The authoritative package inventory is `PUBLISHED` in
 [packages.rs](../../tools/xtask/src/packages.rs).
 
-The ninth package, `neocogi-com-host-dylib`, is new for the
-`0.4.0-alpha.1` candidate. The published `0.3.0` cohort consists of eight packages.
-Preparing this branch does not change the published version or release tag.
+The optional host shim was published with alpha.1. The current cohort links
+the host rlib into the final application. Preparing this branch leaves earlier
+registry versions and release tags available.
 
-Check all nine names and the intended version on crates.io. A name available
+Check all eight names and the intended version on crates.io. A name available
 during preparation can be claimed before publication; check again at release.
 For the first upload, use a crates.io account with a verified email and a token
 authorized to publish these names. Configure it interactively with `cargo login`;
@@ -24,7 +24,7 @@ before subsequent uploads. Add any additional owners deliberately after the firs
 publication. [Trusted publishing](https://crates.io/docs/trusted-publishing) can
 replace stored CI tokens for later releases.
 
-The compatibility rule is separate from Cargo versions. The current published
+The compatibility rule is separate from Cargo versions. The current stable
 release is `0.3.0`, using ABI v2: runtime and descriptor family 2, core generation
 19, and `nc_get_plugin_descriptor_v2`. The unreleased development branch uses
 ABI v3: runtime and descriptor family 3, core generation 21, and
@@ -144,13 +144,13 @@ extracted contents.
 Save the online dry-run log with the exact candidate commit ID. Cargo 1.93 and
 later treats publish tarballs as intermediate artifacts. To retain `.crate`
 files, run ordinary `cargo package --locked --registry crates-io` on the same
-clean Git commit with one `-p` selector for each of the nine entries in the
+clean Git commit with one `-p` selector for each of the eight entries in the
 [SDK inventory](../../tools/xtask/src/packages.rs). Cargo package selection can
 include unpublished members, so use the validated publication set here. The
 extraction gate tests the archive contents using temporary source copies. The
 saved release archives establish clean Git provenance.
 
-Save all nine resulting archives outside Cargo targets and record their SHA-256
+Save all eight resulting archives outside Cargo targets and record their SHA-256
 hashes. Use `sha256sum` on Linux, `shasum -a 256` on macOS or `Get-FileHash` on
 Windows. Check the versions and `.cargo_vcs_info.json` against the candidate.
 Preserve this evidence through `cargo clean`. If source, documentation, versions
@@ -166,7 +166,7 @@ Do not publish any package until every required CI job passes for this exact
 tagged commit; a previous alpha's result or a different master revision does not
 satisfy the gate.
 
-Publish only the nine public packages, in dependency order:
+Publish only the eight public packages, in dependency order:
 
 ```sh
 cargo publish --locked --registry crates-io -p neocogi-com-core
@@ -176,7 +176,6 @@ cargo publish --locked --registry crates-io -p neocogi-com
 cargo publish --locked --registry crates-io -p neocogi-com-serialization
 cargo publish --locked --registry crates-io -p neocogi-com-serialization-dylib
 cargo publish --locked --registry crates-io -p neocogi-com-host
-cargo publish --locked --registry crates-io -p neocogi-com-host-dylib
 cargo publish --locked --registry crates-io -p neocogi-inspect
 ```
 
@@ -189,7 +188,7 @@ uploaded content matches. Never silently skip a mismatch or attempt to overwrite
 an existing version. Changed public content requires a new coordinated version,
 with an explicit follow-up/yank decision for unusable earlier versions.
 
-After all nine packages are published and verified, record the registry archive
+After all eight packages are published and verified, record the registry archive
 hashes and provenance alongside the already pushed source tag. Check that all
 rendered release documentation links resolve to that tag and its intended files.
 A partial or failed publication must be reported separately from the source tag;

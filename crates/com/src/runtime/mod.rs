@@ -14,11 +14,9 @@ use crate::{
     NC_ABI_THREADING_THREAD_LOCAL, NcDebugApiV3, NcPluginDescriptor, NcGuid, NcPluginApiV3, NcStatus, NcUtf8View, ThreadingModel, RuntimeHandle,
 };
 
-mod bootstrap;
 mod debug;
 mod plugin;
 
-pub use bootstrap::{HostLoadError, HostLoadErrorKind};
 pub use debug::{RuntimeDiagnostics, DebugMessenger};
 pub use plugin::{FactoryInfo, PluginInfo, PluginOrigin};
 

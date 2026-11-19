@@ -24,9 +24,8 @@
 //! service records. The SDK's normal dependencies do not select this host.
 //!
 //! The Cargo package is `neocogi-com-host`; the Rust target is `neocogi_com_host`.
-//! Native applications select this rlib directly or load the thin host-dylib shim
-//! containing it. Browser hosts select the rlib. The chosen owner lends immutable
-//! C tables to every provider; plugins never select another implementation.
+//! Native and browser applications link this rlib. The linked host lends immutable
+//! C tables to every provider, including during nested acquisition.
 //! Pure ABI records remain in core; importing them creates no runtime state.
 //! Persistence acquires named NCB from the application's explicitly registered
 //! `nc.serialization` provider; this implementation embeds no codec or fallback.
@@ -42,6 +41,7 @@ mod factory_plugin_registry;
 mod factory_registration;
 mod inspection;
 mod loader;
+mod native_library;
 mod persistence;
 mod state;
 
@@ -76,7 +76,7 @@ pub fn initialize_runtime() -> neocogi_com::RuntimeHandle {
 /// entrypoints synchronize concurrent calls; caller-owned persistence contexts
 /// retain their thread-local and exclusive-operation requirements.
 /// Ordinary Rust startup uses [`initialize_runtime`]; this raw description is
-/// for C bootstrap and code that explicitly works with the service ABI.
+/// for code that explicitly works with the service ABI.
 pub fn initialize_process() -> &'static neocogi_com::NcHostApiV3 {
     let _ = state::RuntimeState::global();
     &api::HOST_API

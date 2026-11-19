@@ -20,9 +20,8 @@ The incompatible change separates shared strong-count state from boxed
 owner/access state. Construction and declared ABI ownership establish the matching
 header; provider metadata contains no ownership discriminator.
 Header field order and type-information layout therefore require the fresh
-generation. Host and plugin discovery exports are now nc_get_host_api_v3 and
-nc_get_plugin_descriptor_v3. Rebuild all hosts, providers and generated consumers
-together before exchanging objects.
+generation. Native providers export `nc_get_plugin_descriptor_v3`. Rebuild all
+hosts, providers and generated consumers together before exchanging objects.
 
 ## ABI identities and versions
 
@@ -45,8 +44,8 @@ value wires, caller-owned persistence contexts and the separate service tables
 retain their existing roles. IDL schemas, interface GUIDs/digest bytes, NCB-v1
 documents and explicit serialization-provider selection are unchanged by this
 lifetime-policy split. No Rust trait object, container layout, application value
-or unwinding crosses a C boundary. The application still selects one static or
-dynamic host owner and supplies its tables through nested plugins.
+or unwinding crosses a C boundary. The application links one host owner and
+supplies its tables through nested plugins.
 
 The [provider migration guide](guides/ABI_V3_MIGRATION.md) maps earlier headers,
 metadata, raw tokens and bootstrap names to this development contract.
@@ -764,16 +763,13 @@ native loads report `OpenLibrary` without broadening the search.
 ### One host, supplied access
 
 One authority owns plugin GUIDs, dependency validation, registration order, first
-provenance and pinned native code. The application selects `neocogi-com-host`
-(the Rust library `neocogi_com_host`) once: either link the rlib directly or load
-the native `neocogi-com-host-dylib` shim containing that same implementation.
-Ordinary static `#[com_main]` initializes the linked owner and passes a copyable
-`RuntimeHandle` to application code. A dynamic application explicitly loads its selected
-host with unsafe `RuntimeHandle::load_host_library(path)` before any provider acquisition.
+provenance and pinned native code. The application links the host rlib
+`neocogi_com_host`. Ordinary `#[com_main]` initializes that owner and passes a
+copyable `RuntimeHandle` to application code.
 
 Every provider bootstrap receives access to those same immutable host tables.
 A context-free callback in a table executes in the host and reaches its private
-singleton in the selected host image. A nested acquisition from plugin A to B
+singleton in the linked host. A nested acquisition from plugin A to B
 forwards that canonical host bundle again. Handles own no registry and select no
 implementation; reusable libraries take a handle from their caller. There is no
 global/default facade, per-plugin cache or fallback host discovery.
@@ -785,39 +781,6 @@ is part of the contract. Separate processes/Wasm instances have separate owners.
 
 Plugin operations use one table; diagnostics and persistence keep independent
 tables because their callback and caller-owned context lifecycles differ.
-
-### Optional native host bootstrap
-
-The alpha candidate exports `nc_get_host_api_v3` from the host
-shim, typed as `NcGetHostApi` and named by `NC_GET_HOST_API_SYMBOL`:
-
-```text
-unsafe extern "C" fn(output: *mut *const NcHostApiV3) -> NcStatus
-```
-
-Null output returns `NC_E_POINTER`. A writable slot is cleared on failure;
-success returns `NC_OK` and one nonnull immutable canonical host description.
-Repeated bootstrap selects the same owner in that image and invokes no provider.
-The shim supplies the ABI-v3/core-generation-21 service graph used by plugin
-acquisition. This application bootstrap does not register a plugin descriptor.
-
-The SDK loader qualifies an explicit filesystem path, pins every successfully
-opened image and resolves the versioned bootstrap. It returns typed
-`HostLoadError` diagnostics for native open, symbol, entrypoint and admission
-failures, with the original caller path and exact COM status where applicable.
-It reads no returned graph on entrypoint failure; successful outputs pass the
-existing prefix-first host admission before `RuntimeHandle` references are formed.
-The unsafe caller still supplies trusted code and readable, coherent backing;
-validation cannot authenticate arbitrary pointers or lifetime promises.
-
-There is no automatic retry with another host. Pins survive wrapper drop and
-post-open failure because table references and callbacks require process-lived
-code. The application must select one static owner or one runtime image;
-separate loaded copies or an explicitly initialized static implementation may
-own independent registries. Providers receive access and do not bootstrap a host.
-Native plugin loading retains its separate mandatory/fatal policy. Static/Wasm
-composition continues using the rlib and ordinary host startup.
-
 
 ## Provider descriptor and registered information
 
@@ -925,8 +888,7 @@ allocation; a static outer description alone proves no child lifetime. This is
 part of the current core-generation contract; discovery family and interface
 identities remain separate.
 
-Operations use the supplied record in both deployment modes. The optional named
-bootstrap only returns that record; all three service tables remain required:
+Operations use the supplied record, which requires all three service tables.
 `NcPluginApiV3` for plugin operations, `NcDebugApiV3` for diagnostics, and
 `NcPersistenceApiV3` for caller-owned persistence contexts. The safe handle stores
 private references only after size/version checks and under the unsafe caller's
@@ -1214,16 +1176,12 @@ children are static. Copy callback metadata needed after a callback. See the
 ## Native and static composition
 
 The SDK provides typed wrappers over the selected host's C service graph.
-Native and browser applications can link the `neocogi_com_host` rlib. A native
-application can also stage `neocogi-com-host-dylib` and select that host with
-`RuntimeHandle::load_host_library`. Its bootstrap export is `nc_get_host_api_v3`.
-
-Native and browser applications can register linked provider descriptors.
-Native applications can also load provider libraries exporting
-`nc_get_plugin_descriptor_v3` with either host choice. Both operations
-use the selected host's registry. Native host and provider mappings stay
-process-pinned through final object and weak release. Linked host state, tables
-and callback code also outlive main in the process or Wasm instance.
+Native and browser applications link the `neocogi_com_host` rlib and can
+register linked provider descriptors. Native applications can also load
+provider libraries exporting `nc_get_plugin_descriptor_v3`. Both operations
+use the linked host's registry. Native provider mappings stay process-pinned
+through final object and weak release. Linked host state, tables and callback
+code outlive main in the process or Wasm instance.
 See the [native guide](guides/COM_NATIVE.md).
 
 ## Independent-build compatibility

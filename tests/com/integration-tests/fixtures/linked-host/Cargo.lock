@@ -127,7 +127,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "shared-host-a"
+name = "linked-host-a"
 version = "0.0.0"
 dependencies = [
  "neocogi-com",
@@ -135,7 +135,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "shared-host-app"
+name = "linked-host-app"
 version = "0.0.0"
 dependencies = [
  "neocogi-com",
@@ -144,18 +144,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "shared-host-b"
+name = "linked-host-b"
 version = "0.0.0"
 dependencies = [
  "neocogi-com",
  "neocogi-idl",
-]
-
-[[package]]
-name = "shared-host-bad"
-version = "0.0.0"
-dependencies = [
- "neocogi-com-core",
 ]
 
 [[package]]

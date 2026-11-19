@@ -1,5 +1,5 @@
 [package]
-name = "shared-host-app"
+name = "linked-host-app"
 version = "0.0.0"
 edition = "2024"
 rust-version = "1.85"
@@ -8,11 +8,7 @@ build = "../build.rs"
 
 [dependencies]
 neocogi-com.workspace = true
-
-neocogi-com-host = { workspace = true, optional = true }
-
-[features]
-static-host = ["dep:neocogi-com-host"]
+neocogi-com-host.workspace = true
 
 [build-dependencies]
 neocogi-idl.workspace = true

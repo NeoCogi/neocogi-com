@@ -675,14 +675,16 @@ fn safety(runner: &Runner) -> Result<Value> {
             ),
             (
                 words(&["-p", "neocogi-com-host", "--lib"]),
-                vec!["loader::plan::tests::orders_dependencies_before_dependents_deterministically"],
+                vec![
+                    "api::host_tests::host_admission_checks_versions_before_following_children",
+                    "loader::plan::tests::orders_dependencies_before_dependents_deterministically",
+                ],
             ),
             (
                 words(&["-p", "neocogi-com", "--lib", "--features", "runtime"]),
                 vec![
                     "tests::metadata_identity_query_checks_and_releases_a_concrete_projection",
                     "object::tests::guard_release_does_not_keep_a_protected_value_reference",
-                    "runtime::bootstrap::tests::bootstrap_preserves_errors_and_validates_only_successful_outputs",
                 ],
             ),
         ];

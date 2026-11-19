@@ -24,20 +24,11 @@ shared ownership, persistence contracts and codecs, plus core for raw service
 tables and validation. The SDK has no dependency back to the host; host-dependent
 integration tests live in the unpublished `tests/com` package.
 Providers link the SDK and receive host access during bootstrap. The final
-application selects this implementation once, either linked directly or inside
-the optional `neocogi-com-host-dylib` native shim. Host-side inspection tools can reuse its loader and
-metadata utilities without initializing the plugin catalog.
+application links this implementation. Host-side inspection tools can reuse its
+loader and metadata utilities without initializing the plugin catalog.
 
 See [the role and dependency guide](https://github.com/NeoCogi/neocogi-com/blob/v0.4.0-alpha.1/docs/COM.md#hosts-callers-and-providers)
 for the complete graph and startup/call sequence.
-
-For dynamic host deployment, the application loads the host shim with the SDK's
-unsafe `RuntimeHandle::load_host_library(path)`. The C bootstrap returns the existing
-`NcHostApiV3`; the SDK pins the image before adopting its tables. Host bootstrap
-errors return typed startup diagnostics and create no fallback registry. Plugin
-loading retains its separate mandatory/fatal policy below. Select one owner;
-initializing both static and dynamic implementations can create two registries.
-The host shim is not a plugin and exports `nc_get_host_api_v3` instead.
 
 A provider dynamic library exports `nc_get_plugin_descriptor_v3`, lending an
 immutable descriptor with plugin metadata, hard dependencies, full root factory
@@ -96,18 +87,16 @@ the [current ABI versions](../../docs/abi-v3.md#abi-identities-and-versions).
 ## Build and link
 
 Native and browser applications can link the `neocogi_com_host` Rust rlib and use
-`#[neocogi_com::com_main]` to obtain a copyable runtime handle. A native application
-can instead build and deploy `neocogi-com-host-dylib`, enable the SDK's `runtime`
-feature and load the shim by path with unsafe `RuntimeHandle::load_host_library`.
-Both startup paths supply the selected host's tables to plugins and their nested
-acquisitions. The host requires `std`. Core and the access handle retain
-reduced-feature support. See the [native build guide](https://github.com/NeoCogi/neocogi-com/blob/v0.4.0-alpha.1/docs/guides/COM_NATIVE.md).
+`#[neocogi_com::com_main]` to obtain a copyable runtime handle. It supplies the
+host's tables to providers and their nested acquisitions. The host requires
+`std`. Core and the access handle retain reduced-feature support. See the
+[native build guide](https://github.com/NeoCogi/neocogi-com/blob/v0.4.0-alpha.1/docs/guides/COM_NATIVE.md#linked-host-with-a-shared-provider).
 
 For linked startup, `initialize_runtime()` admits the host service graph and
 returns a safe `neocogi_com::RuntimeHandle`. It invokes no plugin, and repeated
 calls use the same host. `com_main` calls this typed constructor, including with
 an explicit dependency/module path.
-`initialize_process()` lends the raw C description for ABI bootstrap. Its
+`initialize_process()` lends the raw C description for service ABI callers. Its
 immutable `NcHostApiV3`, child tables, state and code remain process/instance-lived
 even after application main returns. The three existing C tables remain separate
 services. Callbacks execute here and reach this host's one private registry;

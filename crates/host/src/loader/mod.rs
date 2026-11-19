@@ -18,11 +18,11 @@ use neocogi_com_core::{NC_E_POINTER, NC_GET_PLUGIN_DESCRIPTOR_SYMBOL, NcPluginDe
 
 use crate::factory_plugin_registry::{PluginOrigin, RegisteredPlugin};
 use crate::descriptor::ValidatedPluginDescriptor;
+use crate::native_library as library;
 use crate::state::RuntimeState;
 
 mod error;
 mod inspection;
-use neocogi_com::native_library as library;
 mod plan;
 
 pub use error::{PluginLoadError, PluginLoadErrorKind};
@@ -48,12 +48,14 @@ impl PinnedLibrary {
         // only live loading additionally publishes a plugin record.
         // SAFETY: forwarded trusted-image obligations from the selected plugin path.
         let library = unsafe { library::DynamicLibrary::open(path) }.map_err(|error| match error {
+            #[cfg(not(any(unix, windows)))]
             library::OpenLibraryError::UnsupportedPlatform => PluginLoadError::new(
                 PluginLoadErrorKind::UnsupportedPlatform,
                 path,
                 None,
                 "dynamic loading is not implemented for this target",
             ),
+            #[cfg(any(unix, windows))]
             library::OpenLibraryError::OpenLibrary(message) => PluginLoadError::new(PluginLoadErrorKind::OpenLibrary, path, None, message),
         })?;
         Ok(Self { library })

@@ -71,8 +71,8 @@ state or persistence-context mutation through shared access.
 
 Persistence is implemented in `neocogi-com-host` and called through
 `NcPersistenceApiV3`, supplied in the admitted host API description. Enable the
-facade's `runtime` feature for callers. The application selects one static host
-rlib or native host shim and passes its access to registry creation and capture.
+facade's `runtime` feature for callers. The application links the host rlib and passes
+its access to registry creation and capture.
 WIP ABI v3/core generation 21 identifies the current table layouts and
 calling/ownership contract; these remain provisional until release freeze.
 The explicit codec requirement adds no table field, callback, interface signature or NCB-v1

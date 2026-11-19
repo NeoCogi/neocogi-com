@@ -31,13 +31,6 @@ host state and adds no implementation dependency. A provider receives a copyable
 implementation uses the SDK's shared ownership/contracts/codecs with `std`, while
 calling its own raw service implementation stays inside the host package.
 
-With `0.4.0-alpha.1`, applications can alternatively load the
-native host shim through unsafe `RuntimeHandle::load_host_library(path)`, enabled by
-`runtime`. The SDK opens an explicit trusted filesystem path, process-pins the
-image and validates its C host tables. It links no host implementation and
-creates no registry. Pass the resulting access to all providers; select one
-static or dynamic host owner for the application.
-
 See [roles, dependencies and startup](https://github.com/NeoCogi/neocogi-com/blob/v0.4.0-alpha.1/docs/COM.md#hosts-callers-and-providers)
 for the complete dependency graph. A local object and its interface callers need
 only their shared contract and SDK features, independently of plugin deployment.
@@ -250,7 +243,7 @@ the provider descriptor; it does not convert an inspection copy into a provider.
 
 ## Runtime flow
 
-With the `runtime` feature, dynamic hosts use:
+With the `runtime` feature, hosts loading native providers use:
 
 ```rust,ignore
 // runtime is supplied to #[com_main] and passed through application helpers.

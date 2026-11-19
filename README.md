@@ -41,10 +41,9 @@ qualification and standalone builds once the alpha packages are available.
 | `neocogi-com-host` | Host-owned runtime and native plugin loader (`neocogi_com_host` rlib) |
 | `neocogi-inspect` | Plugin metadata inspection, checks, plans, and comparisons |
 
-The alpha cohort additionally includes
-[`neocogi-com-host-dylib`](crates/host-dylib/README.md), an optional native host
-bootstrap shim. Applications choose one static or dynamic host
-owner and supply that owner's runtime access to every plugin.
+The final application links the host rlib and supplies its runtime access to
+every provider. Native providers, including the serialization plugin, can be
+loaded from shared libraries.
 The approved [Rust API renames](docs/COM.md#rust-names-in-040-development) are
 recorded with migration names. The lifetime-policy split introduces distinct
 shared and boxed headers and advances the development binary contract to ABI v3.
@@ -54,7 +53,7 @@ A **host** is the final application that owns one runtime implementation. An
 **interface caller** calls a COM interface; a **provider** implements one. These
 roles can overlap: hosts can implement callbacks, and plugins can call other
 providers or host services. Both use the shared `neocogi-com` SDK. Static hosts
-link `neocogi-com-host`. Development hosts can also load the optional host shim.
+link `neocogi-com-host`.
 The SDK's `runtime` feature supplies access to the selected host.
 
 The [host, caller and provider guide](docs/COM.md#hosts-callers-and-providers)
@@ -92,7 +91,7 @@ cargo xtask msrv
 cargo xtask packages
 ```
 
-The package check builds the nine current source-package archives, extracts them into an
+The package check builds the eight current source-package archives, extracts them into an
 isolated temporary workspace, runs their shipped tests on Rust 1.85, and executes
 a downstream consumer using only those extracted packages. Install that compiler with
 `rustup toolchain install 1.85.0 --profile minimal`. The package check uses cached

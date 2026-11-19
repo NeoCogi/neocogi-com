@@ -7,14 +7,17 @@
 //!
 //! Each target implementation owns opening and symbol lookup.
 
+#[cfg(any(unix, windows))]
 use std::string::String;
 
-/// Native open failure before a caller adds its host/plugin context.
+/// Native open failure before the loader attaches provider context.
 #[derive(Debug)]
 pub enum OpenLibraryError {
     /// This target has no native loader implementation.
+    #[cfg(not(any(unix, windows)))]
     UnsupportedPlatform,
     /// The platform loader rejected the selected path.
+    #[cfg(any(unix, windows))]
     OpenLibrary(String),
 }
 

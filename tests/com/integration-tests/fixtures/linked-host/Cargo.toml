@@ -1,9 +1,8 @@
 [workspace]
 resolver = "3"
-members = ["app", "provider-a", "provider-b", "bad-host"]
+members = ["app", "provider-a", "provider-b"]
 
 [workspace.dependencies]
 neocogi-com = { path = "../../../../../crates/com", default-features = false, features = ["std", "runtime", "macros"] }
-neocogi-com-core = { path = "../../../../../crates/core" }
 neocogi-com-host = { path = "../../../../../crates/host" }
 neocogi-idl = { path = "../../../../../crates/idl" }

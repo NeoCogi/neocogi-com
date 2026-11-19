@@ -99,9 +99,9 @@ jobs:
       - name: Native linked qualification
         if: ${{ !cancelled() }}
         run: cargo xtask compatibility --suite linked --report "${{ runner.temp }}/com-linked-macos.json"
-      - name: Static and shared host nested-provider parity
+      - name: Linked host with independently built nested providers
         if: ${{ !cancelled() }}
-        run: cargo test -p neocogi-com-tests --features runtime --test shared_host --locked
+        run: cargo test -p neocogi-com-tests --features runtime --test linked_host --locked
       - name: Native inspector argument tests
         if: ${{ !cancelled() }}
         run: cargo test -p neocogi-inspect --bin neocogi-inspect --locked
@@ -142,9 +142,9 @@ jobs:
       - name: Native linked qualification
         if: ${{ !cancelled() }}
         run: cargo xtask compatibility --suite linked --report "${{ runner.temp }}/com-linked-windows.json"
-      - name: Static and shared host nested-provider parity
+      - name: Linked host with independently built nested providers
         if: ${{ !cancelled() }}
-        run: cargo test -p neocogi-com-tests --features runtime --test shared_host --locked
+        run: cargo test -p neocogi-com-tests --features runtime --test linked_host --locked
       - name: Native inspector argument tests
         if: ${{ !cancelled() }}
         run: cargo test -p neocogi-inspect --bin neocogi-inspect --locked

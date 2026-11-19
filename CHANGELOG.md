@@ -6,6 +6,10 @@ Historical draft numbers do not define additional supported COM baselines.
 
 ## Unreleased
 
+- Applications link `neocogi-com-host` and pass its runtime access to providers.
+  The optional alpha.1 host shim and its SDK loader are retired. The linked host
+  continues to load native provider libraries, including the serialization
+  plugin, through `nc_get_plugin_descriptor_v3`.
 - Name the provider allocation `ComObjectInner`, its shared-object gate
   `ComBorrowGate`, and its read/write permits by access mode. Generated Rust uses
   `__ComSharedInner` and `__ComBoxedInner`. Mutable local access returns

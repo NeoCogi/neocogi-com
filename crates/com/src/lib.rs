@@ -120,10 +120,6 @@ pub mod idl_metadata;
 mod object;
 mod runtime_access;
 pub use runtime_access::RuntimeHandle;
-/// Shared native loading support for host bootstrap and plugin implementation.
-#[cfg(feature = "runtime")]
-#[doc(hidden)]
-pub mod native_library;
 pub mod persistence;
 #[cfg(feature = "runtime")]
 mod runtime;
@@ -134,7 +130,7 @@ mod tests;
 pub use neocogi_com_core::lifetime;
 pub use neocogi_com_core::{ComBox, WeakComBox};
 pub use neocogi_com_core::{NcCopyFromBufferOffset, WeakComPtr, NcSharedWeakRaw};
-pub use neocogi_com_core::{NC_GET_HOST_API_SYMBOL, NcGetHostApi, NcHostApiV3, validate_host_api};
+pub use neocogi_com_core::{NcHostApiV3, validate_host_api};
 #[cfg(feature = "alloc")]
 pub use data::{ComBytesExt, ComStringExt, NC_COM_DEFAULT_OWNED_COPY_MAX_BYTES, NcBytes, NcString};
 #[cfg(feature = "macros")]
@@ -173,7 +169,7 @@ pub use local::{LocalBox, WeakLocalBox, LocalCom, WeakLocalCom, LocalRef, LocalR
 pub use neocogi_com_core::__ComSupportsInterfaceThreading;
 #[cfg(feature = "runtime")]
 pub use runtime::{
-    RuntimeDiagnostics, DebugMessenger, HostLoadError, HostLoadErrorKind, NC_COM_RUNTIME_MAX_ENUMERATION_ITEMS, NC_COM_RUNTIME_MAX_ENUMERATION_RETRIES,
+    RuntimeDiagnostics, DebugMessenger, NC_COM_RUNTIME_MAX_ENUMERATION_ITEMS, NC_COM_RUNTIME_MAX_ENUMERATION_RETRIES,
     NC_COM_RUNTIME_MAX_INSPECTION_TEXT_BYTES, FactoryInfo, PluginInfo, PluginOrigin,
 };
 

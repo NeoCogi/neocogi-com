@@ -10,21 +10,6 @@ use core::{mem, ptr};
 use super::{NC_COM_RUNTIME_ABI_VERSION, NcDebugApiV3, NcPersistenceApiV3, NcPluginApiV3};
 use crate::{NC_COM_CORE_ABI_VERSION, NC_E_ABI_VERSION, NC_E_POINTER, NC_OK, NcStatus};
 
-/// Native bootstrap export of the optional host runtime shared library.
-///
-/// Applications resolve this export once from their explicitly selected host
-/// image. Plugin acquisition continues to receive supplied tables directly.
-pub const NC_GET_HOST_API_SYMBOL: &str = "nc_get_host_api_v3";
-
-/// Lends the selected runtime image's canonical immutable host service graph.
-///
-/// A null output returns `NC_E_POINTER`. For a writable output slot, failure
-/// clears it and success stores one nonnull `NcHostApiV3` pointer. The caller
-/// retains the runtime image, all tables and callback code for process lifetime.
-/// Calling this entry repeatedly selects the same owner in that image; it does
-/// not establish uniqueness across separately loaded or statically linked hosts.
-pub type NcGetHostApi = unsafe extern "C" fn(output: *mut *const NcHostApiV3) -> NcStatus;
-
 /// Immutable C description supplied by the host when acquiring a plugin factory.
 ///
 /// All three tables belong to the same host implementation. Copies of this

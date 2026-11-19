@@ -22,19 +22,18 @@ header/type-information layouts cannot be interpreted as ABI v2.
 | Core generation | 19 | 21 |
 | Runtime and descriptor families | 2 | 3 |
 | Plugin discovery | `nc_get_plugin_descriptor_v2` | `nc_get_plugin_descriptor_v3` |
-| Optional host-shim discovery | `nc_get_host_api_v2` in earlier development sources | `nc_get_host_api_v3` |
 | Versioned service/metadata records | `NcHostApiV2`, `NcRuntimeApiV2`, other `V2` records | Corresponding `V3` records |
 
-The optional host shim was never part of published 0.3.0. Family/core prefixes
-are admitted before child service tables, full descriptors or acquisition
+Family/core prefixes are admitted before child service tables, full descriptors or acquisition
 callbacks. Old getter symbols are rejected without fallback; a current getter
 with a core-19 descriptor is also rejected. Exact interface IID/digest checks
 still apply after core admission. Build the inspector from the same development
 checkout (`cargo build -p neocogi-inspect`) to inspect these providers; the
 published 0.3.0 inspector expects ABI v2/core generation 19.
 
-Select one host implementation: the statically linked host rlib or the native
-host shim. Forward its supplied `RuntimeHandle` through nested acquisition.
+Link `neocogi-com-host` and forward its supplied `RuntimeHandle` through nested
+acquisition. Alpha.1 applications using the [optional host shim](https://github.com/NeoCogi/neocogi-com/blob/v0.4.0-alpha.1/docs/guides/COM_NATIVE.md#shared-host-runtime-040-alpha1)
+must switch to linked startup via `#[com_main]` or `initialize_runtime()`.
 Copying access does not create another registry. Persistence still requires
 explicit registration/loading of `nc.serialization` and selects named `ncb`.
 
