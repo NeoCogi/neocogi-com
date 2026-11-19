@@ -172,8 +172,8 @@ separately in their original order; source maps describe final formatted output.
 Poison-macro consumers must assert actual descriptions and ABI calls, since a
 substituted but valid doc string can compile successfully.
 
-Core and facade resolve ordinary canonical support paths through private lexical
-self-aliases. Bootstrap generation formats the two ordinary halves unchanged;
-there is no token-text or syntax-path rebasing. Core exports alone enforce its
-ABI-half dependency boundary, including executable paths inside proof macros.
-The alias creates no facade/compiler dependency or runtime state.
+The IDL emitter selects one typed support path at the start of generation.
+Ordinary bindings and macro expansions use the SDK dependency. Built-in
+bootstrap halves and scoped adapters use `crate::` to reach the exports of
+the crate that includes them. The same path reaches executable proof macros
+and generated doc links. Authored paths and documentation keep their spelling.

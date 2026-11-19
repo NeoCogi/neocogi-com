@@ -109,8 +109,8 @@ pub(crate) fn interface_companion_ident(name: &Ident, companion: neocogi_com_cor
     format_ident!("{name}{}", companion.suffix(), span = name.span())
 }
 
-/// Uses an explicit facade path or the canonical public `neocogi-com` crate name.
-pub(crate) fn runtime_crate_path(override_path: Option<&Path>) -> Path {
+/// Selects the named SDK dependency used by ordinary IDL and macro output.
+pub(crate) fn sdk_crate_path(override_path: Option<&Path>) -> Path {
     override_path.cloned().unwrap_or_else(|| syn::parse_quote!(::neocogi_com))
 }
 

@@ -115,9 +115,9 @@ fn raw_vtable_return_docs(ok: &AbiReturn) -> Vec<proc_macro2::TokenStream> {
 }
 
 /// Generates rustdoc for a safe trait method or smart-pointer forwarding method.
-pub(crate) fn safe_method_docs(trait_ident: &Ident, method: &AbiMethod) -> Vec<proc_macro2::TokenStream> {
+pub(crate) fn safe_method_docs(trait_ident: &Ident, method: &AbiMethod, nc: &syn::Path) -> Vec<proc_macro2::TokenStream> {
     let method_ident = &method.ident;
-    let arg_docs = method.args.iter().flat_map(safe_arg_docs);
+    let arg_docs = method.args.iter().flat_map(|arg| safe_arg_docs(arg, nc));
     let wrapper_doc = match &method.ok.kind {
         AbiReturnKind::Void => quote! {
             #[doc = "This safe wrapper invokes the raw vtable function and maps a successful status to `Ok(())`."]
@@ -146,7 +146,7 @@ pub(crate) fn safe_method_docs(trait_ident: &Ident, method: &AbiMethod) -> Vec<p
 }
 
 /// Describes safe-wrapper ownership and bounds for one source-level argument.
-fn safe_arg_docs(arg: &AbiArg) -> Vec<proc_macro2::TokenStream> {
+fn safe_arg_docs(arg: &AbiArg, nc: &syn::Path) -> Vec<proc_macro2::TokenStream> {
     let ident = &arg.ident;
     match &arg.kind {
         AbiArgKind::ComBox { .. } => vec![literal_doc(
@@ -188,9 +188,10 @@ fn safe_arg_docs(arg: &AbiArg) -> Vec<proc_macro2::TokenStream> {
         }
         AbiArgKind::OutputBuffer { element_ty } => {
             let element_ty = element_ty.as_ref();
+            let output = quote! { #nc::NcOutput }.to_string().replace(' ', "");
             vec![literal_doc(
                 format!(
-                    "- `{ident}` supplies output storage for `{element_ty}` through [`::neocogi_com::NcOutput`]. See its lifecycle contract for acquisition, preparation and publication.",
+                    "- `{ident}` supplies output storage for `{element_ty}` through [`{output}`]. See its lifecycle contract for acquisition, preparation and publication.",
                     element_ty = element_ty.to_token_stream()
                 ),
                 ident.span(),

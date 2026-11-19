@@ -7,6 +7,7 @@ use std::collections::HashSet;
 /// Each borrowed frame retains its supplying declaration and next base index;
 /// emitting after that frame completes preserves diamond and sibling ordering.
 pub(super) fn descriptions(graph: &Generation<'_>, module: &ResolvedModule, declaration: &Declaration) -> Result<Vec<TokenStream>, GenerateError> {
+    let nc = &graph.support;
     let root = ResolvedDeclaration {
         module,
         declaration,
@@ -33,8 +34,8 @@ pub(super) fn descriptions(graph: &Generation<'_>, module: &ResolvedModule, decl
         for method in &interface.methods {
             let name = Literal::string(&method.name);
             let receiver = match method.receiver {
-                Receiver::Shared => quote! { ::neocogi_com::NcAbiReceiver::Shared },
-                Receiver::Mutable => quote! { ::neocogi_com::NcAbiReceiver::Mutable },
+                Receiver::Shared => quote! { #nc::NcAbiReceiver::Shared },
+                Receiver::Mutable => quote! { #nc::NcAbiReceiver::Mutable },
             };
             let parameters = method
                 .parameters
@@ -42,12 +43,12 @@ pub(super) fn descriptions(graph: &Generation<'_>, module: &ResolvedModule, decl
                 .map(|parameter| {
                     let name = Literal::string(&parameter.name);
                     let ty = call_type(graph, value.module, &parameter.ty)?;
-                    Ok(quote! { ::neocogi_com::idl_metadata::ParameterMetadata { name: #name, ty: #ty } })
+                    Ok(quote! { #nc::idl_metadata::ParameterMetadata { name: #name, ty: #ty } })
                 })
                 .collect::<Result<Vec<_>, GenerateError>>()?;
             let returns = call_type(graph, value.module, &method.output)?;
             methods.push(quote! {
-                ::neocogi_com::idl_metadata::MethodMetadata {
+                #nc::idl_metadata::MethodMetadata {
                     name: #name, receiver: #receiver, parameters: &[#(#parameters),*], returns: #returns,
                 }
             });
@@ -58,17 +59,18 @@ pub(super) fn descriptions(graph: &Generation<'_>, module: &ResolvedModule, decl
 
 /// Retains call-only ownership instead of presenting borrowed/transferred values as data.
 fn call_type(graph: &Generation<'_>, module: &ResolvedModule, ty: &IdlType) -> Result<TokenStream, GenerateError> {
+    let nc = &graph.support;
     let (kind, value) = match ty {
         IdlType::ComBox(target) => {
             let IdlType::Named(name) = target.as_ref() else {
                 return Err(GenerateError::new("exclusive method target is not an interface"));
             };
-            let name = match builtin_object_type(name) {
+            let name = match builtin_object_type(nc, name) {
                 Some(_) => name.segments.join("."),
                 None => resolve(graph, module, name)?.identity.qualified_name.clone(),
             };
             let name = Literal::string(&name);
-            return Ok(quote! { ::neocogi_com::idl_metadata::MethodType::ExclusiveObject(#name) });
+            return Ok(quote! { #nc::idl_metadata::MethodType::ExclusiveObject(#name) });
         }
         IdlType::Borrowed(value) => ("Borrowed", value.as_ref()),
         IdlType::Slice(value) | IdlType::UnsizedSlice(value) => ("InputBuffer", value.as_ref()),
@@ -77,5 +79,5 @@ fn call_type(graph: &Generation<'_>, module: &ResolvedModule, ty: &IdlType) -> R
     };
     let kind = rust_ident(kind)?;
     let value = value_type_metadata(graph, module, value)?;
-    Ok(quote! { ::neocogi_com::idl_metadata::MethodType::#kind(#value) })
+    Ok(quote! { #nc::idl_metadata::MethodType::#kind(#value) })
 }

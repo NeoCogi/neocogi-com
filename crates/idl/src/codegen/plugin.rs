@@ -11,7 +11,7 @@ use syn::spanned::Spanned;
 use syn::{GenericArgument, Ident, ItemFn, LitStr, Path, PathArguments, Result, ReturnType, Token, Type, bracketed, parenthesized};
 
 use crate::codegen::args::{PluginGuid, parse_guid_arg};
-use crate::codegen::util::{PrivateNames, checked_u32_len, runtime_crate_path, stable_guid, validate_version_literal};
+use crate::codegen::util::{PrivateNames, checked_u32_len, sdk_crate_path, stable_guid, validate_version_literal};
 
 /// Module-level accessor owned by this procedure; source admission uses Rust identity.
 const ACCESSOR_NAME: &str = "plugin_descriptor";
@@ -116,7 +116,7 @@ fn reject_duplicate_paths(paths: &[Path], subject: &str) -> Result<()> {
 
 /// Emits immutable plugin metadata backed by one exact typed factory interface.
 pub fn expand_plugin(args: PluginArgs, input: ItemFn) -> Result<proc_macro2::TokenStream> {
-    let nc = runtime_crate_path(args.runtime_crate.as_ref());
+    let nc = sdk_crate_path(args.runtime_crate.as_ref());
     let signature = &input.sig;
     if signature.ident.unraw() == ACCESSOR_NAME {
         return Err(syn::Error::new(

@@ -28,10 +28,6 @@
 #![no_std]
 #![deny(missing_docs)]
 
-// Canonical generated bootstrap paths resolve to this crate itself. This private
-// lexical root adds no facade/compiler dependency or runtime implementation.
-extern crate self as neocogi_com;
-
 mod abi;
 mod abi_hash;
 mod array;

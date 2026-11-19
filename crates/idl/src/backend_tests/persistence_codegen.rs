@@ -22,8 +22,7 @@ fn persistence_bindings_match_idl() {
     .unwrap();
     let graph = neocogi_idl::resolve_modules(vec![module]).unwrap();
     let generated = neocogi_idl::generate::generate_bootstrap(&graph, "neocogi.com.persistence").unwrap();
-    // Each actual consumer owns its canonical lexical self-root. Keep generated
-    // executable paths and authored literals unchanged; format syntax only.
+    // Each half already points to the public support of its including crate.
     let abi = generated.abi;
     let provider = generated.provider;
     check_generated(&consumer.core.join("src/persistence/interfaces.rs"), &abi);

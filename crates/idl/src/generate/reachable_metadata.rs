@@ -64,7 +64,7 @@ pub(super) fn definitions<'a>(graph: &Generation<'a>, requested: ResolvedDeclara
             }
             Work::Type { module, mut ty } => loop {
                 match ty {
-                    IdlType::Named(name) if builtin_object_type(name).is_none() && !name.is_str() => {
+                    IdlType::Named(name) if builtin_object_type(&graph.support, name).is_none() && !name.is_str() => {
                         let value = resolve(graph, module, name)?;
                         if !matches!(value.declaration.kind, DeclarationKind::Interface(_)) {
                             // A canonical ValueGraph shape cannot substitute for

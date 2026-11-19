@@ -335,18 +335,20 @@ fn raw_documentation_matches_physical_slots_and_returned_ownership() {
 }
 
 /// Bootstrap's ABI half needs only core, including executable support paths inside
-/// macro proofs. Canonical paths and literal sentinels survive without adaptation.
+/// macro proofs. Generated paths target the including crate and authored docs stay intact.
 #[test]
-fn canonical_bootstrap_with_consuming_proofs_builds_against_core_only() {
+fn crate_relative_bootstrap_with_consuming_proofs_builds_against_core_only() {
     let consumer = super::test_consumer::Consumer::new("bootstrap-core-root-control");
     let source = r#"
-        /// Literal :: neocogi_com text; link [`::neocogi_com::ComBox`].
+        /// Literal :: neocogi_com text; link [`::neocogi_com::ComBox`](crate::ComBox).
         interface Owned {}
-        interface Takes { fn take(&mut self, owner: ComBox<Owned>) -> Result<u32>; }
+        interface Takes { fn take(&mut self, owner: ComBox<Owned>, output: &mut [u32]) -> Result<u32>; }
     "#;
     let graph = crate::resolve_modules(vec![crate::parse_module(Path::new("proof/bootstrap.ncidl"), source).unwrap()]).unwrap();
     let generated = crate::generate::generate_bootstrap(&graph, "proof.bootstrap").unwrap();
-    assert!(generated.abi.contains("::neocogi_com::ComValue"));
+    assert!(generated.abi.contains("crate::ComValue"));
+    assert!(generated.abi.contains("[`crate::NcOutput`]"));
+    assert!(!generated.abi.contains("::neocogi_com::ComValue"));
     assert!(generated.abi.contains("Literal :: neocogi_com text"));
     assert!(generated.abi.contains("MAX_COST.is_some()"));
     let mut docs = Docs::default();
@@ -357,7 +359,7 @@ fn canonical_bootstrap_with_consuming_proofs_builds_against_core_only() {
     fs::write(consumer.directory.path().join("src/abi.rs"), &generated.abi).unwrap();
     fs::write(
         consumer.directory.path().join("src/lib.rs"),
-        "#![no_std]\n#![allow(dead_code)]\nextern crate self as neocogi_com;\npub use neocogi_com_core::*;\ninclude!(\"abi.rs\");\n",
+        "#![no_std]\n#![allow(dead_code)]\npub use neocogi_com_core::*;\ninclude!(\"abi.rs\");\n",
     )
     .unwrap();
     for command in [vec!["check", "--offline"], vec!["doc", "--offline", "--no-deps"]] {

@@ -2,7 +2,7 @@
 // Regenerate: NC_UPDATE_PERSISTENCE_BINDINGS=1 cargo test -p neocogi-idl persistence_bindings_match_idl
 
 /// Stable logical identity of this generated contract module.
-pub const MODULE_ID: ::neocogi_com::NcGuid = ::neocogi_com::NcGuid::from_fields(
+pub const MODULE_ID: crate::NcGuid = crate::NcGuid::from_fields(
     3545662286u32,
     20204u16,
     22946u16,
@@ -21,18 +21,13 @@ pub const MODULE_NAME: &::core::primitive::str = "neocogi.com.persistence";
 pub trait IObjectChildren {
     /// Returns the number of fully initialized child objects.
     /// IDL source: `neocogi/com/persistence/objects.ncidl:4:8` (module `neocogi.com.persistence`).
-    fn count(
-        &self,
-    ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus>;
+    fn count(&self) -> ::core::result::Result<::core::primitive::u32, crate::NcStatus>;
     /// Returns an owned reference; indices must be less than count.
     /// IDL source: `neocogi/com/persistence/objects.ncidl:6:8` (module `neocogi.com.persistence`).
     fn get(
         &self,
         index: ::core::primitive::u32,
-    ) -> ::core::result::Result<
-        ::neocogi_com::ComPtr<::neocogi_com::IUnknown>,
-        ::neocogi_com::NcStatus,
-    >;
+    ) -> ::core::result::Result<crate::ComPtr<crate::IUnknown>, crate::NcStatus>;
 }
 ///Interface marker for [`IObjectChildren`]; handles carry its object/table pair.
 pub enum IObjectChildrenAbi {}
@@ -40,7 +35,7 @@ pub enum IObjectChildrenAbi {}
 ///C-compatible vtable for [`IObjectChildren`].
 pub struct IObjectChildrenVTable {
     /// Common identity, query and reference-count slots.
-    pub unknown: ::neocogi_com::IUnknownVTable,
+    pub unknown: crate::IUnknownVTable,
     /// Returns the number of fully initialized child objects.
     /// IDL source: `neocogi/com/persistence/objects.ncidl:4:8` (module `neocogi.com.persistence`).
     ///Raw COM ABI vtable slot for [`IObjectChildren::count`].
@@ -51,15 +46,15 @@ pub struct IObjectChildrenVTable {
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: AbiRepr`.
+    ///On success, `out` receives `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub count: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_out: *mut <::core::primitive::u32 as crate::ComValue>::AbiRepr,
+    ) -> crate::NcStatus,
     /// Returns an owned reference; indices must be less than count.
     /// IDL source: `neocogi/com/persistence/objects.ncidl:6:8` (module `neocogi.com.persistence`).
     ///Raw COM ABI vtable slot for [`IObjectChildren::get`].
@@ -69,28 +64,28 @@ pub struct IObjectChildrenVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `index` uses ABI storage `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
+    ///- `index` uses ABI storage `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
     ///
-    ///On success, `out` receives `:: neocogi_com :: ComRaw < :: neocogi_com :: IUnknown >` for `:: neocogi_com :: ComPtr < :: neocogi_com :: IUnknown >`. The caller receives one shared owner and releases it when finished.
+    ///On success, `out` receives `crate :: ComRaw < crate :: IUnknown >` for `crate :: ComPtr < crate :: IUnknown >`. The caller receives one shared owner and releases it when finished.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub get: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_arg_0: <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
-        __nc_out: *mut ::neocogi_com::ComRaw<::neocogi_com::IUnknown>,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_arg_0: <::core::primitive::u32 as crate::ComValue>::AbiRepr,
+        __nc_out: *mut crate::ComRaw<crate::IUnknown>,
+    ) -> crate::NcStatus,
 }
-unsafe impl ::neocogi_com::ComInterface for IObjectChildrenAbi {
-    const IID: ::neocogi_com::NcGuid = ::neocogi_com::NcGuid {
+unsafe impl crate::ComInterface for IObjectChildrenAbi {
+    const IID: crate::NcGuid = crate::NcGuid {
         data1: 2422821477u32,
         data2: 38314u16,
         data3: 22971u16,
         data4: [152u8, 38u8, 218u8, 182u8, 237u8, 193u8, 229u8, 147u8],
     };
-    const INTERFACE_ID: ::neocogi_com::NcInterfaceId = ::neocogi_com::NcInterfaceId::new(
-        ::neocogi_com::NcGuid {
+    const INTERFACE_ID: crate::NcInterfaceId = crate::NcInterfaceId::new(
+        crate::NcGuid {
             data1: 2422821477u32,
             data2: 38314u16,
             data3: 22971u16,
@@ -99,30 +94,30 @@ unsafe impl ::neocogi_com::ComInterface for IObjectChildrenAbi {
         IObjectChildrenAbi::ABI_SIGNATURE,
     );
     type VTable = IObjectChildrenVTable;
-    type Threading = ::neocogi_com::ThreadLocal;
+    type Threading = crate::ThreadLocal;
 }
 #[repr(transparent)]
 ///Borrowed Rust method wrapper for [`IObjectChildren`].
 pub struct IObjectChildrenWrapper<
-    __NcThreading: ::neocogi_com::ThreadingModel = ::neocogi_com::ThreadLocal,
+    __NcThreading: crate::ThreadingModel = crate::ThreadLocal,
 > {
     /// Opaque pointer borrowed from retained interface/control storage; provider entry admits value access.
-    __nc_pointer: ::neocogi_com::ComInterfacePointer<IObjectChildrenAbi, __NcThreading>,
+    __nc_pointer: crate::ComInterfacePointer<IObjectChildrenAbi, __NcThreading>,
 }
-unsafe impl ::neocogi_com::ComRustInterface for IObjectChildrenAbi {
-    type Wrapper<__NcThreading: ::neocogi_com::ThreadingModel> = IObjectChildrenWrapper<
+unsafe impl crate::ComRustInterface for IObjectChildrenAbi {
+    type Wrapper<__NcThreading: crate::ThreadingModel> = IObjectChildrenWrapper<
         __NcThreading,
     >;
-    fn __nc_wrapper_ref<__NcThreading: ::neocogi_com::ThreadingModel>(
-        pointer: &::neocogi_com::ComInterfacePointer<Self, __NcThreading>,
+    fn __nc_wrapper_ref<__NcThreading: crate::ThreadingModel>(
+        pointer: &crate::ComInterfacePointer<Self, __NcThreading>,
     ) -> &Self::Wrapper<__NcThreading> {
         unsafe {
             &*(::core::ptr::from_ref(pointer)
                 as *const IObjectChildrenWrapper<__NcThreading>)
         }
     }
-    fn __nc_wrapper_mut<__NcThreading: ::neocogi_com::ThreadingModel>(
-        pointer: &mut ::neocogi_com::ComInterfacePointer<Self, __NcThreading>,
+    fn __nc_wrapper_mut<__NcThreading: crate::ThreadingModel>(
+        pointer: &mut crate::ComInterfacePointer<Self, __NcThreading>,
     ) -> &mut Self::Wrapper<__NcThreading> {
         unsafe {
             &mut *(::core::ptr::from_mut(pointer)
@@ -146,9 +141,7 @@ const _: () = {
         identity as __nc_this_1, identity as __nc_status_1, identity as __nc_result_1,
         identity as __nc_prepared_0, identity as __nc_out_1,
     };
-    impl<
-        __NcThreading: ::neocogi_com::ThreadingModel,
-    > IObjectChildrenWrapper<__NcThreading> {
+    impl<__NcThreading: crate::ThreadingModel> IObjectChildrenWrapper<__NcThreading> {
         /// Returns the number of fully initialized child objects.
         /// IDL source: `neocogi/com/persistence/objects.ncidl:4:8` (module `neocogi.com.persistence`).
         ///
@@ -160,9 +153,9 @@ const _: () = {
         ///On success, returns `:: core :: primitive :: u32` from the ABI out slot.
         pub fn count(
             &self,
-        ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus> {
+        ) -> ::core::result::Result<::core::primitive::u32, crate::NcStatus> {
             let mut __nc_out_0 = ::core::mem::MaybeUninit::<
-                <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
+                <::core::primitive::u32 as crate::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_0 = self.__nc_pointer.as_raw();
             let __nc_status_0 = unsafe {
@@ -173,7 +166,7 @@ const _: () = {
                 return ::core::result::Result::Err(__nc_status_0);
             }
             let __nc_result_0 = (unsafe {
-                ::neocogi_com::decode_inline::<
+                crate::decode_inline::<
                     ::core::primitive::u32,
                 >(__nc_out_0.assume_init_ref())
             })?;
@@ -188,17 +181,14 @@ const _: () = {
         ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
         ///- `index` is passed by value as `:: core :: primitive :: u32`.
         ///
-        ///On success, returns `:: neocogi_com :: ComPtr < :: neocogi_com :: IUnknown >`. The caller receives one shared owner and releases it when finished.
+        ///On success, returns `crate :: ComPtr < crate :: IUnknown >`. The caller receives one shared owner and releases it when finished.
         pub fn get(
             &self,
             __nc_arg_0: ::core::primitive::u32,
-        ) -> ::core::result::Result<
-            ::neocogi_com::ComPtr<::neocogi_com::IUnknown>,
-            ::neocogi_com::NcStatus,
-        > {
-            let __nc_arg_0 = ::neocogi_com::encode_inline(&__nc_arg_0)?;
+        ) -> ::core::result::Result<crate::ComPtr<crate::IUnknown>, crate::NcStatus> {
+            let __nc_arg_0 = crate::encode_inline(&__nc_arg_0)?;
             let mut __nc_out_1 = ::core::mem::MaybeUninit::<
-                ::neocogi_com::ComRaw<::neocogi_com::IUnknown>,
+                crate::ComRaw<crate::IUnknown>,
             >::uninit();
             let __nc_this_1 = self.__nc_pointer.as_raw();
             let __nc_status_1 = unsafe {
@@ -209,8 +199,8 @@ const _: () = {
                 return ::core::result::Result::Err(__nc_status_1);
             }
             let __nc_result_1 = (unsafe {
-                <::neocogi_com::ComPtr<
-                    ::neocogi_com::IUnknown,
+                <crate::ComPtr<
+                    crate::IUnknown,
                 >>::__nc_from_raw_owned_checked(__nc_out_1.assume_init())
             })?;
             ::core::result::Result::Ok(__nc_result_1)
@@ -219,103 +209,95 @@ const _: () = {
 };
 impl IObjectChildrenAbi {
     ///Canonical validation form of this interface's typed ABI contract.
-    pub const ABI_SIGNATURE: ::neocogi_com::NcAbiDigest = ::neocogi_com::NcAbiDigest::from_static(
+    pub const ABI_SIGNATURE: crate::NcAbiDigest = crate::NcAbiDigest::from_static(
         b")\x06\xFE\xB4\xE2\xA1\xE5\xCE:\xE0Tv\xCCu\x81]\xBC\x80\x90g\x1B\x940\x8A\xD3B\xF1\x83\x1B H\xD9",
     );
     ///Static descriptors for this interface's ABI methods.
-    pub const METHOD_DESCRIPTORS: [::neocogi_com::NcMethodDescriptor; 2usize] = [
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("count"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_SHARED,
+    pub const METHOD_DESCRIPTORS: [crate::NcMethodDescriptor; 2usize] = [
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("count"),
+            receiver: crate::NC_ABI_RECEIVER_SHARED,
             param_count: 0u32,
-            params: (&[] as &'static [::neocogi_com::NcMethodParamDescriptor]).as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Out,
+            params: (&[] as &'static [crate::NcMethodParamDescriptor]).as_ptr(),
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Out,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::__nc_abi_type::<::core::primitive::u32>(),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                    crate::__nc_abi_type::<::core::primitive::u32>(),
                 ),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("get"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_SHARED,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("get"),
+            receiver: crate::NC_ABI_RECEIVER_SHARED,
             param_count: 1u32,
             params: (&[
-                ::neocogi_com::NcMethodParamDescriptor {
-                    name: ::neocogi_com::NcStaticUtf8::from_static("index"),
-                    passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                        ::neocogi_com::NcAbiPassing::Value,
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("index"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                        crate::NcAbiPassing::Value,
                     ),
-                    ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                        ::neocogi_com::__nc_abi_type::<::core::primitive::u32>(),
+                    ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                        crate::__nc_abi_type::<::core::primitive::u32>(),
                     ),
                 },
-            ] as &'static [::neocogi_com::NcMethodParamDescriptor])
+            ] as &'static [crate::NcMethodParamDescriptor])
                 .as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(::neocogi_com::NcAbiPassing::ComPtrOut {
-                    mode: <::neocogi_com::ThreadLocal as ::neocogi_com::ThreadingModel>::ABI_THREADING_MODE,
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(crate::NcAbiPassing::ComPtrOut {
+                    mode: <crate::ThreadLocal as crate::ThreadingModel>::ABI_THREADING_MODE,
                 }),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_interface(
-                    <::neocogi_com::IUnknown as ::neocogi_com::ComInterface>::INTERFACE_ID,
+                ty: crate::NcAbiTypeDescriptor::from_interface(
+                    <crate::IUnknown as crate::ComInterface>::INTERFACE_ID,
                 ),
             },
         },
     ];
     ///Static ABI descriptor for this interface.
-    pub const INTERFACE_DESCRIPTOR: ::neocogi_com::NcInterfaceDescriptor = ::neocogi_com::NcInterfaceDescriptor {
-        interface_id: <Self as ::neocogi_com::ComInterface>::IID,
-        qualified_name: ::neocogi_com::NcStaticUtf8::from_static(
+    pub const INTERFACE_DESCRIPTOR: crate::NcInterfaceDescriptor = crate::NcInterfaceDescriptor {
+        interface_id: <Self as crate::ComInterface>::IID,
+        qualified_name: crate::NcStaticUtf8::from_static(
             "neocogi.com.persistence.IObjectChildren",
         ),
         abi_signature: Self::ABI_SIGNATURE,
-        base: ::neocogi_com::NcInterfaceId::NONE,
+        base: crate::NcInterfaceId::NONE,
         method_count: 2u32,
         methods: Self::METHOD_DESCRIPTORS.as_ptr(),
     };
     /// Distinct projections in derived-first, declared-parent order.
     /// Shared ancestors occur once; repeated identities must have the same ABI.
-    pub const INTERFACE_CHAIN: [&'static ::neocogi_com::NcInterfaceDescriptor; ::neocogi_com::__nc_object_interface_count(
+    pub const INTERFACE_CHAIN: [&'static crate::NcInterfaceDescriptor; crate::__nc_object_interface_count(
         &[&[&Self::INTERFACE_DESCRIPTOR]],
-    )] = ::neocogi_com::__nc_interface_chain(&Self::INTERFACE_DESCRIPTOR, &[]);
+    )] = crate::__nc_interface_chain(&Self::INTERFACE_DESCRIPTOR, &[]);
 }
 /// Optional snapshot capability for an owned construction tree.
 /// IDL source: `neocogi/com/persistence/objects.ncidl:10:11` (module `neocogi.com.persistence`).
 pub trait IPersistable {
     /// Identifies the registered construction recipe, not this object instance.
     /// IDL source: `neocogi/com/persistence/objects.ncidl:12:8` (module `neocogi.com.persistence`).
-    fn type_id(
-        &self,
-    ) -> ::core::result::Result<::neocogi_com::NcGuid, ::neocogi_com::NcStatus>;
+    fn type_id(&self) -> ::core::result::Result<crate::NcGuid, crate::NcStatus>;
     /// Identifies the persistent initialization schema, independently of COM ABI.
     /// IDL source: `neocogi/com/persistence/objects.ncidl:14:8` (module `neocogi.com.persistence`).
     fn schema_version(
         &self,
-    ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus>;
+    ) -> ::core::result::Result<::core::primitive::u32, crate::NcStatus>;
     /// Exports initialization data only: no receivers, runtime pointers or caches.
     /// IDL source: `neocogi/com/persistence/objects.ncidl:16:8` (module `neocogi.com.persistence`).
     fn save_state(
         &self,
-    ) -> ::core::result::Result<
-        ::neocogi_com::ComPtr<::neocogi_com::INcBytesAbi>,
-        ::neocogi_com::NcStatus,
-    >;
+    ) -> ::core::result::Result<crate::ComPtr<crate::INcBytesAbi>, crate::NcStatus>;
     /// Returns the number of owned persistent children; parent links are excluded.
     /// IDL source: `neocogi/com/persistence/objects.ncidl:18:8` (module `neocogi.com.persistence`).
     fn child_count(
         &self,
-    ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus>;
+    ) -> ::core::result::Result<::core::primitive::u32, crate::NcStatus>;
     /// Returns one child in the order described by the parent's initialization.
     /// IDL source: `neocogi/com/persistence/objects.ncidl:20:8` (module `neocogi.com.persistence`).
     fn child(
         &self,
         index: ::core::primitive::u32,
-    ) -> ::core::result::Result<
-        ::neocogi_com::ComPtr<::neocogi_com::IUnknown>,
-        ::neocogi_com::NcStatus,
-    >;
+    ) -> ::core::result::Result<crate::ComPtr<crate::IUnknown>, crate::NcStatus>;
 }
 ///Interface marker for [`IPersistable`]; handles carry its object/table pair.
 pub enum IPersistableAbi {}
@@ -323,7 +305,7 @@ pub enum IPersistableAbi {}
 ///C-compatible vtable for [`IPersistable`].
 pub struct IPersistableVTable {
     /// Common identity, query and reference-count slots.
-    pub unknown: ::neocogi_com::IUnknownVTable,
+    pub unknown: crate::IUnknownVTable,
     /// Identifies the registered construction recipe, not this object instance.
     /// IDL source: `neocogi/com/persistence/objects.ncidl:12:8` (module `neocogi.com.persistence`).
     ///Raw COM ABI vtable slot for [`IPersistable::type_id`].
@@ -334,15 +316,15 @@ pub struct IPersistableVTable {
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
-    ///On success, `out` receives `< :: neocogi_com :: NcGuid as :: neocogi_com :: ComValue > :: AbiRepr`.
+    ///On success, `out` receives `< crate :: NcGuid as crate :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub type_id: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_out: *mut <::neocogi_com::NcGuid as ::neocogi_com::ComValue>::AbiRepr,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_out: *mut <crate::NcGuid as crate::ComValue>::AbiRepr,
+    ) -> crate::NcStatus,
     /// Identifies the persistent initialization schema, independently of COM ABI.
     /// IDL source: `neocogi/com/persistence/objects.ncidl:14:8` (module `neocogi.com.persistence`).
     ///Raw COM ABI vtable slot for [`IPersistable::schema_version`].
@@ -353,15 +335,15 @@ pub struct IPersistableVTable {
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: AbiRepr`.
+    ///On success, `out` receives `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub schema_version: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_out: *mut <::core::primitive::u32 as crate::ComValue>::AbiRepr,
+    ) -> crate::NcStatus,
     /// Exports initialization data only: no receivers, runtime pointers or caches.
     /// IDL source: `neocogi/com/persistence/objects.ncidl:16:8` (module `neocogi.com.persistence`).
     ///Raw COM ABI vtable slot for [`IPersistable::save_state`].
@@ -372,15 +354,15 @@ pub struct IPersistableVTable {
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
-    ///On success, `out` receives `:: neocogi_com :: ComRaw < :: neocogi_com :: INcBytesAbi >` for `:: neocogi_com :: ComPtr < :: neocogi_com :: INcBytesAbi >`. The caller receives one shared owner and releases it when finished.
+    ///On success, `out` receives `crate :: ComRaw < crate :: INcBytesAbi >` for `crate :: ComPtr < crate :: INcBytesAbi >`. The caller receives one shared owner and releases it when finished.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub save_state: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_out: *mut ::neocogi_com::ComRaw<::neocogi_com::INcBytesAbi>,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_out: *mut crate::ComRaw<crate::INcBytesAbi>,
+    ) -> crate::NcStatus,
     /// Returns the number of owned persistent children; parent links are excluded.
     /// IDL source: `neocogi/com/persistence/objects.ncidl:18:8` (module `neocogi.com.persistence`).
     ///Raw COM ABI vtable slot for [`IPersistable::child_count`].
@@ -391,15 +373,15 @@ pub struct IPersistableVTable {
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: AbiRepr`.
+    ///On success, `out` receives `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub child_count: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_out: *mut <::core::primitive::u32 as crate::ComValue>::AbiRepr,
+    ) -> crate::NcStatus,
     /// Returns one child in the order described by the parent's initialization.
     /// IDL source: `neocogi/com/persistence/objects.ncidl:20:8` (module `neocogi.com.persistence`).
     ///Raw COM ABI vtable slot for [`IPersistable::child`].
@@ -409,28 +391,28 @@ pub struct IPersistableVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `index` uses ABI storage `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
+    ///- `index` uses ABI storage `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
     ///
-    ///On success, `out` receives `:: neocogi_com :: ComRaw < :: neocogi_com :: IUnknown >` for `:: neocogi_com :: ComPtr < :: neocogi_com :: IUnknown >`. The caller receives one shared owner and releases it when finished.
+    ///On success, `out` receives `crate :: ComRaw < crate :: IUnknown >` for `crate :: ComPtr < crate :: IUnknown >`. The caller receives one shared owner and releases it when finished.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub child: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_arg_0: <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
-        __nc_out: *mut ::neocogi_com::ComRaw<::neocogi_com::IUnknown>,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_arg_0: <::core::primitive::u32 as crate::ComValue>::AbiRepr,
+        __nc_out: *mut crate::ComRaw<crate::IUnknown>,
+    ) -> crate::NcStatus,
 }
-unsafe impl ::neocogi_com::ComInterface for IPersistableAbi {
-    const IID: ::neocogi_com::NcGuid = ::neocogi_com::NcGuid {
+unsafe impl crate::ComInterface for IPersistableAbi {
+    const IID: crate::NcGuid = crate::NcGuid {
         data1: 1888826366u32,
         data2: 2270u16,
         data3: 21695u16,
         data4: [141u8, 234u8, 184u8, 83u8, 224u8, 13u8, 180u8, 88u8],
     };
-    const INTERFACE_ID: ::neocogi_com::NcInterfaceId = ::neocogi_com::NcInterfaceId::new(
-        ::neocogi_com::NcGuid {
+    const INTERFACE_ID: crate::NcInterfaceId = crate::NcInterfaceId::new(
+        crate::NcGuid {
             data1: 1888826366u32,
             data2: 2270u16,
             data3: 21695u16,
@@ -439,30 +421,30 @@ unsafe impl ::neocogi_com::ComInterface for IPersistableAbi {
         IPersistableAbi::ABI_SIGNATURE,
     );
     type VTable = IPersistableVTable;
-    type Threading = ::neocogi_com::ThreadLocal;
+    type Threading = crate::ThreadLocal;
 }
 #[repr(transparent)]
 ///Borrowed Rust method wrapper for [`IPersistable`].
 pub struct IPersistableWrapper<
-    __NcThreading: ::neocogi_com::ThreadingModel = ::neocogi_com::ThreadLocal,
+    __NcThreading: crate::ThreadingModel = crate::ThreadLocal,
 > {
     /// Opaque pointer borrowed from retained interface/control storage; provider entry admits value access.
-    __nc_pointer: ::neocogi_com::ComInterfacePointer<IPersistableAbi, __NcThreading>,
+    __nc_pointer: crate::ComInterfacePointer<IPersistableAbi, __NcThreading>,
 }
-unsafe impl ::neocogi_com::ComRustInterface for IPersistableAbi {
-    type Wrapper<__NcThreading: ::neocogi_com::ThreadingModel> = IPersistableWrapper<
+unsafe impl crate::ComRustInterface for IPersistableAbi {
+    type Wrapper<__NcThreading: crate::ThreadingModel> = IPersistableWrapper<
         __NcThreading,
     >;
-    fn __nc_wrapper_ref<__NcThreading: ::neocogi_com::ThreadingModel>(
-        pointer: &::neocogi_com::ComInterfacePointer<Self, __NcThreading>,
+    fn __nc_wrapper_ref<__NcThreading: crate::ThreadingModel>(
+        pointer: &crate::ComInterfacePointer<Self, __NcThreading>,
     ) -> &Self::Wrapper<__NcThreading> {
         unsafe {
             &*(::core::ptr::from_ref(pointer)
                 as *const IPersistableWrapper<__NcThreading>)
         }
     }
-    fn __nc_wrapper_mut<__NcThreading: ::neocogi_com::ThreadingModel>(
-        pointer: &mut ::neocogi_com::ComInterfacePointer<Self, __NcThreading>,
+    fn __nc_wrapper_mut<__NcThreading: crate::ThreadingModel>(
+        pointer: &mut crate::ComInterfacePointer<Self, __NcThreading>,
     ) -> &mut Self::Wrapper<__NcThreading> {
         unsafe {
             &mut *(::core::ptr::from_mut(pointer)
@@ -492,9 +474,7 @@ const _: () = {
         identity as __nc_status_4, identity as __nc_result_4,
         identity as __nc_prepared_3, identity as __nc_out_4,
     };
-    impl<
-        __NcThreading: ::neocogi_com::ThreadingModel,
-    > IPersistableWrapper<__NcThreading> {
+    impl<__NcThreading: crate::ThreadingModel> IPersistableWrapper<__NcThreading> {
         /// Identifies the registered construction recipe, not this object instance.
         /// IDL source: `neocogi/com/persistence/objects.ncidl:12:8` (module `neocogi.com.persistence`).
         ///
@@ -503,12 +483,10 @@ const _: () = {
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
         ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
         ///
-        ///On success, returns `:: neocogi_com :: NcGuid` from the ABI out slot.
-        pub fn type_id(
-            &self,
-        ) -> ::core::result::Result<::neocogi_com::NcGuid, ::neocogi_com::NcStatus> {
+        ///On success, returns `crate :: NcGuid` from the ABI out slot.
+        pub fn type_id(&self) -> ::core::result::Result<crate::NcGuid, crate::NcStatus> {
             let mut __nc_out_0 = ::core::mem::MaybeUninit::<
-                <::neocogi_com::NcGuid as ::neocogi_com::ComValue>::AbiRepr,
+                <crate::NcGuid as crate::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_0 = self.__nc_pointer.as_raw();
             let __nc_status_0 = unsafe {
@@ -519,9 +497,7 @@ const _: () = {
                 return ::core::result::Result::Err(__nc_status_0);
             }
             let __nc_result_0 = (unsafe {
-                ::neocogi_com::decode_inline::<
-                    ::neocogi_com::NcGuid,
-                >(__nc_out_0.assume_init_ref())
+                crate::decode_inline::<crate::NcGuid>(__nc_out_0.assume_init_ref())
             })?;
             ::core::result::Result::Ok(__nc_result_0)
         }
@@ -536,9 +512,9 @@ const _: () = {
         ///On success, returns `:: core :: primitive :: u32` from the ABI out slot.
         pub fn schema_version(
             &self,
-        ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus> {
+        ) -> ::core::result::Result<::core::primitive::u32, crate::NcStatus> {
             let mut __nc_out_1 = ::core::mem::MaybeUninit::<
-                <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
+                <::core::primitive::u32 as crate::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_1 = self.__nc_pointer.as_raw();
             let __nc_status_1 = unsafe {
@@ -549,7 +525,7 @@ const _: () = {
                 return ::core::result::Result::Err(__nc_status_1);
             }
             let __nc_result_1 = (unsafe {
-                ::neocogi_com::decode_inline::<
+                crate::decode_inline::<
                     ::core::primitive::u32,
                 >(__nc_out_1.assume_init_ref())
             })?;
@@ -563,15 +539,12 @@ const _: () = {
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
         ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
         ///
-        ///On success, returns `:: neocogi_com :: ComPtr < :: neocogi_com :: INcBytesAbi >`. The caller receives one shared owner and releases it when finished.
+        ///On success, returns `crate :: ComPtr < crate :: INcBytesAbi >`. The caller receives one shared owner and releases it when finished.
         pub fn save_state(
             &self,
-        ) -> ::core::result::Result<
-            ::neocogi_com::ComPtr<::neocogi_com::INcBytesAbi>,
-            ::neocogi_com::NcStatus,
-        > {
+        ) -> ::core::result::Result<crate::ComPtr<crate::INcBytesAbi>, crate::NcStatus> {
             let mut __nc_out_2 = ::core::mem::MaybeUninit::<
-                ::neocogi_com::ComRaw<::neocogi_com::INcBytesAbi>,
+                crate::ComRaw<crate::INcBytesAbi>,
             >::uninit();
             let __nc_this_2 = self.__nc_pointer.as_raw();
             let __nc_status_2 = unsafe {
@@ -582,8 +555,8 @@ const _: () = {
                 return ::core::result::Result::Err(__nc_status_2);
             }
             let __nc_result_2 = (unsafe {
-                <::neocogi_com::ComPtr<
-                    ::neocogi_com::INcBytesAbi,
+                <crate::ComPtr<
+                    crate::INcBytesAbi,
                 >>::__nc_from_raw_owned_checked(__nc_out_2.assume_init())
             })?;
             ::core::result::Result::Ok(__nc_result_2)
@@ -599,9 +572,9 @@ const _: () = {
         ///On success, returns `:: core :: primitive :: u32` from the ABI out slot.
         pub fn child_count(
             &self,
-        ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus> {
+        ) -> ::core::result::Result<::core::primitive::u32, crate::NcStatus> {
             let mut __nc_out_3 = ::core::mem::MaybeUninit::<
-                <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
+                <::core::primitive::u32 as crate::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_3 = self.__nc_pointer.as_raw();
             let __nc_status_3 = unsafe {
@@ -612,7 +585,7 @@ const _: () = {
                 return ::core::result::Result::Err(__nc_status_3);
             }
             let __nc_result_3 = (unsafe {
-                ::neocogi_com::decode_inline::<
+                crate::decode_inline::<
                     ::core::primitive::u32,
                 >(__nc_out_3.assume_init_ref())
             })?;
@@ -627,17 +600,14 @@ const _: () = {
         ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
         ///- `index` is passed by value as `:: core :: primitive :: u32`.
         ///
-        ///On success, returns `:: neocogi_com :: ComPtr < :: neocogi_com :: IUnknown >`. The caller receives one shared owner and releases it when finished.
+        ///On success, returns `crate :: ComPtr < crate :: IUnknown >`. The caller receives one shared owner and releases it when finished.
         pub fn child(
             &self,
             __nc_arg_0: ::core::primitive::u32,
-        ) -> ::core::result::Result<
-            ::neocogi_com::ComPtr<::neocogi_com::IUnknown>,
-            ::neocogi_com::NcStatus,
-        > {
-            let __nc_arg_0 = ::neocogi_com::encode_inline(&__nc_arg_0)?;
+        ) -> ::core::result::Result<crate::ComPtr<crate::IUnknown>, crate::NcStatus> {
+            let __nc_arg_0 = crate::encode_inline(&__nc_arg_0)?;
             let mut __nc_out_4 = ::core::mem::MaybeUninit::<
-                ::neocogi_com::ComRaw<::neocogi_com::IUnknown>,
+                crate::ComRaw<crate::IUnknown>,
             >::uninit();
             let __nc_this_4 = self.__nc_pointer.as_raw();
             let __nc_status_4 = unsafe {
@@ -648,8 +618,8 @@ const _: () = {
                 return ::core::result::Result::Err(__nc_status_4);
             }
             let __nc_result_4 = (unsafe {
-                <::neocogi_com::ComPtr<
-                    ::neocogi_com::IUnknown,
+                <crate::ComPtr<
+                    crate::IUnknown,
                 >>::__nc_from_raw_owned_checked(__nc_out_4.assume_init())
             })?;
             ::core::result::Result::Ok(__nc_result_4)
@@ -658,109 +628,109 @@ const _: () = {
 };
 impl IPersistableAbi {
     ///Canonical validation form of this interface's typed ABI contract.
-    pub const ABI_SIGNATURE: ::neocogi_com::NcAbiDigest = ::neocogi_com::NcAbiDigest::from_static(
+    pub const ABI_SIGNATURE: crate::NcAbiDigest = crate::NcAbiDigest::from_static(
         b"\xEBB[\xCA/\xB5\x98K@G\x1D$\x13\x18U39\n\x15d\xEE7\xAFt\xB4~\xCF\xF5p%\x1A\x9C",
     );
     ///Static descriptors for this interface's ABI methods.
-    pub const METHOD_DESCRIPTORS: [::neocogi_com::NcMethodDescriptor; 5usize] = [
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("type_id"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_SHARED,
+    pub const METHOD_DESCRIPTORS: [crate::NcMethodDescriptor; 5usize] = [
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("type_id"),
+            receiver: crate::NC_ABI_RECEIVER_SHARED,
             param_count: 0u32,
-            params: (&[] as &'static [::neocogi_com::NcMethodParamDescriptor]).as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Out,
+            params: (&[] as &'static [crate::NcMethodParamDescriptor]).as_ptr(),
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Out,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::__nc_abi_type::<::neocogi_com::NcGuid>(),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                    crate::__nc_abi_type::<crate::NcGuid>(),
                 ),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("schema_version"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_SHARED,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("schema_version"),
+            receiver: crate::NC_ABI_RECEIVER_SHARED,
             param_count: 0u32,
-            params: (&[] as &'static [::neocogi_com::NcMethodParamDescriptor]).as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Out,
+            params: (&[] as &'static [crate::NcMethodParamDescriptor]).as_ptr(),
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Out,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::__nc_abi_type::<::core::primitive::u32>(),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                    crate::__nc_abi_type::<::core::primitive::u32>(),
                 ),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("save_state"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_SHARED,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("save_state"),
+            receiver: crate::NC_ABI_RECEIVER_SHARED,
             param_count: 0u32,
-            params: (&[] as &'static [::neocogi_com::NcMethodParamDescriptor]).as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(::neocogi_com::NcAbiPassing::ComPtrOut {
-                    mode: <::neocogi_com::ThreadLocal as ::neocogi_com::ThreadingModel>::ABI_THREADING_MODE,
+            params: (&[] as &'static [crate::NcMethodParamDescriptor]).as_ptr(),
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(crate::NcAbiPassing::ComPtrOut {
+                    mode: <crate::ThreadLocal as crate::ThreadingModel>::ABI_THREADING_MODE,
                 }),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_interface(
-                    <::neocogi_com::INcBytesAbi as ::neocogi_com::ComInterface>::INTERFACE_ID,
+                ty: crate::NcAbiTypeDescriptor::from_interface(
+                    <crate::INcBytesAbi as crate::ComInterface>::INTERFACE_ID,
                 ),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("child_count"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_SHARED,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("child_count"),
+            receiver: crate::NC_ABI_RECEIVER_SHARED,
             param_count: 0u32,
-            params: (&[] as &'static [::neocogi_com::NcMethodParamDescriptor]).as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Out,
+            params: (&[] as &'static [crate::NcMethodParamDescriptor]).as_ptr(),
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Out,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::__nc_abi_type::<::core::primitive::u32>(),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                    crate::__nc_abi_type::<::core::primitive::u32>(),
                 ),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("child"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_SHARED,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("child"),
+            receiver: crate::NC_ABI_RECEIVER_SHARED,
             param_count: 1u32,
             params: (&[
-                ::neocogi_com::NcMethodParamDescriptor {
-                    name: ::neocogi_com::NcStaticUtf8::from_static("index"),
-                    passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                        ::neocogi_com::NcAbiPassing::Value,
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("index"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                        crate::NcAbiPassing::Value,
                     ),
-                    ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                        ::neocogi_com::__nc_abi_type::<::core::primitive::u32>(),
+                    ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                        crate::__nc_abi_type::<::core::primitive::u32>(),
                     ),
                 },
-            ] as &'static [::neocogi_com::NcMethodParamDescriptor])
+            ] as &'static [crate::NcMethodParamDescriptor])
                 .as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(::neocogi_com::NcAbiPassing::ComPtrOut {
-                    mode: <::neocogi_com::ThreadLocal as ::neocogi_com::ThreadingModel>::ABI_THREADING_MODE,
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(crate::NcAbiPassing::ComPtrOut {
+                    mode: <crate::ThreadLocal as crate::ThreadingModel>::ABI_THREADING_MODE,
                 }),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_interface(
-                    <::neocogi_com::IUnknown as ::neocogi_com::ComInterface>::INTERFACE_ID,
+                ty: crate::NcAbiTypeDescriptor::from_interface(
+                    <crate::IUnknown as crate::ComInterface>::INTERFACE_ID,
                 ),
             },
         },
     ];
     ///Static ABI descriptor for this interface.
-    pub const INTERFACE_DESCRIPTOR: ::neocogi_com::NcInterfaceDescriptor = ::neocogi_com::NcInterfaceDescriptor {
-        interface_id: <Self as ::neocogi_com::ComInterface>::IID,
-        qualified_name: ::neocogi_com::NcStaticUtf8::from_static(
+    pub const INTERFACE_DESCRIPTOR: crate::NcInterfaceDescriptor = crate::NcInterfaceDescriptor {
+        interface_id: <Self as crate::ComInterface>::IID,
+        qualified_name: crate::NcStaticUtf8::from_static(
             "neocogi.com.persistence.IPersistable",
         ),
         abi_signature: Self::ABI_SIGNATURE,
-        base: ::neocogi_com::NcInterfaceId::NONE,
+        base: crate::NcInterfaceId::NONE,
         method_count: 5u32,
         methods: Self::METHOD_DESCRIPTORS.as_ptr(),
     };
     /// Distinct projections in derived-first, declared-parent order.
     /// Shared ancestors occur once; repeated identities must have the same ABI.
-    pub const INTERFACE_CHAIN: [&'static ::neocogi_com::NcInterfaceDescriptor; ::neocogi_com::__nc_object_interface_count(
+    pub const INTERFACE_CHAIN: [&'static crate::NcInterfaceDescriptor; crate::__nc_object_interface_count(
         &[&[&Self::INTERFACE_DESCRIPTOR]],
-    )] = ::neocogi_com::__nc_interface_chain(&Self::INTERFACE_DESCRIPTOR, &[]);
+    )] = crate::__nc_interface_chain(&Self::INTERFACE_DESCRIPTOR, &[]);
 }
 /// A provider bound to the runtime services required by its construction recipe.
 /// IDL source: `neocogi/com/persistence/objects.ncidl:24:11` (module `neocogi.com.persistence`).
@@ -770,21 +740,18 @@ pub trait IPersistenceFactory {
     fn validate(
         &self,
         version: ::core::primitive::u32,
-        state: ::neocogi_com::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
+        state: crate::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
         child_count: ::core::primitive::u32,
-    ) -> ::core::result::Result<(), ::neocogi_com::NcStatus>;
+    ) -> ::core::result::Result<(), crate::NcStatus>;
     /// Returns a fully initialized object; every child is already constructed.
     /// Failure must release resources acquired by this call and publish no root.
     /// IDL source: `neocogi/com/persistence/objects.ncidl:29:8` (module `neocogi.com.persistence`).
     fn restore(
         &self,
         version: ::core::primitive::u32,
-        state: ::neocogi_com::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
-        children: ::neocogi_com::ComRef<'_, self::IObjectChildrenAbi>,
-    ) -> ::core::result::Result<
-        ::neocogi_com::ComPtr<::neocogi_com::IUnknown>,
-        ::neocogi_com::NcStatus,
-    >;
+        state: crate::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
+        children: crate::ComRef<'_, self::IObjectChildrenAbi>,
+    ) -> ::core::result::Result<crate::ComPtr<crate::IUnknown>, crate::NcStatus>;
 }
 ///Interface marker for [`IPersistenceFactory`]; handles carry its object/table pair.
 pub enum IPersistenceFactoryAbi {}
@@ -792,7 +759,7 @@ pub enum IPersistenceFactoryAbi {}
 ///C-compatible vtable for [`IPersistenceFactory`].
 pub struct IPersistenceFactoryVTable {
     /// Common identity, query and reference-count slots.
-    pub unknown: ::neocogi_com::IUnknownVTable,
+    pub unknown: crate::IUnknownVTable,
     /// Rejects unsupported revisions before any child object is constructed.
     /// IDL source: `neocogi/com/persistence/objects.ncidl:26:8` (module `neocogi.com.persistence`).
     ///Raw COM ABI vtable slot for [`IPersistenceFactory::validate`].
@@ -802,9 +769,9 @@ pub struct IPersistenceFactoryVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `version` uses ABI storage `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
-    ///- `state` uses ABI storage `* const < :: core :: primitive :: u8 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: neocogi_com :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
-    ///- `child_count` uses ABI storage `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
+    ///- `version` uses ABI storage `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
+    ///- `state` uses ABI storage `* const < :: core :: primitive :: u8 as crate :: ComValue > :: AbiRepr` for `crate :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
+    ///- `child_count` uses ABI storage `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -813,12 +780,12 @@ pub struct IPersistenceFactoryVTable {
     )]
     pub validate: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_arg_0: <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
+        __nc_arg_0: <::core::primitive::u32 as crate::ComValue>::AbiRepr,
         __nc_arg_1_offset: ::core::primitive::u64,
         __nc_arg_1_len: ::core::primitive::u64,
-        __nc_arg_1_ptr: *const <::core::primitive::u8 as ::neocogi_com::ComValue>::AbiRepr,
-        __nc_arg_2: <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_arg_1_ptr: *const <::core::primitive::u8 as crate::ComValue>::AbiRepr,
+        __nc_arg_2: <::core::primitive::u32 as crate::ComValue>::AbiRepr,
+    ) -> crate::NcStatus,
     /// Returns a fully initialized object; every child is already constructed.
     /// Failure must release resources acquired by this call and publish no root.
     /// IDL source: `neocogi/com/persistence/objects.ncidl:29:8` (module `neocogi.com.persistence`).
@@ -829,34 +796,34 @@ pub struct IPersistenceFactoryVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `version` uses ABI storage `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
-    ///- `state` uses ABI storage `* const < :: core :: primitive :: u8 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: neocogi_com :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
-    ///- `children` uses ABI storage `:: neocogi_com :: ComRaw < self :: IObjectChildrenAbi >` for `:: neocogi_com :: ComRef < '_ , self :: IObjectChildrenAbi >`. This object/table pair is borrowed for the call. Both fields must be non-null. To retain this pair, call `add_ref` during the borrow. A nonzero result grants one reference, which the callee releases when finished.
+    ///- `version` uses ABI storage `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
+    ///- `state` uses ABI storage `* const < :: core :: primitive :: u8 as crate :: ComValue > :: AbiRepr` for `crate :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
+    ///- `children` uses ABI storage `crate :: ComRaw < self :: IObjectChildrenAbi >` for `crate :: ComRef < '_ , self :: IObjectChildrenAbi >`. This object/table pair is borrowed for the call. Both fields must be non-null. To retain this pair, call `add_ref` during the borrow. A nonzero result grants one reference, which the callee releases when finished.
     ///
-    ///On success, `out` receives `:: neocogi_com :: ComRaw < :: neocogi_com :: IUnknown >` for `:: neocogi_com :: ComPtr < :: neocogi_com :: IUnknown >`. The caller receives one shared owner and releases it when finished.
+    ///On success, `out` receives `crate :: ComRaw < crate :: IUnknown >` for `crate :: ComPtr < crate :: IUnknown >`. The caller receives one shared owner and releases it when finished.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub restore: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_arg_0_0: <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
+        __nc_arg_0_0: <::core::primitive::u32 as crate::ComValue>::AbiRepr,
         __nc_arg_1_0_offset: ::core::primitive::u64,
         __nc_arg_1_0_len: ::core::primitive::u64,
-        __nc_arg_1_0_ptr: *const <::core::primitive::u8 as ::neocogi_com::ComValue>::AbiRepr,
-        __nc_arg_2_0: ::neocogi_com::ComRaw<self::IObjectChildrenAbi>,
-        __nc_out: *mut ::neocogi_com::ComRaw<::neocogi_com::IUnknown>,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_arg_1_0_ptr: *const <::core::primitive::u8 as crate::ComValue>::AbiRepr,
+        __nc_arg_2_0: crate::ComRaw<self::IObjectChildrenAbi>,
+        __nc_out: *mut crate::ComRaw<crate::IUnknown>,
+    ) -> crate::NcStatus,
 }
-unsafe impl ::neocogi_com::ComInterface for IPersistenceFactoryAbi {
-    const IID: ::neocogi_com::NcGuid = ::neocogi_com::NcGuid {
+unsafe impl crate::ComInterface for IPersistenceFactoryAbi {
+    const IID: crate::NcGuid = crate::NcGuid {
         data1: 3732855007u32,
         data2: 16637u16,
         data3: 23717u16,
         data4: [187u8, 2u8, 64u8, 199u8, 96u8, 184u8, 142u8, 53u8],
     };
-    const INTERFACE_ID: ::neocogi_com::NcInterfaceId = ::neocogi_com::NcInterfaceId::new(
-        ::neocogi_com::NcGuid {
+    const INTERFACE_ID: crate::NcInterfaceId = crate::NcInterfaceId::new(
+        crate::NcGuid {
             data1: 3732855007u32,
             data2: 16637u16,
             data3: 23717u16,
@@ -865,33 +832,30 @@ unsafe impl ::neocogi_com::ComInterface for IPersistenceFactoryAbi {
         IPersistenceFactoryAbi::ABI_SIGNATURE,
     );
     type VTable = IPersistenceFactoryVTable;
-    type Threading = ::neocogi_com::ThreadLocal;
+    type Threading = crate::ThreadLocal;
 }
 #[repr(transparent)]
 ///Borrowed Rust method wrapper for [`IPersistenceFactory`].
 pub struct IPersistenceFactoryWrapper<
-    __NcThreading: ::neocogi_com::ThreadingModel = ::neocogi_com::ThreadLocal,
+    __NcThreading: crate::ThreadingModel = crate::ThreadLocal,
 > {
     /// Opaque pointer borrowed from retained interface/control storage; provider entry admits value access.
-    __nc_pointer: ::neocogi_com::ComInterfacePointer<
-        IPersistenceFactoryAbi,
-        __NcThreading,
-    >,
+    __nc_pointer: crate::ComInterfacePointer<IPersistenceFactoryAbi, __NcThreading>,
 }
-unsafe impl ::neocogi_com::ComRustInterface for IPersistenceFactoryAbi {
-    type Wrapper<__NcThreading: ::neocogi_com::ThreadingModel> = IPersistenceFactoryWrapper<
+unsafe impl crate::ComRustInterface for IPersistenceFactoryAbi {
+    type Wrapper<__NcThreading: crate::ThreadingModel> = IPersistenceFactoryWrapper<
         __NcThreading,
     >;
-    fn __nc_wrapper_ref<__NcThreading: ::neocogi_com::ThreadingModel>(
-        pointer: &::neocogi_com::ComInterfacePointer<Self, __NcThreading>,
+    fn __nc_wrapper_ref<__NcThreading: crate::ThreadingModel>(
+        pointer: &crate::ComInterfacePointer<Self, __NcThreading>,
     ) -> &Self::Wrapper<__NcThreading> {
         unsafe {
             &*(::core::ptr::from_ref(pointer)
                 as *const IPersistenceFactoryWrapper<__NcThreading>)
         }
     }
-    fn __nc_wrapper_mut<__NcThreading: ::neocogi_com::ThreadingModel>(
-        pointer: &mut ::neocogi_com::ComInterfacePointer<Self, __NcThreading>,
+    fn __nc_wrapper_mut<__NcThreading: crate::ThreadingModel>(
+        pointer: &mut crate::ComInterfacePointer<Self, __NcThreading>,
     ) -> &mut Self::Wrapper<__NcThreading> {
         unsafe {
             &mut *(::core::ptr::from_mut(pointer)
@@ -939,7 +903,7 @@ const _: () = {
         identity as __nc_prepared_0, identity as __nc_out_1,
     };
     impl<
-        __NcThreading: ::neocogi_com::ThreadingModel,
+        __NcThreading: crate::ThreadingModel,
     > IPersistenceFactoryWrapper<__NcThreading> {
         /// Rejects unsupported revisions before any child object is constructed.
         /// IDL source: `neocogi/com/persistence/objects.ncidl:26:8` (module `neocogi.com.persistence`).
@@ -956,12 +920,12 @@ const _: () = {
         pub fn validate(
             &self,
             __nc_arg_0: ::core::primitive::u32,
-            __nc_arg_1: ::neocogi_com::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
+            __nc_arg_1: crate::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
             __nc_arg_2: ::core::primitive::u32,
-        ) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
-            let __nc_arg_0 = ::neocogi_com::encode_inline(&__nc_arg_0)?;
-            let __nc_arg_1 = ::neocogi_com::EncodedInput::new(__nc_arg_1)?;
-            let __nc_arg_2 = ::neocogi_com::encode_inline(&__nc_arg_2)?;
+        ) -> ::core::result::Result<(), crate::NcStatus> {
+            let __nc_arg_0 = crate::encode_inline(&__nc_arg_0)?;
+            let __nc_arg_1 = crate::EncodedInput::new(__nc_arg_1)?;
+            let __nc_arg_2 = crate::encode_inline(&__nc_arg_2)?;
             let __nc_this_0 = self.__nc_pointer.as_raw();
             let __nc_status_0 = unsafe {
                 ((*__nc_this_0.vtable)
@@ -992,23 +956,17 @@ const _: () = {
         ///- `state` is passed as a safe readable `:: core :: primitive :: u8` buffer plus offset.
         ///- `children` borrows a required `self :: IObjectChildrenAbi` interface for the call. To keep the interface afterward, the callee stores the `ComPtr` returned by a successful `try_add_ref()`.
         ///
-        ///On success, returns `:: neocogi_com :: ComPtr < :: neocogi_com :: IUnknown >`. The caller receives one shared owner and releases it when finished.
+        ///On success, returns `crate :: ComPtr < crate :: IUnknown >`. The caller receives one shared owner and releases it when finished.
         pub fn restore(
             &self,
             __nc_arg_0_0: ::core::primitive::u32,
-            __nc_arg_1_0: ::neocogi_com::NcCopyFromBufferOffset<
-                '_,
-                ::core::primitive::u8,
-            >,
-            __nc_arg_2_0: ::neocogi_com::ComRef<'_, self::IObjectChildrenAbi>,
-        ) -> ::core::result::Result<
-            ::neocogi_com::ComPtr<::neocogi_com::IUnknown>,
-            ::neocogi_com::NcStatus,
-        > {
-            let __nc_arg_0_0 = ::neocogi_com::encode_inline(&__nc_arg_0_0)?;
-            let __nc_arg_1_0 = ::neocogi_com::EncodedInput::new(__nc_arg_1_0)?;
+            __nc_arg_1_0: crate::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
+            __nc_arg_2_0: crate::ComRef<'_, self::IObjectChildrenAbi>,
+        ) -> ::core::result::Result<crate::ComPtr<crate::IUnknown>, crate::NcStatus> {
+            let __nc_arg_0_0 = crate::encode_inline(&__nc_arg_0_0)?;
+            let __nc_arg_1_0 = crate::EncodedInput::new(__nc_arg_1_0)?;
             let mut __nc_out_1 = ::core::mem::MaybeUninit::<
-                ::neocogi_com::ComRaw<::neocogi_com::IUnknown>,
+                crate::ComRaw<crate::IUnknown>,
             >::uninit();
             let __nc_this_1 = self.__nc_pointer.as_raw();
             let __nc_status_1 = unsafe {
@@ -1027,8 +985,8 @@ const _: () = {
                 return ::core::result::Result::Err(__nc_status_1);
             }
             let __nc_result_1 = (unsafe {
-                <::neocogi_com::ComPtr<
-                    ::neocogi_com::IUnknown,
+                <crate::ComPtr<
+                    crate::IUnknown,
                 >>::__nc_from_raw_owned_checked(__nc_out_1.assume_init())
             })?;
             ::core::result::Result::Ok(__nc_result_1)
@@ -1037,112 +995,110 @@ const _: () = {
 };
 impl IPersistenceFactoryAbi {
     ///Canonical validation form of this interface's typed ABI contract.
-    pub const ABI_SIGNATURE: ::neocogi_com::NcAbiDigest = ::neocogi_com::NcAbiDigest::from_static(
+    pub const ABI_SIGNATURE: crate::NcAbiDigest = crate::NcAbiDigest::from_static(
         b"\xF9P\xB5\xD8B\r\xFBy67~7\x8C\x7F\n\xFD\x1D\x83w\x88T\xD1=k\"\x98r6\xEB\xF2\xA0\0",
     );
     ///Static descriptors for this interface's ABI methods.
-    pub const METHOD_DESCRIPTORS: [::neocogi_com::NcMethodDescriptor; 2usize] = [
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("validate"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_SHARED,
+    pub const METHOD_DESCRIPTORS: [crate::NcMethodDescriptor; 2usize] = [
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("validate"),
+            receiver: crate::NC_ABI_RECEIVER_SHARED,
             param_count: 3u32,
             params: (&[
-                ::neocogi_com::NcMethodParamDescriptor {
-                    name: ::neocogi_com::NcStaticUtf8::from_static("version"),
-                    passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                        ::neocogi_com::NcAbiPassing::Value,
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("version"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                        crate::NcAbiPassing::Value,
                     ),
-                    ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                        ::neocogi_com::__nc_abi_type::<::core::primitive::u32>(),
-                    ),
-                },
-                ::neocogi_com::NcMethodParamDescriptor {
-                    name: ::neocogi_com::NcStaticUtf8::from_static("state"),
-                    passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                        ::neocogi_com::NcAbiPassing::CopyFromBufferOffset,
-                    ),
-                    ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                        ::neocogi_com::__nc_abi_plain_type::<::core::primitive::u8>(),
+                    ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                        crate::__nc_abi_type::<::core::primitive::u32>(),
                     ),
                 },
-                ::neocogi_com::NcMethodParamDescriptor {
-                    name: ::neocogi_com::NcStaticUtf8::from_static("child_count"),
-                    passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                        ::neocogi_com::NcAbiPassing::Value,
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("state"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                        crate::NcAbiPassing::CopyFromBufferOffset,
                     ),
-                    ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                        ::neocogi_com::__nc_abi_type::<::core::primitive::u32>(),
+                    ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                        crate::__nc_abi_plain_type::<::core::primitive::u8>(),
                     ),
                 },
-            ] as &'static [::neocogi_com::NcMethodParamDescriptor])
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("child_count"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                        crate::NcAbiPassing::Value,
+                    ),
+                    ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                        crate::__nc_abi_type::<::core::primitive::u32>(),
+                    ),
+                },
+            ] as &'static [crate::NcMethodParamDescriptor])
                 .as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Void,
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Void,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::NcAbiType::Void,
-                ),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(crate::NcAbiType::Void),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("restore"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_SHARED,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("restore"),
+            receiver: crate::NC_ABI_RECEIVER_SHARED,
             param_count: 3u32,
             params: (&[
-                ::neocogi_com::NcMethodParamDescriptor {
-                    name: ::neocogi_com::NcStaticUtf8::from_static("version"),
-                    passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                        ::neocogi_com::NcAbiPassing::Value,
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("version"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                        crate::NcAbiPassing::Value,
                     ),
-                    ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                        ::neocogi_com::__nc_abi_type::<::core::primitive::u32>(),
-                    ),
-                },
-                ::neocogi_com::NcMethodParamDescriptor {
-                    name: ::neocogi_com::NcStaticUtf8::from_static("state"),
-                    passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                        ::neocogi_com::NcAbiPassing::CopyFromBufferOffset,
-                    ),
-                    ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                        ::neocogi_com::__nc_abi_plain_type::<::core::primitive::u8>(),
+                    ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                        crate::__nc_abi_type::<::core::primitive::u32>(),
                     ),
                 },
-                ::neocogi_com::NcMethodParamDescriptor {
-                    name: ::neocogi_com::NcStaticUtf8::from_static("children"),
-                    passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(::neocogi_com::NcAbiPassing::ComRef {
-                        mode: <::neocogi_com::ThreadLocal as ::neocogi_com::ThreadingModel>::ABI_THREADING_MODE,
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("state"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                        crate::NcAbiPassing::CopyFromBufferOffset,
+                    ),
+                    ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                        crate::__nc_abi_plain_type::<::core::primitive::u8>(),
+                    ),
+                },
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("children"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(crate::NcAbiPassing::ComRef {
+                        mode: <crate::ThreadLocal as crate::ThreadingModel>::ABI_THREADING_MODE,
                     }),
-                    ty: ::neocogi_com::NcAbiTypeDescriptor::from_interface(
-                        <self::IObjectChildrenAbi as ::neocogi_com::ComInterface>::INTERFACE_ID,
+                    ty: crate::NcAbiTypeDescriptor::from_interface(
+                        <self::IObjectChildrenAbi as crate::ComInterface>::INTERFACE_ID,
                     ),
                 },
-            ] as &'static [::neocogi_com::NcMethodParamDescriptor])
+            ] as &'static [crate::NcMethodParamDescriptor])
                 .as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(::neocogi_com::NcAbiPassing::ComPtrOut {
-                    mode: <::neocogi_com::ThreadLocal as ::neocogi_com::ThreadingModel>::ABI_THREADING_MODE,
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(crate::NcAbiPassing::ComPtrOut {
+                    mode: <crate::ThreadLocal as crate::ThreadingModel>::ABI_THREADING_MODE,
                 }),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_interface(
-                    <::neocogi_com::IUnknown as ::neocogi_com::ComInterface>::INTERFACE_ID,
+                ty: crate::NcAbiTypeDescriptor::from_interface(
+                    <crate::IUnknown as crate::ComInterface>::INTERFACE_ID,
                 ),
             },
         },
     ];
     ///Static ABI descriptor for this interface.
-    pub const INTERFACE_DESCRIPTOR: ::neocogi_com::NcInterfaceDescriptor = ::neocogi_com::NcInterfaceDescriptor {
-        interface_id: <Self as ::neocogi_com::ComInterface>::IID,
-        qualified_name: ::neocogi_com::NcStaticUtf8::from_static(
+    pub const INTERFACE_DESCRIPTOR: crate::NcInterfaceDescriptor = crate::NcInterfaceDescriptor {
+        interface_id: <Self as crate::ComInterface>::IID,
+        qualified_name: crate::NcStaticUtf8::from_static(
             "neocogi.com.persistence.IPersistenceFactory",
         ),
         abi_signature: Self::ABI_SIGNATURE,
-        base: ::neocogi_com::NcInterfaceId::NONE,
+        base: crate::NcInterfaceId::NONE,
         method_count: 2u32,
         methods: Self::METHOD_DESCRIPTORS.as_ptr(),
     };
     /// Distinct projections in derived-first, declared-parent order.
     /// Shared ancestors occur once; repeated identities must have the same ABI.
-    pub const INTERFACE_CHAIN: [&'static ::neocogi_com::NcInterfaceDescriptor; ::neocogi_com::__nc_object_interface_count(
+    pub const INTERFACE_CHAIN: [&'static crate::NcInterfaceDescriptor; crate::__nc_object_interface_count(
         &[&[&Self::INTERFACE_DESCRIPTOR]],
-    )] = ::neocogi_com::__nc_interface_chain(&Self::INTERFACE_DESCRIPTOR, &[]);
+    )] = crate::__nc_interface_chain(&Self::INTERFACE_DESCRIPTOR, &[]);
 }

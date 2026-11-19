@@ -26,35 +26,35 @@ const _: () = {
     };
     impl<__NcProvider> IObjectChildrenVtblFor<__NcProvider>
     where
-        __NcProvider: IObjectChildren + ::neocogi_com::ComObject,
+        __NcProvider: IObjectChildren + crate::ComObject,
     {
         /// Distinct interface entries in the canonical metadata order.
         /// T fixes each vtable's implementation; entries own no object state.
-        pub const INTERFACE_TABLE: [::neocogi_com::ComInterfaceTableEntry<
+        pub const INTERFACE_TABLE: [crate::ComInterfaceTableEntry<
             __NcProvider,
-        >; IObjectChildrenAbi::INTERFACE_CHAIN.len()] = ::neocogi_com::__nc_interface_table(
+        >; IObjectChildrenAbi::INTERFACE_CHAIN.len()] = crate::__nc_interface_table(
             &IObjectChildrenAbi::INTERFACE_CHAIN,
             unsafe {
-                ::neocogi_com::ComInterfaceTableEntry::new(
-                    <IObjectChildrenAbi as ::neocogi_com::ComInterface>::INTERFACE_ID,
+                crate::ComInterfaceTableEntry::new(
+                    <IObjectChildrenAbi as crate::ComInterface>::INTERFACE_ID,
                     &Self::VTABLE as *const IObjectChildrenVTable
-                        as *const ::neocogi_com::IUnknownVTable,
+                        as *const crate::IUnknownVTable,
                 )
             },
             &[],
         );
         /// Table for a standalone projection of this interface.
         pub const VTABLE: IObjectChildrenVTable = Self::with_identity(
-            &<IObjectChildrenAbi as ::neocogi_com::ComInterface>::INTERFACE_ID,
+            &<IObjectChildrenAbi as crate::ComInterface>::INTERFACE_ID,
         );
         /// Builds an inherited prefix advertising the actual outer projection.
         pub const fn with_identity(
-            __nc_identity: &'static ::neocogi_com::NcInterfaceId,
+            __nc_identity: &'static crate::NcInterfaceId,
         ) -> IObjectChildrenVTable {
             IObjectChildrenVTable {
-                unknown: ::neocogi_com::IUnknownVTable {
+                unknown: crate::IUnknownVTable {
                     interface_id: __nc_identity,
-                    ..*<__NcProvider as ::neocogi_com::ComObject>::UNKNOWN_VTABLE
+                    ..*<__NcProvider as crate::ComObject>::UNKNOWN_VTABLE
                 },
                 count: Self::count_thunk,
                 get: Self::get_thunk,
@@ -72,19 +72,17 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn count_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
-        ) -> ::neocogi_com::NcStatus {
+            __nc_out: *mut <::core::primitive::u32 as crate::ComValue>::AbiRepr,
+        ) -> crate::NcStatus {
             if __nc_this.is_null() || __nc_out.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                <__NcProvider as ::neocogi_com::ComObject>::borrow_abi_ref(
-                    __nc_dispatch_object,
-                )
+                <__NcProvider as crate::ComObject>::borrow_abi_ref(__nc_dispatch_object)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
@@ -95,14 +93,14 @@ const _: () = {
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
                 ::core::result::Result::Ok(__nc_value) => {
-                    let __nc_raw = match ::neocogi_com::encode_inline(&__nc_value) {
+                    let __nc_raw = match crate::encode_inline(&__nc_value) {
                         ::core::result::Result::Ok(__nc_raw) => __nc_raw,
                         ::core::result::Result::Err(__nc_status) => return __nc_status,
                     };
                     unsafe {
                         *__nc_out = __nc_raw;
                     }
-                    ::neocogi_com::NC_OK
+                    crate::NC_OK
                 }
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
@@ -119,26 +117,24 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn get_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_arg_0: <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
-            __nc_out: *mut ::neocogi_com::ComRaw<::neocogi_com::IUnknown>,
-        ) -> ::neocogi_com::NcStatus {
+            __nc_arg_0: <::core::primitive::u32 as crate::ComValue>::AbiRepr,
+            __nc_out: *mut crate::ComRaw<crate::IUnknown>,
+        ) -> crate::NcStatus {
             if __nc_this.is_null() || __nc_out.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_arg_0 = match unsafe {
-                ::neocogi_com::decode_inline::<::core::primitive::u32>(&__nc_arg_0)
+                crate::decode_inline::<::core::primitive::u32>(&__nc_arg_0)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
             let mut __nc_dispatch_value = match unsafe {
-                <__NcProvider as ::neocogi_com::ComObject>::borrow_abi_ref(
-                    __nc_dispatch_object,
-                )
+                <__NcProvider as crate::ComObject>::borrow_abi_ref(__nc_dispatch_object)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
@@ -153,7 +149,7 @@ const _: () = {
                     unsafe {
                         *__nc_out = __nc_value.into_raw();
                     }
-                    ::neocogi_com::NC_OK
+                    crate::NC_OK
                 }
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
@@ -190,35 +186,35 @@ const _: () = {
     };
     impl<__NcProvider> IPersistableVtblFor<__NcProvider>
     where
-        __NcProvider: IPersistable + ::neocogi_com::ComObject,
+        __NcProvider: IPersistable + crate::ComObject,
     {
         /// Distinct interface entries in the canonical metadata order.
         /// T fixes each vtable's implementation; entries own no object state.
-        pub const INTERFACE_TABLE: [::neocogi_com::ComInterfaceTableEntry<
+        pub const INTERFACE_TABLE: [crate::ComInterfaceTableEntry<
             __NcProvider,
-        >; IPersistableAbi::INTERFACE_CHAIN.len()] = ::neocogi_com::__nc_interface_table(
+        >; IPersistableAbi::INTERFACE_CHAIN.len()] = crate::__nc_interface_table(
             &IPersistableAbi::INTERFACE_CHAIN,
             unsafe {
-                ::neocogi_com::ComInterfaceTableEntry::new(
-                    <IPersistableAbi as ::neocogi_com::ComInterface>::INTERFACE_ID,
+                crate::ComInterfaceTableEntry::new(
+                    <IPersistableAbi as crate::ComInterface>::INTERFACE_ID,
                     &Self::VTABLE as *const IPersistableVTable
-                        as *const ::neocogi_com::IUnknownVTable,
+                        as *const crate::IUnknownVTable,
                 )
             },
             &[],
         );
         /// Table for a standalone projection of this interface.
         pub const VTABLE: IPersistableVTable = Self::with_identity(
-            &<IPersistableAbi as ::neocogi_com::ComInterface>::INTERFACE_ID,
+            &<IPersistableAbi as crate::ComInterface>::INTERFACE_ID,
         );
         /// Builds an inherited prefix advertising the actual outer projection.
         pub const fn with_identity(
-            __nc_identity: &'static ::neocogi_com::NcInterfaceId,
+            __nc_identity: &'static crate::NcInterfaceId,
         ) -> IPersistableVTable {
             IPersistableVTable {
-                unknown: ::neocogi_com::IUnknownVTable {
+                unknown: crate::IUnknownVTable {
                     interface_id: __nc_identity,
-                    ..*<__NcProvider as ::neocogi_com::ComObject>::UNKNOWN_VTABLE
+                    ..*<__NcProvider as crate::ComObject>::UNKNOWN_VTABLE
                 },
                 type_id: Self::type_id_thunk,
                 schema_version: Self::schema_version_thunk,
@@ -239,19 +235,17 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn type_id_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_out: *mut <::neocogi_com::NcGuid as ::neocogi_com::ComValue>::AbiRepr,
-        ) -> ::neocogi_com::NcStatus {
+            __nc_out: *mut <crate::NcGuid as crate::ComValue>::AbiRepr,
+        ) -> crate::NcStatus {
             if __nc_this.is_null() || __nc_out.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                <__NcProvider as ::neocogi_com::ComObject>::borrow_abi_ref(
-                    __nc_dispatch_object,
-                )
+                <__NcProvider as crate::ComObject>::borrow_abi_ref(__nc_dispatch_object)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
@@ -262,14 +256,14 @@ const _: () = {
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
                 ::core::result::Result::Ok(__nc_value) => {
-                    let __nc_raw = match ::neocogi_com::encode_inline(&__nc_value) {
+                    let __nc_raw = match crate::encode_inline(&__nc_value) {
                         ::core::result::Result::Ok(__nc_raw) => __nc_raw,
                         ::core::result::Result::Err(__nc_status) => return __nc_status,
                     };
                     unsafe {
                         *__nc_out = __nc_raw;
                     }
-                    ::neocogi_com::NC_OK
+                    crate::NC_OK
                 }
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
@@ -286,19 +280,17 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn schema_version_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
-        ) -> ::neocogi_com::NcStatus {
+            __nc_out: *mut <::core::primitive::u32 as crate::ComValue>::AbiRepr,
+        ) -> crate::NcStatus {
             if __nc_this.is_null() || __nc_out.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                <__NcProvider as ::neocogi_com::ComObject>::borrow_abi_ref(
-                    __nc_dispatch_object,
-                )
+                <__NcProvider as crate::ComObject>::borrow_abi_ref(__nc_dispatch_object)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
@@ -309,14 +301,14 @@ const _: () = {
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
                 ::core::result::Result::Ok(__nc_value) => {
-                    let __nc_raw = match ::neocogi_com::encode_inline(&__nc_value) {
+                    let __nc_raw = match crate::encode_inline(&__nc_value) {
                         ::core::result::Result::Ok(__nc_raw) => __nc_raw,
                         ::core::result::Result::Err(__nc_status) => return __nc_status,
                     };
                     unsafe {
                         *__nc_out = __nc_raw;
                     }
-                    ::neocogi_com::NC_OK
+                    crate::NC_OK
                 }
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
@@ -333,19 +325,17 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn save_state_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_out: *mut ::neocogi_com::ComRaw<::neocogi_com::INcBytesAbi>,
-        ) -> ::neocogi_com::NcStatus {
+            __nc_out: *mut crate::ComRaw<crate::INcBytesAbi>,
+        ) -> crate::NcStatus {
             if __nc_this.is_null() || __nc_out.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                <__NcProvider as ::neocogi_com::ComObject>::borrow_abi_ref(
-                    __nc_dispatch_object,
-                )
+                <__NcProvider as crate::ComObject>::borrow_abi_ref(__nc_dispatch_object)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
@@ -359,7 +349,7 @@ const _: () = {
                     unsafe {
                         *__nc_out = __nc_value.into_raw();
                     }
-                    ::neocogi_com::NC_OK
+                    crate::NC_OK
                 }
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
@@ -376,19 +366,17 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn child_count_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
-        ) -> ::neocogi_com::NcStatus {
+            __nc_out: *mut <::core::primitive::u32 as crate::ComValue>::AbiRepr,
+        ) -> crate::NcStatus {
             if __nc_this.is_null() || __nc_out.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                <__NcProvider as ::neocogi_com::ComObject>::borrow_abi_ref(
-                    __nc_dispatch_object,
-                )
+                <__NcProvider as crate::ComObject>::borrow_abi_ref(__nc_dispatch_object)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
@@ -399,14 +387,14 @@ const _: () = {
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
                 ::core::result::Result::Ok(__nc_value) => {
-                    let __nc_raw = match ::neocogi_com::encode_inline(&__nc_value) {
+                    let __nc_raw = match crate::encode_inline(&__nc_value) {
                         ::core::result::Result::Ok(__nc_raw) => __nc_raw,
                         ::core::result::Result::Err(__nc_status) => return __nc_status,
                     };
                     unsafe {
                         *__nc_out = __nc_raw;
                     }
-                    ::neocogi_com::NC_OK
+                    crate::NC_OK
                 }
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
@@ -423,26 +411,24 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn child_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_arg_0: <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
-            __nc_out: *mut ::neocogi_com::ComRaw<::neocogi_com::IUnknown>,
-        ) -> ::neocogi_com::NcStatus {
+            __nc_arg_0: <::core::primitive::u32 as crate::ComValue>::AbiRepr,
+            __nc_out: *mut crate::ComRaw<crate::IUnknown>,
+        ) -> crate::NcStatus {
             if __nc_this.is_null() || __nc_out.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_arg_0 = match unsafe {
-                ::neocogi_com::decode_inline::<::core::primitive::u32>(&__nc_arg_0)
+                crate::decode_inline::<::core::primitive::u32>(&__nc_arg_0)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
             let mut __nc_dispatch_value = match unsafe {
-                <__NcProvider as ::neocogi_com::ComObject>::borrow_abi_ref(
-                    __nc_dispatch_object,
-                )
+                <__NcProvider as crate::ComObject>::borrow_abi_ref(__nc_dispatch_object)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
@@ -457,7 +443,7 @@ const _: () = {
                     unsafe {
                         *__nc_out = __nc_value.into_raw();
                     }
-                    ::neocogi_com::NC_OK
+                    crate::NC_OK
                 }
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
@@ -511,35 +497,35 @@ const _: () = {
     };
     impl<__NcProvider> IPersistenceFactoryVtblFor<__NcProvider>
     where
-        __NcProvider: IPersistenceFactory + ::neocogi_com::ComObject,
+        __NcProvider: IPersistenceFactory + crate::ComObject,
     {
         /// Distinct interface entries in the canonical metadata order.
         /// T fixes each vtable's implementation; entries own no object state.
-        pub const INTERFACE_TABLE: [::neocogi_com::ComInterfaceTableEntry<
+        pub const INTERFACE_TABLE: [crate::ComInterfaceTableEntry<
             __NcProvider,
-        >; IPersistenceFactoryAbi::INTERFACE_CHAIN.len()] = ::neocogi_com::__nc_interface_table(
+        >; IPersistenceFactoryAbi::INTERFACE_CHAIN.len()] = crate::__nc_interface_table(
             &IPersistenceFactoryAbi::INTERFACE_CHAIN,
             unsafe {
-                ::neocogi_com::ComInterfaceTableEntry::new(
-                    <IPersistenceFactoryAbi as ::neocogi_com::ComInterface>::INTERFACE_ID,
+                crate::ComInterfaceTableEntry::new(
+                    <IPersistenceFactoryAbi as crate::ComInterface>::INTERFACE_ID,
                     &Self::VTABLE as *const IPersistenceFactoryVTable
-                        as *const ::neocogi_com::IUnknownVTable,
+                        as *const crate::IUnknownVTable,
                 )
             },
             &[],
         );
         /// Table for a standalone projection of this interface.
         pub const VTABLE: IPersistenceFactoryVTable = Self::with_identity(
-            &<IPersistenceFactoryAbi as ::neocogi_com::ComInterface>::INTERFACE_ID,
+            &<IPersistenceFactoryAbi as crate::ComInterface>::INTERFACE_ID,
         );
         /// Builds an inherited prefix advertising the actual outer projection.
         pub const fn with_identity(
-            __nc_identity: &'static ::neocogi_com::NcInterfaceId,
+            __nc_identity: &'static crate::NcInterfaceId,
         ) -> IPersistenceFactoryVTable {
             IPersistenceFactoryVTable {
-                unknown: ::neocogi_com::IUnknownVTable {
+                unknown: crate::IUnknownVTable {
                     interface_id: __nc_identity,
-                    ..*<__NcProvider as ::neocogi_com::ComObject>::UNKNOWN_VTABLE
+                    ..*<__NcProvider as crate::ComObject>::UNKNOWN_VTABLE
                 },
                 validate: Self::validate_thunk,
                 restore: Self::restore_thunk,
@@ -557,47 +543,45 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn validate_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_arg_0: <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
+            __nc_arg_0: <::core::primitive::u32 as crate::ComValue>::AbiRepr,
             __nc_arg_1_offset: ::core::primitive::u64,
             __nc_arg_1_len: ::core::primitive::u64,
-            __nc_arg_1_ptr: *const <::core::primitive::u8 as ::neocogi_com::ComValue>::AbiRepr,
-            __nc_arg_2: <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
-        ) -> ::neocogi_com::NcStatus {
+            __nc_arg_1_ptr: *const <::core::primitive::u8 as crate::ComValue>::AbiRepr,
+            __nc_arg_2: <::core::primitive::u32 as crate::ComValue>::AbiRepr,
+        ) -> crate::NcStatus {
             if __nc_this.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_arg_0 = match unsafe {
-                ::neocogi_com::decode_inline::<::core::primitive::u32>(&__nc_arg_0)
+                crate::decode_inline::<::core::primitive::u32>(&__nc_arg_0)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
             let __nc_arg_1_values = match unsafe {
-                ::neocogi_com::DecodedInput::<
+                crate::DecodedInput::<
                     ::core::primitive::u8,
                 >::from_raw(__nc_arg_1_ptr, __nc_arg_1_len)
             } {
                 ::core::result::Result::Ok(__nc_values) => __nc_values,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
-            let __nc_arg_1 = ::neocogi_com::NcCopyFromBufferOffset::new(
+            let __nc_arg_1 = crate::NcCopyFromBufferOffset::new(
                 __nc_arg_1_offset,
                 __nc_arg_1_values.as_slice(),
             );
             let __nc_arg_2 = match unsafe {
-                ::neocogi_com::decode_inline::<::core::primitive::u32>(&__nc_arg_2)
+                crate::decode_inline::<::core::primitive::u32>(&__nc_arg_2)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
             let mut __nc_dispatch_value = match unsafe {
-                <__NcProvider as ::neocogi_com::ComObject>::borrow_abi_ref(
-                    __nc_dispatch_object,
-                )
+                <__NcProvider as crate::ComObject>::borrow_abi_ref(__nc_dispatch_object)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
@@ -610,7 +594,7 @@ const _: () = {
             );
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
-                ::core::result::Result::Ok(()) => ::neocogi_com::NC_OK,
+                ::core::result::Result::Ok(()) => crate::NC_OK,
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
         }
@@ -627,51 +611,49 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn restore_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_arg_0_0: <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
+            __nc_arg_0_0: <::core::primitive::u32 as crate::ComValue>::AbiRepr,
             __nc_arg_1_0_offset: ::core::primitive::u64,
             __nc_arg_1_0_len: ::core::primitive::u64,
-            __nc_arg_1_0_ptr: *const <::core::primitive::u8 as ::neocogi_com::ComValue>::AbiRepr,
-            __nc_arg_2_0: ::neocogi_com::ComRaw<self::IObjectChildrenAbi>,
-            __nc_out: *mut ::neocogi_com::ComRaw<::neocogi_com::IUnknown>,
-        ) -> ::neocogi_com::NcStatus {
+            __nc_arg_1_0_ptr: *const <::core::primitive::u8 as crate::ComValue>::AbiRepr,
+            __nc_arg_2_0: crate::ComRaw<self::IObjectChildrenAbi>,
+            __nc_out: *mut crate::ComRaw<crate::IUnknown>,
+        ) -> crate::NcStatus {
             if __nc_this.is_null() || __nc_out.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_arg_0_0 = match unsafe {
-                ::neocogi_com::decode_inline::<::core::primitive::u32>(&__nc_arg_0_0)
+                crate::decode_inline::<::core::primitive::u32>(&__nc_arg_0_0)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
             let __nc_arg_1_0_values = match unsafe {
-                ::neocogi_com::DecodedInput::<
+                crate::DecodedInput::<
                     ::core::primitive::u8,
                 >::from_raw(__nc_arg_1_0_ptr, __nc_arg_1_0_len)
             } {
                 ::core::result::Result::Ok(__nc_values) => __nc_values,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
-            let __nc_arg_1_0 = ::neocogi_com::NcCopyFromBufferOffset::new(
+            let __nc_arg_1_0 = crate::NcCopyFromBufferOffset::new(
                 __nc_arg_1_0_offset,
                 __nc_arg_1_0_values.as_slice(),
             );
             let __nc_arg_2_0 = match unsafe {
-                ::neocogi_com::ComRef::<
+                crate::ComRef::<
                     self::IObjectChildrenAbi,
-                    ::neocogi_com::ThreadLocal,
+                    crate::ThreadLocal,
                 >::__nc_from_raw_borrowed_checked(__nc_arg_2_0)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
             let mut __nc_dispatch_value = match unsafe {
-                <__NcProvider as ::neocogi_com::ComObject>::borrow_abi_ref(
-                    __nc_dispatch_object,
-                )
+                <__NcProvider as crate::ComObject>::borrow_abi_ref(__nc_dispatch_object)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
@@ -688,7 +670,7 @@ const _: () = {
                     unsafe {
                         *__nc_out = __nc_value.into_raw();
                     }
-                    ::neocogi_com::NC_OK
+                    crate::NC_OK
                 }
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }

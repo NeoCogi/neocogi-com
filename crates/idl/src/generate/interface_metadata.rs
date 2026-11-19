@@ -5,11 +5,11 @@ use crate::DeclarationIdentity;
 use std::collections::HashMap;
 
 /// Emits a required digest borrow directly, without reading a physical descriptor.
-pub(super) fn identity(value: &DeclarationIdentity) -> TokenStream {
-    let iid = guid_literal(value.id);
+pub(super) fn identity(nc: &syn::Path, value: &DeclarationIdentity) -> TokenStream {
+    let iid = guid_literal(nc, value.id);
     let signature = signature_literal(value.abi_signature);
     quote! {
-        ::neocogi_com::idl_metadata::InterfaceIdentity {
+        #nc::idl_metadata::InterfaceIdentity {
             iid: #iid,
             abi_signature: #signature,
         }
@@ -47,7 +47,7 @@ pub(super) fn ancestry(graph: &Generation<'_>, module: &ResolvedModule, declarat
             }
         } else {
             seen.insert(value.identity.id, value.identity.abi_signature);
-            chain.push(identity(value.identity));
+            chain.push(identity(&graph.support, value.identity));
             bases.push((value.module, interface.bases.iter()));
         }
         // Resolve only the next visited edge, after the previous subtree ends.

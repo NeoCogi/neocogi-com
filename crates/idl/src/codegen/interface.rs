@@ -53,11 +53,16 @@ pub struct InterfaceExpansion {
 
 /// Lowers both halves once so checked-in built-ins and ordinary IDL stay identical.
 pub fn expand_interface_parts(plan: InterfacePlan) -> Result<InterfaceExpansion> {
-    expand_parts(plan, ProviderDispatch::Owned)
+    expand_interface_parts_with_path(plan, &super::sdk_crate_path(None))
+}
+
+/// Selects the owning provider dispatch and the caller's typed support path.
+pub(crate) fn expand_interface_parts_with_path(plan: InterfacePlan, nc: &syn::Path) -> Result<InterfaceExpansion> {
+    expand_parts(plan, ProviderDispatch::Owned, nc)
 }
 
 /// Built-in format adapters borrow their caller's state without granting ownership.
-pub(crate) fn expand_scoped_interface_parts(plan: InterfacePlan) -> Result<InterfaceExpansion> {
+pub(crate) fn expand_scoped_interface_parts(plan: InterfacePlan, nc: &syn::Path) -> Result<InterfaceExpansion> {
     if matches!(plan.threading, InterfaceThreading::Shared)
         || !plan.bases.is_empty()
         || plan.methods.iter().any(|method| !matches!(method.receiver, AbiReceiver::Mutable))
@@ -67,7 +72,7 @@ pub(crate) fn expand_scoped_interface_parts(plan: InterfacePlan) -> Result<Inter
             "scoped adapters require thread-local root interfaces with mutable methods",
         ));
     }
-    expand_parts(plan, ProviderDispatch::Scoped)
+    expand_parts(plan, ProviderDispatch::Scoped, nc)
 }
 
 /// Storage admission selected independently of the canonical callable contract.
@@ -80,7 +85,7 @@ enum ProviderDispatch {
 }
 
 /// Uses one lowering path for wire checks, metadata and either storage lifetime.
-fn expand_parts(plan: InterfacePlan, dispatch: ProviderDispatch) -> Result<InterfaceExpansion> {
+fn expand_parts(plan: InterfacePlan, dispatch: ProviderDispatch, nc: &syn::Path) -> Result<InterfaceExpansion> {
     let InterfacePlan {
         name,
         visibility: vis,
@@ -92,8 +97,7 @@ fn expand_parts(plan: InterfacePlan, dispatch: ProviderDispatch) -> Result<Inter
         bases: interface_paths,
         mut methods,
     } = plan;
-    let nc: syn::Path = syn::parse_quote!(::neocogi_com);
-    let declarations = methods.iter().map(crate::codegen::method_declaration);
+    let declarations = methods.iter().map(|method| super::method_declaration_with_path(method, nc));
     // The interface minimum belongs to every Rust provider implementation,
     // independently of a constructor's conservative handle mode. Only the
     // original interface_paths below select COM bases, identities and tables.
@@ -156,7 +160,7 @@ fn expand_parts(plan: InterfacePlan, dispatch: ProviderDispatch) -> Result<Inter
         InterfaceThreading::Shared => quote! { #nc::ThreadSafe },
     };
     let qualified_name = syn::LitStr::new(&qualified_name, trait_ident.span());
-    let guid = guid_tokens(id, &nc)?;
+    let guid = guid_tokens(id, nc)?;
     let assigned_signature = syn::LitByteStr::new(&signature, trait_ident.span());
     // Bases already name bound supplying projections. Their first entry is the
     // physical prefix; the remainder require sibling views of the same object.
@@ -242,8 +246,8 @@ fn expand_parts(plan: InterfacePlan, dispatch: ProviderDispatch) -> Result<Inter
             AbiReceiver::Shared => quote! { #nc::NC_ABI_RECEIVER_SHARED },
             AbiReceiver::Mutable => quote! { #nc::NC_ABI_RECEIVER_MUTABLE },
         };
-        let parameters = method.args.iter().map(|argument| method_param_descriptor(&nc, argument));
-        let returns = method_return_descriptor(&nc, method);
+        let parameters = method.args.iter().map(|argument| method_param_descriptor(nc, argument));
+        let returns = method_return_descriptor(nc, method);
         quote! {
             #nc::NcMethodDescriptor {
                 name: #nc::NcStaticUtf8::from_static(#method_name),
@@ -400,7 +404,7 @@ fn expand_parts(plan: InterfacePlan, dispatch: ProviderDispatch) -> Result<Inter
         });
         let owners = method.args.iter().filter(|arg| matches!(arg.kind, AbiArgKind::ComBox { .. })).collect::<Vec<_>>();
         let has_owners = !owners.is_empty();
-        let output_checks = consuming_return_checks(&nc, method);
+        let output_checks = consuming_return_checks(nc, method);
         let output_preflight = output_checks.iter().map(|check| quote! {
             if let ::core::result::Result::Err(#status_local) = #check { return #status_local; }
         });
@@ -604,8 +608,8 @@ fn expand_parts(plan: InterfacePlan, dispatch: ProviderDispatch) -> Result<Inter
         .iter()
         .map(|method| {
             let user_docs = &method.doc_attrs;
-            let generated_docs = safe_method_docs(trait_ident, method);
-            let body = safe_wrapper_method_body(&nc, method, &mut names);
+            let generated_docs = safe_method_docs(trait_ident, method, nc);
+            let body = safe_wrapper_method_body(nc, method, &mut names);
             quote! { #(#user_docs)* #(#generated_docs)* pub #body }
         })
         .collect::<Vec<_>>();

@@ -54,6 +54,7 @@ pub(super) fn generate_scalar(graph: &Generation<'_>, declaration: &Declaration,
     };
     let repr = enum_repr(repr);
     let signature = signature_literal(identity.abi_signature);
+    let nc = &graph.support;
     let plan = ScalarPlan {
         name: rust_ident(&declaration.name)?,
         visibility: syn::parse_quote!(pub),
@@ -61,10 +62,10 @@ pub(super) fn generate_scalar(graph: &Generation<'_>, declaration: &Declaration,
         repr: syn::parse_quote!(#repr),
         members,
         domain,
-        signature: quote! { ::neocogi_com::NcAbiDigest::from_static(#signature) },
+        signature: quote! { #nc::NcAbiDigest::from_static(#signature) },
         persistence: graph.graph.values.definitions[&identity.qualified_name].persistence == crate::Persistence::Supported,
     };
-    format_rust(crate::codegen::emit_scalar(&plan, &syn::parse_quote!(::neocogi_com)))
+    format_rust(crate::codegen::emit_scalar(&plan, nc))
 }
 
 /// Lowers a bound aggregate once into application fields and checked wire cases.
@@ -139,15 +140,15 @@ pub(super) fn generate_aggregate(
         }
         _ => return Err(GenerateError::new("aggregate emission requires a record or payload enum")),
     };
-    let nc = syn::parse_quote!(::neocogi_com);
+    let nc = &graph.support;
     let codec = crate::codegen::emit_value(
         &name,
         &syn::parse_quote!(pub),
         &cases,
-        quote! { ::neocogi_com::NcAbiDigest::from_static(#signature) },
+        quote! { #nc::NcAbiDigest::from_static(#signature) },
         copied,
         copied && matches!(declaration.kind, DeclarationKind::Struct(_)),
-        &nc,
+        nc,
     );
     let derives = if copied {
         quote! { #[derive(::core::clone::Clone, ::core::marker::Copy, ::core::fmt::Debug, ::core::cmp::PartialEq)] }
@@ -158,11 +159,11 @@ pub(super) fn generate_aggregate(
         quote! {
             // SAFETY: the bound IDL declaration supplies nominal identity; the
             // checked self-contained codec supplies the physical wire contract.
-            unsafe impl ::neocogi_com::AbiType for #name {
-                const ABI_TYPE: ::neocogi_com::NcAbiType = ::neocogi_com::NcAbiType::Aggregate(<Self as ::neocogi_com::ComValueType>::VALUE_SIGNATURE);
+            unsafe impl #nc::AbiType for #name {
+                const ABI_TYPE: #nc::NcAbiType = #nc::NcAbiType::Aggregate(<Self as #nc::ComValueType>::VALUE_SIGNATURE);
             }
             // SAFETY: every copied field is self-contained and has no release protocol.
-            unsafe impl ::neocogi_com::AbiPlainValue for #name {}
+            unsafe impl #nc::AbiPlainValue for #name {}
         }
     });
     let persistence = if graph.graph.values.definitions[&identity.qualified_name].persistence == crate::Persistence::Supported {
@@ -170,10 +171,10 @@ pub(super) fn generate_aggregate(
             syn::Data::Struct(record) => crate::codegen::emit_record_decoder(
                 &name,
                 &record.fields,
-                &nc,
+                nc,
                 matches!(&declaration.kind, DeclarationKind::Struct(record) if record.persistence == crate::PersistencePolicy::Default),
             ),
-            syn::Data::Enum(enumeration) => crate::codegen::emit_enum_decoder(&name, enumeration, &nc),
+            syn::Data::Enum(enumeration) => crate::codegen::emit_enum_decoder(&name, enumeration, nc),
             syn::Data::Union(_) => unreachable!("IDL has no native unions"),
         }
         .map_err(|error| GenerateError::new(error.to_string()))?;
@@ -242,7 +243,7 @@ fn attributes(tokens: TokenStream) -> Result<Vec<syn::Attribute>, GenerateError>
 pub(super) fn owned_type(graph: &mut Generation<'_>, module: &ResolvedModule, ty: &IdlType) -> Result<TokenStream, GenerateError> {
     Ok(match ty {
         IdlType::Unit => quote! { () },
-        IdlType::Scalar(name) => scalar(name)?,
+        IdlType::Scalar(name) => scalar(&graph.support, name)?,
         IdlType::String => quote! { self::alloc::string::String },
         IdlType::ComPtr(_) | IdlType::WeakComPtr(_) | IdlType::WeakComBox(_) => owned_object_type(graph, module, ty)?,
         IdlType::Named(name) => named_rust_type(graph, module, resolve(graph, module, name)?, false)?,

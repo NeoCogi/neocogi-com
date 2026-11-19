@@ -42,13 +42,13 @@ fn nominal_metadata_collectors_fit_a_small_stack() {
                 let module = graph.module("proof.metadata").unwrap();
                 let declaration = module.source.declaration("I0").unwrap();
                 let paths = RustModulePaths::default();
-                let generation = Generation::new(&graph, &paths);
+                let generation = Generation::new(&graph, &paths, crate::codegen::sdk_crate_path(None));
                 match case.as_str() {
                     "ancestry" => {
                         let chain = interface_metadata::ancestry(&generation, module, declaration).unwrap();
                         assert_eq!(chain.len(), edges + 1);
                         for (i, entry) in chain.iter().enumerate() {
-                            let expected = interface_metadata::identity(module.declaration(&format!("I{i}")).unwrap());
+                            let expected = interface_metadata::identity(&generation.support, module.declaration(&format!("I{i}")).unwrap());
                             assert_eq!(entry.to_string(), expected.to_string());
                         }
                     }
@@ -138,7 +138,7 @@ fn reachable_values_graphs_fit_a_small_stack() {
             let graph = crate::resolve_modules(vec![crate::parse_module(Path::new("proof/values.ncidl"),&source).unwrap()]).unwrap();
             let module = graph.module("proof.values").unwrap();
             let paths = RustModulePaths::default();
-            let generation = Generation::new(&graph,&paths);
+            let generation = Generation::new(&graph, &paths, crate::codegen::sdk_crate_path(None));
             let root = ResolvedDeclaration {
                 module, declaration: module.source.declaration("Root").unwrap(), identity: module.declaration("Root").unwrap(),
             };

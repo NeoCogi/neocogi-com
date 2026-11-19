@@ -8,7 +8,7 @@ use syn::ext::IdentExt;
 use syn::parse::{Parse, ParseStream};
 use syn::{Ident, ItemFn, Path, Result, Token};
 
-use crate::codegen::util::{PrivateNames, runtime_crate_path};
+use crate::codegen::util::{PrivateNames, sdk_crate_path};
 
 /// Optional explicit paths for renamed facade and host implementation crates.
 #[derive(Default)]
@@ -69,7 +69,7 @@ pub fn expand_com_main(args: MainArgs, input: ItemFn) -> Result<proc_macro2::Tok
             "com_main requires a safe, synchronous, non-generic Rust fn main(runtime: RuntimeHandle)",
         ));
     }
-    let nc = runtime_crate_path(args.facade.as_ref());
+    let nc = sdk_crate_path(args.facade.as_ref());
     let implementation = args.implementation.unwrap_or_else(|| syn::parse_quote!(::neocogi_com_host));
     let mut names = PrivateNames::new(quote! { #input #nc #implementation });
     let runtime = names.binding("__nc_runtime");

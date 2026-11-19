@@ -22,7 +22,7 @@ pub(crate) struct DeriveOptions {
 pub fn expand_derive(input: DeriveInput) -> Result<TokenStream> {
     validate_no_generics(&input.generics, "ComDeserialize derives")?;
     let options = parse_options(&input.attrs)?;
-    let nc: Path = syn::parse_quote!(::neocogi_com);
+    let nc = super::sdk_crate_path(None);
     match &input.data {
         Data::Struct(record) => expand_struct(&input.ident, &record.fields, &nc, options.default),
         Data::Enum(enumeration) if !options.default => expand_enum(&input.ident, enumeration, &nc),

@@ -45,7 +45,8 @@ pub(super) fn object(graph: &mut Generation<'_>, module: &ResolvedModule, target
     let IdlType::Named(name) = target else {
         return Err(GenerateError::new("resolved object target is not named"));
     };
-    if let Some(abi) = builtin_object_type(name) {
+    let nc = &graph.support;
+    if let Some(abi) = builtin_object_type(nc, name) {
         return Ok((rust_type(abi)?, None));
     }
     let resolved = resolve(graph, module, name)?;
@@ -54,23 +55,23 @@ pub(super) fn object(graph: &mut Generation<'_>, module: &ResolvedModule, target
     };
     let mode = match interface.threading {
         Threading::Local => None,
-        Threading::Shared => Some(Box::new(syn::parse_quote!(::neocogi_com::ThreadSafe))),
+        Threading::Shared => Some(Box::new(syn::parse_quote!(#nc::ThreadSafe))),
     };
     Ok((rust_type(named_rust_type(graph, module, resolved, true)?)?, mode))
 }
 
 /// Builds a bounded readable/writable element plan without inspecting Rust wrappers.
-fn buffer(element_ty: syn::Type, output: bool) -> (syn::Type, syn::Type, AbiArgKind) {
+fn buffer(element_ty: syn::Type, output: bool, nc: &syn::Path) -> (syn::Type, syn::Type, AbiArgKind) {
     if output {
         (
-            syn::parse_quote!(::neocogi_com::NcOutputWriter<'_, #element_ty>),
-            syn::parse_quote!(*mut <#element_ty as ::neocogi_com::ComValue>::AbiRepr),
+            syn::parse_quote!(#nc::NcOutputWriter<'_, #element_ty>),
+            syn::parse_quote!(*mut <#element_ty as #nc::ComValue>::AbiRepr),
             AbiArgKind::OutputBuffer { element_ty: Box::new(element_ty) },
         )
     } else {
         (
-            syn::parse_quote!(::neocogi_com::NcCopyFromBufferOffset<'_, #element_ty>),
-            syn::parse_quote!(*const <#element_ty as ::neocogi_com::ComValue>::AbiRepr),
+            syn::parse_quote!(#nc::NcCopyFromBufferOffset<'_, #element_ty>),
+            syn::parse_quote!(*const <#element_ty as #nc::ComValue>::AbiRepr),
             AbiArgKind::CopyFromBufferOffset { element_ty: Box::new(element_ty) },
         )
     }
@@ -81,23 +82,27 @@ fn argument(graph: &mut Generation<'_>, module: &ResolvedModule, parameter: &Par
     let (rust_ty, abi_ty, kind) = match &parameter.ty {
         IdlType::Scalar(_) | IdlType::Named(_) | IdlType::Array { .. } => {
             let ty = rust_type(value_type(graph, module, &parameter.ty)?)?;
-            (ty.clone(), syn::parse_quote!(<#ty as ::neocogi_com::ComValue>::AbiRepr), AbiArgKind::Plain)
+            let nc = &graph.support;
+            (ty.clone(), syn::parse_quote!(<#ty as #nc::ComValue>::AbiRepr), AbiArgKind::Plain)
         }
-        IdlType::Slice(element) => buffer(rust_type(value_type(graph, module, element)?)?, false),
-        IdlType::OutputSlice(element) => buffer(rust_type(value_type(graph, module, element)?)?, true),
+        IdlType::Slice(element) => buffer(rust_type(value_type(graph, module, element)?)?, false, &graph.support),
+        IdlType::OutputSlice(element) => buffer(rust_type(value_type(graph, module, element)?)?, true, &graph.support),
         IdlType::Borrowed(target) => {
             let IdlType::Named(name) = target.as_ref() else {
                 return Err(GenerateError::new("resolved borrow is neither value nor interface"));
             };
             if name.is_str() {
                 // String wire bytes belong to the compiler, not application aliases.
-                buffer(syn::parse_quote!(::core::primitive::u8), false)
-            } else if builtin_object_type(name).is_some() || matches!(resolve(graph, module, name)?.declaration.kind, DeclarationKind::Interface(_)) {
+                buffer(syn::parse_quote!(::core::primitive::u8), false, &graph.support)
+            } else if builtin_object_type(&graph.support, name).is_some()
+                || matches!(resolve(graph, module, name)?.declaration.kind, DeclarationKind::Interface(_))
+            {
                 let (interface, mode_ty) = object(graph, module, target)?;
+                let nc = &graph.support;
                 let mode = mode_ty.as_ref().map(|mode| quote! { , #mode });
                 (
-                    syn::parse2(quote! { ::neocogi_com::ComRef<'_, #interface #mode> }).map_err(syntax_error)?,
-                    syn::parse_quote!(::neocogi_com::ComRaw<#interface>),
+                    syn::parse2(quote! { #nc::ComRef<'_, #interface #mode> }).map_err(syntax_error)?,
+                    syn::parse_quote!(#nc::ComRaw<#interface>),
                     AbiArgKind::ComRef {
                         interface_ty: Box::new(interface),
                         mode_ty,
@@ -105,19 +110,21 @@ fn argument(graph: &mut Generation<'_>, module: &ResolvedModule, parameter: &Par
                 )
             } else {
                 let value_ty = rust_type(named_rust_type(graph, module, resolve(graph, module, name)?, false)?)?;
+                let nc = &graph.support;
                 (
-                    syn::parse_quote!(::neocogi_com::NcValueRef<'_, #value_ty>),
-                    syn::parse_quote!(*const <#value_ty as ::neocogi_com::ComValue>::AbiRepr),
+                    syn::parse_quote!(#nc::NcValueRef<'_, #value_ty>),
+                    syn::parse_quote!(*const <#value_ty as #nc::ComValue>::AbiRepr),
                     AbiArgKind::BorrowedValue { value_ty: Box::new(value_ty) },
                 )
             }
         }
         IdlType::ComBox(target) => {
             let (interface, mode_ty) = object(graph, module, target)?;
+            let nc = &graph.support;
             let mode = mode_ty.as_ref().map(|mode| quote! { , #mode });
             (
-                syn::parse2(quote! { ::neocogi_com::ComBox<#interface #mode> }).map_err(syntax_error)?,
-                syn::parse_quote!(*mut ::neocogi_com::ComRaw<#interface>),
+                syn::parse2(quote! { #nc::ComBox<#interface #mode> }).map_err(syntax_error)?,
+                syn::parse_quote!(*mut #nc::ComRaw<#interface>),
                 AbiArgKind::ComBox {
                     interface_ty: Box::new(interface),
                     mode_ty,
@@ -163,9 +170,10 @@ fn result(graph: &mut Generation<'_>, module: &ResolvedModule, output: &IdlType)
     };
     if let Some((target, ownership)) = ownership {
         let (interface, mode_ty) = object(graph, module, target)?;
+        let nc = &graph.support;
         let abi_ty = match ownership {
-            InterfaceOwnership::WeakShared => syn::parse_quote!(::neocogi_com::NcSharedWeakRaw),
-            _ => syn::parse_quote!(::neocogi_com::ComRaw<#interface>),
+            InterfaceOwnership::WeakShared => syn::parse_quote!(#nc::NcSharedWeakRaw),
+            _ => syn::parse_quote!(#nc::ComRaw<#interface>),
         };
         return Ok(AbiReturn {
             rust_ty: rust_type(owned_object_type(graph, module, output)?)?,
@@ -178,9 +186,10 @@ fn result(graph: &mut Generation<'_>, module: &ResolvedModule, output: &IdlType)
         });
     }
     let ty = rust_type(value_type(graph, module, output)?)?;
+    let nc = &graph.support;
     Ok(AbiReturn {
         rust_ty: ty.clone(),
-        abi_ty: syn::parse_quote!(<#ty as ::neocogi_com::ComValue>::AbiRepr),
+        abi_ty: syn::parse_quote!(<#ty as #nc::ComValue>::AbiRepr),
         kind: AbiReturnKind::Plain,
     })
 }

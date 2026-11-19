@@ -103,18 +103,18 @@ const _: () = {
     {
         /// Table for a standalone projection of this interface.
         pub const VTABLE: IDeserializerVTable = Self::with_identity(
-            &<IDeserializerAbi as ::neocogi_com::ComInterface>::INTERFACE_ID,
+            &<IDeserializerAbi as crate::ComInterface>::INTERFACE_ID,
         );
         /// Builds an inherited prefix advertising the actual outer projection.
         pub const fn with_identity(
-            __nc_identity: &'static ::neocogi_com::NcInterfaceId,
+            __nc_identity: &'static crate::NcInterfaceId,
         ) -> IDeserializerVTable {
             IDeserializerVTable {
-                unknown: ::neocogi_com::IUnknownVTable {
+                unknown: crate::IUnknownVTable {
                     interface_id: __nc_identity,
-                    query_interface: ::neocogi_com::serialization::scope::query,
-                    add_ref: ::neocogi_com::serialization::scope::retain,
-                    release: ::neocogi_com::serialization::scope::release,
+                    query_interface: crate::serialization::scope::query,
+                    add_ref: crate::serialization::scope::retain,
+                    release: crate::serialization::scope::release,
                     downgrade: ::core::option::Option::None,
                 },
                 enter_value: Self::enter_value_thunk,
@@ -158,16 +158,16 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn enter_value_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-        ) -> ::neocogi_com::NcStatus {
+        ) -> crate::NcStatus {
             if __nc_this.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::ScopedComProvider::<
+                crate::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -179,7 +179,7 @@ const _: () = {
             );
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
-                ::core::result::Result::Ok(()) => ::neocogi_com::NC_OK,
+                ::core::result::Result::Ok(()) => crate::NC_OK,
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
         }
@@ -195,16 +195,16 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn leave_value_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-        ) -> ::neocogi_com::NcStatus {
+        ) -> crate::NcStatus {
             if __nc_this.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::ScopedComProvider::<
+                crate::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -216,7 +216,7 @@ const _: () = {
             );
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
-                ::core::result::Result::Ok(()) => ::neocogi_com::NC_OK,
+                ::core::result::Result::Ok(()) => crate::NC_OK,
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
         }
@@ -232,16 +232,16 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn deserialize_unit_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-        ) -> ::neocogi_com::NcStatus {
+        ) -> crate::NcStatus {
             if __nc_this.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::ScopedComProvider::<
+                crate::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -253,7 +253,7 @@ const _: () = {
             );
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
-                ::core::result::Result::Ok(()) => ::neocogi_com::NC_OK,
+                ::core::result::Result::Ok(()) => crate::NC_OK,
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
         }
@@ -269,17 +269,17 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn deserialize_bool_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_out: *mut <::core::primitive::bool as ::neocogi_com::ComValue>::AbiRepr,
-        ) -> ::neocogi_com::NcStatus {
+            __nc_out: *mut <::core::primitive::bool as crate::ComValue>::AbiRepr,
+        ) -> crate::NcStatus {
             if __nc_this.is_null() || __nc_out.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::ScopedComProvider::<
+                crate::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -292,14 +292,14 @@ const _: () = {
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
                 ::core::result::Result::Ok(__nc_value) => {
-                    let __nc_raw = match ::neocogi_com::encode_inline(&__nc_value) {
+                    let __nc_raw = match crate::encode_inline(&__nc_value) {
                         ::core::result::Result::Ok(__nc_raw) => __nc_raw,
                         ::core::result::Result::Err(__nc_status) => return __nc_status,
                     };
                     unsafe {
                         *__nc_out = __nc_raw;
                     }
-                    ::neocogi_com::NC_OK
+                    crate::NC_OK
                 }
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
@@ -316,17 +316,17 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn deserialize_u8_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_out: *mut <::core::primitive::u8 as ::neocogi_com::ComValue>::AbiRepr,
-        ) -> ::neocogi_com::NcStatus {
+            __nc_out: *mut <::core::primitive::u8 as crate::ComValue>::AbiRepr,
+        ) -> crate::NcStatus {
             if __nc_this.is_null() || __nc_out.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::ScopedComProvider::<
+                crate::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -339,14 +339,14 @@ const _: () = {
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
                 ::core::result::Result::Ok(__nc_value) => {
-                    let __nc_raw = match ::neocogi_com::encode_inline(&__nc_value) {
+                    let __nc_raw = match crate::encode_inline(&__nc_value) {
                         ::core::result::Result::Ok(__nc_raw) => __nc_raw,
                         ::core::result::Result::Err(__nc_status) => return __nc_status,
                     };
                     unsafe {
                         *__nc_out = __nc_raw;
                     }
-                    ::neocogi_com::NC_OK
+                    crate::NC_OK
                 }
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
@@ -363,17 +363,17 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn deserialize_u16_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_out: *mut <::core::primitive::u16 as ::neocogi_com::ComValue>::AbiRepr,
-        ) -> ::neocogi_com::NcStatus {
+            __nc_out: *mut <::core::primitive::u16 as crate::ComValue>::AbiRepr,
+        ) -> crate::NcStatus {
             if __nc_this.is_null() || __nc_out.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::ScopedComProvider::<
+                crate::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -386,14 +386,14 @@ const _: () = {
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
                 ::core::result::Result::Ok(__nc_value) => {
-                    let __nc_raw = match ::neocogi_com::encode_inline(&__nc_value) {
+                    let __nc_raw = match crate::encode_inline(&__nc_value) {
                         ::core::result::Result::Ok(__nc_raw) => __nc_raw,
                         ::core::result::Result::Err(__nc_status) => return __nc_status,
                     };
                     unsafe {
                         *__nc_out = __nc_raw;
                     }
-                    ::neocogi_com::NC_OK
+                    crate::NC_OK
                 }
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
@@ -410,17 +410,17 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn deserialize_u32_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
-        ) -> ::neocogi_com::NcStatus {
+            __nc_out: *mut <::core::primitive::u32 as crate::ComValue>::AbiRepr,
+        ) -> crate::NcStatus {
             if __nc_this.is_null() || __nc_out.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::ScopedComProvider::<
+                crate::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -433,14 +433,14 @@ const _: () = {
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
                 ::core::result::Result::Ok(__nc_value) => {
-                    let __nc_raw = match ::neocogi_com::encode_inline(&__nc_value) {
+                    let __nc_raw = match crate::encode_inline(&__nc_value) {
                         ::core::result::Result::Ok(__nc_raw) => __nc_raw,
                         ::core::result::Result::Err(__nc_status) => return __nc_status,
                     };
                     unsafe {
                         *__nc_out = __nc_raw;
                     }
-                    ::neocogi_com::NC_OK
+                    crate::NC_OK
                 }
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
@@ -457,17 +457,17 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn deserialize_u64_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_out: *mut <::core::primitive::u64 as ::neocogi_com::ComValue>::AbiRepr,
-        ) -> ::neocogi_com::NcStatus {
+            __nc_out: *mut <::core::primitive::u64 as crate::ComValue>::AbiRepr,
+        ) -> crate::NcStatus {
             if __nc_this.is_null() || __nc_out.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::ScopedComProvider::<
+                crate::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -480,14 +480,14 @@ const _: () = {
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
                 ::core::result::Result::Ok(__nc_value) => {
-                    let __nc_raw = match ::neocogi_com::encode_inline(&__nc_value) {
+                    let __nc_raw = match crate::encode_inline(&__nc_value) {
                         ::core::result::Result::Ok(__nc_raw) => __nc_raw,
                         ::core::result::Result::Err(__nc_status) => return __nc_status,
                     };
                     unsafe {
                         *__nc_out = __nc_raw;
                     }
-                    ::neocogi_com::NC_OK
+                    crate::NC_OK
                 }
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
@@ -504,17 +504,17 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn deserialize_i8_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_out: *mut <::core::primitive::i8 as ::neocogi_com::ComValue>::AbiRepr,
-        ) -> ::neocogi_com::NcStatus {
+            __nc_out: *mut <::core::primitive::i8 as crate::ComValue>::AbiRepr,
+        ) -> crate::NcStatus {
             if __nc_this.is_null() || __nc_out.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::ScopedComProvider::<
+                crate::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -527,14 +527,14 @@ const _: () = {
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
                 ::core::result::Result::Ok(__nc_value) => {
-                    let __nc_raw = match ::neocogi_com::encode_inline(&__nc_value) {
+                    let __nc_raw = match crate::encode_inline(&__nc_value) {
                         ::core::result::Result::Ok(__nc_raw) => __nc_raw,
                         ::core::result::Result::Err(__nc_status) => return __nc_status,
                     };
                     unsafe {
                         *__nc_out = __nc_raw;
                     }
-                    ::neocogi_com::NC_OK
+                    crate::NC_OK
                 }
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
@@ -551,17 +551,17 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn deserialize_i16_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_out: *mut <::core::primitive::i16 as ::neocogi_com::ComValue>::AbiRepr,
-        ) -> ::neocogi_com::NcStatus {
+            __nc_out: *mut <::core::primitive::i16 as crate::ComValue>::AbiRepr,
+        ) -> crate::NcStatus {
             if __nc_this.is_null() || __nc_out.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::ScopedComProvider::<
+                crate::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -574,14 +574,14 @@ const _: () = {
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
                 ::core::result::Result::Ok(__nc_value) => {
-                    let __nc_raw = match ::neocogi_com::encode_inline(&__nc_value) {
+                    let __nc_raw = match crate::encode_inline(&__nc_value) {
                         ::core::result::Result::Ok(__nc_raw) => __nc_raw,
                         ::core::result::Result::Err(__nc_status) => return __nc_status,
                     };
                     unsafe {
                         *__nc_out = __nc_raw;
                     }
-                    ::neocogi_com::NC_OK
+                    crate::NC_OK
                 }
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
@@ -598,17 +598,17 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn deserialize_i32_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_out: *mut <::core::primitive::i32 as ::neocogi_com::ComValue>::AbiRepr,
-        ) -> ::neocogi_com::NcStatus {
+            __nc_out: *mut <::core::primitive::i32 as crate::ComValue>::AbiRepr,
+        ) -> crate::NcStatus {
             if __nc_this.is_null() || __nc_out.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::ScopedComProvider::<
+                crate::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -621,14 +621,14 @@ const _: () = {
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
                 ::core::result::Result::Ok(__nc_value) => {
-                    let __nc_raw = match ::neocogi_com::encode_inline(&__nc_value) {
+                    let __nc_raw = match crate::encode_inline(&__nc_value) {
                         ::core::result::Result::Ok(__nc_raw) => __nc_raw,
                         ::core::result::Result::Err(__nc_status) => return __nc_status,
                     };
                     unsafe {
                         *__nc_out = __nc_raw;
                     }
-                    ::neocogi_com::NC_OK
+                    crate::NC_OK
                 }
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
@@ -645,17 +645,17 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn deserialize_i64_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_out: *mut <::core::primitive::i64 as ::neocogi_com::ComValue>::AbiRepr,
-        ) -> ::neocogi_com::NcStatus {
+            __nc_out: *mut <::core::primitive::i64 as crate::ComValue>::AbiRepr,
+        ) -> crate::NcStatus {
             if __nc_this.is_null() || __nc_out.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::ScopedComProvider::<
+                crate::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -668,14 +668,14 @@ const _: () = {
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
                 ::core::result::Result::Ok(__nc_value) => {
-                    let __nc_raw = match ::neocogi_com::encode_inline(&__nc_value) {
+                    let __nc_raw = match crate::encode_inline(&__nc_value) {
                         ::core::result::Result::Ok(__nc_raw) => __nc_raw,
                         ::core::result::Result::Err(__nc_status) => return __nc_status,
                     };
                     unsafe {
                         *__nc_out = __nc_raw;
                     }
-                    ::neocogi_com::NC_OK
+                    crate::NC_OK
                 }
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
@@ -692,17 +692,17 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn deserialize_f32_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_out: *mut <::core::primitive::f32 as ::neocogi_com::ComValue>::AbiRepr,
-        ) -> ::neocogi_com::NcStatus {
+            __nc_out: *mut <::core::primitive::f32 as crate::ComValue>::AbiRepr,
+        ) -> crate::NcStatus {
             if __nc_this.is_null() || __nc_out.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::ScopedComProvider::<
+                crate::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -715,14 +715,14 @@ const _: () = {
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
                 ::core::result::Result::Ok(__nc_value) => {
-                    let __nc_raw = match ::neocogi_com::encode_inline(&__nc_value) {
+                    let __nc_raw = match crate::encode_inline(&__nc_value) {
                         ::core::result::Result::Ok(__nc_raw) => __nc_raw,
                         ::core::result::Result::Err(__nc_status) => return __nc_status,
                     };
                     unsafe {
                         *__nc_out = __nc_raw;
                     }
-                    ::neocogi_com::NC_OK
+                    crate::NC_OK
                 }
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
@@ -739,17 +739,17 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn deserialize_f64_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_out: *mut <::core::primitive::f64 as ::neocogi_com::ComValue>::AbiRepr,
-        ) -> ::neocogi_com::NcStatus {
+            __nc_out: *mut <::core::primitive::f64 as crate::ComValue>::AbiRepr,
+        ) -> crate::NcStatus {
             if __nc_this.is_null() || __nc_out.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::ScopedComProvider::<
+                crate::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -762,14 +762,14 @@ const _: () = {
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
                 ::core::result::Result::Ok(__nc_value) => {
-                    let __nc_raw = match ::neocogi_com::encode_inline(&__nc_value) {
+                    let __nc_raw = match crate::encode_inline(&__nc_value) {
                         ::core::result::Result::Ok(__nc_raw) => __nc_raw,
                         ::core::result::Result::Err(__nc_status) => return __nc_status,
                     };
                     unsafe {
                         *__nc_out = __nc_raw;
                     }
-                    ::neocogi_com::NC_OK
+                    crate::NC_OK
                 }
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
@@ -786,17 +786,17 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn string_len_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
-        ) -> ::neocogi_com::NcStatus {
+            __nc_out: *mut <::core::primitive::u32 as crate::ComValue>::AbiRepr,
+        ) -> crate::NcStatus {
             if __nc_this.is_null() || __nc_out.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::ScopedComProvider::<
+                crate::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -809,14 +809,14 @@ const _: () = {
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
                 ::core::result::Result::Ok(__nc_value) => {
-                    let __nc_raw = match ::neocogi_com::encode_inline(&__nc_value) {
+                    let __nc_raw = match crate::encode_inline(&__nc_value) {
                         ::core::result::Result::Ok(__nc_raw) => __nc_raw,
                         ::core::result::Result::Err(__nc_status) => return __nc_status,
                     };
                     unsafe {
                         *__nc_out = __nc_raw;
                     }
-                    ::neocogi_com::NC_OK
+                    crate::NC_OK
                 }
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
@@ -835,29 +835,29 @@ const _: () = {
             __nc_this: *mut ::core::ffi::c_void,
             __nc_arg_0_offset: ::core::primitive::u64,
             __nc_arg_0_len: ::core::primitive::u64,
-            __nc_arg_0_ptr: *mut <::core::primitive::u8 as ::neocogi_com::ComValue>::AbiRepr,
+            __nc_arg_0_ptr: *mut <::core::primitive::u8 as crate::ComValue>::AbiRepr,
             __nc_arg_0_written: *mut ::core::primitive::u64,
-            __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
-        ) -> ::neocogi_com::NcStatus {
+            __nc_out: *mut <::core::primitive::u32 as crate::ComValue>::AbiRepr,
+        ) -> crate::NcStatus {
             if __nc_this.is_null() || __nc_out.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             if __nc_arg_0_written.is_null()
                 || __nc_arg_0_written
                     .align_offset(::core::mem::align_of::<::core::primitive::u64>()) != 0
             {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             unsafe {
                 *__nc_arg_0_written = 0;
             }
             let mut __nc_arg_0_values = 0_u64;
             let __nc_arg_0 = match unsafe {
-                ::neocogi_com::NcOutputWriter::<
+                crate::NcOutputWriter::<
                     ::core::primitive::u8,
                 >::from_raw(
                     __nc_arg_0_offset,
@@ -870,7 +870,7 @@ const _: () = {
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::ScopedComProvider::<
+                crate::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -884,7 +884,7 @@ const _: () = {
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
                 ::core::result::Result::Ok(__nc_value) => {
-                    let __nc_raw = match ::neocogi_com::encode_inline(&__nc_value) {
+                    let __nc_raw = match crate::encode_inline(&__nc_value) {
                         ::core::result::Result::Ok(__nc_raw) => __nc_raw,
                         ::core::result::Result::Err(__nc_status) => return __nc_status,
                     };
@@ -894,7 +894,7 @@ const _: () = {
                     unsafe {
                         *__nc_out = __nc_raw;
                     }
-                    ::neocogi_com::NC_OK
+                    crate::NC_OK
                 }
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
@@ -911,17 +911,17 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn option_present_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_out: *mut <::core::primitive::bool as ::neocogi_com::ComValue>::AbiRepr,
-        ) -> ::neocogi_com::NcStatus {
+            __nc_out: *mut <::core::primitive::bool as crate::ComValue>::AbiRepr,
+        ) -> crate::NcStatus {
             if __nc_this.is_null() || __nc_out.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::ScopedComProvider::<
+                crate::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -934,14 +934,14 @@ const _: () = {
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
                 ::core::result::Result::Ok(__nc_value) => {
-                    let __nc_raw = match ::neocogi_com::encode_inline(&__nc_value) {
+                    let __nc_raw = match crate::encode_inline(&__nc_value) {
                         ::core::result::Result::Ok(__nc_raw) => __nc_raw,
                         ::core::result::Result::Err(__nc_status) => return __nc_status,
                     };
                     unsafe {
                         *__nc_out = __nc_raw;
                     }
-                    ::neocogi_com::NC_OK
+                    crate::NC_OK
                 }
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
@@ -958,24 +958,24 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn begin_record_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_arg_0_0: <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
-            __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
-        ) -> ::neocogi_com::NcStatus {
+            __nc_arg_0_0: <::core::primitive::u32 as crate::ComValue>::AbiRepr,
+            __nc_out: *mut <::core::primitive::u32 as crate::ComValue>::AbiRepr,
+        ) -> crate::NcStatus {
             if __nc_this.is_null() || __nc_out.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_arg_0_0 = match unsafe {
-                ::neocogi_com::decode_inline::<::core::primitive::u32>(&__nc_arg_0_0)
+                crate::decode_inline::<::core::primitive::u32>(&__nc_arg_0_0)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::ScopedComProvider::<
+                crate::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -989,14 +989,14 @@ const _: () = {
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
                 ::core::result::Result::Ok(__nc_value) => {
-                    let __nc_raw = match ::neocogi_com::encode_inline(&__nc_value) {
+                    let __nc_raw = match crate::encode_inline(&__nc_value) {
                         ::core::result::Result::Ok(__nc_raw) => __nc_raw,
                         ::core::result::Result::Err(__nc_status) => return __nc_status,
                     };
                     unsafe {
                         *__nc_out = __nc_raw;
                     }
-                    ::neocogi_com::NC_OK
+                    crate::NC_OK
                 }
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
@@ -1015,30 +1015,30 @@ const _: () = {
             __nc_this: *mut ::core::ffi::c_void,
             __nc_arg_0_1_offset: ::core::primitive::u64,
             __nc_arg_0_1_len: ::core::primitive::u64,
-            __nc_arg_0_1_ptr: *const <::core::primitive::u8 as ::neocogi_com::ComValue>::AbiRepr,
-            __nc_out: *mut <::core::primitive::bool as ::neocogi_com::ComValue>::AbiRepr,
-        ) -> ::neocogi_com::NcStatus {
+            __nc_arg_0_1_ptr: *const <::core::primitive::u8 as crate::ComValue>::AbiRepr,
+            __nc_out: *mut <::core::primitive::bool as crate::ComValue>::AbiRepr,
+        ) -> crate::NcStatus {
             if __nc_this.is_null() || __nc_out.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_arg_0_1_values = match unsafe {
-                ::neocogi_com::DecodedInput::<
+                crate::DecodedInput::<
                     ::core::primitive::u8,
                 >::from_raw(__nc_arg_0_1_ptr, __nc_arg_0_1_len)
             } {
                 ::core::result::Result::Ok(__nc_values) => __nc_values,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
-            let __nc_arg_0_1 = ::neocogi_com::NcCopyFromBufferOffset::new(
+            let __nc_arg_0_1 = crate::NcCopyFromBufferOffset::new(
                 __nc_arg_0_1_offset,
                 __nc_arg_0_1_values.as_slice(),
             );
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::ScopedComProvider::<
+                crate::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -1052,14 +1052,14 @@ const _: () = {
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
                 ::core::result::Result::Ok(__nc_value) => {
-                    let __nc_raw = match ::neocogi_com::encode_inline(&__nc_value) {
+                    let __nc_raw = match crate::encode_inline(&__nc_value) {
                         ::core::result::Result::Ok(__nc_raw) => __nc_raw,
                         ::core::result::Result::Err(__nc_status) => return __nc_status,
                     };
                     unsafe {
                         *__nc_out = __nc_raw;
                     }
-                    ::neocogi_com::NC_OK
+                    crate::NC_OK
                 }
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
@@ -1076,16 +1076,16 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn end_record_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-        ) -> ::neocogi_com::NcStatus {
+        ) -> crate::NcStatus {
             if __nc_this.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::ScopedComProvider::<
+                crate::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -1097,7 +1097,7 @@ const _: () = {
             );
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
-                ::core::result::Result::Ok(()) => ::neocogi_com::NC_OK,
+                ::core::result::Result::Ok(()) => crate::NC_OK,
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
         }
@@ -1113,17 +1113,17 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn begin_sequence_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
-        ) -> ::neocogi_com::NcStatus {
+            __nc_out: *mut <::core::primitive::u32 as crate::ComValue>::AbiRepr,
+        ) -> crate::NcStatus {
             if __nc_this.is_null() || __nc_out.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::ScopedComProvider::<
+                crate::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -1136,14 +1136,14 @@ const _: () = {
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
                 ::core::result::Result::Ok(__nc_value) => {
-                    let __nc_raw = match ::neocogi_com::encode_inline(&__nc_value) {
+                    let __nc_raw = match crate::encode_inline(&__nc_value) {
                         ::core::result::Result::Ok(__nc_raw) => __nc_raw,
                         ::core::result::Result::Err(__nc_status) => return __nc_status,
                     };
                     unsafe {
                         *__nc_out = __nc_raw;
                     }
-                    ::neocogi_com::NC_OK
+                    crate::NC_OK
                 }
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
@@ -1160,16 +1160,16 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn end_sequence_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-        ) -> ::neocogi_com::NcStatus {
+        ) -> crate::NcStatus {
             if __nc_this.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::ScopedComProvider::<
+                crate::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -1181,7 +1181,7 @@ const _: () = {
             );
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
-                ::core::result::Result::Ok(()) => ::neocogi_com::NC_OK,
+                ::core::result::Result::Ok(()) => crate::NC_OK,
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
         }
@@ -1197,17 +1197,17 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn begin_map_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
-        ) -> ::neocogi_com::NcStatus {
+            __nc_out: *mut <::core::primitive::u32 as crate::ComValue>::AbiRepr,
+        ) -> crate::NcStatus {
             if __nc_this.is_null() || __nc_out.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::ScopedComProvider::<
+                crate::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -1220,14 +1220,14 @@ const _: () = {
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
                 ::core::result::Result::Ok(__nc_value) => {
-                    let __nc_raw = match ::neocogi_com::encode_inline(&__nc_value) {
+                    let __nc_raw = match crate::encode_inline(&__nc_value) {
                         ::core::result::Result::Ok(__nc_raw) => __nc_raw,
                         ::core::result::Result::Err(__nc_status) => return __nc_status,
                     };
                     unsafe {
                         *__nc_out = __nc_raw;
                     }
-                    ::neocogi_com::NC_OK
+                    crate::NC_OK
                 }
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
@@ -1244,16 +1244,16 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn end_map_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-        ) -> ::neocogi_com::NcStatus {
+        ) -> crate::NcStatus {
             if __nc_this.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::ScopedComProvider::<
+                crate::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -1265,7 +1265,7 @@ const _: () = {
             );
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
-                ::core::result::Result::Ok(()) => ::neocogi_com::NC_OK,
+                ::core::result::Result::Ok(()) => crate::NC_OK,
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
         }
@@ -1281,39 +1281,39 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn variant_is_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_arg_0_2: <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
+            __nc_arg_0_2: <::core::primitive::u32 as crate::ComValue>::AbiRepr,
             __nc_arg_1_offset: ::core::primitive::u64,
             __nc_arg_1_len: ::core::primitive::u64,
-            __nc_arg_1_ptr: *const <::core::primitive::u8 as ::neocogi_com::ComValue>::AbiRepr,
-            __nc_out: *mut <::core::primitive::bool as ::neocogi_com::ComValue>::AbiRepr,
-        ) -> ::neocogi_com::NcStatus {
+            __nc_arg_1_ptr: *const <::core::primitive::u8 as crate::ComValue>::AbiRepr,
+            __nc_out: *mut <::core::primitive::bool as crate::ComValue>::AbiRepr,
+        ) -> crate::NcStatus {
             if __nc_this.is_null() || __nc_out.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_arg_0_2 = match unsafe {
-                ::neocogi_com::decode_inline::<::core::primitive::u32>(&__nc_arg_0_2)
+                crate::decode_inline::<::core::primitive::u32>(&__nc_arg_0_2)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
             let __nc_arg_1_values = match unsafe {
-                ::neocogi_com::DecodedInput::<
+                crate::DecodedInput::<
                     ::core::primitive::u8,
                 >::from_raw(__nc_arg_1_ptr, __nc_arg_1_len)
             } {
                 ::core::result::Result::Ok(__nc_values) => __nc_values,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
-            let __nc_arg_1 = ::neocogi_com::NcCopyFromBufferOffset::new(
+            let __nc_arg_1 = crate::NcCopyFromBufferOffset::new(
                 __nc_arg_1_offset,
                 __nc_arg_1_values.as_slice(),
             );
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::ScopedComProvider::<
+                crate::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -1328,14 +1328,14 @@ const _: () = {
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
                 ::core::result::Result::Ok(__nc_value) => {
-                    let __nc_raw = match ::neocogi_com::encode_inline(&__nc_value) {
+                    let __nc_raw = match crate::encode_inline(&__nc_value) {
                         ::core::result::Result::Ok(__nc_raw) => __nc_raw,
                         ::core::result::Result::Err(__nc_status) => return __nc_status,
                     };
                     unsafe {
                         *__nc_out = __nc_raw;
                     }
-                    ::neocogi_com::NC_OK
+                    crate::NC_OK
                 }
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
@@ -1354,29 +1354,29 @@ const _: () = {
             __nc_this: *mut ::core::ffi::c_void,
             __nc_arg_0_3_offset: ::core::primitive::u64,
             __nc_arg_0_3_len: ::core::primitive::u64,
-            __nc_arg_0_3_ptr: *const <::core::primitive::u8 as ::neocogi_com::ComValue>::AbiRepr,
-        ) -> ::neocogi_com::NcStatus {
+            __nc_arg_0_3_ptr: *const <::core::primitive::u8 as crate::ComValue>::AbiRepr,
+        ) -> crate::NcStatus {
             if __nc_this.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_arg_0_3_values = match unsafe {
-                ::neocogi_com::DecodedInput::<
+                crate::DecodedInput::<
                     ::core::primitive::u8,
                 >::from_raw(__nc_arg_0_3_ptr, __nc_arg_0_3_len)
             } {
                 ::core::result::Result::Ok(__nc_values) => __nc_values,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
-            let __nc_arg_0_3 = ::neocogi_com::NcCopyFromBufferOffset::new(
+            let __nc_arg_0_3 = crate::NcCopyFromBufferOffset::new(
                 __nc_arg_0_3_offset,
                 __nc_arg_0_3_values.as_slice(),
             );
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::ScopedComProvider::<
+                crate::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -1389,7 +1389,7 @@ const _: () = {
             );
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
-                ::core::result::Result::Ok(()) => ::neocogi_com::NC_OK,
+                ::core::result::Result::Ok(()) => crate::NC_OK,
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
         }
@@ -1405,16 +1405,16 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn finish_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-        ) -> ::neocogi_com::NcStatus {
+        ) -> crate::NcStatus {
             if __nc_this.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::ScopedComProvider::<
+                crate::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -1426,7 +1426,7 @@ const _: () = {
             );
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
-                ::core::result::Result::Ok(()) => ::neocogi_com::NC_OK,
+                ::core::result::Result::Ok(()) => crate::NC_OK,
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
         }
@@ -1594,18 +1594,18 @@ const _: () = {
     {
         /// Table for a standalone projection of this interface.
         pub const VTABLE: ISerializerVTable = Self::with_identity(
-            &<ISerializerAbi as ::neocogi_com::ComInterface>::INTERFACE_ID,
+            &<ISerializerAbi as crate::ComInterface>::INTERFACE_ID,
         );
         /// Builds an inherited prefix advertising the actual outer projection.
         pub const fn with_identity(
-            __nc_identity: &'static ::neocogi_com::NcInterfaceId,
+            __nc_identity: &'static crate::NcInterfaceId,
         ) -> ISerializerVTable {
             ISerializerVTable {
-                unknown: ::neocogi_com::IUnknownVTable {
+                unknown: crate::IUnknownVTable {
                     interface_id: __nc_identity,
-                    query_interface: ::neocogi_com::serialization::scope::query,
-                    add_ref: ::neocogi_com::serialization::scope::retain,
-                    release: ::neocogi_com::serialization::scope::release,
+                    query_interface: crate::serialization::scope::query,
+                    add_ref: crate::serialization::scope::retain,
+                    release: crate::serialization::scope::release,
                     downgrade: ::core::option::Option::None,
                 },
                 serialize_unit: Self::serialize_unit_thunk,
@@ -1648,16 +1648,16 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn serialize_unit_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-        ) -> ::neocogi_com::NcStatus {
+        ) -> crate::NcStatus {
             if __nc_this.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::ScopedComProvider::<
+                crate::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -1669,7 +1669,7 @@ const _: () = {
             );
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
-                ::core::result::Result::Ok(()) => ::neocogi_com::NC_OK,
+                ::core::result::Result::Ok(()) => crate::NC_OK,
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
         }
@@ -1685,23 +1685,23 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn serialize_bool_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_arg_0: <::core::primitive::bool as ::neocogi_com::ComValue>::AbiRepr,
-        ) -> ::neocogi_com::NcStatus {
+            __nc_arg_0: <::core::primitive::bool as crate::ComValue>::AbiRepr,
+        ) -> crate::NcStatus {
             if __nc_this.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_arg_0 = match unsafe {
-                ::neocogi_com::decode_inline::<::core::primitive::bool>(&__nc_arg_0)
+                crate::decode_inline::<::core::primitive::bool>(&__nc_arg_0)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::ScopedComProvider::<
+                crate::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -1714,7 +1714,7 @@ const _: () = {
             );
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
-                ::core::result::Result::Ok(()) => ::neocogi_com::NC_OK,
+                ::core::result::Result::Ok(()) => crate::NC_OK,
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
         }
@@ -1730,23 +1730,23 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn serialize_u8_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_arg_0_0: <::core::primitive::u8 as ::neocogi_com::ComValue>::AbiRepr,
-        ) -> ::neocogi_com::NcStatus {
+            __nc_arg_0_0: <::core::primitive::u8 as crate::ComValue>::AbiRepr,
+        ) -> crate::NcStatus {
             if __nc_this.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_arg_0_0 = match unsafe {
-                ::neocogi_com::decode_inline::<::core::primitive::u8>(&__nc_arg_0_0)
+                crate::decode_inline::<::core::primitive::u8>(&__nc_arg_0_0)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::ScopedComProvider::<
+                crate::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -1759,7 +1759,7 @@ const _: () = {
             );
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
-                ::core::result::Result::Ok(()) => ::neocogi_com::NC_OK,
+                ::core::result::Result::Ok(()) => crate::NC_OK,
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
         }
@@ -1775,23 +1775,23 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn serialize_u16_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_arg_0_1: <::core::primitive::u16 as ::neocogi_com::ComValue>::AbiRepr,
-        ) -> ::neocogi_com::NcStatus {
+            __nc_arg_0_1: <::core::primitive::u16 as crate::ComValue>::AbiRepr,
+        ) -> crate::NcStatus {
             if __nc_this.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_arg_0_1 = match unsafe {
-                ::neocogi_com::decode_inline::<::core::primitive::u16>(&__nc_arg_0_1)
+                crate::decode_inline::<::core::primitive::u16>(&__nc_arg_0_1)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::ScopedComProvider::<
+                crate::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -1804,7 +1804,7 @@ const _: () = {
             );
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
-                ::core::result::Result::Ok(()) => ::neocogi_com::NC_OK,
+                ::core::result::Result::Ok(()) => crate::NC_OK,
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
         }
@@ -1820,23 +1820,23 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn serialize_u32_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_arg_0_2: <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
-        ) -> ::neocogi_com::NcStatus {
+            __nc_arg_0_2: <::core::primitive::u32 as crate::ComValue>::AbiRepr,
+        ) -> crate::NcStatus {
             if __nc_this.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_arg_0_2 = match unsafe {
-                ::neocogi_com::decode_inline::<::core::primitive::u32>(&__nc_arg_0_2)
+                crate::decode_inline::<::core::primitive::u32>(&__nc_arg_0_2)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::ScopedComProvider::<
+                crate::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -1849,7 +1849,7 @@ const _: () = {
             );
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
-                ::core::result::Result::Ok(()) => ::neocogi_com::NC_OK,
+                ::core::result::Result::Ok(()) => crate::NC_OK,
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
         }
@@ -1865,23 +1865,23 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn serialize_u64_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_arg_0_3: <::core::primitive::u64 as ::neocogi_com::ComValue>::AbiRepr,
-        ) -> ::neocogi_com::NcStatus {
+            __nc_arg_0_3: <::core::primitive::u64 as crate::ComValue>::AbiRepr,
+        ) -> crate::NcStatus {
             if __nc_this.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_arg_0_3 = match unsafe {
-                ::neocogi_com::decode_inline::<::core::primitive::u64>(&__nc_arg_0_3)
+                crate::decode_inline::<::core::primitive::u64>(&__nc_arg_0_3)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::ScopedComProvider::<
+                crate::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -1894,7 +1894,7 @@ const _: () = {
             );
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
-                ::core::result::Result::Ok(()) => ::neocogi_com::NC_OK,
+                ::core::result::Result::Ok(()) => crate::NC_OK,
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
         }
@@ -1910,23 +1910,23 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn serialize_i8_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_arg_0_4: <::core::primitive::i8 as ::neocogi_com::ComValue>::AbiRepr,
-        ) -> ::neocogi_com::NcStatus {
+            __nc_arg_0_4: <::core::primitive::i8 as crate::ComValue>::AbiRepr,
+        ) -> crate::NcStatus {
             if __nc_this.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_arg_0_4 = match unsafe {
-                ::neocogi_com::decode_inline::<::core::primitive::i8>(&__nc_arg_0_4)
+                crate::decode_inline::<::core::primitive::i8>(&__nc_arg_0_4)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::ScopedComProvider::<
+                crate::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -1939,7 +1939,7 @@ const _: () = {
             );
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
-                ::core::result::Result::Ok(()) => ::neocogi_com::NC_OK,
+                ::core::result::Result::Ok(()) => crate::NC_OK,
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
         }
@@ -1955,23 +1955,23 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn serialize_i16_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_arg_0_5: <::core::primitive::i16 as ::neocogi_com::ComValue>::AbiRepr,
-        ) -> ::neocogi_com::NcStatus {
+            __nc_arg_0_5: <::core::primitive::i16 as crate::ComValue>::AbiRepr,
+        ) -> crate::NcStatus {
             if __nc_this.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_arg_0_5 = match unsafe {
-                ::neocogi_com::decode_inline::<::core::primitive::i16>(&__nc_arg_0_5)
+                crate::decode_inline::<::core::primitive::i16>(&__nc_arg_0_5)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::ScopedComProvider::<
+                crate::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -1984,7 +1984,7 @@ const _: () = {
             );
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
-                ::core::result::Result::Ok(()) => ::neocogi_com::NC_OK,
+                ::core::result::Result::Ok(()) => crate::NC_OK,
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
         }
@@ -2000,23 +2000,23 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn serialize_i32_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_arg_0_6: <::core::primitive::i32 as ::neocogi_com::ComValue>::AbiRepr,
-        ) -> ::neocogi_com::NcStatus {
+            __nc_arg_0_6: <::core::primitive::i32 as crate::ComValue>::AbiRepr,
+        ) -> crate::NcStatus {
             if __nc_this.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_arg_0_6 = match unsafe {
-                ::neocogi_com::decode_inline::<::core::primitive::i32>(&__nc_arg_0_6)
+                crate::decode_inline::<::core::primitive::i32>(&__nc_arg_0_6)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::ScopedComProvider::<
+                crate::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -2029,7 +2029,7 @@ const _: () = {
             );
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
-                ::core::result::Result::Ok(()) => ::neocogi_com::NC_OK,
+                ::core::result::Result::Ok(()) => crate::NC_OK,
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
         }
@@ -2045,23 +2045,23 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn serialize_i64_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_arg_0_7: <::core::primitive::i64 as ::neocogi_com::ComValue>::AbiRepr,
-        ) -> ::neocogi_com::NcStatus {
+            __nc_arg_0_7: <::core::primitive::i64 as crate::ComValue>::AbiRepr,
+        ) -> crate::NcStatus {
             if __nc_this.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_arg_0_7 = match unsafe {
-                ::neocogi_com::decode_inline::<::core::primitive::i64>(&__nc_arg_0_7)
+                crate::decode_inline::<::core::primitive::i64>(&__nc_arg_0_7)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::ScopedComProvider::<
+                crate::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -2074,7 +2074,7 @@ const _: () = {
             );
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
-                ::core::result::Result::Ok(()) => ::neocogi_com::NC_OK,
+                ::core::result::Result::Ok(()) => crate::NC_OK,
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
         }
@@ -2090,23 +2090,23 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn serialize_f32_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_arg_0_8: <::core::primitive::f32 as ::neocogi_com::ComValue>::AbiRepr,
-        ) -> ::neocogi_com::NcStatus {
+            __nc_arg_0_8: <::core::primitive::f32 as crate::ComValue>::AbiRepr,
+        ) -> crate::NcStatus {
             if __nc_this.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_arg_0_8 = match unsafe {
-                ::neocogi_com::decode_inline::<::core::primitive::f32>(&__nc_arg_0_8)
+                crate::decode_inline::<::core::primitive::f32>(&__nc_arg_0_8)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::ScopedComProvider::<
+                crate::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -2119,7 +2119,7 @@ const _: () = {
             );
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
-                ::core::result::Result::Ok(()) => ::neocogi_com::NC_OK,
+                ::core::result::Result::Ok(()) => crate::NC_OK,
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
         }
@@ -2135,23 +2135,23 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn serialize_f64_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_arg_0_9: <::core::primitive::f64 as ::neocogi_com::ComValue>::AbiRepr,
-        ) -> ::neocogi_com::NcStatus {
+            __nc_arg_0_9: <::core::primitive::f64 as crate::ComValue>::AbiRepr,
+        ) -> crate::NcStatus {
             if __nc_this.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_arg_0_9 = match unsafe {
-                ::neocogi_com::decode_inline::<::core::primitive::f64>(&__nc_arg_0_9)
+                crate::decode_inline::<::core::primitive::f64>(&__nc_arg_0_9)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::ScopedComProvider::<
+                crate::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -2164,7 +2164,7 @@ const _: () = {
             );
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
-                ::core::result::Result::Ok(()) => ::neocogi_com::NC_OK,
+                ::core::result::Result::Ok(()) => crate::NC_OK,
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
         }
@@ -2182,29 +2182,29 @@ const _: () = {
             __nc_this: *mut ::core::ffi::c_void,
             __nc_arg_0_10_offset: ::core::primitive::u64,
             __nc_arg_0_10_len: ::core::primitive::u64,
-            __nc_arg_0_10_ptr: *const <::core::primitive::u8 as ::neocogi_com::ComValue>::AbiRepr,
-        ) -> ::neocogi_com::NcStatus {
+            __nc_arg_0_10_ptr: *const <::core::primitive::u8 as crate::ComValue>::AbiRepr,
+        ) -> crate::NcStatus {
             if __nc_this.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_arg_0_10_values = match unsafe {
-                ::neocogi_com::DecodedInput::<
+                crate::DecodedInput::<
                     ::core::primitive::u8,
                 >::from_raw(__nc_arg_0_10_ptr, __nc_arg_0_10_len)
             } {
                 ::core::result::Result::Ok(__nc_values) => __nc_values,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
-            let __nc_arg_0_10 = ::neocogi_com::NcCopyFromBufferOffset::new(
+            let __nc_arg_0_10 = crate::NcCopyFromBufferOffset::new(
                 __nc_arg_0_10_offset,
                 __nc_arg_0_10_values.as_slice(),
             );
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::ScopedComProvider::<
+                crate::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -2217,7 +2217,7 @@ const _: () = {
             );
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
-                ::core::result::Result::Ok(()) => ::neocogi_com::NC_OK,
+                ::core::result::Result::Ok(()) => crate::NC_OK,
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
         }
@@ -2233,23 +2233,23 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn begin_option_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_arg_0_11: <::core::primitive::bool as ::neocogi_com::ComValue>::AbiRepr,
-        ) -> ::neocogi_com::NcStatus {
+            __nc_arg_0_11: <::core::primitive::bool as crate::ComValue>::AbiRepr,
+        ) -> crate::NcStatus {
             if __nc_this.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_arg_0_11 = match unsafe {
-                ::neocogi_com::decode_inline::<::core::primitive::bool>(&__nc_arg_0_11)
+                crate::decode_inline::<::core::primitive::bool>(&__nc_arg_0_11)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::ScopedComProvider::<
+                crate::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -2262,7 +2262,7 @@ const _: () = {
             );
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
-                ::core::result::Result::Ok(()) => ::neocogi_com::NC_OK,
+                ::core::result::Result::Ok(()) => crate::NC_OK,
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
         }
@@ -2278,16 +2278,16 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn end_option_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-        ) -> ::neocogi_com::NcStatus {
+        ) -> crate::NcStatus {
             if __nc_this.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::ScopedComProvider::<
+                crate::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -2299,7 +2299,7 @@ const _: () = {
             );
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
-                ::core::result::Result::Ok(()) => ::neocogi_com::NC_OK,
+                ::core::result::Result::Ok(()) => crate::NC_OK,
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
         }
@@ -2315,23 +2315,23 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn begin_record_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_arg_0_12: <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
-        ) -> ::neocogi_com::NcStatus {
+            __nc_arg_0_12: <::core::primitive::u32 as crate::ComValue>::AbiRepr,
+        ) -> crate::NcStatus {
             if __nc_this.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_arg_0_12 = match unsafe {
-                ::neocogi_com::decode_inline::<::core::primitive::u32>(&__nc_arg_0_12)
+                crate::decode_inline::<::core::primitive::u32>(&__nc_arg_0_12)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::ScopedComProvider::<
+                crate::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -2344,7 +2344,7 @@ const _: () = {
             );
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
-                ::core::result::Result::Ok(()) => ::neocogi_com::NC_OK,
+                ::core::result::Result::Ok(()) => crate::NC_OK,
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
         }
@@ -2362,29 +2362,29 @@ const _: () = {
             __nc_this: *mut ::core::ffi::c_void,
             __nc_arg_0_13_offset: ::core::primitive::u64,
             __nc_arg_0_13_len: ::core::primitive::u64,
-            __nc_arg_0_13_ptr: *const <::core::primitive::u8 as ::neocogi_com::ComValue>::AbiRepr,
-        ) -> ::neocogi_com::NcStatus {
+            __nc_arg_0_13_ptr: *const <::core::primitive::u8 as crate::ComValue>::AbiRepr,
+        ) -> crate::NcStatus {
             if __nc_this.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_arg_0_13_values = match unsafe {
-                ::neocogi_com::DecodedInput::<
+                crate::DecodedInput::<
                     ::core::primitive::u8,
                 >::from_raw(__nc_arg_0_13_ptr, __nc_arg_0_13_len)
             } {
                 ::core::result::Result::Ok(__nc_values) => __nc_values,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
-            let __nc_arg_0_13 = ::neocogi_com::NcCopyFromBufferOffset::new(
+            let __nc_arg_0_13 = crate::NcCopyFromBufferOffset::new(
                 __nc_arg_0_13_offset,
                 __nc_arg_0_13_values.as_slice(),
             );
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::ScopedComProvider::<
+                crate::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -2397,7 +2397,7 @@ const _: () = {
             );
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
-                ::core::result::Result::Ok(()) => ::neocogi_com::NC_OK,
+                ::core::result::Result::Ok(()) => crate::NC_OK,
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
         }
@@ -2413,16 +2413,16 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn end_record_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-        ) -> ::neocogi_com::NcStatus {
+        ) -> crate::NcStatus {
             if __nc_this.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::ScopedComProvider::<
+                crate::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -2434,7 +2434,7 @@ const _: () = {
             );
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
-                ::core::result::Result::Ok(()) => ::neocogi_com::NC_OK,
+                ::core::result::Result::Ok(()) => crate::NC_OK,
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
         }
@@ -2450,23 +2450,23 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn begin_sequence_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_arg_0_14: <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
-        ) -> ::neocogi_com::NcStatus {
+            __nc_arg_0_14: <::core::primitive::u32 as crate::ComValue>::AbiRepr,
+        ) -> crate::NcStatus {
             if __nc_this.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_arg_0_14 = match unsafe {
-                ::neocogi_com::decode_inline::<::core::primitive::u32>(&__nc_arg_0_14)
+                crate::decode_inline::<::core::primitive::u32>(&__nc_arg_0_14)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::ScopedComProvider::<
+                crate::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -2479,7 +2479,7 @@ const _: () = {
             );
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
-                ::core::result::Result::Ok(()) => ::neocogi_com::NC_OK,
+                ::core::result::Result::Ok(()) => crate::NC_OK,
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
         }
@@ -2495,16 +2495,16 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn end_sequence_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-        ) -> ::neocogi_com::NcStatus {
+        ) -> crate::NcStatus {
             if __nc_this.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::ScopedComProvider::<
+                crate::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -2516,7 +2516,7 @@ const _: () = {
             );
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
-                ::core::result::Result::Ok(()) => ::neocogi_com::NC_OK,
+                ::core::result::Result::Ok(()) => crate::NC_OK,
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
         }
@@ -2532,23 +2532,23 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn begin_map_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_arg_0_15: <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
-        ) -> ::neocogi_com::NcStatus {
+            __nc_arg_0_15: <::core::primitive::u32 as crate::ComValue>::AbiRepr,
+        ) -> crate::NcStatus {
             if __nc_this.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_arg_0_15 = match unsafe {
-                ::neocogi_com::decode_inline::<::core::primitive::u32>(&__nc_arg_0_15)
+                crate::decode_inline::<::core::primitive::u32>(&__nc_arg_0_15)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::ScopedComProvider::<
+                crate::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -2561,7 +2561,7 @@ const _: () = {
             );
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
-                ::core::result::Result::Ok(()) => ::neocogi_com::NC_OK,
+                ::core::result::Result::Ok(()) => crate::NC_OK,
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
         }
@@ -2577,16 +2577,16 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn end_map_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-        ) -> ::neocogi_com::NcStatus {
+        ) -> crate::NcStatus {
             if __nc_this.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::ScopedComProvider::<
+                crate::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -2598,7 +2598,7 @@ const _: () = {
             );
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
-                ::core::result::Result::Ok(()) => ::neocogi_com::NC_OK,
+                ::core::result::Result::Ok(()) => crate::NC_OK,
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
         }
@@ -2614,38 +2614,38 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn begin_variant_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_arg_0_16: <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
+            __nc_arg_0_16: <::core::primitive::u32 as crate::ComValue>::AbiRepr,
             __nc_arg_1_offset: ::core::primitive::u64,
             __nc_arg_1_len: ::core::primitive::u64,
-            __nc_arg_1_ptr: *const <::core::primitive::u8 as ::neocogi_com::ComValue>::AbiRepr,
-        ) -> ::neocogi_com::NcStatus {
+            __nc_arg_1_ptr: *const <::core::primitive::u8 as crate::ComValue>::AbiRepr,
+        ) -> crate::NcStatus {
             if __nc_this.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_arg_0_16 = match unsafe {
-                ::neocogi_com::decode_inline::<::core::primitive::u32>(&__nc_arg_0_16)
+                crate::decode_inline::<::core::primitive::u32>(&__nc_arg_0_16)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
             let __nc_arg_1_values = match unsafe {
-                ::neocogi_com::DecodedInput::<
+                crate::DecodedInput::<
                     ::core::primitive::u8,
                 >::from_raw(__nc_arg_1_ptr, __nc_arg_1_len)
             } {
                 ::core::result::Result::Ok(__nc_values) => __nc_values,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
-            let __nc_arg_1 = ::neocogi_com::NcCopyFromBufferOffset::new(
+            let __nc_arg_1 = crate::NcCopyFromBufferOffset::new(
                 __nc_arg_1_offset,
                 __nc_arg_1_values.as_slice(),
             );
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::ScopedComProvider::<
+                crate::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -2659,7 +2659,7 @@ const _: () = {
             );
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
-                ::core::result::Result::Ok(()) => ::neocogi_com::NC_OK,
+                ::core::result::Result::Ok(()) => crate::NC_OK,
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
         }
@@ -2675,16 +2675,16 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn end_variant_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-        ) -> ::neocogi_com::NcStatus {
+        ) -> crate::NcStatus {
             if __nc_this.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::ScopedComProvider::<
+                crate::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -2696,7 +2696,7 @@ const _: () = {
             );
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
-                ::core::result::Result::Ok(()) => ::neocogi_com::NC_OK,
+                ::core::result::Result::Ok(()) => crate::NC_OK,
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
         }
@@ -2714,29 +2714,29 @@ const _: () = {
             __nc_this: *mut ::core::ffi::c_void,
             __nc_arg_0_17_offset: ::core::primitive::u64,
             __nc_arg_0_17_len: ::core::primitive::u64,
-            __nc_arg_0_17_ptr: *const <::core::primitive::u8 as ::neocogi_com::ComValue>::AbiRepr,
-        ) -> ::neocogi_com::NcStatus {
+            __nc_arg_0_17_ptr: *const <::core::primitive::u8 as crate::ComValue>::AbiRepr,
+        ) -> crate::NcStatus {
             if __nc_this.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_arg_0_17_values = match unsafe {
-                ::neocogi_com::DecodedInput::<
+                crate::DecodedInput::<
                     ::core::primitive::u8,
                 >::from_raw(__nc_arg_0_17_ptr, __nc_arg_0_17_len)
             } {
                 ::core::result::Result::Ok(__nc_values) => __nc_values,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
-            let __nc_arg_0_17 = ::neocogi_com::NcCopyFromBufferOffset::new(
+            let __nc_arg_0_17 = crate::NcCopyFromBufferOffset::new(
                 __nc_arg_0_17_offset,
                 __nc_arg_0_17_values.as_slice(),
             );
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::ScopedComProvider::<
+                crate::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -2749,7 +2749,7 @@ const _: () = {
             );
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
-                ::core::result::Result::Ok(()) => ::neocogi_com::NC_OK,
+                ::core::result::Result::Ok(()) => crate::NC_OK,
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
         }
@@ -2765,16 +2765,16 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn finish_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-        ) -> ::neocogi_com::NcStatus {
+        ) -> crate::NcStatus {
             if __nc_this.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let __nc_dispatch_object = __nc_this;
             if __nc_dispatch_object.is_null() {
-                return ::neocogi_com::NC_E_POINTER;
+                return crate::NC_E_POINTER;
             }
             let mut __nc_dispatch_value = match unsafe {
-                ::neocogi_com::serialization::scope::ScopedComProvider::<
+                crate::serialization::scope::ScopedComProvider::<
                     __NcProvider,
                 >::borrow_mut(__nc_dispatch_object)
             } {
@@ -2786,7 +2786,7 @@ const _: () = {
             );
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
-                ::core::result::Result::Ok(()) => ::neocogi_com::NC_OK,
+                ::core::result::Result::Ok(()) => crate::NC_OK,
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
         }

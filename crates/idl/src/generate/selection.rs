@@ -27,16 +27,16 @@ struct ExternalBinding<'a> {
 impl ExternalBindings<'_> {
     /// Emits anonymous, allocation-free compile-time obligations. All operations
     /// are qualified and no public proof name can collide with authored names.
-    pub(super) fn assertions(&self) -> TokenStream {
+    pub(super) fn assertions(&self, nc: &syn::Path) -> TokenStream {
         let assertions = self.selected.iter().map(|((qualified, path), binding)| {
             let ty = &binding.rust_type;
             let signature = signature_literal(binding.declaration.identity.abi_signature);
             let message = Literal::string(&format!("IDL binding mismatch: {qualified} at {path}"));
             let actual = match binding.declaration.declaration.kind {
                 DeclarationKind::Interface(_) => quote! {
-                    <#ty as ::neocogi_com::ComInterface>::INTERFACE_ID.abi_signature
+                    <#ty as #nc::ComInterface>::INTERFACE_ID.abi_signature
                 },
-                _ => quote! { <#ty as ::neocogi_com::ComValueType>::VALUE_SIGNATURE },
+                _ => quote! { <#ty as #nc::ComValueType>::VALUE_SIGNATURE },
             };
             let iid = matches!(binding.declaration.declaration.kind, DeclarationKind::Interface(_)).then(|| {
                 // A literal array pattern is const-compatible on Rust 1.85;
@@ -44,7 +44,7 @@ impl ExternalBindings<'_> {
                 let bytes = binding.declaration.identity.id.to_uuid_bytes();
                 quote! {
                     ::core::assert!(::core::matches!(
-                        <#ty as ::neocogi_com::ComInterface>::INTERFACE_ID.iid.to_uuid_bytes(),
+                        <#ty as #nc::ComInterface>::INTERFACE_ID.iid.to_uuid_bytes(),
                         [#(#bytes),*]
                     ), #message);
                 }
@@ -52,7 +52,7 @@ impl ExternalBindings<'_> {
             quote! {
                 const _: () = {
                     #iid
-                    ::core::assert!(#actual.__const_eq(::neocogi_com::NcAbiDigest::from_static(#signature)), #message);
+                    ::core::assert!(#actual.__const_eq(#nc::NcAbiDigest::from_static(#signature)), #message);
                 };
             }
         });

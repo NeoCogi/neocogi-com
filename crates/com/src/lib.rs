@@ -106,9 +106,6 @@
 #![deny(missing_docs)]
 #![deny(unsafe_op_in_unsafe_fn)]
 
-#[doc(hidden)]
-extern crate self as neocogi_com;
-
 #[cfg(feature = "alloc")]
 #[doc(hidden)]
 pub extern crate alloc as __alloc;
@@ -169,8 +166,8 @@ pub use local::{LocalBox, WeakLocalBox, LocalCom, WeakLocalCom, LocalRef, LocalR
 pub use neocogi_com_core::__ComSupportsInterfaceThreading;
 #[cfg(feature = "runtime")]
 pub use runtime::{
-    RuntimeDiagnostics, DebugMessenger, NC_COM_RUNTIME_MAX_ENUMERATION_ITEMS, NC_COM_RUNTIME_MAX_ENUMERATION_RETRIES,
-    NC_COM_RUNTIME_MAX_INSPECTION_TEXT_BYTES, FactoryInfo, PluginInfo, PluginOrigin,
+    RuntimeDiagnostics, DebugMessenger, NC_COM_RUNTIME_MAX_ENUMERATION_ITEMS, NC_COM_RUNTIME_MAX_ENUMERATION_RETRIES, NC_COM_RUNTIME_MAX_INSPECTION_TEXT_BYTES,
+    FactoryInfo, PluginInfo, PluginOrigin,
 };
 
 #[doc(hidden)]

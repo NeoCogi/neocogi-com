@@ -83,7 +83,7 @@ pub fn generate_rust_with_paths_and_source_map(
             return Err(GenerateError::new(format!("Rust location names unknown IDL module {name:?}")));
         }
     }
-    crate::syntax::with_syntax_stack(|| generate_module(&mut Generation::new(graph, paths), module_name))
+    crate::syntax::with_syntax_stack(|| generate_module(&mut Generation::new(graph, paths, crate::codegen::sdk_crate_path(None)), module_name))
         .map_err(|error| GenerateError::new(format!("cannot start generated-Rust syntax worker: {error}")))?
 }
 
@@ -95,16 +95,19 @@ struct Generation<'a> {
     graph: &'a ResolvedModules,
     /// Backend-only Rust locations; never part of an ABI fingerprint.
     paths: &'a RustModulePaths,
+    /// Owner of generated support types, independent of authored Rust module routes.
+    support: syn::Path,
     /// Actual selected external declarations, deduplicated for this emission.
     bindings: selection::ExternalBindings<'a>,
 }
 
 impl<'a> Generation<'a> {
     /// Starts one independent emission without reusing another module's checks.
-    fn new(graph: &'a ResolvedModules, paths: &'a RustModulePaths) -> Self {
+    fn new(graph: &'a ResolvedModules, paths: &'a RustModulePaths, support: syn::Path) -> Self {
         Self {
             graph,
             paths,
+            support,
             bindings: Default::default(),
         }
     }
@@ -114,15 +117,16 @@ impl<'a> Generation<'a> {
 /// This explicit bootstrap keeps core independent of its own compiler/backend.
 pub struct BootstrapBindings {
     /// Module constants, provider traits, raw ABI, wrappers and physical metadata.
-    /// Core can resolve the canonical facade path to itself when checking in this half.
+    /// Support paths resolve to the crate that includes this half.
     pub abi: String,
-    /// Concrete-object thunks and provider projection support, owned by the facade.
+    /// Concrete-object thunks and provider projections with SDK-local support paths.
     pub provider: String,
 }
 
 /// Emits built-in interface-only bootstrap halves from the ordinary typed backend.
 /// Source-level IDL metadata is facade-owned and deliberately omitted. Values
 /// and open templates are outside this allocation-free core bootstrap contract.
+/// Each built-in half resolves generated support through its including crate.
 pub fn generate_bootstrap(graph: &ResolvedModules, module_name: &str) -> Result<BootstrapBindings, GenerateError> {
     crate::syntax::with_syntax_stack(|| generate_bootstrap_inner(graph, module_name))
         .map_err(|error| GenerateError::new(format!("cannot start generated-Rust syntax worker: {error}")))?
@@ -131,7 +135,7 @@ pub fn generate_bootstrap(graph: &ResolvedModules, module_name: &str) -> Result<
 /// Keeps bootstrap lowering, formatting and syntax destruction on one worker.
 fn generate_bootstrap_inner(graph: &ResolvedModules, module_name: &str) -> Result<BootstrapBindings, GenerateError> {
     let paths = RustModulePaths::default();
-    let mut generation = Generation::new(graph, &paths);
+    let mut generation = Generation::new(graph, &paths, syn::parse_quote!(crate));
     let module = graph.module(module_name).ok_or_else(|| GenerateError::new("bootstrap module is absent"))?;
     if !module.source.templates.is_empty() {
         return Err(GenerateError::new("bootstrap cannot contain open templates"));
@@ -143,7 +147,7 @@ fn generate_bootstrap_inner(graph: &ResolvedModules, module_name: &str) -> Resul
         abi.push_str(&format_rust(parts.abi)?);
         provider.push_str(&format_rust(parts.provider)?);
     }
-    abi.push_str(&format_rust(generation.bindings.assertions())?);
+    abi.push_str(&format_rust(generation.bindings.assertions(&generation.support))?);
     Ok(BootstrapBindings { abi, provider })
 }
 
@@ -153,15 +157,15 @@ fn generate_bootstrap_inner(graph: &ResolvedModules, module_name: &str) -> Resul
 pub fn generate_scoped_serialization_adapters(graph: &ResolvedModules, module_name: &str) -> Result<String, GenerateError> {
     crate::syntax::with_syntax_stack(|| {
         let paths = RustModulePaths::default();
-        let mut generation = Generation::new(graph, &paths);
+        let mut generation = Generation::new(graph, &paths, syn::parse_quote!(crate));
         let module = graph.module(module_name).ok_or_else(|| GenerateError::new("serialization module is absent"))?;
         let mut output = String::new();
         for declaration in &module.source.declarations {
             if !matches!(declaration.name.as_str(), "ISerializer" | "IDeserializer") {
                 continue;
             }
-            let parts = crate::codegen::expand_scoped_interface_parts(interface_plan(&mut generation, module, declaration)?)
-                .map_err(|error| GenerateError::new(error.to_string()))?;
+            let plan = interface_plan(&mut generation, module, declaration)?;
+            let parts = crate::codegen::expand_scoped_interface_parts(plan, &generation.support).map_err(|error| GenerateError::new(error.to_string()))?;
             output.push_str(&format_rust(parts.provider)?);
         }
         Ok(output)
@@ -196,7 +200,7 @@ fn generate_module(graph: &mut Generation<'_>, module_name: &str) -> Result<crat
     }
     // Checks follow the mapped declarations so their addition cannot move the
     // authored-source ranges. The diagnostic itself names both selected owners.
-    source.push_str(&format_rust(graph.bindings.assertions())?);
+    source.push_str(&format_rust(graph.bindings.assertions(&graph.support))?);
     Ok(crate::GeneratedRust { source, source_map })
 }
 
@@ -218,7 +222,8 @@ fn module_header(graph: &mut Generation<'_>, module: &ResolvedModule) -> Result<
         .flat_map(|definition| &definition.fields)
         .any(needs_value_allocation)
         .then(|| quote! { extern crate alloc; });
-    let module_id = guid_literal(module.module_id);
+    let nc = &graph.support;
+    let module_id = guid_literal(nc, module.module_id);
     let fingerprint = module.abi_fingerprint.iter().copied();
     let module_name = Literal::string(&module.source.name.to_string());
     let tokens = quote! {
@@ -228,7 +233,7 @@ fn module_header(graph: &mut Generation<'_>, module: &ResolvedModule) -> Result<
         #dependency_exports
 
         /// Stable logical identity of this generated contract module.
-        pub const MODULE_ID: ::neocogi_com::NcGuid = #module_id;
+        pub const MODULE_ID: #nc::NcGuid = #module_id;
 
         /// Transitive canonical ABI fingerprint of this generated module.
         pub const ABI_FINGERPRINT: [::core::primitive::u8; 32] = [#(#fingerprint),*];
@@ -247,13 +252,14 @@ fn module_header(graph: &mut Generation<'_>, module: &ResolvedModule) -> Result<
 /// Ordinary emission maps this with the declaration; allocation-free bootstrap
 /// emits ABI/provider halves directly and intentionally omits these descriptions.
 fn generate_declaration_metadata(graph: &Generation<'_>, module: &ResolvedModule, declaration: &Declaration) -> Result<String, GenerateError> {
+    let nc = &graph.support;
     let description = if let DeclarationKind::Interface(_) = &declaration.kind {
         let interface_member = rust_ident(crate::metadata_names::INTERFACE_METADATA_MEMBER)?;
         let abi_name = format!("{}{}", declaration.name, NcComInterfaceCompanion::Abi.suffix());
         let abi = rust_ident(&abi_name)?;
         let declaration_identity = module.declaration(&declaration.name).expect("resolved interface identity");
         let qualified_name = Literal::string(&declaration_identity.qualified_name);
-        let identity = interface_metadata::identity(declaration_identity);
+        let identity = interface_metadata::identity(nc, declaration_identity);
         let chain = interface_metadata::ancestry(graph, module, declaration)?;
         let rust_abi = Literal::string(&public_rust_path(graph, module, &abi_name)?);
         let methods = method_metadata::descriptions(graph, module, declaration)?;
@@ -271,7 +277,7 @@ fn generate_declaration_metadata(graph: &Generation<'_>, module: &ResolvedModule
         quote! {
             impl #abi {
                 /// Callable interface identity, inherited methods and reachable value definitions.
-                pub const #interface_member: ::neocogi_com::idl_metadata::InterfaceMetadata = ::neocogi_com::idl_metadata::InterfaceMetadata {
+                pub const #interface_member: #nc::idl_metadata::InterfaceMetadata = #nc::idl_metadata::InterfaceMetadata {
                     qualified_name: #qualified_name,
                     identity: #identity,
                     chain: &[#(#chain),*],
@@ -288,7 +294,7 @@ fn generate_declaration_metadata(graph: &Generation<'_>, module: &ResolvedModule
         quote! {
             impl #name {
                 /// Source-level declaration shape and public Rust payload name, generated by IDL.
-                pub const #value_member: ::neocogi_com::idl_metadata::TypeMetadata = #descriptor;
+                pub const #value_member: #nc::idl_metadata::TypeMetadata = #descriptor;
             }
         }
     };
@@ -298,13 +304,14 @@ fn generate_declaration_metadata(graph: &Generation<'_>, module: &ResolvedModule
 /// Materializes a resolved definition as data, without requiring a Rust dependency
 /// on the package of a transitively referenced value.
 fn value_metadata(graph: &Generation<'_>, module: &ResolvedModule, declaration: &Declaration) -> Result<TokenStream, GenerateError> {
+    let nc = &graph.support;
     let identity = module.declaration(&declaration.name).expect("resolved declaration");
     let qualified_name = Literal::string(&identity.qualified_name);
     let rust_type = Literal::string(&public_rust_path(graph, module, &declaration.name)?);
     let shape = match &declaration.kind {
         DeclarationKind::Struct(record) => {
             let fields = field_metadata(graph, module, &record.fields)?;
-            quote! { ::neocogi_com::idl_metadata::TypeShape::Struct(&[#(#fields),*]) }
+            quote! { #nc::idl_metadata::TypeShape::Struct(&[#(#fields),*]) }
         }
         DeclarationKind::Enum(enumeration) => {
             let mut variants = Vec::new();
@@ -322,13 +329,13 @@ fn value_metadata(graph: &Generation<'_>, module: &ResolvedModule, declaration: 
                         .map(|(index, ty)| {
                             let field = Literal::string(&index.to_string());
                             let ty = value_type_metadata(graph, module, ty)?;
-                            Ok(quote! { ::neocogi_com::idl_metadata::FieldMetadata { name: #field, ty: #ty } })
+                            Ok(quote! { #nc::idl_metadata::FieldMetadata { name: #field, ty: #ty } })
                         })
                         .collect::<Result<Vec<_>, GenerateError>>()?,
                 };
-                variants.push(quote! { ::neocogi_com::idl_metadata::VariantMetadata { name: #variant_name, tag: #tag, fields: &[#(#fields),*] } });
+                variants.push(quote! { #nc::idl_metadata::VariantMetadata { name: #variant_name, tag: #tag, fields: &[#(#fields),*] } });
             }
-            quote! { ::neocogi_com::idl_metadata::TypeShape::Enum(&[#(#variants),*]) }
+            quote! { #nc::idl_metadata::TypeShape::Enum(&[#(#variants),*]) }
         }
         DeclarationKind::BitEnum(bit_enum) => {
             let flags = bit_enum
@@ -337,14 +344,14 @@ fn value_metadata(graph: &Generation<'_>, module: &ResolvedModule, declaration: 
                 .map(|flag| {
                     let name = Literal::string(&flag.name);
                     let value = flag.value;
-                    quote! { ::neocogi_com::idl_metadata::FlagMetadata { name: #name, value: #value } }
+                    quote! { #nc::idl_metadata::FlagMetadata { name: #name, value: #value } }
                 })
                 .collect::<Vec<_>>();
-            quote! { ::neocogi_com::idl_metadata::TypeShape::BitEnum(&[#(#flags),*]) }
+            quote! { #nc::idl_metadata::TypeShape::BitEnum(&[#(#flags),*]) }
         }
         DeclarationKind::Interface(_) => unreachable!("interfaces are handled separately"),
     };
-    Ok(quote! { ::neocogi_com::idl_metadata::TypeMetadata { qualified_name: #qualified_name, rust_type: #rust_type, shape: #shape } })
+    Ok(quote! { #nc::idl_metadata::TypeMetadata { qualified_name: #qualified_name, rust_type: #rust_type, shape: #shape } })
 }
 
 /// Keeps authoring metadata on the same public Rust import path as generated contracts.
@@ -360,48 +367,49 @@ fn public_rust_path(graph: &Generation<'_>, module: &ResolvedModule, name: &str)
 
 /// Emits structural value metadata from an already bound field type.
 fn value_type_metadata(graph: &Generation<'_>, module: &ResolvedModule, ty: &IdlType) -> Result<TokenStream, GenerateError> {
+    let nc = &graph.support;
     match ty {
-        IdlType::Unit => Ok(quote! { ::neocogi_com::idl_metadata::ValueType::Unit }),
-        IdlType::String => Ok(quote! { ::neocogi_com::idl_metadata::ValueType::Text }),
+        IdlType::Unit => Ok(quote! { #nc::idl_metadata::ValueType::Unit }),
+        IdlType::String => Ok(quote! { #nc::idl_metadata::ValueType::Text }),
         IdlType::Scalar(name) => {
             let name = Literal::string(name);
-            Ok(quote! { ::neocogi_com::idl_metadata::ValueType::Scalar(#name) })
+            Ok(quote! { #nc::idl_metadata::ValueType::Scalar(#name) })
         }
-        IdlType::Named(name) if builtin_object_type(name).is_some() => {
+        IdlType::Named(name) if builtin_object_type(nc, name).is_some() => {
             let name = Literal::string(&name.segments.join("."));
-            Ok(quote! { ::neocogi_com::idl_metadata::ValueType::Object(#name) })
+            Ok(quote! { #nc::idl_metadata::ValueType::Object(#name) })
         }
-        IdlType::Named(name) if name.is_str() => Ok(quote! { ::neocogi_com::idl_metadata::ValueType::Text }),
+        IdlType::Named(name) if name.is_str() => Ok(quote! { #nc::idl_metadata::ValueType::Text }),
         IdlType::Named(name) => {
             let resolved = resolve(graph, module, name)?;
             let qualified = Literal::string(&resolved.identity.qualified_name);
             Ok(match resolved.declaration.kind {
-                DeclarationKind::Interface(_) => quote! { ::neocogi_com::idl_metadata::ValueType::Object(#qualified) },
-                _ => quote! { ::neocogi_com::idl_metadata::ValueType::Named(#qualified) },
+                DeclarationKind::Interface(_) => quote! { #nc::idl_metadata::ValueType::Object(#qualified) },
+                _ => quote! { #nc::idl_metadata::ValueType::Named(#qualified) },
             })
         }
         IdlType::WeakComPtr(value) | IdlType::WeakComBox(value) => {
             let IdlType::Named(name) = value.as_ref() else {
                 return Err(GenerateError::new("weak target is not a contract"));
             };
-            let qualified = match builtin_object_type(name) {
+            let qualified = match builtin_object_type(nc, name) {
                 Some(_) => name.segments.join("."),
                 None => resolve(graph, module, name)?.identity.qualified_name.clone(),
             };
             Ok(match ty {
-                IdlType::WeakComPtr(_) => quote! { ::neocogi_com::idl_metadata::ValueType::WeakObject(#qualified) },
-                _ => quote! { ::neocogi_com::idl_metadata::ValueType::WeakBoxObject(#qualified) },
+                IdlType::WeakComPtr(_) => quote! { #nc::idl_metadata::ValueType::WeakObject(#qualified) },
+                _ => quote! { #nc::idl_metadata::ValueType::WeakBoxObject(#qualified) },
             })
         }
         IdlType::ComPtr(value) | IdlType::ComBox(value) => value_type_metadata(graph, module, value),
         IdlType::Vector(value) => {
             let value = value_type_metadata(graph, module, value)?;
-            Ok(quote! { ::neocogi_com::idl_metadata::ValueType::Sequence(&#value) })
+            Ok(quote! { #nc::idl_metadata::ValueType::Sequence(&#value) })
         }
         IdlType::Array { element, len } => {
             let element = value_type_metadata(graph, module, element)?;
             let len = Literal::u32_unsuffixed(*len);
-            Ok(quote! { ::neocogi_com::idl_metadata::ValueType::Array(&#element, #len) })
+            Ok(quote! { #nc::idl_metadata::ValueType::Array(&#element, #len) })
         }
         IdlType::Borrowed(_) | IdlType::UnsizedSlice(_) | IdlType::Slice(_) | IdlType::OutputSlice(_) => {
             Err(GenerateError::new("call-only type requires explicit method ownership metadata"))
@@ -411,12 +419,13 @@ fn value_type_metadata(graph: &Generation<'_>, module: &ResolvedModule, ty: &Idl
 
 /// Pairs authored field names with their canonical resolved structural types.
 fn field_metadata(graph: &Generation<'_>, module: &ResolvedModule, fields: &[crate::Field]) -> Result<Vec<TokenStream>, GenerateError> {
+    let nc = &graph.support;
     fields
         .iter()
         .map(|field| {
             let name = Literal::string(&field.name);
             let ty = value_type_metadata(graph, module, &field.ty)?;
-            Ok(quote! { ::neocogi_com::idl_metadata::FieldMetadata { name: #name, ty: #ty } })
+            Ok(quote! { #nc::idl_metadata::FieldMetadata { name: #name, ty: #ty } })
         })
         .collect()
 }
@@ -495,7 +504,8 @@ fn interface_parts(
     module: &ResolvedModule,
     declaration: &Declaration,
 ) -> Result<crate::codegen::InterfaceExpansion, GenerateError> {
-    crate::codegen::expand_interface_parts(interface_plan(graph, module, declaration)?).map_err(|error| GenerateError::new(error.to_string()))
+    let plan = interface_plan(graph, module, declaration)?;
+    crate::codegen::expand_interface_parts_with_path(plan, &graph.support).map_err(|error| GenerateError::new(error.to_string()))
 }
 
 /// Builds the authoritative callable plan before selecting provider storage.
@@ -569,7 +579,7 @@ fn snake_case(value: &str) -> String {
 fn value_type(graph: &mut Generation<'_>, module: &ResolvedModule, ty: &IdlType) -> Result<TokenStream, GenerateError> {
     match ty {
         IdlType::Unit => Ok(quote! { () }),
-        IdlType::Scalar(name) => scalar(name),
+        IdlType::Scalar(name) => scalar(&graph.support, name),
         IdlType::Named(name) => {
             let resolved = resolve(graph, module, name)?;
             match resolved.declaration.kind {
@@ -609,9 +619,9 @@ fn rust_ident(value: &str) -> Result<Ident, GenerateError> {
 }
 
 /// Emits a field-wise GUID expression independent of host byte order.
-fn guid_literal(value: neocogi_com_core::NcGuid) -> TokenStream {
+fn guid_literal(nc: &syn::Path, value: neocogi_com_core::NcGuid) -> TokenStream {
     let (data1, data2, data3, data4) = value.fields();
-    quote! { ::neocogi_com::NcGuid::from_fields(#data1, #data2, #data3, [#(#data4),*]) }
+    quote! { #nc::NcGuid::from_fields(#data1, #data2, #data3, [#(#data4),*]) }
 }
 
 /// Emits one complete SHA-256 digest as a fixed Rust byte array.
@@ -633,10 +643,10 @@ fn enum_repr(value: EnumRepr) -> TokenStream {
 
 /// Binds an IDL built-in to its actual owner, never an ambient Rust alias.
 /// Caller-authored native Rust field types do not pass through this selection.
-fn scalar(value: &str) -> Result<TokenStream, GenerateError> {
+fn scalar(nc: &syn::Path, value: &str) -> Result<TokenStream, GenerateError> {
     match value {
-        "Guid" => Ok(quote! { ::neocogi_com::NcGuid }),
-        "Status" => Ok(quote! { ::neocogi_com::NcStatus }),
+        "Guid" => Ok(quote! { #nc::NcGuid }),
+        "Status" => Ok(quote! { #nc::NcStatus }),
         "bool" | "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "f32" | "f64" => {
             let ident = rust_ident(value)?;
             Ok(quote! { ::core::primitive::#ident })
@@ -646,12 +656,12 @@ fn scalar(value: &str) -> Result<TokenStream, GenerateError> {
 }
 
 /// Maps the two explicit core-capability spellings to existing COM interface markers.
-fn builtin_object_type(name: &NamedType) -> Option<TokenStream> {
+fn builtin_object_type(nc: &syn::Path, name: &NamedType) -> Option<TokenStream> {
     use crate::binding::{Binding, Intrinsic};
     match name.binding {
-        Binding::Intrinsic(Intrinsic::Unknown) => Some(quote! { ::neocogi_com::IUnknown }),
-        Binding::Intrinsic(Intrinsic::Bytes) => Some(quote! { ::neocogi_com::INcBytesAbi }),
-        Binding::Intrinsic(Intrinsic::String) => Some(quote! { ::neocogi_com::INcStringAbi }),
+        Binding::Intrinsic(Intrinsic::Unknown) => Some(quote! { #nc::IUnknown }),
+        Binding::Intrinsic(Intrinsic::Bytes) => Some(quote! { #nc::INcBytesAbi }),
+        Binding::Intrinsic(Intrinsic::String) => Some(quote! { #nc::INcStringAbi }),
         _ => None,
     }
 }
@@ -711,8 +721,9 @@ fn owned_object_type(graph: &mut Generation<'_>, module: &ResolvedModule, ty: &I
     };
     let (interface, mode) = lower::object(graph, module, target)?;
     let mode = mode.as_ref().map(|mode| quote! { , #mode });
+    let nc = &graph.support;
     let wrapper = rust_ident(wrapper)?;
-    Ok(quote! { ::neocogi_com::#wrapper<#interface #mode> })
+    Ok(quote! { #nc::#wrapper<#interface #mode> })
 }
 
 #[cfg(all(test, not(miri)))]

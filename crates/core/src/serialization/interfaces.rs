@@ -2,7 +2,7 @@
 // Regenerate: NC_UPDATE_PERSISTENCE_BINDINGS=1 cargo test -p neocogi-idl serialization_bindings_match_idl
 
 /// Stable logical identity of this generated contract module.
-pub const MODULE_ID: ::neocogi_com::NcGuid = ::neocogi_com::NcGuid::from_fields(
+pub const MODULE_ID: crate::NcGuid = crate::NcGuid::from_fields(
     3124728653u32,
     64204u16,
     23363u16,
@@ -21,133 +21,131 @@ pub const MODULE_NAME: &::core::primitive::str = "neocogi.com.serialization";
 pub trait IDeserializer {
     /// Opens one typed value, charging nesting and construction limits.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:60:8` (module `neocogi.com.serialization`).
-    fn enter_value(&mut self) -> ::core::result::Result<(), ::neocogi_com::NcStatus>;
+    fn enter_value(&mut self) -> ::core::result::Result<(), crate::NcStatus>;
     /// Completes the current typed value after its children have been consumed.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:62:8` (module `neocogi.com.serialization`).
-    fn leave_value(&mut self) -> ::core::result::Result<(), ::neocogi_com::NcStatus>;
+    fn leave_value(&mut self) -> ::core::result::Result<(), crate::NcStatus>;
     /// Reads a unit value.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:64:8` (module `neocogi.com.serialization`).
-    fn deserialize_unit(
-        &mut self,
-    ) -> ::core::result::Result<(), ::neocogi_com::NcStatus>;
+    fn deserialize_unit(&mut self) -> ::core::result::Result<(), crate::NcStatus>;
     /// Acquires one validated bool value.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:66:8` (module `neocogi.com.serialization`).
     fn deserialize_bool(
         &mut self,
-    ) -> ::core::result::Result<::core::primitive::bool, ::neocogi_com::NcStatus>;
+    ) -> ::core::result::Result<::core::primitive::bool, crate::NcStatus>;
     /// Acquires one validated u8 value.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:68:8` (module `neocogi.com.serialization`).
     fn deserialize_u8(
         &mut self,
-    ) -> ::core::result::Result<::core::primitive::u8, ::neocogi_com::NcStatus>;
+    ) -> ::core::result::Result<::core::primitive::u8, crate::NcStatus>;
     /// Acquires one validated u16 value.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:70:8` (module `neocogi.com.serialization`).
     fn deserialize_u16(
         &mut self,
-    ) -> ::core::result::Result<::core::primitive::u16, ::neocogi_com::NcStatus>;
+    ) -> ::core::result::Result<::core::primitive::u16, crate::NcStatus>;
     /// Acquires one validated u32 value.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:72:8` (module `neocogi.com.serialization`).
     fn deserialize_u32(
         &mut self,
-    ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus>;
+    ) -> ::core::result::Result<::core::primitive::u32, crate::NcStatus>;
     /// Acquires one validated u64 value.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:74:8` (module `neocogi.com.serialization`).
     fn deserialize_u64(
         &mut self,
-    ) -> ::core::result::Result<::core::primitive::u64, ::neocogi_com::NcStatus>;
+    ) -> ::core::result::Result<::core::primitive::u64, crate::NcStatus>;
     /// Acquires one validated i8 value.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:76:8` (module `neocogi.com.serialization`).
     fn deserialize_i8(
         &mut self,
-    ) -> ::core::result::Result<::core::primitive::i8, ::neocogi_com::NcStatus>;
+    ) -> ::core::result::Result<::core::primitive::i8, crate::NcStatus>;
     /// Acquires one validated i16 value.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:78:8` (module `neocogi.com.serialization`).
     fn deserialize_i16(
         &mut self,
-    ) -> ::core::result::Result<::core::primitive::i16, ::neocogi_com::NcStatus>;
+    ) -> ::core::result::Result<::core::primitive::i16, crate::NcStatus>;
     /// Acquires one validated i32 value.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:80:8` (module `neocogi.com.serialization`).
     fn deserialize_i32(
         &mut self,
-    ) -> ::core::result::Result<::core::primitive::i32, ::neocogi_com::NcStatus>;
+    ) -> ::core::result::Result<::core::primitive::i32, crate::NcStatus>;
     /// Acquires one validated i64 value.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:82:8` (module `neocogi.com.serialization`).
     fn deserialize_i64(
         &mut self,
-    ) -> ::core::result::Result<::core::primitive::i64, ::neocogi_com::NcStatus>;
+    ) -> ::core::result::Result<::core::primitive::i64, crate::NcStatus>;
     /// Acquires one validated f32 value.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:84:8` (module `neocogi.com.serialization`).
     fn deserialize_f32(
         &mut self,
-    ) -> ::core::result::Result<::core::primitive::f32, ::neocogi_com::NcStatus>;
+    ) -> ::core::result::Result<::core::primitive::f32, crate::NcStatus>;
     /// Acquires one validated f64 value.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:86:8` (module `neocogi.com.serialization`).
     fn deserialize_f64(
         &mut self,
-    ) -> ::core::result::Result<::core::primitive::f64, ::neocogi_com::NcStatus>;
+    ) -> ::core::result::Result<::core::primitive::f64, crate::NcStatus>;
     /// Admits a complete UTF-8 string and reports its byte length before allocation.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:88:8` (module `neocogi.com.serialization`).
     fn string_len(
         &mut self,
-    ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus>;
+    ) -> ::core::result::Result<::core::primitive::u32, crate::NcStatus>;
     /// Copies exactly the admitted string into fresh caller-owned output.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:90:8` (module `neocogi.com.serialization`).
     fn copy_string(
         &mut self,
-        output: ::neocogi_com::NcOutputWriter<'_, ::core::primitive::u8>,
-    ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus>;
+        output: crate::NcOutputWriter<'_, ::core::primitive::u8>,
+    ) -> ::core::result::Result<::core::primitive::u32, crate::NcStatus>;
     /// Reads optional presence; a present child follows within this value scope.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:92:8` (module `neocogi.com.serialization`).
     fn option_present(
         &mut self,
-    ) -> ::core::result::Result<::core::primitive::bool, ::neocogi_com::NcStatus>;
+    ) -> ::core::result::Result<::core::primitive::bool, crate::NcStatus>;
     /// Opens a record and rejects more than maximum fields.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:94:8` (module `neocogi.com.serialization`).
     fn begin_record(
         &mut self,
         maximum: ::core::primitive::u32,
-    ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus>;
+    ) -> ::core::result::Result<::core::primitive::u32, crate::NcStatus>;
     /// Selects a named field in schema order; false means genuinely absent.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:96:8` (module `neocogi.com.serialization`).
     fn field(
         &mut self,
-        name: ::neocogi_com::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
-    ) -> ::core::result::Result<::core::primitive::bool, ::neocogi_com::NcStatus>;
+        name: crate::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
+    ) -> ::core::result::Result<::core::primitive::bool, crate::NcStatus>;
     /// Completes the record, rejecting unconsumed or unknown fields.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:98:8` (module `neocogi.com.serialization`).
-    fn end_record(&mut self) -> ::core::result::Result<(), ::neocogi_com::NcStatus>;
+    fn end_record(&mut self) -> ::core::result::Result<(), crate::NcStatus>;
     /// Opens an ordered collection and reports its bounded element count.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:100:8` (module `neocogi.com.serialization`).
     fn begin_sequence(
         &mut self,
-    ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus>;
+    ) -> ::core::result::Result<::core::primitive::u32, crate::NcStatus>;
     /// Completes the collection, rejecting unconsumed elements.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:102:8` (module `neocogi.com.serialization`).
-    fn end_sequence(&mut self) -> ::core::result::Result<(), ::neocogi_com::NcStatus>;
+    fn end_sequence(&mut self) -> ::core::result::Result<(), crate::NcStatus>;
     /// Opens a map and reports its bounded pair count.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:104:8` (module `neocogi.com.serialization`).
     fn begin_map(
         &mut self,
-    ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus>;
+    ) -> ::core::result::Result<::core::primitive::u32, crate::NcStatus>;
     /// Completes the map.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:106:8` (module `neocogi.com.serialization`).
-    fn end_map(&mut self) -> ::core::result::Result<(), ::neocogi_com::NcStatus>;
+    fn end_map(&mut self) -> ::core::result::Result<(), crate::NcStatus>;
     /// Probes cases in declaration order; a match selects the following payload.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:108:8` (module `neocogi.com.serialization`).
     fn variant_is(
         &mut self,
         index: ::core::primitive::u32,
-        name: ::neocogi_com::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
-    ) -> ::core::result::Result<::core::primitive::bool, ::neocogi_com::NcStatus>;
+        name: crate::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
+    ) -> ::core::result::Result<::core::primitive::bool, crate::NcStatus>;
     /// Marks a schema failure; no later operation may succeed.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:110:8` (module `neocogi.com.serialization`).
     fn fail(
         &mut self,
-        message: ::neocogi_com::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
-    ) -> ::core::result::Result<(), ::neocogi_com::NcStatus>;
+        message: crate::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
+    ) -> ::core::result::Result<(), crate::NcStatus>;
     /// Requires a complete root with no trailing input and closes the session.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:112:8` (module `neocogi.com.serialization`).
-    fn finish(&mut self) -> ::core::result::Result<(), ::neocogi_com::NcStatus>;
+    fn finish(&mut self) -> ::core::result::Result<(), crate::NcStatus>;
 }
 ///Interface marker for [`IDeserializer`]; handles carry its object/table pair.
 pub enum IDeserializerAbi {}
@@ -155,7 +153,7 @@ pub enum IDeserializerAbi {}
 ///C-compatible vtable for [`IDeserializer`].
 pub struct IDeserializerVTable {
     /// Common identity, query and reference-count slots.
-    pub unknown: ::neocogi_com::IUnknownVTable,
+    pub unknown: crate::IUnknownVTable,
     /// Opens one typed value, charging nesting and construction limits.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:60:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`IDeserializer::enter_value`].
@@ -173,7 +171,7 @@ pub struct IDeserializerVTable {
     )]
     pub enter_value: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-    ) -> ::neocogi_com::NcStatus,
+    ) -> crate::NcStatus,
     /// Completes the current typed value after its children have been consumed.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:62:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`IDeserializer::leave_value`].
@@ -191,7 +189,7 @@ pub struct IDeserializerVTable {
     )]
     pub leave_value: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-    ) -> ::neocogi_com::NcStatus,
+    ) -> crate::NcStatus,
     /// Reads a unit value.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:64:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`IDeserializer::deserialize_unit`].
@@ -209,7 +207,7 @@ pub struct IDeserializerVTable {
     )]
     pub deserialize_unit: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-    ) -> ::neocogi_com::NcStatus,
+    ) -> crate::NcStatus,
     /// Acquires one validated bool value.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:66:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`IDeserializer::deserialize_bool`].
@@ -220,15 +218,15 @@ pub struct IDeserializerVTable {
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: bool as :: neocogi_com :: ComValue > :: AbiRepr`.
+    ///On success, `out` receives `< :: core :: primitive :: bool as crate :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub deserialize_bool: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_out: *mut <::core::primitive::bool as ::neocogi_com::ComValue>::AbiRepr,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_out: *mut <::core::primitive::bool as crate::ComValue>::AbiRepr,
+    ) -> crate::NcStatus,
     /// Acquires one validated u8 value.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:68:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`IDeserializer::deserialize_u8`].
@@ -239,15 +237,15 @@ pub struct IDeserializerVTable {
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: u8 as :: neocogi_com :: ComValue > :: AbiRepr`.
+    ///On success, `out` receives `< :: core :: primitive :: u8 as crate :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub deserialize_u8: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_out: *mut <::core::primitive::u8 as ::neocogi_com::ComValue>::AbiRepr,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_out: *mut <::core::primitive::u8 as crate::ComValue>::AbiRepr,
+    ) -> crate::NcStatus,
     /// Acquires one validated u16 value.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:70:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`IDeserializer::deserialize_u16`].
@@ -258,15 +256,15 @@ pub struct IDeserializerVTable {
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: u16 as :: neocogi_com :: ComValue > :: AbiRepr`.
+    ///On success, `out` receives `< :: core :: primitive :: u16 as crate :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub deserialize_u16: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_out: *mut <::core::primitive::u16 as ::neocogi_com::ComValue>::AbiRepr,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_out: *mut <::core::primitive::u16 as crate::ComValue>::AbiRepr,
+    ) -> crate::NcStatus,
     /// Acquires one validated u32 value.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:72:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`IDeserializer::deserialize_u32`].
@@ -277,15 +275,15 @@ pub struct IDeserializerVTable {
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: AbiRepr`.
+    ///On success, `out` receives `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub deserialize_u32: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_out: *mut <::core::primitive::u32 as crate::ComValue>::AbiRepr,
+    ) -> crate::NcStatus,
     /// Acquires one validated u64 value.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:74:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`IDeserializer::deserialize_u64`].
@@ -296,15 +294,15 @@ pub struct IDeserializerVTable {
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: u64 as :: neocogi_com :: ComValue > :: AbiRepr`.
+    ///On success, `out` receives `< :: core :: primitive :: u64 as crate :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub deserialize_u64: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_out: *mut <::core::primitive::u64 as ::neocogi_com::ComValue>::AbiRepr,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_out: *mut <::core::primitive::u64 as crate::ComValue>::AbiRepr,
+    ) -> crate::NcStatus,
     /// Acquires one validated i8 value.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:76:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`IDeserializer::deserialize_i8`].
@@ -315,15 +313,15 @@ pub struct IDeserializerVTable {
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: i8 as :: neocogi_com :: ComValue > :: AbiRepr`.
+    ///On success, `out` receives `< :: core :: primitive :: i8 as crate :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub deserialize_i8: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_out: *mut <::core::primitive::i8 as ::neocogi_com::ComValue>::AbiRepr,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_out: *mut <::core::primitive::i8 as crate::ComValue>::AbiRepr,
+    ) -> crate::NcStatus,
     /// Acquires one validated i16 value.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:78:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`IDeserializer::deserialize_i16`].
@@ -334,15 +332,15 @@ pub struct IDeserializerVTable {
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: i16 as :: neocogi_com :: ComValue > :: AbiRepr`.
+    ///On success, `out` receives `< :: core :: primitive :: i16 as crate :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub deserialize_i16: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_out: *mut <::core::primitive::i16 as ::neocogi_com::ComValue>::AbiRepr,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_out: *mut <::core::primitive::i16 as crate::ComValue>::AbiRepr,
+    ) -> crate::NcStatus,
     /// Acquires one validated i32 value.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:80:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`IDeserializer::deserialize_i32`].
@@ -353,15 +351,15 @@ pub struct IDeserializerVTable {
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: i32 as :: neocogi_com :: ComValue > :: AbiRepr`.
+    ///On success, `out` receives `< :: core :: primitive :: i32 as crate :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub deserialize_i32: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_out: *mut <::core::primitive::i32 as ::neocogi_com::ComValue>::AbiRepr,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_out: *mut <::core::primitive::i32 as crate::ComValue>::AbiRepr,
+    ) -> crate::NcStatus,
     /// Acquires one validated i64 value.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:82:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`IDeserializer::deserialize_i64`].
@@ -372,15 +370,15 @@ pub struct IDeserializerVTable {
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: i64 as :: neocogi_com :: ComValue > :: AbiRepr`.
+    ///On success, `out` receives `< :: core :: primitive :: i64 as crate :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub deserialize_i64: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_out: *mut <::core::primitive::i64 as ::neocogi_com::ComValue>::AbiRepr,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_out: *mut <::core::primitive::i64 as crate::ComValue>::AbiRepr,
+    ) -> crate::NcStatus,
     /// Acquires one validated f32 value.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:84:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`IDeserializer::deserialize_f32`].
@@ -391,15 +389,15 @@ pub struct IDeserializerVTable {
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: f32 as :: neocogi_com :: ComValue > :: AbiRepr`.
+    ///On success, `out` receives `< :: core :: primitive :: f32 as crate :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub deserialize_f32: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_out: *mut <::core::primitive::f32 as ::neocogi_com::ComValue>::AbiRepr,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_out: *mut <::core::primitive::f32 as crate::ComValue>::AbiRepr,
+    ) -> crate::NcStatus,
     /// Acquires one validated f64 value.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:86:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`IDeserializer::deserialize_f64`].
@@ -410,15 +408,15 @@ pub struct IDeserializerVTable {
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: f64 as :: neocogi_com :: ComValue > :: AbiRepr`.
+    ///On success, `out` receives `< :: core :: primitive :: f64 as crate :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub deserialize_f64: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_out: *mut <::core::primitive::f64 as ::neocogi_com::ComValue>::AbiRepr,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_out: *mut <::core::primitive::f64 as crate::ComValue>::AbiRepr,
+    ) -> crate::NcStatus,
     /// Admits a complete UTF-8 string and reports its byte length before allocation.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:88:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`IDeserializer::string_len`].
@@ -429,15 +427,15 @@ pub struct IDeserializerVTable {
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: AbiRepr`.
+    ///On success, `out` receives `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub string_len: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_out: *mut <::core::primitive::u32 as crate::ComValue>::AbiRepr,
+    ) -> crate::NcStatus,
     /// Copies exactly the admitted string into fresh caller-owned output.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:90:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`IDeserializer::copy_string`].
@@ -447,9 +445,9 @@ pub struct IDeserializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `output` uses ABI storage `* mut < :: core :: primitive :: u8 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: neocogi_com :: NcOutputWriter < '_ , :: core :: primitive :: u8 >`. The writable buffer pointer is accompanied by `offset: u64`, `capacity: u64`, and a separate `written: *mut u64`. Old contents are not input. Only the successfully reported initialized prefix may be read; count and element storage must not alias.
+    ///- `output` uses ABI storage `* mut < :: core :: primitive :: u8 as crate :: ComValue > :: AbiRepr` for `crate :: NcOutputWriter < '_ , :: core :: primitive :: u8 >`. The writable buffer pointer is accompanied by `offset: u64`, `capacity: u64`, and a separate `written: *mut u64`. Old contents are not input. Only the successfully reported initialized prefix may be read; count and element storage must not alias.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: AbiRepr`.
+    ///On success, `out` receives `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
@@ -458,10 +456,10 @@ pub struct IDeserializerVTable {
         __nc_this: *mut ::core::ffi::c_void,
         __nc_arg_0_offset: ::core::primitive::u64,
         __nc_arg_0_len: ::core::primitive::u64,
-        __nc_arg_0_ptr: *mut <::core::primitive::u8 as ::neocogi_com::ComValue>::AbiRepr,
+        __nc_arg_0_ptr: *mut <::core::primitive::u8 as crate::ComValue>::AbiRepr,
         __nc_arg_0_written: *mut ::core::primitive::u64,
-        __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_out: *mut <::core::primitive::u32 as crate::ComValue>::AbiRepr,
+    ) -> crate::NcStatus,
     /// Reads optional presence; a present child follows within this value scope.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:92:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`IDeserializer::option_present`].
@@ -472,15 +470,15 @@ pub struct IDeserializerVTable {
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: bool as :: neocogi_com :: ComValue > :: AbiRepr`.
+    ///On success, `out` receives `< :: core :: primitive :: bool as crate :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub option_present: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_out: *mut <::core::primitive::bool as ::neocogi_com::ComValue>::AbiRepr,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_out: *mut <::core::primitive::bool as crate::ComValue>::AbiRepr,
+    ) -> crate::NcStatus,
     /// Opens a record and rejects more than maximum fields.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:94:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`IDeserializer::begin_record`].
@@ -490,18 +488,18 @@ pub struct IDeserializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `maximum` uses ABI storage `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
+    ///- `maximum` uses ABI storage `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: AbiRepr`.
+    ///On success, `out` receives `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub begin_record: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_arg_0_0: <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
-        __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_arg_0_0: <::core::primitive::u32 as crate::ComValue>::AbiRepr,
+        __nc_out: *mut <::core::primitive::u32 as crate::ComValue>::AbiRepr,
+    ) -> crate::NcStatus,
     /// Selects a named field in schema order; false means genuinely absent.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:96:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`IDeserializer::field`].
@@ -511,9 +509,9 @@ pub struct IDeserializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `name` uses ABI storage `* const < :: core :: primitive :: u8 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: neocogi_com :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
+    ///- `name` uses ABI storage `* const < :: core :: primitive :: u8 as crate :: ComValue > :: AbiRepr` for `crate :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: bool as :: neocogi_com :: ComValue > :: AbiRepr`.
+    ///On success, `out` receives `< :: core :: primitive :: bool as crate :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
@@ -522,9 +520,9 @@ pub struct IDeserializerVTable {
         __nc_this: *mut ::core::ffi::c_void,
         __nc_arg_0_1_offset: ::core::primitive::u64,
         __nc_arg_0_1_len: ::core::primitive::u64,
-        __nc_arg_0_1_ptr: *const <::core::primitive::u8 as ::neocogi_com::ComValue>::AbiRepr,
-        __nc_out: *mut <::core::primitive::bool as ::neocogi_com::ComValue>::AbiRepr,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_arg_0_1_ptr: *const <::core::primitive::u8 as crate::ComValue>::AbiRepr,
+        __nc_out: *mut <::core::primitive::bool as crate::ComValue>::AbiRepr,
+    ) -> crate::NcStatus,
     /// Completes the record, rejecting unconsumed or unknown fields.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:98:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`IDeserializer::end_record`].
@@ -542,7 +540,7 @@ pub struct IDeserializerVTable {
     )]
     pub end_record: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-    ) -> ::neocogi_com::NcStatus,
+    ) -> crate::NcStatus,
     /// Opens an ordered collection and reports its bounded element count.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:100:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`IDeserializer::begin_sequence`].
@@ -553,15 +551,15 @@ pub struct IDeserializerVTable {
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: AbiRepr`.
+    ///On success, `out` receives `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub begin_sequence: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_out: *mut <::core::primitive::u32 as crate::ComValue>::AbiRepr,
+    ) -> crate::NcStatus,
     /// Completes the collection, rejecting unconsumed elements.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:102:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`IDeserializer::end_sequence`].
@@ -579,7 +577,7 @@ pub struct IDeserializerVTable {
     )]
     pub end_sequence: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-    ) -> ::neocogi_com::NcStatus,
+    ) -> crate::NcStatus,
     /// Opens a map and reports its bounded pair count.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:104:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`IDeserializer::begin_map`].
@@ -590,15 +588,15 @@ pub struct IDeserializerVTable {
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: AbiRepr`.
+    ///On success, `out` receives `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub begin_map: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_out: *mut <::core::primitive::u32 as crate::ComValue>::AbiRepr,
+    ) -> crate::NcStatus,
     /// Completes the map.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:106:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`IDeserializer::end_map`].
@@ -616,7 +614,7 @@ pub struct IDeserializerVTable {
     )]
     pub end_map: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-    ) -> ::neocogi_com::NcStatus,
+    ) -> crate::NcStatus,
     /// Probes cases in declaration order; a match selects the following payload.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:108:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`IDeserializer::variant_is`].
@@ -626,22 +624,22 @@ pub struct IDeserializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `index` uses ABI storage `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
-    ///- `name` uses ABI storage `* const < :: core :: primitive :: u8 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: neocogi_com :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
+    ///- `index` uses ABI storage `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
+    ///- `name` uses ABI storage `* const < :: core :: primitive :: u8 as crate :: ComValue > :: AbiRepr` for `crate :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: bool as :: neocogi_com :: ComValue > :: AbiRepr`.
+    ///On success, `out` receives `< :: core :: primitive :: bool as crate :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub variant_is: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_arg_0_2: <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
+        __nc_arg_0_2: <::core::primitive::u32 as crate::ComValue>::AbiRepr,
         __nc_arg_1_offset: ::core::primitive::u64,
         __nc_arg_1_len: ::core::primitive::u64,
-        __nc_arg_1_ptr: *const <::core::primitive::u8 as ::neocogi_com::ComValue>::AbiRepr,
-        __nc_out: *mut <::core::primitive::bool as ::neocogi_com::ComValue>::AbiRepr,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_arg_1_ptr: *const <::core::primitive::u8 as crate::ComValue>::AbiRepr,
+        __nc_out: *mut <::core::primitive::bool as crate::ComValue>::AbiRepr,
+    ) -> crate::NcStatus,
     /// Marks a schema failure; no later operation may succeed.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:110:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`IDeserializer::fail`].
@@ -651,7 +649,7 @@ pub struct IDeserializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `message` uses ABI storage `* const < :: core :: primitive :: u8 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: neocogi_com :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
+    ///- `message` uses ABI storage `* const < :: core :: primitive :: u8 as crate :: ComValue > :: AbiRepr` for `crate :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -662,8 +660,8 @@ pub struct IDeserializerVTable {
         __nc_this: *mut ::core::ffi::c_void,
         __nc_arg_0_3_offset: ::core::primitive::u64,
         __nc_arg_0_3_len: ::core::primitive::u64,
-        __nc_arg_0_3_ptr: *const <::core::primitive::u8 as ::neocogi_com::ComValue>::AbiRepr,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_arg_0_3_ptr: *const <::core::primitive::u8 as crate::ComValue>::AbiRepr,
+    ) -> crate::NcStatus,
     /// Requires a complete root with no trailing input and closes the session.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:112:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`IDeserializer::finish`].
@@ -681,17 +679,17 @@ pub struct IDeserializerVTable {
     )]
     pub finish: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-    ) -> ::neocogi_com::NcStatus,
+    ) -> crate::NcStatus,
 }
-unsafe impl ::neocogi_com::ComInterface for IDeserializerAbi {
-    const IID: ::neocogi_com::NcGuid = ::neocogi_com::NcGuid {
+unsafe impl crate::ComInterface for IDeserializerAbi {
+    const IID: crate::NcGuid = crate::NcGuid {
         data1: 974314803u32,
         data2: 29229u16,
         data3: 22088u16,
         data4: [191u8, 77u8, 115u8, 178u8, 221u8, 193u8, 18u8, 230u8],
     };
-    const INTERFACE_ID: ::neocogi_com::NcInterfaceId = ::neocogi_com::NcInterfaceId::new(
-        ::neocogi_com::NcGuid {
+    const INTERFACE_ID: crate::NcInterfaceId = crate::NcInterfaceId::new(
+        crate::NcGuid {
             data1: 974314803u32,
             data2: 29229u16,
             data3: 22088u16,
@@ -700,30 +698,30 @@ unsafe impl ::neocogi_com::ComInterface for IDeserializerAbi {
         IDeserializerAbi::ABI_SIGNATURE,
     );
     type VTable = IDeserializerVTable;
-    type Threading = ::neocogi_com::ThreadLocal;
+    type Threading = crate::ThreadLocal;
 }
 #[repr(transparent)]
 ///Borrowed Rust method wrapper for [`IDeserializer`].
 pub struct IDeserializerWrapper<
-    __NcThreading: ::neocogi_com::ThreadingModel = ::neocogi_com::ThreadLocal,
+    __NcThreading: crate::ThreadingModel = crate::ThreadLocal,
 > {
     /// Opaque pointer borrowed from retained interface/control storage; provider entry admits value access.
-    __nc_pointer: ::neocogi_com::ComInterfacePointer<IDeserializerAbi, __NcThreading>,
+    __nc_pointer: crate::ComInterfacePointer<IDeserializerAbi, __NcThreading>,
 }
-unsafe impl ::neocogi_com::ComRustInterface for IDeserializerAbi {
-    type Wrapper<__NcThreading: ::neocogi_com::ThreadingModel> = IDeserializerWrapper<
+unsafe impl crate::ComRustInterface for IDeserializerAbi {
+    type Wrapper<__NcThreading: crate::ThreadingModel> = IDeserializerWrapper<
         __NcThreading,
     >;
-    fn __nc_wrapper_ref<__NcThreading: ::neocogi_com::ThreadingModel>(
-        pointer: &::neocogi_com::ComInterfacePointer<Self, __NcThreading>,
+    fn __nc_wrapper_ref<__NcThreading: crate::ThreadingModel>(
+        pointer: &crate::ComInterfacePointer<Self, __NcThreading>,
     ) -> &Self::Wrapper<__NcThreading> {
         unsafe {
             &*(::core::ptr::from_ref(pointer)
                 as *const IDeserializerWrapper<__NcThreading>)
         }
     }
-    fn __nc_wrapper_mut<__NcThreading: ::neocogi_com::ThreadingModel>(
-        pointer: &mut ::neocogi_com::ComInterfacePointer<Self, __NcThreading>,
+    fn __nc_wrapper_mut<__NcThreading: crate::ThreadingModel>(
+        pointer: &mut crate::ComInterfacePointer<Self, __NcThreading>,
     ) -> &mut Self::Wrapper<__NcThreading> {
         unsafe {
             &mut *(::core::ptr::from_mut(pointer)
@@ -820,9 +818,7 @@ const _: () = {
         identity as __nc_status_26, identity as __nc_result_26,
         identity as __nc_prepared_25, identity as __nc_out_26,
     };
-    impl<
-        __NcThreading: ::neocogi_com::ThreadingModel,
-    > IDeserializerWrapper<__NcThreading> {
+    impl<__NcThreading: crate::ThreadingModel> IDeserializerWrapper<__NcThreading> {
         /// Opens one typed value, charging nesting and construction limits.
         /// IDL source: `neocogi/com/serialization/formats.ncidl:60:8` (module `neocogi.com.serialization`).
         ///
@@ -832,9 +828,7 @@ const _: () = {
         ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
         ///
         ///On success, returns `()`.
-        pub fn enter_value(
-            &mut self,
-        ) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
+        pub fn enter_value(&mut self) -> ::core::result::Result<(), crate::NcStatus> {
             let __nc_this_0 = self.__nc_pointer.as_raw();
             let __nc_status_0 = unsafe {
                 ((*__nc_this_0.vtable).enter_value)(__nc_this_0.object)
@@ -854,9 +848,7 @@ const _: () = {
         ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
         ///
         ///On success, returns `()`.
-        pub fn leave_value(
-            &mut self,
-        ) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
+        pub fn leave_value(&mut self) -> ::core::result::Result<(), crate::NcStatus> {
             let __nc_this_1 = self.__nc_pointer.as_raw();
             let __nc_status_1 = unsafe {
                 ((*__nc_this_1.vtable).leave_value)(__nc_this_1.object)
@@ -878,7 +870,7 @@ const _: () = {
         ///On success, returns `()`.
         pub fn deserialize_unit(
             &mut self,
-        ) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
+        ) -> ::core::result::Result<(), crate::NcStatus> {
             let __nc_this_2 = self.__nc_pointer.as_raw();
             let __nc_status_2 = unsafe {
                 ((*__nc_this_2.vtable).deserialize_unit)(__nc_this_2.object)
@@ -900,9 +892,9 @@ const _: () = {
         ///On success, returns `:: core :: primitive :: bool` from the ABI out slot.
         pub fn deserialize_bool(
             &mut self,
-        ) -> ::core::result::Result<::core::primitive::bool, ::neocogi_com::NcStatus> {
+        ) -> ::core::result::Result<::core::primitive::bool, crate::NcStatus> {
             let mut __nc_out_3 = ::core::mem::MaybeUninit::<
-                <::core::primitive::bool as ::neocogi_com::ComValue>::AbiRepr,
+                <::core::primitive::bool as crate::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_3 = self.__nc_pointer.as_raw();
             let __nc_status_3 = unsafe {
@@ -913,7 +905,7 @@ const _: () = {
                 return ::core::result::Result::Err(__nc_status_3);
             }
             let __nc_result_3 = (unsafe {
-                ::neocogi_com::decode_inline::<
+                crate::decode_inline::<
                     ::core::primitive::bool,
                 >(__nc_out_3.assume_init_ref())
             })?;
@@ -930,9 +922,9 @@ const _: () = {
         ///On success, returns `:: core :: primitive :: u8` from the ABI out slot.
         pub fn deserialize_u8(
             &mut self,
-        ) -> ::core::result::Result<::core::primitive::u8, ::neocogi_com::NcStatus> {
+        ) -> ::core::result::Result<::core::primitive::u8, crate::NcStatus> {
             let mut __nc_out_4 = ::core::mem::MaybeUninit::<
-                <::core::primitive::u8 as ::neocogi_com::ComValue>::AbiRepr,
+                <::core::primitive::u8 as crate::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_4 = self.__nc_pointer.as_raw();
             let __nc_status_4 = unsafe {
@@ -943,7 +935,7 @@ const _: () = {
                 return ::core::result::Result::Err(__nc_status_4);
             }
             let __nc_result_4 = (unsafe {
-                ::neocogi_com::decode_inline::<
+                crate::decode_inline::<
                     ::core::primitive::u8,
                 >(__nc_out_4.assume_init_ref())
             })?;
@@ -960,9 +952,9 @@ const _: () = {
         ///On success, returns `:: core :: primitive :: u16` from the ABI out slot.
         pub fn deserialize_u16(
             &mut self,
-        ) -> ::core::result::Result<::core::primitive::u16, ::neocogi_com::NcStatus> {
+        ) -> ::core::result::Result<::core::primitive::u16, crate::NcStatus> {
             let mut __nc_out_5 = ::core::mem::MaybeUninit::<
-                <::core::primitive::u16 as ::neocogi_com::ComValue>::AbiRepr,
+                <::core::primitive::u16 as crate::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_5 = self.__nc_pointer.as_raw();
             let __nc_status_5 = unsafe {
@@ -973,7 +965,7 @@ const _: () = {
                 return ::core::result::Result::Err(__nc_status_5);
             }
             let __nc_result_5 = (unsafe {
-                ::neocogi_com::decode_inline::<
+                crate::decode_inline::<
                     ::core::primitive::u16,
                 >(__nc_out_5.assume_init_ref())
             })?;
@@ -990,9 +982,9 @@ const _: () = {
         ///On success, returns `:: core :: primitive :: u32` from the ABI out slot.
         pub fn deserialize_u32(
             &mut self,
-        ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus> {
+        ) -> ::core::result::Result<::core::primitive::u32, crate::NcStatus> {
             let mut __nc_out_6 = ::core::mem::MaybeUninit::<
-                <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
+                <::core::primitive::u32 as crate::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_6 = self.__nc_pointer.as_raw();
             let __nc_status_6 = unsafe {
@@ -1003,7 +995,7 @@ const _: () = {
                 return ::core::result::Result::Err(__nc_status_6);
             }
             let __nc_result_6 = (unsafe {
-                ::neocogi_com::decode_inline::<
+                crate::decode_inline::<
                     ::core::primitive::u32,
                 >(__nc_out_6.assume_init_ref())
             })?;
@@ -1020,9 +1012,9 @@ const _: () = {
         ///On success, returns `:: core :: primitive :: u64` from the ABI out slot.
         pub fn deserialize_u64(
             &mut self,
-        ) -> ::core::result::Result<::core::primitive::u64, ::neocogi_com::NcStatus> {
+        ) -> ::core::result::Result<::core::primitive::u64, crate::NcStatus> {
             let mut __nc_out_7 = ::core::mem::MaybeUninit::<
-                <::core::primitive::u64 as ::neocogi_com::ComValue>::AbiRepr,
+                <::core::primitive::u64 as crate::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_7 = self.__nc_pointer.as_raw();
             let __nc_status_7 = unsafe {
@@ -1033,7 +1025,7 @@ const _: () = {
                 return ::core::result::Result::Err(__nc_status_7);
             }
             let __nc_result_7 = (unsafe {
-                ::neocogi_com::decode_inline::<
+                crate::decode_inline::<
                     ::core::primitive::u64,
                 >(__nc_out_7.assume_init_ref())
             })?;
@@ -1050,9 +1042,9 @@ const _: () = {
         ///On success, returns `:: core :: primitive :: i8` from the ABI out slot.
         pub fn deserialize_i8(
             &mut self,
-        ) -> ::core::result::Result<::core::primitive::i8, ::neocogi_com::NcStatus> {
+        ) -> ::core::result::Result<::core::primitive::i8, crate::NcStatus> {
             let mut __nc_out_8 = ::core::mem::MaybeUninit::<
-                <::core::primitive::i8 as ::neocogi_com::ComValue>::AbiRepr,
+                <::core::primitive::i8 as crate::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_8 = self.__nc_pointer.as_raw();
             let __nc_status_8 = unsafe {
@@ -1063,7 +1055,7 @@ const _: () = {
                 return ::core::result::Result::Err(__nc_status_8);
             }
             let __nc_result_8 = (unsafe {
-                ::neocogi_com::decode_inline::<
+                crate::decode_inline::<
                     ::core::primitive::i8,
                 >(__nc_out_8.assume_init_ref())
             })?;
@@ -1080,9 +1072,9 @@ const _: () = {
         ///On success, returns `:: core :: primitive :: i16` from the ABI out slot.
         pub fn deserialize_i16(
             &mut self,
-        ) -> ::core::result::Result<::core::primitive::i16, ::neocogi_com::NcStatus> {
+        ) -> ::core::result::Result<::core::primitive::i16, crate::NcStatus> {
             let mut __nc_out_9 = ::core::mem::MaybeUninit::<
-                <::core::primitive::i16 as ::neocogi_com::ComValue>::AbiRepr,
+                <::core::primitive::i16 as crate::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_9 = self.__nc_pointer.as_raw();
             let __nc_status_9 = unsafe {
@@ -1093,7 +1085,7 @@ const _: () = {
                 return ::core::result::Result::Err(__nc_status_9);
             }
             let __nc_result_9 = (unsafe {
-                ::neocogi_com::decode_inline::<
+                crate::decode_inline::<
                     ::core::primitive::i16,
                 >(__nc_out_9.assume_init_ref())
             })?;
@@ -1110,9 +1102,9 @@ const _: () = {
         ///On success, returns `:: core :: primitive :: i32` from the ABI out slot.
         pub fn deserialize_i32(
             &mut self,
-        ) -> ::core::result::Result<::core::primitive::i32, ::neocogi_com::NcStatus> {
+        ) -> ::core::result::Result<::core::primitive::i32, crate::NcStatus> {
             let mut __nc_out_10 = ::core::mem::MaybeUninit::<
-                <::core::primitive::i32 as ::neocogi_com::ComValue>::AbiRepr,
+                <::core::primitive::i32 as crate::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_10 = self.__nc_pointer.as_raw();
             let __nc_status_10 = unsafe {
@@ -1123,7 +1115,7 @@ const _: () = {
                 return ::core::result::Result::Err(__nc_status_10);
             }
             let __nc_result_10 = (unsafe {
-                ::neocogi_com::decode_inline::<
+                crate::decode_inline::<
                     ::core::primitive::i32,
                 >(__nc_out_10.assume_init_ref())
             })?;
@@ -1140,9 +1132,9 @@ const _: () = {
         ///On success, returns `:: core :: primitive :: i64` from the ABI out slot.
         pub fn deserialize_i64(
             &mut self,
-        ) -> ::core::result::Result<::core::primitive::i64, ::neocogi_com::NcStatus> {
+        ) -> ::core::result::Result<::core::primitive::i64, crate::NcStatus> {
             let mut __nc_out_11 = ::core::mem::MaybeUninit::<
-                <::core::primitive::i64 as ::neocogi_com::ComValue>::AbiRepr,
+                <::core::primitive::i64 as crate::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_11 = self.__nc_pointer.as_raw();
             let __nc_status_11 = unsafe {
@@ -1153,7 +1145,7 @@ const _: () = {
                 return ::core::result::Result::Err(__nc_status_11);
             }
             let __nc_result_11 = (unsafe {
-                ::neocogi_com::decode_inline::<
+                crate::decode_inline::<
                     ::core::primitive::i64,
                 >(__nc_out_11.assume_init_ref())
             })?;
@@ -1170,9 +1162,9 @@ const _: () = {
         ///On success, returns `:: core :: primitive :: f32` from the ABI out slot.
         pub fn deserialize_f32(
             &mut self,
-        ) -> ::core::result::Result<::core::primitive::f32, ::neocogi_com::NcStatus> {
+        ) -> ::core::result::Result<::core::primitive::f32, crate::NcStatus> {
             let mut __nc_out_12 = ::core::mem::MaybeUninit::<
-                <::core::primitive::f32 as ::neocogi_com::ComValue>::AbiRepr,
+                <::core::primitive::f32 as crate::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_12 = self.__nc_pointer.as_raw();
             let __nc_status_12 = unsafe {
@@ -1183,7 +1175,7 @@ const _: () = {
                 return ::core::result::Result::Err(__nc_status_12);
             }
             let __nc_result_12 = (unsafe {
-                ::neocogi_com::decode_inline::<
+                crate::decode_inline::<
                     ::core::primitive::f32,
                 >(__nc_out_12.assume_init_ref())
             })?;
@@ -1200,9 +1192,9 @@ const _: () = {
         ///On success, returns `:: core :: primitive :: f64` from the ABI out slot.
         pub fn deserialize_f64(
             &mut self,
-        ) -> ::core::result::Result<::core::primitive::f64, ::neocogi_com::NcStatus> {
+        ) -> ::core::result::Result<::core::primitive::f64, crate::NcStatus> {
             let mut __nc_out_13 = ::core::mem::MaybeUninit::<
-                <::core::primitive::f64 as ::neocogi_com::ComValue>::AbiRepr,
+                <::core::primitive::f64 as crate::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_13 = self.__nc_pointer.as_raw();
             let __nc_status_13 = unsafe {
@@ -1213,7 +1205,7 @@ const _: () = {
                 return ::core::result::Result::Err(__nc_status_13);
             }
             let __nc_result_13 = (unsafe {
-                ::neocogi_com::decode_inline::<
+                crate::decode_inline::<
                     ::core::primitive::f64,
                 >(__nc_out_13.assume_init_ref())
             })?;
@@ -1230,9 +1222,9 @@ const _: () = {
         ///On success, returns `:: core :: primitive :: u32` from the ABI out slot.
         pub fn string_len(
             &mut self,
-        ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus> {
+        ) -> ::core::result::Result<::core::primitive::u32, crate::NcStatus> {
             let mut __nc_out_14 = ::core::mem::MaybeUninit::<
-                <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
+                <::core::primitive::u32 as crate::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_14 = self.__nc_pointer.as_raw();
             let __nc_status_14 = unsafe {
@@ -1243,7 +1235,7 @@ const _: () = {
                 return ::core::result::Result::Err(__nc_status_14);
             }
             let __nc_result_14 = (unsafe {
-                ::neocogi_com::decode_inline::<
+                crate::decode_inline::<
                     ::core::primitive::u32,
                 >(__nc_out_14.assume_init_ref())
             })?;
@@ -1256,16 +1248,16 @@ const _: () = {
         ///
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
         ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
-        ///- `output` supplies output storage for `:: core :: primitive :: u8` through [`::neocogi_com::NcOutput`]. See its lifecycle contract for acquisition, preparation and publication.
+        ///- `output` supplies output storage for `:: core :: primitive :: u8` through [`crate::NcOutput`]. See its lifecycle contract for acquisition, preparation and publication.
         ///
         ///On success, returns `:: core :: primitive :: u32` from the ABI out slot.
         pub fn copy_string(
             &mut self,
-            __nc_arg_0: ::neocogi_com::NcOutput<'_, ::core::primitive::u8>,
-        ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus> {
+            __nc_arg_0: crate::NcOutput<'_, ::core::primitive::u8>,
+        ) -> ::core::result::Result<::core::primitive::u32, crate::NcStatus> {
             let mut __nc_arg_0 = __nc_arg_0.prepare()?;
             let mut __nc_out_15 = ::core::mem::MaybeUninit::<
-                <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
+                <::core::primitive::u32 as crate::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_15 = self.__nc_pointer.as_raw();
             let __nc_status_15 = unsafe {
@@ -1283,7 +1275,7 @@ const _: () = {
                 return ::core::result::Result::Err(__nc_status_15);
             }
             let __nc_result_15 = (unsafe {
-                ::neocogi_com::decode_inline::<
+                crate::decode_inline::<
                     ::core::primitive::u32,
                 >(__nc_out_15.assume_init_ref())
             })?;
@@ -1302,9 +1294,9 @@ const _: () = {
         ///On success, returns `:: core :: primitive :: bool` from the ABI out slot.
         pub fn option_present(
             &mut self,
-        ) -> ::core::result::Result<::core::primitive::bool, ::neocogi_com::NcStatus> {
+        ) -> ::core::result::Result<::core::primitive::bool, crate::NcStatus> {
             let mut __nc_out_16 = ::core::mem::MaybeUninit::<
-                <::core::primitive::bool as ::neocogi_com::ComValue>::AbiRepr,
+                <::core::primitive::bool as crate::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_16 = self.__nc_pointer.as_raw();
             let __nc_status_16 = unsafe {
@@ -1315,7 +1307,7 @@ const _: () = {
                 return ::core::result::Result::Err(__nc_status_16);
             }
             let __nc_result_16 = (unsafe {
-                ::neocogi_com::decode_inline::<
+                crate::decode_inline::<
                     ::core::primitive::bool,
                 >(__nc_out_16.assume_init_ref())
             })?;
@@ -1334,10 +1326,10 @@ const _: () = {
         pub fn begin_record(
             &mut self,
             __nc_arg_0_0: ::core::primitive::u32,
-        ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus> {
-            let __nc_arg_0_0 = ::neocogi_com::encode_inline(&__nc_arg_0_0)?;
+        ) -> ::core::result::Result<::core::primitive::u32, crate::NcStatus> {
+            let __nc_arg_0_0 = crate::encode_inline(&__nc_arg_0_0)?;
             let mut __nc_out_17 = ::core::mem::MaybeUninit::<
-                <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
+                <::core::primitive::u32 as crate::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_17 = self.__nc_pointer.as_raw();
             let __nc_status_17 = unsafe {
@@ -1352,7 +1344,7 @@ const _: () = {
                 return ::core::result::Result::Err(__nc_status_17);
             }
             let __nc_result_17 = (unsafe {
-                ::neocogi_com::decode_inline::<
+                crate::decode_inline::<
                     ::core::primitive::u32,
                 >(__nc_out_17.assume_init_ref())
             })?;
@@ -1370,14 +1362,11 @@ const _: () = {
         ///On success, returns `:: core :: primitive :: bool` from the ABI out slot.
         pub fn field(
             &mut self,
-            __nc_arg_0_1: ::neocogi_com::NcCopyFromBufferOffset<
-                '_,
-                ::core::primitive::u8,
-            >,
-        ) -> ::core::result::Result<::core::primitive::bool, ::neocogi_com::NcStatus> {
-            let __nc_arg_0_1 = ::neocogi_com::EncodedInput::new(__nc_arg_0_1)?;
+            __nc_arg_0_1: crate::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
+        ) -> ::core::result::Result<::core::primitive::bool, crate::NcStatus> {
+            let __nc_arg_0_1 = crate::EncodedInput::new(__nc_arg_0_1)?;
             let mut __nc_out_18 = ::core::mem::MaybeUninit::<
-                <::core::primitive::bool as ::neocogi_com::ComValue>::AbiRepr,
+                <::core::primitive::bool as crate::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_18 = self.__nc_pointer.as_raw();
             let __nc_status_18 = unsafe {
@@ -1394,7 +1383,7 @@ const _: () = {
                 return ::core::result::Result::Err(__nc_status_18);
             }
             let __nc_result_18 = (unsafe {
-                ::neocogi_com::decode_inline::<
+                crate::decode_inline::<
                     ::core::primitive::bool,
                 >(__nc_out_18.assume_init_ref())
             })?;
@@ -1409,9 +1398,7 @@ const _: () = {
         ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
         ///
         ///On success, returns `()`.
-        pub fn end_record(
-            &mut self,
-        ) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
+        pub fn end_record(&mut self) -> ::core::result::Result<(), crate::NcStatus> {
             let __nc_this_19 = self.__nc_pointer.as_raw();
             let __nc_status_19 = unsafe {
                 ((*__nc_this_19.vtable).end_record)(__nc_this_19.object)
@@ -1433,9 +1420,9 @@ const _: () = {
         ///On success, returns `:: core :: primitive :: u32` from the ABI out slot.
         pub fn begin_sequence(
             &mut self,
-        ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus> {
+        ) -> ::core::result::Result<::core::primitive::u32, crate::NcStatus> {
             let mut __nc_out_20 = ::core::mem::MaybeUninit::<
-                <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
+                <::core::primitive::u32 as crate::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_20 = self.__nc_pointer.as_raw();
             let __nc_status_20 = unsafe {
@@ -1446,7 +1433,7 @@ const _: () = {
                 return ::core::result::Result::Err(__nc_status_20);
             }
             let __nc_result_20 = (unsafe {
-                ::neocogi_com::decode_inline::<
+                crate::decode_inline::<
                     ::core::primitive::u32,
                 >(__nc_out_20.assume_init_ref())
             })?;
@@ -1461,9 +1448,7 @@ const _: () = {
         ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
         ///
         ///On success, returns `()`.
-        pub fn end_sequence(
-            &mut self,
-        ) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
+        pub fn end_sequence(&mut self) -> ::core::result::Result<(), crate::NcStatus> {
             let __nc_this_21 = self.__nc_pointer.as_raw();
             let __nc_status_21 = unsafe {
                 ((*__nc_this_21.vtable).end_sequence)(__nc_this_21.object)
@@ -1485,9 +1470,9 @@ const _: () = {
         ///On success, returns `:: core :: primitive :: u32` from the ABI out slot.
         pub fn begin_map(
             &mut self,
-        ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus> {
+        ) -> ::core::result::Result<::core::primitive::u32, crate::NcStatus> {
             let mut __nc_out_22 = ::core::mem::MaybeUninit::<
-                <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
+                <::core::primitive::u32 as crate::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_22 = self.__nc_pointer.as_raw();
             let __nc_status_22 = unsafe {
@@ -1498,7 +1483,7 @@ const _: () = {
                 return ::core::result::Result::Err(__nc_status_22);
             }
             let __nc_result_22 = (unsafe {
-                ::neocogi_com::decode_inline::<
+                crate::decode_inline::<
                     ::core::primitive::u32,
                 >(__nc_out_22.assume_init_ref())
             })?;
@@ -1513,9 +1498,7 @@ const _: () = {
         ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
         ///
         ///On success, returns `()`.
-        pub fn end_map(
-            &mut self,
-        ) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
+        pub fn end_map(&mut self) -> ::core::result::Result<(), crate::NcStatus> {
             let __nc_this_23 = self.__nc_pointer.as_raw();
             let __nc_status_23 = unsafe {
                 ((*__nc_this_23.vtable).end_map)(__nc_this_23.object)
@@ -1540,12 +1523,12 @@ const _: () = {
         pub fn variant_is(
             &mut self,
             __nc_arg_0_2: ::core::primitive::u32,
-            __nc_arg_1: ::neocogi_com::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
-        ) -> ::core::result::Result<::core::primitive::bool, ::neocogi_com::NcStatus> {
-            let __nc_arg_0_2 = ::neocogi_com::encode_inline(&__nc_arg_0_2)?;
-            let __nc_arg_1 = ::neocogi_com::EncodedInput::new(__nc_arg_1)?;
+            __nc_arg_1: crate::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
+        ) -> ::core::result::Result<::core::primitive::bool, crate::NcStatus> {
+            let __nc_arg_0_2 = crate::encode_inline(&__nc_arg_0_2)?;
+            let __nc_arg_1 = crate::EncodedInput::new(__nc_arg_1)?;
             let mut __nc_out_24 = ::core::mem::MaybeUninit::<
-                <::core::primitive::bool as ::neocogi_com::ComValue>::AbiRepr,
+                <::core::primitive::bool as crate::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_24 = self.__nc_pointer.as_raw();
             let __nc_status_24 = unsafe {
@@ -1563,7 +1546,7 @@ const _: () = {
                 return ::core::result::Result::Err(__nc_status_24);
             }
             let __nc_result_24 = (unsafe {
-                ::neocogi_com::decode_inline::<
+                crate::decode_inline::<
                     ::core::primitive::bool,
                 >(__nc_out_24.assume_init_ref())
             })?;
@@ -1581,12 +1564,9 @@ const _: () = {
         ///On success, returns `()`.
         pub fn fail(
             &mut self,
-            __nc_arg_0_3: ::neocogi_com::NcCopyFromBufferOffset<
-                '_,
-                ::core::primitive::u8,
-            >,
-        ) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
-            let __nc_arg_0_3 = ::neocogi_com::EncodedInput::new(__nc_arg_0_3)?;
+            __nc_arg_0_3: crate::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
+        ) -> ::core::result::Result<(), crate::NcStatus> {
+            let __nc_arg_0_3 = crate::EncodedInput::new(__nc_arg_0_3)?;
             let __nc_this_25 = self.__nc_pointer.as_raw();
             let __nc_status_25 = unsafe {
                 ((*__nc_this_25.vtable)
@@ -1612,7 +1592,7 @@ const _: () = {
         ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
         ///
         ///On success, returns `()`.
-        pub fn finish(&mut self) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
+        pub fn finish(&mut self) -> ::core::result::Result<(), crate::NcStatus> {
             let __nc_this_26 = self.__nc_pointer.as_raw();
             let __nc_status_26 = unsafe {
                 ((*__nc_this_26.vtable).finish)(__nc_this_26.object)
@@ -1627,470 +1607,454 @@ const _: () = {
 };
 impl IDeserializerAbi {
     ///Canonical validation form of this interface's typed ABI contract.
-    pub const ABI_SIGNATURE: ::neocogi_com::NcAbiDigest = ::neocogi_com::NcAbiDigest::from_static(
+    pub const ABI_SIGNATURE: crate::NcAbiDigest = crate::NcAbiDigest::from_static(
         b"\xA0\\\x87\x8D\rW\xB4]z\x90\x0F\x18\x103\xFD \xFE\x846\x08\xA6&\x90\x81\xE8\x05\xC3\xF1\xC1\x8F[\xFB",
     );
     ///Static descriptors for this interface's ABI methods.
-    pub const METHOD_DESCRIPTORS: [::neocogi_com::NcMethodDescriptor; 27usize] = [
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("enter_value"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_MUTABLE,
+    pub const METHOD_DESCRIPTORS: [crate::NcMethodDescriptor; 27usize] = [
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("enter_value"),
+            receiver: crate::NC_ABI_RECEIVER_MUTABLE,
             param_count: 0u32,
-            params: (&[] as &'static [::neocogi_com::NcMethodParamDescriptor]).as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Void,
+            params: (&[] as &'static [crate::NcMethodParamDescriptor]).as_ptr(),
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Void,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::NcAbiType::Void,
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(crate::NcAbiType::Void),
+            },
+        },
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("leave_value"),
+            receiver: crate::NC_ABI_RECEIVER_MUTABLE,
+            param_count: 0u32,
+            params: (&[] as &'static [crate::NcMethodParamDescriptor]).as_ptr(),
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Void,
+                ),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(crate::NcAbiType::Void),
+            },
+        },
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("deserialize_unit"),
+            receiver: crate::NC_ABI_RECEIVER_MUTABLE,
+            param_count: 0u32,
+            params: (&[] as &'static [crate::NcMethodParamDescriptor]).as_ptr(),
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Void,
+                ),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(crate::NcAbiType::Void),
+            },
+        },
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("deserialize_bool"),
+            receiver: crate::NC_ABI_RECEIVER_MUTABLE,
+            param_count: 0u32,
+            params: (&[] as &'static [crate::NcMethodParamDescriptor]).as_ptr(),
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Out,
+                ),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                    crate::__nc_abi_type::<::core::primitive::bool>(),
                 ),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("leave_value"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_MUTABLE,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("deserialize_u8"),
+            receiver: crate::NC_ABI_RECEIVER_MUTABLE,
             param_count: 0u32,
-            params: (&[] as &'static [::neocogi_com::NcMethodParamDescriptor]).as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Void,
+            params: (&[] as &'static [crate::NcMethodParamDescriptor]).as_ptr(),
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Out,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::NcAbiType::Void,
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                    crate::__nc_abi_type::<::core::primitive::u8>(),
                 ),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("deserialize_unit"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_MUTABLE,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("deserialize_u16"),
+            receiver: crate::NC_ABI_RECEIVER_MUTABLE,
             param_count: 0u32,
-            params: (&[] as &'static [::neocogi_com::NcMethodParamDescriptor]).as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Void,
+            params: (&[] as &'static [crate::NcMethodParamDescriptor]).as_ptr(),
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Out,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::NcAbiType::Void,
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                    crate::__nc_abi_type::<::core::primitive::u16>(),
                 ),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("deserialize_bool"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_MUTABLE,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("deserialize_u32"),
+            receiver: crate::NC_ABI_RECEIVER_MUTABLE,
             param_count: 0u32,
-            params: (&[] as &'static [::neocogi_com::NcMethodParamDescriptor]).as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Out,
+            params: (&[] as &'static [crate::NcMethodParamDescriptor]).as_ptr(),
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Out,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::__nc_abi_type::<::core::primitive::bool>(),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                    crate::__nc_abi_type::<::core::primitive::u32>(),
                 ),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("deserialize_u8"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_MUTABLE,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("deserialize_u64"),
+            receiver: crate::NC_ABI_RECEIVER_MUTABLE,
             param_count: 0u32,
-            params: (&[] as &'static [::neocogi_com::NcMethodParamDescriptor]).as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Out,
+            params: (&[] as &'static [crate::NcMethodParamDescriptor]).as_ptr(),
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Out,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::__nc_abi_type::<::core::primitive::u8>(),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                    crate::__nc_abi_type::<::core::primitive::u64>(),
                 ),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("deserialize_u16"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_MUTABLE,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("deserialize_i8"),
+            receiver: crate::NC_ABI_RECEIVER_MUTABLE,
             param_count: 0u32,
-            params: (&[] as &'static [::neocogi_com::NcMethodParamDescriptor]).as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Out,
+            params: (&[] as &'static [crate::NcMethodParamDescriptor]).as_ptr(),
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Out,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::__nc_abi_type::<::core::primitive::u16>(),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                    crate::__nc_abi_type::<::core::primitive::i8>(),
                 ),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("deserialize_u32"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_MUTABLE,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("deserialize_i16"),
+            receiver: crate::NC_ABI_RECEIVER_MUTABLE,
             param_count: 0u32,
-            params: (&[] as &'static [::neocogi_com::NcMethodParamDescriptor]).as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Out,
+            params: (&[] as &'static [crate::NcMethodParamDescriptor]).as_ptr(),
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Out,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::__nc_abi_type::<::core::primitive::u32>(),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                    crate::__nc_abi_type::<::core::primitive::i16>(),
                 ),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("deserialize_u64"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_MUTABLE,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("deserialize_i32"),
+            receiver: crate::NC_ABI_RECEIVER_MUTABLE,
             param_count: 0u32,
-            params: (&[] as &'static [::neocogi_com::NcMethodParamDescriptor]).as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Out,
+            params: (&[] as &'static [crate::NcMethodParamDescriptor]).as_ptr(),
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Out,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::__nc_abi_type::<::core::primitive::u64>(),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                    crate::__nc_abi_type::<::core::primitive::i32>(),
                 ),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("deserialize_i8"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_MUTABLE,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("deserialize_i64"),
+            receiver: crate::NC_ABI_RECEIVER_MUTABLE,
             param_count: 0u32,
-            params: (&[] as &'static [::neocogi_com::NcMethodParamDescriptor]).as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Out,
+            params: (&[] as &'static [crate::NcMethodParamDescriptor]).as_ptr(),
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Out,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::__nc_abi_type::<::core::primitive::i8>(),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                    crate::__nc_abi_type::<::core::primitive::i64>(),
                 ),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("deserialize_i16"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_MUTABLE,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("deserialize_f32"),
+            receiver: crate::NC_ABI_RECEIVER_MUTABLE,
             param_count: 0u32,
-            params: (&[] as &'static [::neocogi_com::NcMethodParamDescriptor]).as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Out,
+            params: (&[] as &'static [crate::NcMethodParamDescriptor]).as_ptr(),
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Out,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::__nc_abi_type::<::core::primitive::i16>(),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                    crate::__nc_abi_type::<::core::primitive::f32>(),
                 ),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("deserialize_i32"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_MUTABLE,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("deserialize_f64"),
+            receiver: crate::NC_ABI_RECEIVER_MUTABLE,
             param_count: 0u32,
-            params: (&[] as &'static [::neocogi_com::NcMethodParamDescriptor]).as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Out,
+            params: (&[] as &'static [crate::NcMethodParamDescriptor]).as_ptr(),
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Out,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::__nc_abi_type::<::core::primitive::i32>(),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                    crate::__nc_abi_type::<::core::primitive::f64>(),
                 ),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("deserialize_i64"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_MUTABLE,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("string_len"),
+            receiver: crate::NC_ABI_RECEIVER_MUTABLE,
             param_count: 0u32,
-            params: (&[] as &'static [::neocogi_com::NcMethodParamDescriptor]).as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Out,
+            params: (&[] as &'static [crate::NcMethodParamDescriptor]).as_ptr(),
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Out,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::__nc_abi_type::<::core::primitive::i64>(),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                    crate::__nc_abi_type::<::core::primitive::u32>(),
                 ),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("deserialize_f32"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_MUTABLE,
-            param_count: 0u32,
-            params: (&[] as &'static [::neocogi_com::NcMethodParamDescriptor]).as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Out,
-                ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::__nc_abi_type::<::core::primitive::f32>(),
-                ),
-            },
-        },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("deserialize_f64"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_MUTABLE,
-            param_count: 0u32,
-            params: (&[] as &'static [::neocogi_com::NcMethodParamDescriptor]).as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Out,
-                ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::__nc_abi_type::<::core::primitive::f64>(),
-                ),
-            },
-        },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("string_len"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_MUTABLE,
-            param_count: 0u32,
-            params: (&[] as &'static [::neocogi_com::NcMethodParamDescriptor]).as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Out,
-                ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::__nc_abi_type::<::core::primitive::u32>(),
-                ),
-            },
-        },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("copy_string"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_MUTABLE,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("copy_string"),
+            receiver: crate::NC_ABI_RECEIVER_MUTABLE,
             param_count: 1u32,
             params: (&[
-                ::neocogi_com::NcMethodParamDescriptor {
-                    name: ::neocogi_com::NcStaticUtf8::from_static("output"),
-                    passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                        ::neocogi_com::NcAbiPassing::OutputBuffer,
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("output"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                        crate::NcAbiPassing::OutputBuffer,
                     ),
-                    ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                        ::neocogi_com::__nc_abi_plain_type::<::core::primitive::u8>(),
+                    ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                        crate::__nc_abi_plain_type::<::core::primitive::u8>(),
                     ),
                 },
-            ] as &'static [::neocogi_com::NcMethodParamDescriptor])
+            ] as &'static [crate::NcMethodParamDescriptor])
                 .as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Out,
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Out,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::__nc_abi_type::<::core::primitive::u32>(),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                    crate::__nc_abi_type::<::core::primitive::u32>(),
                 ),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("option_present"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_MUTABLE,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("option_present"),
+            receiver: crate::NC_ABI_RECEIVER_MUTABLE,
             param_count: 0u32,
-            params: (&[] as &'static [::neocogi_com::NcMethodParamDescriptor]).as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Out,
+            params: (&[] as &'static [crate::NcMethodParamDescriptor]).as_ptr(),
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Out,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::__nc_abi_type::<::core::primitive::bool>(),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                    crate::__nc_abi_type::<::core::primitive::bool>(),
                 ),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("begin_record"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_MUTABLE,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("begin_record"),
+            receiver: crate::NC_ABI_RECEIVER_MUTABLE,
             param_count: 1u32,
             params: (&[
-                ::neocogi_com::NcMethodParamDescriptor {
-                    name: ::neocogi_com::NcStaticUtf8::from_static("maximum"),
-                    passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                        ::neocogi_com::NcAbiPassing::Value,
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("maximum"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                        crate::NcAbiPassing::Value,
                     ),
-                    ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                        ::neocogi_com::__nc_abi_type::<::core::primitive::u32>(),
+                    ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                        crate::__nc_abi_type::<::core::primitive::u32>(),
                     ),
                 },
-            ] as &'static [::neocogi_com::NcMethodParamDescriptor])
+            ] as &'static [crate::NcMethodParamDescriptor])
                 .as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Out,
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Out,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::__nc_abi_type::<::core::primitive::u32>(),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                    crate::__nc_abi_type::<::core::primitive::u32>(),
                 ),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("field"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_MUTABLE,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("field"),
+            receiver: crate::NC_ABI_RECEIVER_MUTABLE,
             param_count: 1u32,
             params: (&[
-                ::neocogi_com::NcMethodParamDescriptor {
-                    name: ::neocogi_com::NcStaticUtf8::from_static("name"),
-                    passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                        ::neocogi_com::NcAbiPassing::CopyFromBufferOffset,
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("name"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                        crate::NcAbiPassing::CopyFromBufferOffset,
                     ),
-                    ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                        ::neocogi_com::__nc_abi_plain_type::<::core::primitive::u8>(),
+                    ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                        crate::__nc_abi_plain_type::<::core::primitive::u8>(),
                     ),
                 },
-            ] as &'static [::neocogi_com::NcMethodParamDescriptor])
+            ] as &'static [crate::NcMethodParamDescriptor])
                 .as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Out,
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Out,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::__nc_abi_type::<::core::primitive::bool>(),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                    crate::__nc_abi_type::<::core::primitive::bool>(),
                 ),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("end_record"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_MUTABLE,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("end_record"),
+            receiver: crate::NC_ABI_RECEIVER_MUTABLE,
             param_count: 0u32,
-            params: (&[] as &'static [::neocogi_com::NcMethodParamDescriptor]).as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Void,
+            params: (&[] as &'static [crate::NcMethodParamDescriptor]).as_ptr(),
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Void,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::NcAbiType::Void,
-                ),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(crate::NcAbiType::Void),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("begin_sequence"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_MUTABLE,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("begin_sequence"),
+            receiver: crate::NC_ABI_RECEIVER_MUTABLE,
             param_count: 0u32,
-            params: (&[] as &'static [::neocogi_com::NcMethodParamDescriptor]).as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Out,
+            params: (&[] as &'static [crate::NcMethodParamDescriptor]).as_ptr(),
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Out,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::__nc_abi_type::<::core::primitive::u32>(),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                    crate::__nc_abi_type::<::core::primitive::u32>(),
                 ),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("end_sequence"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_MUTABLE,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("end_sequence"),
+            receiver: crate::NC_ABI_RECEIVER_MUTABLE,
             param_count: 0u32,
-            params: (&[] as &'static [::neocogi_com::NcMethodParamDescriptor]).as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Void,
+            params: (&[] as &'static [crate::NcMethodParamDescriptor]).as_ptr(),
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Void,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::NcAbiType::Void,
-                ),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(crate::NcAbiType::Void),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("begin_map"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_MUTABLE,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("begin_map"),
+            receiver: crate::NC_ABI_RECEIVER_MUTABLE,
             param_count: 0u32,
-            params: (&[] as &'static [::neocogi_com::NcMethodParamDescriptor]).as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Out,
+            params: (&[] as &'static [crate::NcMethodParamDescriptor]).as_ptr(),
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Out,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::__nc_abi_type::<::core::primitive::u32>(),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                    crate::__nc_abi_type::<::core::primitive::u32>(),
                 ),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("end_map"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_MUTABLE,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("end_map"),
+            receiver: crate::NC_ABI_RECEIVER_MUTABLE,
             param_count: 0u32,
-            params: (&[] as &'static [::neocogi_com::NcMethodParamDescriptor]).as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Void,
+            params: (&[] as &'static [crate::NcMethodParamDescriptor]).as_ptr(),
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Void,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::NcAbiType::Void,
-                ),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(crate::NcAbiType::Void),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("variant_is"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_MUTABLE,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("variant_is"),
+            receiver: crate::NC_ABI_RECEIVER_MUTABLE,
             param_count: 2u32,
             params: (&[
-                ::neocogi_com::NcMethodParamDescriptor {
-                    name: ::neocogi_com::NcStaticUtf8::from_static("index"),
-                    passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                        ::neocogi_com::NcAbiPassing::Value,
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("index"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                        crate::NcAbiPassing::Value,
                     ),
-                    ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                        ::neocogi_com::__nc_abi_type::<::core::primitive::u32>(),
-                    ),
-                },
-                ::neocogi_com::NcMethodParamDescriptor {
-                    name: ::neocogi_com::NcStaticUtf8::from_static("name"),
-                    passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                        ::neocogi_com::NcAbiPassing::CopyFromBufferOffset,
-                    ),
-                    ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                        ::neocogi_com::__nc_abi_plain_type::<::core::primitive::u8>(),
+                    ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                        crate::__nc_abi_type::<::core::primitive::u32>(),
                     ),
                 },
-            ] as &'static [::neocogi_com::NcMethodParamDescriptor])
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("name"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                        crate::NcAbiPassing::CopyFromBufferOffset,
+                    ),
+                    ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                        crate::__nc_abi_plain_type::<::core::primitive::u8>(),
+                    ),
+                },
+            ] as &'static [crate::NcMethodParamDescriptor])
                 .as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Out,
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Out,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::__nc_abi_type::<::core::primitive::bool>(),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                    crate::__nc_abi_type::<::core::primitive::bool>(),
                 ),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("fail"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_MUTABLE,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("fail"),
+            receiver: crate::NC_ABI_RECEIVER_MUTABLE,
             param_count: 1u32,
             params: (&[
-                ::neocogi_com::NcMethodParamDescriptor {
-                    name: ::neocogi_com::NcStaticUtf8::from_static("message"),
-                    passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                        ::neocogi_com::NcAbiPassing::CopyFromBufferOffset,
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("message"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                        crate::NcAbiPassing::CopyFromBufferOffset,
                     ),
-                    ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                        ::neocogi_com::__nc_abi_plain_type::<::core::primitive::u8>(),
+                    ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                        crate::__nc_abi_plain_type::<::core::primitive::u8>(),
                     ),
                 },
-            ] as &'static [::neocogi_com::NcMethodParamDescriptor])
+            ] as &'static [crate::NcMethodParamDescriptor])
                 .as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Void,
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Void,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::NcAbiType::Void,
-                ),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(crate::NcAbiType::Void),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("finish"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_MUTABLE,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("finish"),
+            receiver: crate::NC_ABI_RECEIVER_MUTABLE,
             param_count: 0u32,
-            params: (&[] as &'static [::neocogi_com::NcMethodParamDescriptor]).as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Void,
+            params: (&[] as &'static [crate::NcMethodParamDescriptor]).as_ptr(),
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Void,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::NcAbiType::Void,
-                ),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(crate::NcAbiType::Void),
             },
         },
     ];
     ///Static ABI descriptor for this interface.
-    pub const INTERFACE_DESCRIPTOR: ::neocogi_com::NcInterfaceDescriptor = ::neocogi_com::NcInterfaceDescriptor {
-        interface_id: <Self as ::neocogi_com::ComInterface>::IID,
-        qualified_name: ::neocogi_com::NcStaticUtf8::from_static(
+    pub const INTERFACE_DESCRIPTOR: crate::NcInterfaceDescriptor = crate::NcInterfaceDescriptor {
+        interface_id: <Self as crate::ComInterface>::IID,
+        qualified_name: crate::NcStaticUtf8::from_static(
             "neocogi.com.serialization.IDeserializer",
         ),
         abi_signature: Self::ABI_SIGNATURE,
-        base: ::neocogi_com::NcInterfaceId::NONE,
+        base: crate::NcInterfaceId::NONE,
         method_count: 27u32,
         methods: Self::METHOD_DESCRIPTORS.as_ptr(),
     };
     /// Distinct projections in derived-first, declared-parent order.
     /// Shared ancestors occur once; repeated identities must have the same ABI.
-    pub const INTERFACE_CHAIN: [&'static ::neocogi_com::NcInterfaceDescriptor; ::neocogi_com::__nc_object_interface_count(
+    pub const INTERFACE_CHAIN: [&'static crate::NcInterfaceDescriptor; crate::__nc_object_interface_count(
         &[&[&Self::INTERFACE_DESCRIPTOR]],
-    )] = ::neocogi_com::__nc_interface_chain(&Self::INTERFACE_DESCRIPTOR, &[]);
+    )] = crate::__nc_interface_chain(&Self::INTERFACE_DESCRIPTOR, &[]);
 }
 /// Immutable first-failure details on an owning serializer/deserializer session.
 /// Coordinates are optional: u64::MAX means no byte offset, zero means no line/column.
@@ -2098,46 +2062,40 @@ impl IDeserializerAbi {
 pub trait ISerializationDiagnostics {
     /// Returns the original failed operation's status, as data.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:143:8` (module `neocogi.com.serialization`).
-    fn failure_status(
-        &self,
-    ) -> ::core::result::Result<::neocogi_com::NcStatus, ::neocogi_com::NcStatus>;
+    fn failure_status(&self) -> ::core::result::Result<crate::NcStatus, crate::NcStatus>;
     /// Reports a zero-based byte cursor/offset, or u64::MAX when unavailable.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:145:8` (module `neocogi.com.serialization`).
     fn byte_offset(
         &self,
-    ) -> ::core::result::Result<::core::primitive::u64, ::neocogi_com::NcStatus>;
+    ) -> ::core::result::Result<::core::primitive::u64, crate::NcStatus>;
     /// Reports a one-based source line, or zero when unavailable.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:147:8` (module `neocogi.com.serialization`).
-    fn line(
-        &self,
-    ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus>;
+    fn line(&self) -> ::core::result::Result<::core::primitive::u32, crate::NcStatus>;
     /// Reports a one-based source column, or zero when unavailable.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:149:8` (module `neocogi.com.serialization`).
-    fn column(
-        &self,
-    ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus>;
+    fn column(&self) -> ::core::result::Result<::core::primitive::u32, crate::NcStatus>;
     /// Reports the diagnostic message's UTF-8 byte length.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:151:8` (module `neocogi.com.serialization`).
     fn message_len(
         &self,
-    ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus>;
+    ) -> ::core::result::Result<::core::primitive::u32, crate::NcStatus>;
     /// Copies the complete message to fresh output; short capacity writes no prefix.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:153:8` (module `neocogi.com.serialization`).
     fn copy_message(
         &self,
-        output: ::neocogi_com::NcOutputWriter<'_, ::core::primitive::u8>,
-    ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus>;
+        output: crate::NcOutputWriter<'_, ::core::primitive::u8>,
+    ) -> ::core::result::Result<::core::primitive::u32, crate::NcStatus>;
     /// Reports the logical field/index path's UTF-8 byte length.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:155:8` (module `neocogi.com.serialization`).
     fn path_len(
         &self,
-    ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus>;
+    ) -> ::core::result::Result<::core::primitive::u32, crate::NcStatus>;
     /// Copies the complete logical path, rooted at $, into fresh output.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:157:8` (module `neocogi.com.serialization`).
     fn copy_path(
         &self,
-        output: ::neocogi_com::NcOutputWriter<'_, ::core::primitive::u8>,
-    ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus>;
+        output: crate::NcOutputWriter<'_, ::core::primitive::u8>,
+    ) -> ::core::result::Result<::core::primitive::u32, crate::NcStatus>;
 }
 ///Interface marker for [`ISerializationDiagnostics`]; handles carry its object/table pair.
 pub enum ISerializationDiagnosticsAbi {}
@@ -2145,7 +2103,7 @@ pub enum ISerializationDiagnosticsAbi {}
 ///C-compatible vtable for [`ISerializationDiagnostics`].
 pub struct ISerializationDiagnosticsVTable {
     /// Common identity, query and reference-count slots.
-    pub unknown: ::neocogi_com::IUnknownVTable,
+    pub unknown: crate::IUnknownVTable,
     /// Returns the original failed operation's status, as data.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:143:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializationDiagnostics::failure_status`].
@@ -2156,15 +2114,15 @@ pub struct ISerializationDiagnosticsVTable {
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
-    ///On success, `out` receives `< :: neocogi_com :: NcStatus as :: neocogi_com :: ComValue > :: AbiRepr`.
+    ///On success, `out` receives `< crate :: NcStatus as crate :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub failure_status: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_out: *mut <::neocogi_com::NcStatus as ::neocogi_com::ComValue>::AbiRepr,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_out: *mut <crate::NcStatus as crate::ComValue>::AbiRepr,
+    ) -> crate::NcStatus,
     /// Reports a zero-based byte cursor/offset, or u64::MAX when unavailable.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:145:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializationDiagnostics::byte_offset`].
@@ -2175,15 +2133,15 @@ pub struct ISerializationDiagnosticsVTable {
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: u64 as :: neocogi_com :: ComValue > :: AbiRepr`.
+    ///On success, `out` receives `< :: core :: primitive :: u64 as crate :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub byte_offset: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_out: *mut <::core::primitive::u64 as ::neocogi_com::ComValue>::AbiRepr,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_out: *mut <::core::primitive::u64 as crate::ComValue>::AbiRepr,
+    ) -> crate::NcStatus,
     /// Reports a one-based source line, or zero when unavailable.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:147:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializationDiagnostics::line`].
@@ -2194,15 +2152,15 @@ pub struct ISerializationDiagnosticsVTable {
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: AbiRepr`.
+    ///On success, `out` receives `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub line: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_out: *mut <::core::primitive::u32 as crate::ComValue>::AbiRepr,
+    ) -> crate::NcStatus,
     /// Reports a one-based source column, or zero when unavailable.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:149:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializationDiagnostics::column`].
@@ -2213,15 +2171,15 @@ pub struct ISerializationDiagnosticsVTable {
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: AbiRepr`.
+    ///On success, `out` receives `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub column: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_out: *mut <::core::primitive::u32 as crate::ComValue>::AbiRepr,
+    ) -> crate::NcStatus,
     /// Reports the diagnostic message's UTF-8 byte length.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:151:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializationDiagnostics::message_len`].
@@ -2232,15 +2190,15 @@ pub struct ISerializationDiagnosticsVTable {
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: AbiRepr`.
+    ///On success, `out` receives `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub message_len: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_out: *mut <::core::primitive::u32 as crate::ComValue>::AbiRepr,
+    ) -> crate::NcStatus,
     /// Copies the complete message to fresh output; short capacity writes no prefix.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:153:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializationDiagnostics::copy_message`].
@@ -2250,9 +2208,9 @@ pub struct ISerializationDiagnosticsVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `output` uses ABI storage `* mut < :: core :: primitive :: u8 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: neocogi_com :: NcOutputWriter < '_ , :: core :: primitive :: u8 >`. The writable buffer pointer is accompanied by `offset: u64`, `capacity: u64`, and a separate `written: *mut u64`. Old contents are not input. Only the successfully reported initialized prefix may be read; count and element storage must not alias.
+    ///- `output` uses ABI storage `* mut < :: core :: primitive :: u8 as crate :: ComValue > :: AbiRepr` for `crate :: NcOutputWriter < '_ , :: core :: primitive :: u8 >`. The writable buffer pointer is accompanied by `offset: u64`, `capacity: u64`, and a separate `written: *mut u64`. Old contents are not input. Only the successfully reported initialized prefix may be read; count and element storage must not alias.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: AbiRepr`.
+    ///On success, `out` receives `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
@@ -2261,10 +2219,10 @@ pub struct ISerializationDiagnosticsVTable {
         __nc_this: *mut ::core::ffi::c_void,
         __nc_arg_0_offset: ::core::primitive::u64,
         __nc_arg_0_len: ::core::primitive::u64,
-        __nc_arg_0_ptr: *mut <::core::primitive::u8 as ::neocogi_com::ComValue>::AbiRepr,
+        __nc_arg_0_ptr: *mut <::core::primitive::u8 as crate::ComValue>::AbiRepr,
         __nc_arg_0_written: *mut ::core::primitive::u64,
-        __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_out: *mut <::core::primitive::u32 as crate::ComValue>::AbiRepr,
+    ) -> crate::NcStatus,
     /// Reports the logical field/index path's UTF-8 byte length.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:155:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializationDiagnostics::path_len`].
@@ -2275,15 +2233,15 @@ pub struct ISerializationDiagnosticsVTable {
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: AbiRepr`.
+    ///On success, `out` receives `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub path_len: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_out: *mut <::core::primitive::u32 as crate::ComValue>::AbiRepr,
+    ) -> crate::NcStatus,
     /// Copies the complete logical path, rooted at $, into fresh output.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:157:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializationDiagnostics::copy_path`].
@@ -2293,9 +2251,9 @@ pub struct ISerializationDiagnosticsVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `output` uses ABI storage `* mut < :: core :: primitive :: u8 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: neocogi_com :: NcOutputWriter < '_ , :: core :: primitive :: u8 >`. The writable buffer pointer is accompanied by `offset: u64`, `capacity: u64`, and a separate `written: *mut u64`. Old contents are not input. Only the successfully reported initialized prefix may be read; count and element storage must not alias.
+    ///- `output` uses ABI storage `* mut < :: core :: primitive :: u8 as crate :: ComValue > :: AbiRepr` for `crate :: NcOutputWriter < '_ , :: core :: primitive :: u8 >`. The writable buffer pointer is accompanied by `offset: u64`, `capacity: u64`, and a separate `written: *mut u64`. Old contents are not input. Only the successfully reported initialized prefix may be read; count and element storage must not alias.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: AbiRepr`.
+    ///On success, `out` receives `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
@@ -2304,20 +2262,20 @@ pub struct ISerializationDiagnosticsVTable {
         __nc_this: *mut ::core::ffi::c_void,
         __nc_arg_0_0_offset: ::core::primitive::u64,
         __nc_arg_0_0_len: ::core::primitive::u64,
-        __nc_arg_0_0_ptr: *mut <::core::primitive::u8 as ::neocogi_com::ComValue>::AbiRepr,
+        __nc_arg_0_0_ptr: *mut <::core::primitive::u8 as crate::ComValue>::AbiRepr,
         __nc_arg_0_0_written: *mut ::core::primitive::u64,
-        __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_out: *mut <::core::primitive::u32 as crate::ComValue>::AbiRepr,
+    ) -> crate::NcStatus,
 }
-unsafe impl ::neocogi_com::ComInterface for ISerializationDiagnosticsAbi {
-    const IID: ::neocogi_com::NcGuid = ::neocogi_com::NcGuid {
+unsafe impl crate::ComInterface for ISerializationDiagnosticsAbi {
+    const IID: crate::NcGuid = crate::NcGuid {
         data1: 3478217469u32,
         data2: 8526u16,
         data3: 23497u16,
         data4: [162u8, 217u8, 71u8, 39u8, 16u8, 184u8, 184u8, 223u8],
     };
-    const INTERFACE_ID: ::neocogi_com::NcInterfaceId = ::neocogi_com::NcInterfaceId::new(
-        ::neocogi_com::NcGuid {
+    const INTERFACE_ID: crate::NcInterfaceId = crate::NcInterfaceId::new(
+        crate::NcGuid {
             data1: 3478217469u32,
             data2: 8526u16,
             data3: 23497u16,
@@ -2326,33 +2284,33 @@ unsafe impl ::neocogi_com::ComInterface for ISerializationDiagnosticsAbi {
         ISerializationDiagnosticsAbi::ABI_SIGNATURE,
     );
     type VTable = ISerializationDiagnosticsVTable;
-    type Threading = ::neocogi_com::ThreadLocal;
+    type Threading = crate::ThreadLocal;
 }
 #[repr(transparent)]
 ///Borrowed Rust method wrapper for [`ISerializationDiagnostics`].
 pub struct ISerializationDiagnosticsWrapper<
-    __NcThreading: ::neocogi_com::ThreadingModel = ::neocogi_com::ThreadLocal,
+    __NcThreading: crate::ThreadingModel = crate::ThreadLocal,
 > {
     /// Opaque pointer borrowed from retained interface/control storage; provider entry admits value access.
-    __nc_pointer: ::neocogi_com::ComInterfacePointer<
+    __nc_pointer: crate::ComInterfacePointer<
         ISerializationDiagnosticsAbi,
         __NcThreading,
     >,
 }
-unsafe impl ::neocogi_com::ComRustInterface for ISerializationDiagnosticsAbi {
-    type Wrapper<__NcThreading: ::neocogi_com::ThreadingModel> = ISerializationDiagnosticsWrapper<
+unsafe impl crate::ComRustInterface for ISerializationDiagnosticsAbi {
+    type Wrapper<__NcThreading: crate::ThreadingModel> = ISerializationDiagnosticsWrapper<
         __NcThreading,
     >;
-    fn __nc_wrapper_ref<__NcThreading: ::neocogi_com::ThreadingModel>(
-        pointer: &::neocogi_com::ComInterfacePointer<Self, __NcThreading>,
+    fn __nc_wrapper_ref<__NcThreading: crate::ThreadingModel>(
+        pointer: &crate::ComInterfacePointer<Self, __NcThreading>,
     ) -> &Self::Wrapper<__NcThreading> {
         unsafe {
             &*(::core::ptr::from_ref(pointer)
                 as *const ISerializationDiagnosticsWrapper<__NcThreading>)
         }
     }
-    fn __nc_wrapper_mut<__NcThreading: ::neocogi_com::ThreadingModel>(
-        pointer: &mut ::neocogi_com::ComInterfacePointer<Self, __NcThreading>,
+    fn __nc_wrapper_mut<__NcThreading: crate::ThreadingModel>(
+        pointer: &mut crate::ComInterfacePointer<Self, __NcThreading>,
     ) -> &mut Self::Wrapper<__NcThreading> {
         unsafe {
             &mut *(::core::ptr::from_mut(pointer)
@@ -2394,7 +2352,7 @@ const _: () = {
         identity as __nc_prepared_6, identity as __nc_out_7,
     };
     impl<
-        __NcThreading: ::neocogi_com::ThreadingModel,
+        __NcThreading: crate::ThreadingModel,
     > ISerializationDiagnosticsWrapper<__NcThreading> {
         /// Returns the original failed operation's status, as data.
         /// IDL source: `neocogi/com/serialization/formats.ncidl:143:8` (module `neocogi.com.serialization`).
@@ -2404,12 +2362,12 @@ const _: () = {
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
         ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
         ///
-        ///On success, returns `:: neocogi_com :: NcStatus` from the ABI out slot.
+        ///On success, returns `crate :: NcStatus` from the ABI out slot.
         pub fn failure_status(
             &self,
-        ) -> ::core::result::Result<::neocogi_com::NcStatus, ::neocogi_com::NcStatus> {
+        ) -> ::core::result::Result<crate::NcStatus, crate::NcStatus> {
             let mut __nc_out_0 = ::core::mem::MaybeUninit::<
-                <::neocogi_com::NcStatus as ::neocogi_com::ComValue>::AbiRepr,
+                <crate::NcStatus as crate::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_0 = self.__nc_pointer.as_raw();
             let __nc_status_0 = unsafe {
@@ -2420,9 +2378,7 @@ const _: () = {
                 return ::core::result::Result::Err(__nc_status_0);
             }
             let __nc_result_0 = (unsafe {
-                ::neocogi_com::decode_inline::<
-                    ::neocogi_com::NcStatus,
-                >(__nc_out_0.assume_init_ref())
+                crate::decode_inline::<crate::NcStatus>(__nc_out_0.assume_init_ref())
             })?;
             ::core::result::Result::Ok(__nc_result_0)
         }
@@ -2437,9 +2393,9 @@ const _: () = {
         ///On success, returns `:: core :: primitive :: u64` from the ABI out slot.
         pub fn byte_offset(
             &self,
-        ) -> ::core::result::Result<::core::primitive::u64, ::neocogi_com::NcStatus> {
+        ) -> ::core::result::Result<::core::primitive::u64, crate::NcStatus> {
             let mut __nc_out_1 = ::core::mem::MaybeUninit::<
-                <::core::primitive::u64 as ::neocogi_com::ComValue>::AbiRepr,
+                <::core::primitive::u64 as crate::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_1 = self.__nc_pointer.as_raw();
             let __nc_status_1 = unsafe {
@@ -2450,7 +2406,7 @@ const _: () = {
                 return ::core::result::Result::Err(__nc_status_1);
             }
             let __nc_result_1 = (unsafe {
-                ::neocogi_com::decode_inline::<
+                crate::decode_inline::<
                     ::core::primitive::u64,
                 >(__nc_out_1.assume_init_ref())
             })?;
@@ -2467,9 +2423,9 @@ const _: () = {
         ///On success, returns `:: core :: primitive :: u32` from the ABI out slot.
         pub fn line(
             &self,
-        ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus> {
+        ) -> ::core::result::Result<::core::primitive::u32, crate::NcStatus> {
             let mut __nc_out_2 = ::core::mem::MaybeUninit::<
-                <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
+                <::core::primitive::u32 as crate::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_2 = self.__nc_pointer.as_raw();
             let __nc_status_2 = unsafe {
@@ -2479,7 +2435,7 @@ const _: () = {
                 return ::core::result::Result::Err(__nc_status_2);
             }
             let __nc_result_2 = (unsafe {
-                ::neocogi_com::decode_inline::<
+                crate::decode_inline::<
                     ::core::primitive::u32,
                 >(__nc_out_2.assume_init_ref())
             })?;
@@ -2496,9 +2452,9 @@ const _: () = {
         ///On success, returns `:: core :: primitive :: u32` from the ABI out slot.
         pub fn column(
             &self,
-        ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus> {
+        ) -> ::core::result::Result<::core::primitive::u32, crate::NcStatus> {
             let mut __nc_out_3 = ::core::mem::MaybeUninit::<
-                <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
+                <::core::primitive::u32 as crate::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_3 = self.__nc_pointer.as_raw();
             let __nc_status_3 = unsafe {
@@ -2509,7 +2465,7 @@ const _: () = {
                 return ::core::result::Result::Err(__nc_status_3);
             }
             let __nc_result_3 = (unsafe {
-                ::neocogi_com::decode_inline::<
+                crate::decode_inline::<
                     ::core::primitive::u32,
                 >(__nc_out_3.assume_init_ref())
             })?;
@@ -2526,9 +2482,9 @@ const _: () = {
         ///On success, returns `:: core :: primitive :: u32` from the ABI out slot.
         pub fn message_len(
             &self,
-        ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus> {
+        ) -> ::core::result::Result<::core::primitive::u32, crate::NcStatus> {
             let mut __nc_out_4 = ::core::mem::MaybeUninit::<
-                <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
+                <::core::primitive::u32 as crate::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_4 = self.__nc_pointer.as_raw();
             let __nc_status_4 = unsafe {
@@ -2539,7 +2495,7 @@ const _: () = {
                 return ::core::result::Result::Err(__nc_status_4);
             }
             let __nc_result_4 = (unsafe {
-                ::neocogi_com::decode_inline::<
+                crate::decode_inline::<
                     ::core::primitive::u32,
                 >(__nc_out_4.assume_init_ref())
             })?;
@@ -2552,16 +2508,16 @@ const _: () = {
         ///
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
         ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
-        ///- `output` supplies output storage for `:: core :: primitive :: u8` through [`::neocogi_com::NcOutput`]. See its lifecycle contract for acquisition, preparation and publication.
+        ///- `output` supplies output storage for `:: core :: primitive :: u8` through [`crate::NcOutput`]. See its lifecycle contract for acquisition, preparation and publication.
         ///
         ///On success, returns `:: core :: primitive :: u32` from the ABI out slot.
         pub fn copy_message(
             &self,
-            __nc_arg_0: ::neocogi_com::NcOutput<'_, ::core::primitive::u8>,
-        ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus> {
+            __nc_arg_0: crate::NcOutput<'_, ::core::primitive::u8>,
+        ) -> ::core::result::Result<::core::primitive::u32, crate::NcStatus> {
             let mut __nc_arg_0 = __nc_arg_0.prepare()?;
             let mut __nc_out_5 = ::core::mem::MaybeUninit::<
-                <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
+                <::core::primitive::u32 as crate::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_5 = self.__nc_pointer.as_raw();
             let __nc_status_5 = unsafe {
@@ -2579,7 +2535,7 @@ const _: () = {
                 return ::core::result::Result::Err(__nc_status_5);
             }
             let __nc_result_5 = (unsafe {
-                ::neocogi_com::decode_inline::<
+                crate::decode_inline::<
                     ::core::primitive::u32,
                 >(__nc_out_5.assume_init_ref())
             })?;
@@ -2598,9 +2554,9 @@ const _: () = {
         ///On success, returns `:: core :: primitive :: u32` from the ABI out slot.
         pub fn path_len(
             &self,
-        ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus> {
+        ) -> ::core::result::Result<::core::primitive::u32, crate::NcStatus> {
             let mut __nc_out_6 = ::core::mem::MaybeUninit::<
-                <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
+                <::core::primitive::u32 as crate::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_6 = self.__nc_pointer.as_raw();
             let __nc_status_6 = unsafe {
@@ -2611,7 +2567,7 @@ const _: () = {
                 return ::core::result::Result::Err(__nc_status_6);
             }
             let __nc_result_6 = (unsafe {
-                ::neocogi_com::decode_inline::<
+                crate::decode_inline::<
                     ::core::primitive::u32,
                 >(__nc_out_6.assume_init_ref())
             })?;
@@ -2624,16 +2580,16 @@ const _: () = {
         ///
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
         ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
-        ///- `output` supplies output storage for `:: core :: primitive :: u8` through [`::neocogi_com::NcOutput`]. See its lifecycle contract for acquisition, preparation and publication.
+        ///- `output` supplies output storage for `:: core :: primitive :: u8` through [`crate::NcOutput`]. See its lifecycle contract for acquisition, preparation and publication.
         ///
         ///On success, returns `:: core :: primitive :: u32` from the ABI out slot.
         pub fn copy_path(
             &self,
-            __nc_arg_0_0: ::neocogi_com::NcOutput<'_, ::core::primitive::u8>,
-        ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus> {
+            __nc_arg_0_0: crate::NcOutput<'_, ::core::primitive::u8>,
+        ) -> ::core::result::Result<::core::primitive::u32, crate::NcStatus> {
             let mut __nc_arg_0_0 = __nc_arg_0_0.prepare()?;
             let mut __nc_out_7 = ::core::mem::MaybeUninit::<
-                <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
+                <::core::primitive::u32 as crate::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_7 = self.__nc_pointer.as_raw();
             let __nc_status_7 = unsafe {
@@ -2651,7 +2607,7 @@ const _: () = {
                 return ::core::result::Result::Err(__nc_status_7);
             }
             let __nc_result_7 = (unsafe {
-                ::neocogi_com::decode_inline::<
+                crate::decode_inline::<
                     ::core::primitive::u32,
                 >(__nc_out_7.assume_init_ref())
             })?;
@@ -2663,162 +2619,162 @@ const _: () = {
 };
 impl ISerializationDiagnosticsAbi {
     ///Canonical validation form of this interface's typed ABI contract.
-    pub const ABI_SIGNATURE: ::neocogi_com::NcAbiDigest = ::neocogi_com::NcAbiDigest::from_static(
+    pub const ABI_SIGNATURE: crate::NcAbiDigest = crate::NcAbiDigest::from_static(
         b"\x13\x1E\xEF\xE7;\xA1\x9F\xEB\xB1\x9B\xB2'\x81\xE1\xB2\xFAe\x07\xEA\x12\xFCX\xF01\x98\x01\x89H\x1By\xEF\x15",
     );
     ///Static descriptors for this interface's ABI methods.
-    pub const METHOD_DESCRIPTORS: [::neocogi_com::NcMethodDescriptor; 8usize] = [
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("failure_status"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_SHARED,
+    pub const METHOD_DESCRIPTORS: [crate::NcMethodDescriptor; 8usize] = [
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("failure_status"),
+            receiver: crate::NC_ABI_RECEIVER_SHARED,
             param_count: 0u32,
-            params: (&[] as &'static [::neocogi_com::NcMethodParamDescriptor]).as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Out,
+            params: (&[] as &'static [crate::NcMethodParamDescriptor]).as_ptr(),
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Out,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::__nc_abi_type::<::neocogi_com::NcStatus>(),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                    crate::__nc_abi_type::<crate::NcStatus>(),
                 ),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("byte_offset"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_SHARED,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("byte_offset"),
+            receiver: crate::NC_ABI_RECEIVER_SHARED,
             param_count: 0u32,
-            params: (&[] as &'static [::neocogi_com::NcMethodParamDescriptor]).as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Out,
+            params: (&[] as &'static [crate::NcMethodParamDescriptor]).as_ptr(),
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Out,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::__nc_abi_type::<::core::primitive::u64>(),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                    crate::__nc_abi_type::<::core::primitive::u64>(),
                 ),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("line"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_SHARED,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("line"),
+            receiver: crate::NC_ABI_RECEIVER_SHARED,
             param_count: 0u32,
-            params: (&[] as &'static [::neocogi_com::NcMethodParamDescriptor]).as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Out,
+            params: (&[] as &'static [crate::NcMethodParamDescriptor]).as_ptr(),
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Out,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::__nc_abi_type::<::core::primitive::u32>(),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                    crate::__nc_abi_type::<::core::primitive::u32>(),
                 ),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("column"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_SHARED,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("column"),
+            receiver: crate::NC_ABI_RECEIVER_SHARED,
             param_count: 0u32,
-            params: (&[] as &'static [::neocogi_com::NcMethodParamDescriptor]).as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Out,
+            params: (&[] as &'static [crate::NcMethodParamDescriptor]).as_ptr(),
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Out,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::__nc_abi_type::<::core::primitive::u32>(),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                    crate::__nc_abi_type::<::core::primitive::u32>(),
                 ),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("message_len"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_SHARED,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("message_len"),
+            receiver: crate::NC_ABI_RECEIVER_SHARED,
             param_count: 0u32,
-            params: (&[] as &'static [::neocogi_com::NcMethodParamDescriptor]).as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Out,
+            params: (&[] as &'static [crate::NcMethodParamDescriptor]).as_ptr(),
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Out,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::__nc_abi_type::<::core::primitive::u32>(),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                    crate::__nc_abi_type::<::core::primitive::u32>(),
                 ),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("copy_message"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_SHARED,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("copy_message"),
+            receiver: crate::NC_ABI_RECEIVER_SHARED,
             param_count: 1u32,
             params: (&[
-                ::neocogi_com::NcMethodParamDescriptor {
-                    name: ::neocogi_com::NcStaticUtf8::from_static("output"),
-                    passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                        ::neocogi_com::NcAbiPassing::OutputBuffer,
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("output"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                        crate::NcAbiPassing::OutputBuffer,
                     ),
-                    ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                        ::neocogi_com::__nc_abi_plain_type::<::core::primitive::u8>(),
+                    ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                        crate::__nc_abi_plain_type::<::core::primitive::u8>(),
                     ),
                 },
-            ] as &'static [::neocogi_com::NcMethodParamDescriptor])
+            ] as &'static [crate::NcMethodParamDescriptor])
                 .as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Out,
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Out,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::__nc_abi_type::<::core::primitive::u32>(),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                    crate::__nc_abi_type::<::core::primitive::u32>(),
                 ),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("path_len"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_SHARED,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("path_len"),
+            receiver: crate::NC_ABI_RECEIVER_SHARED,
             param_count: 0u32,
-            params: (&[] as &'static [::neocogi_com::NcMethodParamDescriptor]).as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Out,
+            params: (&[] as &'static [crate::NcMethodParamDescriptor]).as_ptr(),
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Out,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::__nc_abi_type::<::core::primitive::u32>(),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                    crate::__nc_abi_type::<::core::primitive::u32>(),
                 ),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("copy_path"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_SHARED,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("copy_path"),
+            receiver: crate::NC_ABI_RECEIVER_SHARED,
             param_count: 1u32,
             params: (&[
-                ::neocogi_com::NcMethodParamDescriptor {
-                    name: ::neocogi_com::NcStaticUtf8::from_static("output"),
-                    passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                        ::neocogi_com::NcAbiPassing::OutputBuffer,
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("output"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                        crate::NcAbiPassing::OutputBuffer,
                     ),
-                    ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                        ::neocogi_com::__nc_abi_plain_type::<::core::primitive::u8>(),
+                    ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                        crate::__nc_abi_plain_type::<::core::primitive::u8>(),
                     ),
                 },
-            ] as &'static [::neocogi_com::NcMethodParamDescriptor])
+            ] as &'static [crate::NcMethodParamDescriptor])
                 .as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Out,
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Out,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::__nc_abi_type::<::core::primitive::u32>(),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                    crate::__nc_abi_type::<::core::primitive::u32>(),
                 ),
             },
         },
     ];
     ///Static ABI descriptor for this interface.
-    pub const INTERFACE_DESCRIPTOR: ::neocogi_com::NcInterfaceDescriptor = ::neocogi_com::NcInterfaceDescriptor {
-        interface_id: <Self as ::neocogi_com::ComInterface>::IID,
-        qualified_name: ::neocogi_com::NcStaticUtf8::from_static(
+    pub const INTERFACE_DESCRIPTOR: crate::NcInterfaceDescriptor = crate::NcInterfaceDescriptor {
+        interface_id: <Self as crate::ComInterface>::IID,
+        qualified_name: crate::NcStaticUtf8::from_static(
             "neocogi.com.serialization.ISerializationDiagnostics",
         ),
         abi_signature: Self::ABI_SIGNATURE,
-        base: ::neocogi_com::NcInterfaceId::NONE,
+        base: crate::NcInterfaceId::NONE,
         method_count: 8u32,
         methods: Self::METHOD_DESCRIPTORS.as_ptr(),
     };
     /// Distinct projections in derived-first, declared-parent order.
     /// Shared ancestors occur once; repeated identities must have the same ABI.
-    pub const INTERFACE_CHAIN: [&'static ::neocogi_com::NcInterfaceDescriptor; ::neocogi_com::__nc_object_interface_count(
+    pub const INTERFACE_CHAIN: [&'static crate::NcInterfaceDescriptor; crate::__nc_object_interface_count(
         &[&[&Self::INTERFACE_DESCRIPTOR]],
-    )] = ::neocogi_com::__nc_interface_chain(&Self::INTERFACE_DESCRIPTOR, &[]);
+    )] = crate::__nc_interface_chain(&Self::INTERFACE_DESCRIPTOR, &[]);
 }
 /// A format plugin's shared root; each document receives its own exclusive session.
 /// IDL source: `neocogi/com/serialization/formats.ncidl:124:11` (module `neocogi.com.serialization`).
@@ -2831,23 +2787,17 @@ pub trait ISerializationFormat {
         max_elements: ::core::primitive::u32,
         max_depth: ::core::primitive::u32,
         max_values: ::core::primitive::u64,
-    ) -> ::core::result::Result<
-        ::neocogi_com::ComBox<self::ISerializerAbi>,
-        ::neocogi_com::NcStatus,
-    >;
+    ) -> ::core::result::Result<crate::ComBox<self::ISerializerAbi>, crate::NcStatus>;
     /// Copies the complete borrowed document into a new bounded source session.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:128:8` (module `neocogi.com.serialization`).
     fn create_deserializer(
         &self,
-        input: ::neocogi_com::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
+        input: crate::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
         max_bytes: ::core::primitive::u64,
         max_elements: ::core::primitive::u32,
         max_depth: ::core::primitive::u32,
         max_values: ::core::primitive::u64,
-    ) -> ::core::result::Result<
-        ::neocogi_com::ComBox<self::IDeserializerAbi>,
-        ::neocogi_com::NcStatus,
-    >;
+    ) -> ::core::result::Result<crate::ComBox<self::IDeserializerAbi>, crate::NcStatus>;
 }
 ///Interface marker for [`ISerializationFormat`]; handles carry its object/table pair.
 pub enum ISerializationFormatAbi {}
@@ -2855,7 +2805,7 @@ pub enum ISerializationFormatAbi {}
 ///C-compatible vtable for [`ISerializationFormat`].
 pub struct ISerializationFormatVTable {
     /// Common identity, query and reference-count slots.
-    pub unknown: ::neocogi_com::IUnknownVTable,
+    pub unknown: crate::IUnknownVTable,
     /// Creates a bounded serializer with format-owned output storage.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:126:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializationFormat::create_serializer`].
@@ -2865,24 +2815,24 @@ pub struct ISerializationFormatVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `max_bytes` uses ABI storage `< :: core :: primitive :: u64 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: u64`. Passed by value.
-    ///- `max_elements` uses ABI storage `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
-    ///- `max_depth` uses ABI storage `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
-    ///- `max_values` uses ABI storage `< :: core :: primitive :: u64 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: u64`. Passed by value.
+    ///- `max_bytes` uses ABI storage `< :: core :: primitive :: u64 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u64`. Passed by value.
+    ///- `max_elements` uses ABI storage `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
+    ///- `max_depth` uses ABI storage `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
+    ///- `max_values` uses ABI storage `< :: core :: primitive :: u64 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u64`. Passed by value.
     ///
-    ///On success, `out` receives `:: neocogi_com :: ComRaw < self :: ISerializerAbi >` for `:: neocogi_com :: ComBox < self :: ISerializerAbi >`. The caller receives the sole exclusive owner; interface queries cannot duplicate it.
+    ///On success, `out` receives `crate :: ComRaw < self :: ISerializerAbi >` for `crate :: ComBox < self :: ISerializerAbi >`. The caller receives the sole exclusive owner; interface queries cannot duplicate it.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub create_serializer: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_arg_0: <::core::primitive::u64 as ::neocogi_com::ComValue>::AbiRepr,
-        __nc_arg_1: <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
-        __nc_arg_2: <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
-        __nc_arg_3: <::core::primitive::u64 as ::neocogi_com::ComValue>::AbiRepr,
-        __nc_out: *mut ::neocogi_com::ComRaw<self::ISerializerAbi>,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_arg_0: <::core::primitive::u64 as crate::ComValue>::AbiRepr,
+        __nc_arg_1: <::core::primitive::u32 as crate::ComValue>::AbiRepr,
+        __nc_arg_2: <::core::primitive::u32 as crate::ComValue>::AbiRepr,
+        __nc_arg_3: <::core::primitive::u64 as crate::ComValue>::AbiRepr,
+        __nc_out: *mut crate::ComRaw<self::ISerializerAbi>,
+    ) -> crate::NcStatus,
     /// Copies the complete borrowed document into a new bounded source session.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:128:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializationFormat::create_deserializer`].
@@ -2892,13 +2842,13 @@ pub struct ISerializationFormatVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `input` uses ABI storage `* const < :: core :: primitive :: u8 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: neocogi_com :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
-    ///- `max_bytes` uses ABI storage `< :: core :: primitive :: u64 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: u64`. Passed by value.
-    ///- `max_elements` uses ABI storage `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
-    ///- `max_depth` uses ABI storage `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
-    ///- `max_values` uses ABI storage `< :: core :: primitive :: u64 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: u64`. Passed by value.
+    ///- `input` uses ABI storage `* const < :: core :: primitive :: u8 as crate :: ComValue > :: AbiRepr` for `crate :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
+    ///- `max_bytes` uses ABI storage `< :: core :: primitive :: u64 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u64`. Passed by value.
+    ///- `max_elements` uses ABI storage `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
+    ///- `max_depth` uses ABI storage `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
+    ///- `max_values` uses ABI storage `< :: core :: primitive :: u64 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u64`. Passed by value.
     ///
-    ///On success, `out` receives `:: neocogi_com :: ComRaw < self :: IDeserializerAbi >` for `:: neocogi_com :: ComBox < self :: IDeserializerAbi >`. The caller receives the sole exclusive owner; interface queries cannot duplicate it.
+    ///On success, `out` receives `crate :: ComRaw < self :: IDeserializerAbi >` for `crate :: ComBox < self :: IDeserializerAbi >`. The caller receives the sole exclusive owner; interface queries cannot duplicate it.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
@@ -2907,23 +2857,23 @@ pub struct ISerializationFormatVTable {
         __nc_this: *mut ::core::ffi::c_void,
         __nc_arg_0_0_offset: ::core::primitive::u64,
         __nc_arg_0_0_len: ::core::primitive::u64,
-        __nc_arg_0_0_ptr: *const <::core::primitive::u8 as ::neocogi_com::ComValue>::AbiRepr,
-        __nc_arg_1_0: <::core::primitive::u64 as ::neocogi_com::ComValue>::AbiRepr,
-        __nc_arg_2_0: <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
-        __nc_arg_3_0: <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
-        __nc_arg_4: <::core::primitive::u64 as ::neocogi_com::ComValue>::AbiRepr,
-        __nc_out: *mut ::neocogi_com::ComRaw<self::IDeserializerAbi>,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_arg_0_0_ptr: *const <::core::primitive::u8 as crate::ComValue>::AbiRepr,
+        __nc_arg_1_0: <::core::primitive::u64 as crate::ComValue>::AbiRepr,
+        __nc_arg_2_0: <::core::primitive::u32 as crate::ComValue>::AbiRepr,
+        __nc_arg_3_0: <::core::primitive::u32 as crate::ComValue>::AbiRepr,
+        __nc_arg_4: <::core::primitive::u64 as crate::ComValue>::AbiRepr,
+        __nc_out: *mut crate::ComRaw<self::IDeserializerAbi>,
+    ) -> crate::NcStatus,
 }
-unsafe impl ::neocogi_com::ComInterface for ISerializationFormatAbi {
-    const IID: ::neocogi_com::NcGuid = ::neocogi_com::NcGuid {
+unsafe impl crate::ComInterface for ISerializationFormatAbi {
+    const IID: crate::NcGuid = crate::NcGuid {
         data1: 2495874208u32,
         data2: 33281u16,
         data3: 23583u16,
         data4: [151u8, 222u8, 148u8, 217u8, 21u8, 175u8, 146u8, 255u8],
     };
-    const INTERFACE_ID: ::neocogi_com::NcInterfaceId = ::neocogi_com::NcInterfaceId::new(
-        ::neocogi_com::NcGuid {
+    const INTERFACE_ID: crate::NcInterfaceId = crate::NcInterfaceId::new(
+        crate::NcGuid {
             data1: 2495874208u32,
             data2: 33281u16,
             data3: 23583u16,
@@ -2932,33 +2882,30 @@ unsafe impl ::neocogi_com::ComInterface for ISerializationFormatAbi {
         ISerializationFormatAbi::ABI_SIGNATURE,
     );
     type VTable = ISerializationFormatVTable;
-    type Threading = ::neocogi_com::ThreadLocal;
+    type Threading = crate::ThreadLocal;
 }
 #[repr(transparent)]
 ///Borrowed Rust method wrapper for [`ISerializationFormat`].
 pub struct ISerializationFormatWrapper<
-    __NcThreading: ::neocogi_com::ThreadingModel = ::neocogi_com::ThreadLocal,
+    __NcThreading: crate::ThreadingModel = crate::ThreadLocal,
 > {
     /// Opaque pointer borrowed from retained interface/control storage; provider entry admits value access.
-    __nc_pointer: ::neocogi_com::ComInterfacePointer<
-        ISerializationFormatAbi,
-        __NcThreading,
-    >,
+    __nc_pointer: crate::ComInterfacePointer<ISerializationFormatAbi, __NcThreading>,
 }
-unsafe impl ::neocogi_com::ComRustInterface for ISerializationFormatAbi {
-    type Wrapper<__NcThreading: ::neocogi_com::ThreadingModel> = ISerializationFormatWrapper<
+unsafe impl crate::ComRustInterface for ISerializationFormatAbi {
+    type Wrapper<__NcThreading: crate::ThreadingModel> = ISerializationFormatWrapper<
         __NcThreading,
     >;
-    fn __nc_wrapper_ref<__NcThreading: ::neocogi_com::ThreadingModel>(
-        pointer: &::neocogi_com::ComInterfacePointer<Self, __NcThreading>,
+    fn __nc_wrapper_ref<__NcThreading: crate::ThreadingModel>(
+        pointer: &crate::ComInterfacePointer<Self, __NcThreading>,
     ) -> &Self::Wrapper<__NcThreading> {
         unsafe {
             &*(::core::ptr::from_ref(pointer)
                 as *const ISerializationFormatWrapper<__NcThreading>)
         }
     }
-    fn __nc_wrapper_mut<__NcThreading: ::neocogi_com::ThreadingModel>(
-        pointer: &mut ::neocogi_com::ComInterfacePointer<Self, __NcThreading>,
+    fn __nc_wrapper_mut<__NcThreading: crate::ThreadingModel>(
+        pointer: &mut crate::ComInterfacePointer<Self, __NcThreading>,
     ) -> &mut Self::Wrapper<__NcThreading> {
         unsafe {
             &mut *(::core::ptr::from_mut(pointer)
@@ -3019,7 +2966,7 @@ const _: () = {
         identity as __nc_prepared_0, identity as __nc_out_1,
     };
     impl<
-        __NcThreading: ::neocogi_com::ThreadingModel,
+        __NcThreading: crate::ThreadingModel,
     > ISerializationFormatWrapper<__NcThreading> {
         /// Creates a bounded serializer with format-owned output storage.
         /// IDL source: `neocogi/com/serialization/formats.ncidl:126:8` (module `neocogi.com.serialization`).
@@ -3033,7 +2980,7 @@ const _: () = {
         ///- `max_depth` is passed by value as `:: core :: primitive :: u32`.
         ///- `max_values` is passed by value as `:: core :: primitive :: u64`.
         ///
-        ///On success, returns `:: neocogi_com :: ComBox < self :: ISerializerAbi >`. The caller receives the sole exclusive owner; interface queries cannot duplicate it.
+        ///On success, returns `crate :: ComBox < self :: ISerializerAbi >`. The caller receives the sole exclusive owner; interface queries cannot duplicate it.
         pub fn create_serializer(
             &self,
             __nc_arg_0: ::core::primitive::u64,
@@ -3041,15 +2988,15 @@ const _: () = {
             __nc_arg_2: ::core::primitive::u32,
             __nc_arg_3: ::core::primitive::u64,
         ) -> ::core::result::Result<
-            ::neocogi_com::ComBox<self::ISerializerAbi>,
-            ::neocogi_com::NcStatus,
+            crate::ComBox<self::ISerializerAbi>,
+            crate::NcStatus,
         > {
-            let __nc_arg_0 = ::neocogi_com::encode_inline(&__nc_arg_0)?;
-            let __nc_arg_1 = ::neocogi_com::encode_inline(&__nc_arg_1)?;
-            let __nc_arg_2 = ::neocogi_com::encode_inline(&__nc_arg_2)?;
-            let __nc_arg_3 = ::neocogi_com::encode_inline(&__nc_arg_3)?;
+            let __nc_arg_0 = crate::encode_inline(&__nc_arg_0)?;
+            let __nc_arg_1 = crate::encode_inline(&__nc_arg_1)?;
+            let __nc_arg_2 = crate::encode_inline(&__nc_arg_2)?;
+            let __nc_arg_3 = crate::encode_inline(&__nc_arg_3)?;
             let mut __nc_out_0 = ::core::mem::MaybeUninit::<
-                ::neocogi_com::ComRaw<self::ISerializerAbi>,
+                crate::ComRaw<self::ISerializerAbi>,
             >::uninit();
             let __nc_this_0 = self.__nc_pointer.as_raw();
             let __nc_status_0 = unsafe {
@@ -3067,7 +3014,7 @@ const _: () = {
                 return ::core::result::Result::Err(__nc_status_0);
             }
             let __nc_result_0 = (unsafe {
-                <::neocogi_com::ComBox<
+                <crate::ComBox<
                     self::ISerializerAbi,
                 >>::__nc_from_raw_owned_checked(__nc_out_0.assume_init())
             })?;
@@ -3086,28 +3033,25 @@ const _: () = {
         ///- `max_depth` is passed by value as `:: core :: primitive :: u32`.
         ///- `max_values` is passed by value as `:: core :: primitive :: u64`.
         ///
-        ///On success, returns `:: neocogi_com :: ComBox < self :: IDeserializerAbi >`. The caller receives the sole exclusive owner; interface queries cannot duplicate it.
+        ///On success, returns `crate :: ComBox < self :: IDeserializerAbi >`. The caller receives the sole exclusive owner; interface queries cannot duplicate it.
         pub fn create_deserializer(
             &self,
-            __nc_arg_0_0: ::neocogi_com::NcCopyFromBufferOffset<
-                '_,
-                ::core::primitive::u8,
-            >,
+            __nc_arg_0_0: crate::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
             __nc_arg_1_0: ::core::primitive::u64,
             __nc_arg_2_0: ::core::primitive::u32,
             __nc_arg_3_0: ::core::primitive::u32,
             __nc_arg_4: ::core::primitive::u64,
         ) -> ::core::result::Result<
-            ::neocogi_com::ComBox<self::IDeserializerAbi>,
-            ::neocogi_com::NcStatus,
+            crate::ComBox<self::IDeserializerAbi>,
+            crate::NcStatus,
         > {
-            let __nc_arg_0_0 = ::neocogi_com::EncodedInput::new(__nc_arg_0_0)?;
-            let __nc_arg_1_0 = ::neocogi_com::encode_inline(&__nc_arg_1_0)?;
-            let __nc_arg_2_0 = ::neocogi_com::encode_inline(&__nc_arg_2_0)?;
-            let __nc_arg_3_0 = ::neocogi_com::encode_inline(&__nc_arg_3_0)?;
-            let __nc_arg_4 = ::neocogi_com::encode_inline(&__nc_arg_4)?;
+            let __nc_arg_0_0 = crate::EncodedInput::new(__nc_arg_0_0)?;
+            let __nc_arg_1_0 = crate::encode_inline(&__nc_arg_1_0)?;
+            let __nc_arg_2_0 = crate::encode_inline(&__nc_arg_2_0)?;
+            let __nc_arg_3_0 = crate::encode_inline(&__nc_arg_3_0)?;
+            let __nc_arg_4 = crate::encode_inline(&__nc_arg_4)?;
             let mut __nc_out_1 = ::core::mem::MaybeUninit::<
-                ::neocogi_com::ComRaw<self::IDeserializerAbi>,
+                crate::ComRaw<self::IDeserializerAbi>,
             >::uninit();
             let __nc_this_1 = self.__nc_pointer.as_raw();
             let __nc_status_1 = unsafe {
@@ -3128,7 +3072,7 @@ const _: () = {
                 return ::core::result::Result::Err(__nc_status_1);
             }
             let __nc_result_1 = (unsafe {
-                <::neocogi_com::ComBox<
+                <crate::ComBox<
                     self::IDeserializerAbi,
                 >>::__nc_from_raw_owned_checked(__nc_out_1.assume_init())
             })?;
@@ -3138,141 +3082,141 @@ const _: () = {
 };
 impl ISerializationFormatAbi {
     ///Canonical validation form of this interface's typed ABI contract.
-    pub const ABI_SIGNATURE: ::neocogi_com::NcAbiDigest = ::neocogi_com::NcAbiDigest::from_static(
+    pub const ABI_SIGNATURE: crate::NcAbiDigest = crate::NcAbiDigest::from_static(
         b"Q\x94\x92\xAB> \x82\x10'\xF7\xB2`\x945\xB2\xED:\x9A\xEFf\xBC\xB8o\xE1|b\x8F\xFD\\\xF5\xF2\xAA",
     );
     ///Static descriptors for this interface's ABI methods.
-    pub const METHOD_DESCRIPTORS: [::neocogi_com::NcMethodDescriptor; 2usize] = [
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("create_serializer"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_SHARED,
+    pub const METHOD_DESCRIPTORS: [crate::NcMethodDescriptor; 2usize] = [
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("create_serializer"),
+            receiver: crate::NC_ABI_RECEIVER_SHARED,
             param_count: 4u32,
             params: (&[
-                ::neocogi_com::NcMethodParamDescriptor {
-                    name: ::neocogi_com::NcStaticUtf8::from_static("max_bytes"),
-                    passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                        ::neocogi_com::NcAbiPassing::Value,
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("max_bytes"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                        crate::NcAbiPassing::Value,
                     ),
-                    ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                        ::neocogi_com::__nc_abi_type::<::core::primitive::u64>(),
-                    ),
-                },
-                ::neocogi_com::NcMethodParamDescriptor {
-                    name: ::neocogi_com::NcStaticUtf8::from_static("max_elements"),
-                    passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                        ::neocogi_com::NcAbiPassing::Value,
-                    ),
-                    ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                        ::neocogi_com::__nc_abi_type::<::core::primitive::u32>(),
+                    ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                        crate::__nc_abi_type::<::core::primitive::u64>(),
                     ),
                 },
-                ::neocogi_com::NcMethodParamDescriptor {
-                    name: ::neocogi_com::NcStaticUtf8::from_static("max_depth"),
-                    passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                        ::neocogi_com::NcAbiPassing::Value,
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("max_elements"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                        crate::NcAbiPassing::Value,
                     ),
-                    ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                        ::neocogi_com::__nc_abi_type::<::core::primitive::u32>(),
-                    ),
-                },
-                ::neocogi_com::NcMethodParamDescriptor {
-                    name: ::neocogi_com::NcStaticUtf8::from_static("max_values"),
-                    passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                        ::neocogi_com::NcAbiPassing::Value,
-                    ),
-                    ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                        ::neocogi_com::__nc_abi_type::<::core::primitive::u64>(),
+                    ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                        crate::__nc_abi_type::<::core::primitive::u32>(),
                     ),
                 },
-            ] as &'static [::neocogi_com::NcMethodParamDescriptor])
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("max_depth"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                        crate::NcAbiPassing::Value,
+                    ),
+                    ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                        crate::__nc_abi_type::<::core::primitive::u32>(),
+                    ),
+                },
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("max_values"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                        crate::NcAbiPassing::Value,
+                    ),
+                    ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                        crate::__nc_abi_type::<::core::primitive::u64>(),
+                    ),
+                },
+            ] as &'static [crate::NcMethodParamDescriptor])
                 .as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(::neocogi_com::NcAbiPassing::ComBoxOut {
-                    mode: <::neocogi_com::ThreadLocal as ::neocogi_com::ThreadingModel>::ABI_THREADING_MODE,
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(crate::NcAbiPassing::ComBoxOut {
+                    mode: <crate::ThreadLocal as crate::ThreadingModel>::ABI_THREADING_MODE,
                 }),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_interface(
-                    <self::ISerializerAbi as ::neocogi_com::ComInterface>::INTERFACE_ID,
+                ty: crate::NcAbiTypeDescriptor::from_interface(
+                    <self::ISerializerAbi as crate::ComInterface>::INTERFACE_ID,
                 ),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("create_deserializer"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_SHARED,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("create_deserializer"),
+            receiver: crate::NC_ABI_RECEIVER_SHARED,
             param_count: 5u32,
             params: (&[
-                ::neocogi_com::NcMethodParamDescriptor {
-                    name: ::neocogi_com::NcStaticUtf8::from_static("input"),
-                    passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                        ::neocogi_com::NcAbiPassing::CopyFromBufferOffset,
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("input"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                        crate::NcAbiPassing::CopyFromBufferOffset,
                     ),
-                    ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                        ::neocogi_com::__nc_abi_plain_type::<::core::primitive::u8>(),
-                    ),
-                },
-                ::neocogi_com::NcMethodParamDescriptor {
-                    name: ::neocogi_com::NcStaticUtf8::from_static("max_bytes"),
-                    passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                        ::neocogi_com::NcAbiPassing::Value,
-                    ),
-                    ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                        ::neocogi_com::__nc_abi_type::<::core::primitive::u64>(),
+                    ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                        crate::__nc_abi_plain_type::<::core::primitive::u8>(),
                     ),
                 },
-                ::neocogi_com::NcMethodParamDescriptor {
-                    name: ::neocogi_com::NcStaticUtf8::from_static("max_elements"),
-                    passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                        ::neocogi_com::NcAbiPassing::Value,
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("max_bytes"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                        crate::NcAbiPassing::Value,
                     ),
-                    ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                        ::neocogi_com::__nc_abi_type::<::core::primitive::u32>(),
-                    ),
-                },
-                ::neocogi_com::NcMethodParamDescriptor {
-                    name: ::neocogi_com::NcStaticUtf8::from_static("max_depth"),
-                    passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                        ::neocogi_com::NcAbiPassing::Value,
-                    ),
-                    ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                        ::neocogi_com::__nc_abi_type::<::core::primitive::u32>(),
+                    ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                        crate::__nc_abi_type::<::core::primitive::u64>(),
                     ),
                 },
-                ::neocogi_com::NcMethodParamDescriptor {
-                    name: ::neocogi_com::NcStaticUtf8::from_static("max_values"),
-                    passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                        ::neocogi_com::NcAbiPassing::Value,
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("max_elements"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                        crate::NcAbiPassing::Value,
                     ),
-                    ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                        ::neocogi_com::__nc_abi_type::<::core::primitive::u64>(),
+                    ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                        crate::__nc_abi_type::<::core::primitive::u32>(),
                     ),
                 },
-            ] as &'static [::neocogi_com::NcMethodParamDescriptor])
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("max_depth"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                        crate::NcAbiPassing::Value,
+                    ),
+                    ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                        crate::__nc_abi_type::<::core::primitive::u32>(),
+                    ),
+                },
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("max_values"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                        crate::NcAbiPassing::Value,
+                    ),
+                    ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                        crate::__nc_abi_type::<::core::primitive::u64>(),
+                    ),
+                },
+            ] as &'static [crate::NcMethodParamDescriptor])
                 .as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(::neocogi_com::NcAbiPassing::ComBoxOut {
-                    mode: <::neocogi_com::ThreadLocal as ::neocogi_com::ThreadingModel>::ABI_THREADING_MODE,
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(crate::NcAbiPassing::ComBoxOut {
+                    mode: <crate::ThreadLocal as crate::ThreadingModel>::ABI_THREADING_MODE,
                 }),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_interface(
-                    <self::IDeserializerAbi as ::neocogi_com::ComInterface>::INTERFACE_ID,
+                ty: crate::NcAbiTypeDescriptor::from_interface(
+                    <self::IDeserializerAbi as crate::ComInterface>::INTERFACE_ID,
                 ),
             },
         },
     ];
     ///Static ABI descriptor for this interface.
-    pub const INTERFACE_DESCRIPTOR: ::neocogi_com::NcInterfaceDescriptor = ::neocogi_com::NcInterfaceDescriptor {
-        interface_id: <Self as ::neocogi_com::ComInterface>::IID,
-        qualified_name: ::neocogi_com::NcStaticUtf8::from_static(
+    pub const INTERFACE_DESCRIPTOR: crate::NcInterfaceDescriptor = crate::NcInterfaceDescriptor {
+        interface_id: <Self as crate::ComInterface>::IID,
+        qualified_name: crate::NcStaticUtf8::from_static(
             "neocogi.com.serialization.ISerializationFormat",
         ),
         abi_signature: Self::ABI_SIGNATURE,
-        base: ::neocogi_com::NcInterfaceId::NONE,
+        base: crate::NcInterfaceId::NONE,
         method_count: 2u32,
         methods: Self::METHOD_DESCRIPTORS.as_ptr(),
     };
     /// Distinct projections in derived-first, declared-parent order.
     /// Shared ancestors occur once; repeated identities must have the same ABI.
-    pub const INTERFACE_CHAIN: [&'static ::neocogi_com::NcInterfaceDescriptor; ::neocogi_com::__nc_object_interface_count(
+    pub const INTERFACE_CHAIN: [&'static crate::NcInterfaceDescriptor; crate::__nc_object_interface_count(
         &[&[&Self::INTERFACE_DESCRIPTOR]],
-    )] = ::neocogi_com::__nc_interface_chain(&Self::INTERFACE_DESCRIPTOR, &[]);
+    )] = crate::__nc_interface_chain(&Self::INTERFACE_DESCRIPTOR, &[]);
 }
 /// Byte output of a completed serializer, independent of its document format.
 /// IDL source: `neocogi/com/serialization/formats.ncidl:116:11` (module `neocogi.com.serialization`).
@@ -3281,13 +3225,13 @@ pub trait ISerializationOutput {
     /// IDL source: `neocogi/com/serialization/formats.ncidl:118:8` (module `neocogi.com.serialization`).
     fn byte_len(
         &self,
-    ) -> ::core::result::Result<::core::primitive::u64, ::neocogi_com::NcStatus>;
+    ) -> ::core::result::Result<::core::primitive::u64, crate::NcStatus>;
     /// Copies the complete document; insufficient capacity publishes no prefix.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:120:8` (module `neocogi.com.serialization`).
     fn copy_to(
         &self,
-        output: ::neocogi_com::NcOutputWriter<'_, ::core::primitive::u8>,
-    ) -> ::core::result::Result<::core::primitive::u64, ::neocogi_com::NcStatus>;
+        output: crate::NcOutputWriter<'_, ::core::primitive::u8>,
+    ) -> ::core::result::Result<::core::primitive::u64, crate::NcStatus>;
 }
 ///Interface marker for [`ISerializationOutput`]; handles carry its object/table pair.
 pub enum ISerializationOutputAbi {}
@@ -3295,7 +3239,7 @@ pub enum ISerializationOutputAbi {}
 ///C-compatible vtable for [`ISerializationOutput`].
 pub struct ISerializationOutputVTable {
     /// Common identity, query and reference-count slots.
-    pub unknown: ::neocogi_com::IUnknownVTable,
+    pub unknown: crate::IUnknownVTable,
     /// Reports the complete document length after successful finish.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:118:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializationOutput::byte_len`].
@@ -3306,15 +3250,15 @@ pub struct ISerializationOutputVTable {
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: u64 as :: neocogi_com :: ComValue > :: AbiRepr`.
+    ///On success, `out` receives `< :: core :: primitive :: u64 as crate :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub byte_len: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_out: *mut <::core::primitive::u64 as ::neocogi_com::ComValue>::AbiRepr,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_out: *mut <::core::primitive::u64 as crate::ComValue>::AbiRepr,
+    ) -> crate::NcStatus,
     /// Copies the complete document; insufficient capacity publishes no prefix.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:120:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializationOutput::copy_to`].
@@ -3324,9 +3268,9 @@ pub struct ISerializationOutputVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `output` uses ABI storage `* mut < :: core :: primitive :: u8 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: neocogi_com :: NcOutputWriter < '_ , :: core :: primitive :: u8 >`. The writable buffer pointer is accompanied by `offset: u64`, `capacity: u64`, and a separate `written: *mut u64`. Old contents are not input. Only the successfully reported initialized prefix may be read; count and element storage must not alias.
+    ///- `output` uses ABI storage `* mut < :: core :: primitive :: u8 as crate :: ComValue > :: AbiRepr` for `crate :: NcOutputWriter < '_ , :: core :: primitive :: u8 >`. The writable buffer pointer is accompanied by `offset: u64`, `capacity: u64`, and a separate `written: *mut u64`. Old contents are not input. Only the successfully reported initialized prefix may be read; count and element storage must not alias.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: u64 as :: neocogi_com :: ComValue > :: AbiRepr`.
+    ///On success, `out` receives `< :: core :: primitive :: u64 as crate :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
@@ -3335,20 +3279,20 @@ pub struct ISerializationOutputVTable {
         __nc_this: *mut ::core::ffi::c_void,
         __nc_arg_0_offset: ::core::primitive::u64,
         __nc_arg_0_len: ::core::primitive::u64,
-        __nc_arg_0_ptr: *mut <::core::primitive::u8 as ::neocogi_com::ComValue>::AbiRepr,
+        __nc_arg_0_ptr: *mut <::core::primitive::u8 as crate::ComValue>::AbiRepr,
         __nc_arg_0_written: *mut ::core::primitive::u64,
-        __nc_out: *mut <::core::primitive::u64 as ::neocogi_com::ComValue>::AbiRepr,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_out: *mut <::core::primitive::u64 as crate::ComValue>::AbiRepr,
+    ) -> crate::NcStatus,
 }
-unsafe impl ::neocogi_com::ComInterface for ISerializationOutputAbi {
-    const IID: ::neocogi_com::NcGuid = ::neocogi_com::NcGuid {
+unsafe impl crate::ComInterface for ISerializationOutputAbi {
+    const IID: crate::NcGuid = crate::NcGuid {
         data1: 2336143355u32,
         data2: 4644u16,
         data3: 21403u16,
         data4: [188u8, 180u8, 231u8, 2u8, 75u8, 94u8, 81u8, 217u8],
     };
-    const INTERFACE_ID: ::neocogi_com::NcInterfaceId = ::neocogi_com::NcInterfaceId::new(
-        ::neocogi_com::NcGuid {
+    const INTERFACE_ID: crate::NcInterfaceId = crate::NcInterfaceId::new(
+        crate::NcGuid {
             data1: 2336143355u32,
             data2: 4644u16,
             data3: 21403u16,
@@ -3357,33 +3301,30 @@ unsafe impl ::neocogi_com::ComInterface for ISerializationOutputAbi {
         ISerializationOutputAbi::ABI_SIGNATURE,
     );
     type VTable = ISerializationOutputVTable;
-    type Threading = ::neocogi_com::ThreadLocal;
+    type Threading = crate::ThreadLocal;
 }
 #[repr(transparent)]
 ///Borrowed Rust method wrapper for [`ISerializationOutput`].
 pub struct ISerializationOutputWrapper<
-    __NcThreading: ::neocogi_com::ThreadingModel = ::neocogi_com::ThreadLocal,
+    __NcThreading: crate::ThreadingModel = crate::ThreadLocal,
 > {
     /// Opaque pointer borrowed from retained interface/control storage; provider entry admits value access.
-    __nc_pointer: ::neocogi_com::ComInterfacePointer<
-        ISerializationOutputAbi,
-        __NcThreading,
-    >,
+    __nc_pointer: crate::ComInterfacePointer<ISerializationOutputAbi, __NcThreading>,
 }
-unsafe impl ::neocogi_com::ComRustInterface for ISerializationOutputAbi {
-    type Wrapper<__NcThreading: ::neocogi_com::ThreadingModel> = ISerializationOutputWrapper<
+unsafe impl crate::ComRustInterface for ISerializationOutputAbi {
+    type Wrapper<__NcThreading: crate::ThreadingModel> = ISerializationOutputWrapper<
         __NcThreading,
     >;
-    fn __nc_wrapper_ref<__NcThreading: ::neocogi_com::ThreadingModel>(
-        pointer: &::neocogi_com::ComInterfacePointer<Self, __NcThreading>,
+    fn __nc_wrapper_ref<__NcThreading: crate::ThreadingModel>(
+        pointer: &crate::ComInterfacePointer<Self, __NcThreading>,
     ) -> &Self::Wrapper<__NcThreading> {
         unsafe {
             &*(::core::ptr::from_ref(pointer)
                 as *const ISerializationOutputWrapper<__NcThreading>)
         }
     }
-    fn __nc_wrapper_mut<__NcThreading: ::neocogi_com::ThreadingModel>(
-        pointer: &mut ::neocogi_com::ComInterfacePointer<Self, __NcThreading>,
+    fn __nc_wrapper_mut<__NcThreading: crate::ThreadingModel>(
+        pointer: &mut crate::ComInterfacePointer<Self, __NcThreading>,
     ) -> &mut Self::Wrapper<__NcThreading> {
         unsafe {
             &mut *(::core::ptr::from_mut(pointer)
@@ -3408,7 +3349,7 @@ const _: () = {
         identity as __nc_prepared_0, identity as __nc_out_1,
     };
     impl<
-        __NcThreading: ::neocogi_com::ThreadingModel,
+        __NcThreading: crate::ThreadingModel,
     > ISerializationOutputWrapper<__NcThreading> {
         /// Reports the complete document length after successful finish.
         /// IDL source: `neocogi/com/serialization/formats.ncidl:118:8` (module `neocogi.com.serialization`).
@@ -3421,9 +3362,9 @@ const _: () = {
         ///On success, returns `:: core :: primitive :: u64` from the ABI out slot.
         pub fn byte_len(
             &self,
-        ) -> ::core::result::Result<::core::primitive::u64, ::neocogi_com::NcStatus> {
+        ) -> ::core::result::Result<::core::primitive::u64, crate::NcStatus> {
             let mut __nc_out_0 = ::core::mem::MaybeUninit::<
-                <::core::primitive::u64 as ::neocogi_com::ComValue>::AbiRepr,
+                <::core::primitive::u64 as crate::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_0 = self.__nc_pointer.as_raw();
             let __nc_status_0 = unsafe {
@@ -3434,7 +3375,7 @@ const _: () = {
                 return ::core::result::Result::Err(__nc_status_0);
             }
             let __nc_result_0 = (unsafe {
-                ::neocogi_com::decode_inline::<
+                crate::decode_inline::<
                     ::core::primitive::u64,
                 >(__nc_out_0.assume_init_ref())
             })?;
@@ -3447,16 +3388,16 @@ const _: () = {
         ///
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
         ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
-        ///- `output` supplies output storage for `:: core :: primitive :: u8` through [`::neocogi_com::NcOutput`]. See its lifecycle contract for acquisition, preparation and publication.
+        ///- `output` supplies output storage for `:: core :: primitive :: u8` through [`crate::NcOutput`]. See its lifecycle contract for acquisition, preparation and publication.
         ///
         ///On success, returns `:: core :: primitive :: u64` from the ABI out slot.
         pub fn copy_to(
             &self,
-            __nc_arg_0: ::neocogi_com::NcOutput<'_, ::core::primitive::u8>,
-        ) -> ::core::result::Result<::core::primitive::u64, ::neocogi_com::NcStatus> {
+            __nc_arg_0: crate::NcOutput<'_, ::core::primitive::u8>,
+        ) -> ::core::result::Result<::core::primitive::u64, crate::NcStatus> {
             let mut __nc_arg_0 = __nc_arg_0.prepare()?;
             let mut __nc_out_1 = ::core::mem::MaybeUninit::<
-                <::core::primitive::u64 as ::neocogi_com::ComValue>::AbiRepr,
+                <::core::primitive::u64 as crate::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_1 = self.__nc_pointer.as_raw();
             let __nc_status_1 = unsafe {
@@ -3474,7 +3415,7 @@ const _: () = {
                 return ::core::result::Result::Err(__nc_status_1);
             }
             let __nc_result_1 = (unsafe {
-                ::neocogi_com::decode_inline::<
+                crate::decode_inline::<
                     ::core::primitive::u64,
                 >(__nc_out_1.assume_init_ref())
             })?;
@@ -3486,67 +3427,67 @@ const _: () = {
 };
 impl ISerializationOutputAbi {
     ///Canonical validation form of this interface's typed ABI contract.
-    pub const ABI_SIGNATURE: ::neocogi_com::NcAbiDigest = ::neocogi_com::NcAbiDigest::from_static(
+    pub const ABI_SIGNATURE: crate::NcAbiDigest = crate::NcAbiDigest::from_static(
         b"\xD5\xA2\xA4a\xE0\xAE\xB7\xC2\x90\xCD4Gl\x8F\x0B(\xE6\xEC\xE4\xDD\x0FK\xDC\xD1x[W\xA1h\x9B\xB3j",
     );
     ///Static descriptors for this interface's ABI methods.
-    pub const METHOD_DESCRIPTORS: [::neocogi_com::NcMethodDescriptor; 2usize] = [
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("byte_len"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_SHARED,
+    pub const METHOD_DESCRIPTORS: [crate::NcMethodDescriptor; 2usize] = [
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("byte_len"),
+            receiver: crate::NC_ABI_RECEIVER_SHARED,
             param_count: 0u32,
-            params: (&[] as &'static [::neocogi_com::NcMethodParamDescriptor]).as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Out,
+            params: (&[] as &'static [crate::NcMethodParamDescriptor]).as_ptr(),
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Out,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::__nc_abi_type::<::core::primitive::u64>(),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                    crate::__nc_abi_type::<::core::primitive::u64>(),
                 ),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("copy_to"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_SHARED,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("copy_to"),
+            receiver: crate::NC_ABI_RECEIVER_SHARED,
             param_count: 1u32,
             params: (&[
-                ::neocogi_com::NcMethodParamDescriptor {
-                    name: ::neocogi_com::NcStaticUtf8::from_static("output"),
-                    passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                        ::neocogi_com::NcAbiPassing::OutputBuffer,
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("output"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                        crate::NcAbiPassing::OutputBuffer,
                     ),
-                    ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                        ::neocogi_com::__nc_abi_plain_type::<::core::primitive::u8>(),
+                    ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                        crate::__nc_abi_plain_type::<::core::primitive::u8>(),
                     ),
                 },
-            ] as &'static [::neocogi_com::NcMethodParamDescriptor])
+            ] as &'static [crate::NcMethodParamDescriptor])
                 .as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Out,
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Out,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::__nc_abi_type::<::core::primitive::u64>(),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                    crate::__nc_abi_type::<::core::primitive::u64>(),
                 ),
             },
         },
     ];
     ///Static ABI descriptor for this interface.
-    pub const INTERFACE_DESCRIPTOR: ::neocogi_com::NcInterfaceDescriptor = ::neocogi_com::NcInterfaceDescriptor {
-        interface_id: <Self as ::neocogi_com::ComInterface>::IID,
-        qualified_name: ::neocogi_com::NcStaticUtf8::from_static(
+    pub const INTERFACE_DESCRIPTOR: crate::NcInterfaceDescriptor = crate::NcInterfaceDescriptor {
+        interface_id: <Self as crate::ComInterface>::IID,
+        qualified_name: crate::NcStaticUtf8::from_static(
             "neocogi.com.serialization.ISerializationOutput",
         ),
         abi_signature: Self::ABI_SIGNATURE,
-        base: ::neocogi_com::NcInterfaceId::NONE,
+        base: crate::NcInterfaceId::NONE,
         method_count: 2u32,
         methods: Self::METHOD_DESCRIPTORS.as_ptr(),
     };
     /// Distinct projections in derived-first, declared-parent order.
     /// Shared ancestors occur once; repeated identities must have the same ABI.
-    pub const INTERFACE_CHAIN: [&'static ::neocogi_com::NcInterfaceDescriptor; ::neocogi_com::__nc_object_interface_count(
+    pub const INTERFACE_CHAIN: [&'static crate::NcInterfaceDescriptor; crate::__nc_object_interface_count(
         &[&[&Self::INTERFACE_DESCRIPTOR]],
-    )] = ::neocogi_com::__nc_interface_chain(&Self::INTERFACE_DESCRIPTOR, &[]);
+    )] = crate::__nc_interface_chain(&Self::INTERFACE_DESCRIPTOR, &[]);
 }
 /// One serialization plugin bundles its enabled codecs, with NCB always available.
 /// IDL source: `neocogi/com/serialization/formats.ncidl:132:11` (module `neocogi.com.serialization`).
@@ -3556,17 +3497,17 @@ pub trait ISerializationPlugin {
     fn default_format(
         &self,
     ) -> ::core::result::Result<
-        ::neocogi_com::ComPtr<self::ISerializationFormatAbi>,
-        ::neocogi_com::NcStatus,
+        crate::ComPtr<self::ISerializationFormatAbi>,
+        crate::NcStatus,
     >;
     /// Selects ncb or json; disabled and unknown names return NC_E_NOINTERFACE.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:136:8` (module `neocogi.com.serialization`).
     fn format(
         &self,
-        name: ::neocogi_com::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
+        name: crate::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
     ) -> ::core::result::Result<
-        ::neocogi_com::ComPtr<self::ISerializationFormatAbi>,
-        ::neocogi_com::NcStatus,
+        crate::ComPtr<self::ISerializationFormatAbi>,
+        crate::NcStatus,
     >;
 }
 ///Interface marker for [`ISerializationPlugin`]; handles carry its object/table pair.
@@ -3575,7 +3516,7 @@ pub enum ISerializationPluginAbi {}
 ///C-compatible vtable for [`ISerializationPlugin`].
 pub struct ISerializationPluginVTable {
     /// Common identity, query and reference-count slots.
-    pub unknown: ::neocogi_com::IUnknownVTable,
+    pub unknown: crate::IUnknownVTable,
     /// Returns the unconditional default NCB format factory.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:134:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializationPlugin::default_format`].
@@ -3586,15 +3527,15 @@ pub struct ISerializationPluginVTable {
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
-    ///On success, `out` receives `:: neocogi_com :: ComRaw < self :: ISerializationFormatAbi >` for `:: neocogi_com :: ComPtr < self :: ISerializationFormatAbi >`. The caller receives one shared owner and releases it when finished.
+    ///On success, `out` receives `crate :: ComRaw < self :: ISerializationFormatAbi >` for `crate :: ComPtr < self :: ISerializationFormatAbi >`. The caller receives one shared owner and releases it when finished.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub default_format: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_out: *mut ::neocogi_com::ComRaw<self::ISerializationFormatAbi>,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_out: *mut crate::ComRaw<self::ISerializationFormatAbi>,
+    ) -> crate::NcStatus,
     /// Selects ncb or json; disabled and unknown names return NC_E_NOINTERFACE.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:136:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializationPlugin::format`].
@@ -3604,9 +3545,9 @@ pub struct ISerializationPluginVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `name` uses ABI storage `* const < :: core :: primitive :: u8 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: neocogi_com :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
+    ///- `name` uses ABI storage `* const < :: core :: primitive :: u8 as crate :: ComValue > :: AbiRepr` for `crate :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
     ///
-    ///On success, `out` receives `:: neocogi_com :: ComRaw < self :: ISerializationFormatAbi >` for `:: neocogi_com :: ComPtr < self :: ISerializationFormatAbi >`. The caller receives one shared owner and releases it when finished.
+    ///On success, `out` receives `crate :: ComRaw < self :: ISerializationFormatAbi >` for `crate :: ComPtr < self :: ISerializationFormatAbi >`. The caller receives one shared owner and releases it when finished.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
@@ -3615,19 +3556,19 @@ pub struct ISerializationPluginVTable {
         __nc_this: *mut ::core::ffi::c_void,
         __nc_arg_0_offset: ::core::primitive::u64,
         __nc_arg_0_len: ::core::primitive::u64,
-        __nc_arg_0_ptr: *const <::core::primitive::u8 as ::neocogi_com::ComValue>::AbiRepr,
-        __nc_out: *mut ::neocogi_com::ComRaw<self::ISerializationFormatAbi>,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_arg_0_ptr: *const <::core::primitive::u8 as crate::ComValue>::AbiRepr,
+        __nc_out: *mut crate::ComRaw<self::ISerializationFormatAbi>,
+    ) -> crate::NcStatus,
 }
-unsafe impl ::neocogi_com::ComInterface for ISerializationPluginAbi {
-    const IID: ::neocogi_com::NcGuid = ::neocogi_com::NcGuid {
+unsafe impl crate::ComInterface for ISerializationPluginAbi {
+    const IID: crate::NcGuid = crate::NcGuid {
         data1: 2947607689u32,
         data2: 56026u16,
         data3: 22309u16,
         data4: [151u8, 196u8, 39u8, 112u8, 37u8, 75u8, 55u8, 139u8],
     };
-    const INTERFACE_ID: ::neocogi_com::NcInterfaceId = ::neocogi_com::NcInterfaceId::new(
-        ::neocogi_com::NcGuid {
+    const INTERFACE_ID: crate::NcInterfaceId = crate::NcInterfaceId::new(
+        crate::NcGuid {
             data1: 2947607689u32,
             data2: 56026u16,
             data3: 22309u16,
@@ -3636,33 +3577,30 @@ unsafe impl ::neocogi_com::ComInterface for ISerializationPluginAbi {
         ISerializationPluginAbi::ABI_SIGNATURE,
     );
     type VTable = ISerializationPluginVTable;
-    type Threading = ::neocogi_com::ThreadLocal;
+    type Threading = crate::ThreadLocal;
 }
 #[repr(transparent)]
 ///Borrowed Rust method wrapper for [`ISerializationPlugin`].
 pub struct ISerializationPluginWrapper<
-    __NcThreading: ::neocogi_com::ThreadingModel = ::neocogi_com::ThreadLocal,
+    __NcThreading: crate::ThreadingModel = crate::ThreadLocal,
 > {
     /// Opaque pointer borrowed from retained interface/control storage; provider entry admits value access.
-    __nc_pointer: ::neocogi_com::ComInterfacePointer<
-        ISerializationPluginAbi,
-        __NcThreading,
-    >,
+    __nc_pointer: crate::ComInterfacePointer<ISerializationPluginAbi, __NcThreading>,
 }
-unsafe impl ::neocogi_com::ComRustInterface for ISerializationPluginAbi {
-    type Wrapper<__NcThreading: ::neocogi_com::ThreadingModel> = ISerializationPluginWrapper<
+unsafe impl crate::ComRustInterface for ISerializationPluginAbi {
+    type Wrapper<__NcThreading: crate::ThreadingModel> = ISerializationPluginWrapper<
         __NcThreading,
     >;
-    fn __nc_wrapper_ref<__NcThreading: ::neocogi_com::ThreadingModel>(
-        pointer: &::neocogi_com::ComInterfacePointer<Self, __NcThreading>,
+    fn __nc_wrapper_ref<__NcThreading: crate::ThreadingModel>(
+        pointer: &crate::ComInterfacePointer<Self, __NcThreading>,
     ) -> &Self::Wrapper<__NcThreading> {
         unsafe {
             &*(::core::ptr::from_ref(pointer)
                 as *const ISerializationPluginWrapper<__NcThreading>)
         }
     }
-    fn __nc_wrapper_mut<__NcThreading: ::neocogi_com::ThreadingModel>(
-        pointer: &mut ::neocogi_com::ComInterfacePointer<Self, __NcThreading>,
+    fn __nc_wrapper_mut<__NcThreading: crate::ThreadingModel>(
+        pointer: &mut crate::ComInterfacePointer<Self, __NcThreading>,
     ) -> &mut Self::Wrapper<__NcThreading> {
         unsafe {
             &mut *(::core::ptr::from_mut(pointer)
@@ -3687,7 +3625,7 @@ const _: () = {
         identity as __nc_prepared_0, identity as __nc_out_1,
     };
     impl<
-        __NcThreading: ::neocogi_com::ThreadingModel,
+        __NcThreading: crate::ThreadingModel,
     > ISerializationPluginWrapper<__NcThreading> {
         /// Returns the unconditional default NCB format factory.
         /// IDL source: `neocogi/com/serialization/formats.ncidl:134:8` (module `neocogi.com.serialization`).
@@ -3697,15 +3635,15 @@ const _: () = {
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
         ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
         ///
-        ///On success, returns `:: neocogi_com :: ComPtr < self :: ISerializationFormatAbi >`. The caller receives one shared owner and releases it when finished.
+        ///On success, returns `crate :: ComPtr < self :: ISerializationFormatAbi >`. The caller receives one shared owner and releases it when finished.
         pub fn default_format(
             &self,
         ) -> ::core::result::Result<
-            ::neocogi_com::ComPtr<self::ISerializationFormatAbi>,
-            ::neocogi_com::NcStatus,
+            crate::ComPtr<self::ISerializationFormatAbi>,
+            crate::NcStatus,
         > {
             let mut __nc_out_0 = ::core::mem::MaybeUninit::<
-                ::neocogi_com::ComRaw<self::ISerializationFormatAbi>,
+                crate::ComRaw<self::ISerializationFormatAbi>,
             >::uninit();
             let __nc_this_0 = self.__nc_pointer.as_raw();
             let __nc_status_0 = unsafe {
@@ -3716,7 +3654,7 @@ const _: () = {
                 return ::core::result::Result::Err(__nc_status_0);
             }
             let __nc_result_0 = (unsafe {
-                <::neocogi_com::ComPtr<
+                <crate::ComPtr<
                     self::ISerializationFormatAbi,
                 >>::__nc_from_raw_owned_checked(__nc_out_0.assume_init())
             })?;
@@ -3731,17 +3669,17 @@ const _: () = {
         ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
         ///- `name` is passed as a safe readable `:: core :: primitive :: u8` buffer plus offset.
         ///
-        ///On success, returns `:: neocogi_com :: ComPtr < self :: ISerializationFormatAbi >`. The caller receives one shared owner and releases it when finished.
+        ///On success, returns `crate :: ComPtr < self :: ISerializationFormatAbi >`. The caller receives one shared owner and releases it when finished.
         pub fn format(
             &self,
-            __nc_arg_0: ::neocogi_com::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
+            __nc_arg_0: crate::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
         ) -> ::core::result::Result<
-            ::neocogi_com::ComPtr<self::ISerializationFormatAbi>,
-            ::neocogi_com::NcStatus,
+            crate::ComPtr<self::ISerializationFormatAbi>,
+            crate::NcStatus,
         > {
-            let __nc_arg_0 = ::neocogi_com::EncodedInput::new(__nc_arg_0)?;
+            let __nc_arg_0 = crate::EncodedInput::new(__nc_arg_0)?;
             let mut __nc_out_1 = ::core::mem::MaybeUninit::<
-                ::neocogi_com::ComRaw<self::ISerializationFormatAbi>,
+                crate::ComRaw<self::ISerializationFormatAbi>,
             >::uninit();
             let __nc_this_1 = self.__nc_pointer.as_raw();
             let __nc_status_1 = unsafe {
@@ -3758,7 +3696,7 @@ const _: () = {
                 return ::core::result::Result::Err(__nc_status_1);
             }
             let __nc_result_1 = (unsafe {
-                <::neocogi_com::ComPtr<
+                <crate::ComPtr<
                     self::ISerializationFormatAbi,
                 >>::__nc_from_raw_owned_checked(__nc_out_1.assume_init())
             })?;
@@ -3768,207 +3706,207 @@ const _: () = {
 };
 impl ISerializationPluginAbi {
     ///Canonical validation form of this interface's typed ABI contract.
-    pub const ABI_SIGNATURE: ::neocogi_com::NcAbiDigest = ::neocogi_com::NcAbiDigest::from_static(
+    pub const ABI_SIGNATURE: crate::NcAbiDigest = crate::NcAbiDigest::from_static(
         b"^v3\x01\xBA\xFB;\x9D|\xE5\xAA\x02\x02ih\xA3\xEF\x94\x9Dm5\x17|k\xF7?J\xB5\xC8\"?\x14",
     );
     ///Static descriptors for this interface's ABI methods.
-    pub const METHOD_DESCRIPTORS: [::neocogi_com::NcMethodDescriptor; 2usize] = [
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("default_format"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_SHARED,
+    pub const METHOD_DESCRIPTORS: [crate::NcMethodDescriptor; 2usize] = [
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("default_format"),
+            receiver: crate::NC_ABI_RECEIVER_SHARED,
             param_count: 0u32,
-            params: (&[] as &'static [::neocogi_com::NcMethodParamDescriptor]).as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(::neocogi_com::NcAbiPassing::ComPtrOut {
-                    mode: <::neocogi_com::ThreadLocal as ::neocogi_com::ThreadingModel>::ABI_THREADING_MODE,
+            params: (&[] as &'static [crate::NcMethodParamDescriptor]).as_ptr(),
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(crate::NcAbiPassing::ComPtrOut {
+                    mode: <crate::ThreadLocal as crate::ThreadingModel>::ABI_THREADING_MODE,
                 }),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_interface(
-                    <self::ISerializationFormatAbi as ::neocogi_com::ComInterface>::INTERFACE_ID,
+                ty: crate::NcAbiTypeDescriptor::from_interface(
+                    <self::ISerializationFormatAbi as crate::ComInterface>::INTERFACE_ID,
                 ),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("format"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_SHARED,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("format"),
+            receiver: crate::NC_ABI_RECEIVER_SHARED,
             param_count: 1u32,
             params: (&[
-                ::neocogi_com::NcMethodParamDescriptor {
-                    name: ::neocogi_com::NcStaticUtf8::from_static("name"),
-                    passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                        ::neocogi_com::NcAbiPassing::CopyFromBufferOffset,
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("name"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                        crate::NcAbiPassing::CopyFromBufferOffset,
                     ),
-                    ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                        ::neocogi_com::__nc_abi_plain_type::<::core::primitive::u8>(),
+                    ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                        crate::__nc_abi_plain_type::<::core::primitive::u8>(),
                     ),
                 },
-            ] as &'static [::neocogi_com::NcMethodParamDescriptor])
+            ] as &'static [crate::NcMethodParamDescriptor])
                 .as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(::neocogi_com::NcAbiPassing::ComPtrOut {
-                    mode: <::neocogi_com::ThreadLocal as ::neocogi_com::ThreadingModel>::ABI_THREADING_MODE,
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(crate::NcAbiPassing::ComPtrOut {
+                    mode: <crate::ThreadLocal as crate::ThreadingModel>::ABI_THREADING_MODE,
                 }),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_interface(
-                    <self::ISerializationFormatAbi as ::neocogi_com::ComInterface>::INTERFACE_ID,
+                ty: crate::NcAbiTypeDescriptor::from_interface(
+                    <self::ISerializationFormatAbi as crate::ComInterface>::INTERFACE_ID,
                 ),
             },
         },
     ];
     ///Static ABI descriptor for this interface.
-    pub const INTERFACE_DESCRIPTOR: ::neocogi_com::NcInterfaceDescriptor = ::neocogi_com::NcInterfaceDescriptor {
-        interface_id: <Self as ::neocogi_com::ComInterface>::IID,
-        qualified_name: ::neocogi_com::NcStaticUtf8::from_static(
+    pub const INTERFACE_DESCRIPTOR: crate::NcInterfaceDescriptor = crate::NcInterfaceDescriptor {
+        interface_id: <Self as crate::ComInterface>::IID,
+        qualified_name: crate::NcStaticUtf8::from_static(
             "neocogi.com.serialization.ISerializationPlugin",
         ),
         abi_signature: Self::ABI_SIGNATURE,
-        base: ::neocogi_com::NcInterfaceId::NONE,
+        base: crate::NcInterfaceId::NONE,
         method_count: 2u32,
         methods: Self::METHOD_DESCRIPTORS.as_ptr(),
     };
     /// Distinct projections in derived-first, declared-parent order.
     /// Shared ancestors occur once; repeated identities must have the same ABI.
-    pub const INTERFACE_CHAIN: [&'static ::neocogi_com::NcInterfaceDescriptor; ::neocogi_com::__nc_object_interface_count(
+    pub const INTERFACE_CHAIN: [&'static crate::NcInterfaceDescriptor; crate::__nc_object_interface_count(
         &[&[&Self::INTERFACE_DESCRIPTOR]],
-    )] = ::neocogi_com::__nc_interface_chain(&Self::INTERFACE_DESCRIPTOR, &[]);
+    )] = crate::__nc_interface_chain(&Self::INTERFACE_DESCRIPTOR, &[]);
 }
 /// A mutable format session. Failures poison it; finish commits one complete document.
 /// IDL source: `neocogi/com/serialization/formats.ncidl:2:11` (module `neocogi.com.serialization`).
 pub trait ISerializer {
     /// Writes a unit value.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:4:8` (module `neocogi.com.serialization`).
-    fn serialize_unit(&mut self) -> ::core::result::Result<(), ::neocogi_com::NcStatus>;
+    fn serialize_unit(&mut self) -> ::core::result::Result<(), crate::NcStatus>;
     /// Writes a bool value with its declared width.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:6:8` (module `neocogi.com.serialization`).
     fn serialize_bool(
         &mut self,
         value: ::core::primitive::bool,
-    ) -> ::core::result::Result<(), ::neocogi_com::NcStatus>;
+    ) -> ::core::result::Result<(), crate::NcStatus>;
     /// Writes a u8 value with its declared width.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:8:8` (module `neocogi.com.serialization`).
     fn serialize_u8(
         &mut self,
         value: ::core::primitive::u8,
-    ) -> ::core::result::Result<(), ::neocogi_com::NcStatus>;
+    ) -> ::core::result::Result<(), crate::NcStatus>;
     /// Writes a u16 value with its declared width.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:10:8` (module `neocogi.com.serialization`).
     fn serialize_u16(
         &mut self,
         value: ::core::primitive::u16,
-    ) -> ::core::result::Result<(), ::neocogi_com::NcStatus>;
+    ) -> ::core::result::Result<(), crate::NcStatus>;
     /// Writes a u32 value with its declared width.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:12:8` (module `neocogi.com.serialization`).
     fn serialize_u32(
         &mut self,
         value: ::core::primitive::u32,
-    ) -> ::core::result::Result<(), ::neocogi_com::NcStatus>;
+    ) -> ::core::result::Result<(), crate::NcStatus>;
     /// Writes a u64 value with its declared width.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:14:8` (module `neocogi.com.serialization`).
     fn serialize_u64(
         &mut self,
         value: ::core::primitive::u64,
-    ) -> ::core::result::Result<(), ::neocogi_com::NcStatus>;
+    ) -> ::core::result::Result<(), crate::NcStatus>;
     /// Writes a i8 value with its declared width.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:16:8` (module `neocogi.com.serialization`).
     fn serialize_i8(
         &mut self,
         value: ::core::primitive::i8,
-    ) -> ::core::result::Result<(), ::neocogi_com::NcStatus>;
+    ) -> ::core::result::Result<(), crate::NcStatus>;
     /// Writes a i16 value with its declared width.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:18:8` (module `neocogi.com.serialization`).
     fn serialize_i16(
         &mut self,
         value: ::core::primitive::i16,
-    ) -> ::core::result::Result<(), ::neocogi_com::NcStatus>;
+    ) -> ::core::result::Result<(), crate::NcStatus>;
     /// Writes a i32 value with its declared width.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:20:8` (module `neocogi.com.serialization`).
     fn serialize_i32(
         &mut self,
         value: ::core::primitive::i32,
-    ) -> ::core::result::Result<(), ::neocogi_com::NcStatus>;
+    ) -> ::core::result::Result<(), crate::NcStatus>;
     /// Writes a i64 value with its declared width.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:22:8` (module `neocogi.com.serialization`).
     fn serialize_i64(
         &mut self,
         value: ::core::primitive::i64,
-    ) -> ::core::result::Result<(), ::neocogi_com::NcStatus>;
+    ) -> ::core::result::Result<(), crate::NcStatus>;
     /// Writes a f32 value with its declared width.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:24:8` (module `neocogi.com.serialization`).
     fn serialize_f32(
         &mut self,
         value: ::core::primitive::f32,
-    ) -> ::core::result::Result<(), ::neocogi_com::NcStatus>;
+    ) -> ::core::result::Result<(), crate::NcStatus>;
     /// Writes a f64 value with its declared width.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:26:8` (module `neocogi.com.serialization`).
     fn serialize_f64(
         &mut self,
         value: ::core::primitive::f64,
-    ) -> ::core::result::Result<(), ::neocogi_com::NcStatus>;
+    ) -> ::core::result::Result<(), crate::NcStatus>;
     /// Copies one UTF-8 string during this call.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:28:8` (module `neocogi.com.serialization`).
     fn serialize_string(
         &mut self,
-        value: ::neocogi_com::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
-    ) -> ::core::result::Result<(), ::neocogi_com::NcStatus>;
+        value: crate::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
+    ) -> ::core::result::Result<(), crate::NcStatus>;
     /// Opens optional presence; the present child follows before end_option.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:30:8` (module `neocogi.com.serialization`).
     fn begin_option(
         &mut self,
         present: ::core::primitive::bool,
-    ) -> ::core::result::Result<(), ::neocogi_com::NcStatus>;
+    ) -> ::core::result::Result<(), crate::NcStatus>;
     /// Completes the optional value.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:32:8` (module `neocogi.com.serialization`).
-    fn end_option(&mut self) -> ::core::result::Result<(), ::neocogi_com::NcStatus>;
+    fn end_option(&mut self) -> ::core::result::Result<(), crate::NcStatus>;
     /// Opens a named record containing exactly fields members.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:34:8` (module `neocogi.com.serialization`).
     fn begin_record(
         &mut self,
         fields: ::core::primitive::u32,
-    ) -> ::core::result::Result<(), ::neocogi_com::NcStatus>;
+    ) -> ::core::result::Result<(), crate::NcStatus>;
     /// Selects the next named field before writing its typed value.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:36:8` (module `neocogi.com.serialization`).
     fn field(
         &mut self,
-        name: ::neocogi_com::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
-    ) -> ::core::result::Result<(), ::neocogi_com::NcStatus>;
+        name: crate::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
+    ) -> ::core::result::Result<(), crate::NcStatus>;
     /// Completes the record.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:38:8` (module `neocogi.com.serialization`).
-    fn end_record(&mut self) -> ::core::result::Result<(), ::neocogi_com::NcStatus>;
+    fn end_record(&mut self) -> ::core::result::Result<(), crate::NcStatus>;
     /// Opens an ordered collection with its complete element count.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:40:8` (module `neocogi.com.serialization`).
     fn begin_sequence(
         &mut self,
         length: ::core::primitive::u32,
-    ) -> ::core::result::Result<(), ::neocogi_com::NcStatus>;
+    ) -> ::core::result::Result<(), crate::NcStatus>;
     /// Completes the collection.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:42:8` (module `neocogi.com.serialization`).
-    fn end_sequence(&mut self) -> ::core::result::Result<(), ::neocogi_com::NcStatus>;
+    fn end_sequence(&mut self) -> ::core::result::Result<(), crate::NcStatus>;
     /// Opens a map; keys and values alternate for exactly pairs entries.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:44:8` (module `neocogi.com.serialization`).
     fn begin_map(
         &mut self,
         pairs: ::core::primitive::u32,
-    ) -> ::core::result::Result<(), ::neocogi_com::NcStatus>;
+    ) -> ::core::result::Result<(), crate::NcStatus>;
     /// Completes the map.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:46:8` (module `neocogi.com.serialization`).
-    fn end_map(&mut self) -> ::core::result::Result<(), ::neocogi_com::NcStatus>;
+    fn end_map(&mut self) -> ::core::result::Result<(), crate::NcStatus>;
     /// Opens a case identified by both declaration ordinal and authored name.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:48:8` (module `neocogi.com.serialization`).
     fn begin_variant(
         &mut self,
         index: ::core::primitive::u32,
-        name: ::neocogi_com::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
-    ) -> ::core::result::Result<(), ::neocogi_com::NcStatus>;
+        name: crate::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
+    ) -> ::core::result::Result<(), crate::NcStatus>;
     /// Completes the selected case and its optional payload.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:50:8` (module `neocogi.com.serialization`).
-    fn end_variant(&mut self) -> ::core::result::Result<(), ::neocogi_com::NcStatus>;
+    fn end_variant(&mut self) -> ::core::result::Result<(), crate::NcStatus>;
     /// Marks a schema failure; no later operation may succeed.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:52:8` (module `neocogi.com.serialization`).
     fn fail(
         &mut self,
-        message: ::neocogi_com::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
-    ) -> ::core::result::Result<(), ::neocogi_com::NcStatus>;
+        message: crate::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
+    ) -> ::core::result::Result<(), crate::NcStatus>;
     /// Commits a complete document; repeated finish and further writes fail.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:54:8` (module `neocogi.com.serialization`).
-    fn finish(&mut self) -> ::core::result::Result<(), ::neocogi_com::NcStatus>;
+    fn finish(&mut self) -> ::core::result::Result<(), crate::NcStatus>;
 }
 ///Interface marker for [`ISerializer`]; handles carry its object/table pair.
 pub enum ISerializerAbi {}
@@ -3976,7 +3914,7 @@ pub enum ISerializerAbi {}
 ///C-compatible vtable for [`ISerializer`].
 pub struct ISerializerVTable {
     /// Common identity, query and reference-count slots.
-    pub unknown: ::neocogi_com::IUnknownVTable,
+    pub unknown: crate::IUnknownVTable,
     /// Writes a unit value.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:4:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializer::serialize_unit`].
@@ -3994,7 +3932,7 @@ pub struct ISerializerVTable {
     )]
     pub serialize_unit: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-    ) -> ::neocogi_com::NcStatus,
+    ) -> crate::NcStatus,
     /// Writes a bool value with its declared width.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:6:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializer::serialize_bool`].
@@ -4004,7 +3942,7 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `value` uses ABI storage `< :: core :: primitive :: bool as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: bool`. Passed by value.
+    ///- `value` uses ABI storage `< :: core :: primitive :: bool as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: bool`. Passed by value.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -4013,8 +3951,8 @@ pub struct ISerializerVTable {
     )]
     pub serialize_bool: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_arg_0: <::core::primitive::bool as ::neocogi_com::ComValue>::AbiRepr,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_arg_0: <::core::primitive::bool as crate::ComValue>::AbiRepr,
+    ) -> crate::NcStatus,
     /// Writes a u8 value with its declared width.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:8:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializer::serialize_u8`].
@@ -4024,7 +3962,7 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `value` uses ABI storage `< :: core :: primitive :: u8 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: u8`. Passed by value.
+    ///- `value` uses ABI storage `< :: core :: primitive :: u8 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u8`. Passed by value.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -4033,8 +3971,8 @@ pub struct ISerializerVTable {
     )]
     pub serialize_u8: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_arg_0_0: <::core::primitive::u8 as ::neocogi_com::ComValue>::AbiRepr,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_arg_0_0: <::core::primitive::u8 as crate::ComValue>::AbiRepr,
+    ) -> crate::NcStatus,
     /// Writes a u16 value with its declared width.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:10:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializer::serialize_u16`].
@@ -4044,7 +3982,7 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `value` uses ABI storage `< :: core :: primitive :: u16 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: u16`. Passed by value.
+    ///- `value` uses ABI storage `< :: core :: primitive :: u16 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u16`. Passed by value.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -4053,8 +3991,8 @@ pub struct ISerializerVTable {
     )]
     pub serialize_u16: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_arg_0_1: <::core::primitive::u16 as ::neocogi_com::ComValue>::AbiRepr,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_arg_0_1: <::core::primitive::u16 as crate::ComValue>::AbiRepr,
+    ) -> crate::NcStatus,
     /// Writes a u32 value with its declared width.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:12:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializer::serialize_u32`].
@@ -4064,7 +4002,7 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `value` uses ABI storage `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
+    ///- `value` uses ABI storage `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -4073,8 +4011,8 @@ pub struct ISerializerVTable {
     )]
     pub serialize_u32: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_arg_0_2: <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_arg_0_2: <::core::primitive::u32 as crate::ComValue>::AbiRepr,
+    ) -> crate::NcStatus,
     /// Writes a u64 value with its declared width.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:14:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializer::serialize_u64`].
@@ -4084,7 +4022,7 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `value` uses ABI storage `< :: core :: primitive :: u64 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: u64`. Passed by value.
+    ///- `value` uses ABI storage `< :: core :: primitive :: u64 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u64`. Passed by value.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -4093,8 +4031,8 @@ pub struct ISerializerVTable {
     )]
     pub serialize_u64: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_arg_0_3: <::core::primitive::u64 as ::neocogi_com::ComValue>::AbiRepr,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_arg_0_3: <::core::primitive::u64 as crate::ComValue>::AbiRepr,
+    ) -> crate::NcStatus,
     /// Writes a i8 value with its declared width.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:16:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializer::serialize_i8`].
@@ -4104,7 +4042,7 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `value` uses ABI storage `< :: core :: primitive :: i8 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: i8`. Passed by value.
+    ///- `value` uses ABI storage `< :: core :: primitive :: i8 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: i8`. Passed by value.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -4113,8 +4051,8 @@ pub struct ISerializerVTable {
     )]
     pub serialize_i8: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_arg_0_4: <::core::primitive::i8 as ::neocogi_com::ComValue>::AbiRepr,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_arg_0_4: <::core::primitive::i8 as crate::ComValue>::AbiRepr,
+    ) -> crate::NcStatus,
     /// Writes a i16 value with its declared width.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:18:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializer::serialize_i16`].
@@ -4124,7 +4062,7 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `value` uses ABI storage `< :: core :: primitive :: i16 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: i16`. Passed by value.
+    ///- `value` uses ABI storage `< :: core :: primitive :: i16 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: i16`. Passed by value.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -4133,8 +4071,8 @@ pub struct ISerializerVTable {
     )]
     pub serialize_i16: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_arg_0_5: <::core::primitive::i16 as ::neocogi_com::ComValue>::AbiRepr,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_arg_0_5: <::core::primitive::i16 as crate::ComValue>::AbiRepr,
+    ) -> crate::NcStatus,
     /// Writes a i32 value with its declared width.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:20:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializer::serialize_i32`].
@@ -4144,7 +4082,7 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `value` uses ABI storage `< :: core :: primitive :: i32 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: i32`. Passed by value.
+    ///- `value` uses ABI storage `< :: core :: primitive :: i32 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: i32`. Passed by value.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -4153,8 +4091,8 @@ pub struct ISerializerVTable {
     )]
     pub serialize_i32: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_arg_0_6: <::core::primitive::i32 as ::neocogi_com::ComValue>::AbiRepr,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_arg_0_6: <::core::primitive::i32 as crate::ComValue>::AbiRepr,
+    ) -> crate::NcStatus,
     /// Writes a i64 value with its declared width.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:22:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializer::serialize_i64`].
@@ -4164,7 +4102,7 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `value` uses ABI storage `< :: core :: primitive :: i64 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: i64`. Passed by value.
+    ///- `value` uses ABI storage `< :: core :: primitive :: i64 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: i64`. Passed by value.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -4173,8 +4111,8 @@ pub struct ISerializerVTable {
     )]
     pub serialize_i64: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_arg_0_7: <::core::primitive::i64 as ::neocogi_com::ComValue>::AbiRepr,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_arg_0_7: <::core::primitive::i64 as crate::ComValue>::AbiRepr,
+    ) -> crate::NcStatus,
     /// Writes a f32 value with its declared width.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:24:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializer::serialize_f32`].
@@ -4184,7 +4122,7 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `value` uses ABI storage `< :: core :: primitive :: f32 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: f32`. Passed by value.
+    ///- `value` uses ABI storage `< :: core :: primitive :: f32 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: f32`. Passed by value.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -4193,8 +4131,8 @@ pub struct ISerializerVTable {
     )]
     pub serialize_f32: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_arg_0_8: <::core::primitive::f32 as ::neocogi_com::ComValue>::AbiRepr,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_arg_0_8: <::core::primitive::f32 as crate::ComValue>::AbiRepr,
+    ) -> crate::NcStatus,
     /// Writes a f64 value with its declared width.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:26:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializer::serialize_f64`].
@@ -4204,7 +4142,7 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `value` uses ABI storage `< :: core :: primitive :: f64 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: f64`. Passed by value.
+    ///- `value` uses ABI storage `< :: core :: primitive :: f64 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: f64`. Passed by value.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -4213,8 +4151,8 @@ pub struct ISerializerVTable {
     )]
     pub serialize_f64: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_arg_0_9: <::core::primitive::f64 as ::neocogi_com::ComValue>::AbiRepr,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_arg_0_9: <::core::primitive::f64 as crate::ComValue>::AbiRepr,
+    ) -> crate::NcStatus,
     /// Copies one UTF-8 string during this call.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:28:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializer::serialize_string`].
@@ -4224,7 +4162,7 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `value` uses ABI storage `* const < :: core :: primitive :: u8 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: neocogi_com :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
+    ///- `value` uses ABI storage `* const < :: core :: primitive :: u8 as crate :: ComValue > :: AbiRepr` for `crate :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -4235,8 +4173,8 @@ pub struct ISerializerVTable {
         __nc_this: *mut ::core::ffi::c_void,
         __nc_arg_0_10_offset: ::core::primitive::u64,
         __nc_arg_0_10_len: ::core::primitive::u64,
-        __nc_arg_0_10_ptr: *const <::core::primitive::u8 as ::neocogi_com::ComValue>::AbiRepr,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_arg_0_10_ptr: *const <::core::primitive::u8 as crate::ComValue>::AbiRepr,
+    ) -> crate::NcStatus,
     /// Opens optional presence; the present child follows before end_option.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:30:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializer::begin_option`].
@@ -4246,7 +4184,7 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `present` uses ABI storage `< :: core :: primitive :: bool as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: bool`. Passed by value.
+    ///- `present` uses ABI storage `< :: core :: primitive :: bool as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: bool`. Passed by value.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -4255,8 +4193,8 @@ pub struct ISerializerVTable {
     )]
     pub begin_option: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_arg_0_11: <::core::primitive::bool as ::neocogi_com::ComValue>::AbiRepr,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_arg_0_11: <::core::primitive::bool as crate::ComValue>::AbiRepr,
+    ) -> crate::NcStatus,
     /// Completes the optional value.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:32:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializer::end_option`].
@@ -4274,7 +4212,7 @@ pub struct ISerializerVTable {
     )]
     pub end_option: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-    ) -> ::neocogi_com::NcStatus,
+    ) -> crate::NcStatus,
     /// Opens a named record containing exactly fields members.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:34:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializer::begin_record`].
@@ -4284,7 +4222,7 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `fields` uses ABI storage `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
+    ///- `fields` uses ABI storage `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -4293,8 +4231,8 @@ pub struct ISerializerVTable {
     )]
     pub begin_record: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_arg_0_12: <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_arg_0_12: <::core::primitive::u32 as crate::ComValue>::AbiRepr,
+    ) -> crate::NcStatus,
     /// Selects the next named field before writing its typed value.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:36:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializer::field`].
@@ -4304,7 +4242,7 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `name` uses ABI storage `* const < :: core :: primitive :: u8 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: neocogi_com :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
+    ///- `name` uses ABI storage `* const < :: core :: primitive :: u8 as crate :: ComValue > :: AbiRepr` for `crate :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -4315,8 +4253,8 @@ pub struct ISerializerVTable {
         __nc_this: *mut ::core::ffi::c_void,
         __nc_arg_0_13_offset: ::core::primitive::u64,
         __nc_arg_0_13_len: ::core::primitive::u64,
-        __nc_arg_0_13_ptr: *const <::core::primitive::u8 as ::neocogi_com::ComValue>::AbiRepr,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_arg_0_13_ptr: *const <::core::primitive::u8 as crate::ComValue>::AbiRepr,
+    ) -> crate::NcStatus,
     /// Completes the record.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:38:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializer::end_record`].
@@ -4334,7 +4272,7 @@ pub struct ISerializerVTable {
     )]
     pub end_record: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-    ) -> ::neocogi_com::NcStatus,
+    ) -> crate::NcStatus,
     /// Opens an ordered collection with its complete element count.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:40:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializer::begin_sequence`].
@@ -4344,7 +4282,7 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `length` uses ABI storage `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
+    ///- `length` uses ABI storage `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -4353,8 +4291,8 @@ pub struct ISerializerVTable {
     )]
     pub begin_sequence: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_arg_0_14: <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_arg_0_14: <::core::primitive::u32 as crate::ComValue>::AbiRepr,
+    ) -> crate::NcStatus,
     /// Completes the collection.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:42:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializer::end_sequence`].
@@ -4372,7 +4310,7 @@ pub struct ISerializerVTable {
     )]
     pub end_sequence: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-    ) -> ::neocogi_com::NcStatus,
+    ) -> crate::NcStatus,
     /// Opens a map; keys and values alternate for exactly pairs entries.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:44:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializer::begin_map`].
@@ -4382,7 +4320,7 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `pairs` uses ABI storage `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
+    ///- `pairs` uses ABI storage `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -4391,8 +4329,8 @@ pub struct ISerializerVTable {
     )]
     pub begin_map: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_arg_0_15: <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_arg_0_15: <::core::primitive::u32 as crate::ComValue>::AbiRepr,
+    ) -> crate::NcStatus,
     /// Completes the map.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:46:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializer::end_map`].
@@ -4410,7 +4348,7 @@ pub struct ISerializerVTable {
     )]
     pub end_map: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-    ) -> ::neocogi_com::NcStatus,
+    ) -> crate::NcStatus,
     /// Opens a case identified by both declaration ordinal and authored name.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:48:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializer::begin_variant`].
@@ -4420,8 +4358,8 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `index` uses ABI storage `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
-    ///- `name` uses ABI storage `* const < :: core :: primitive :: u8 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: neocogi_com :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
+    ///- `index` uses ABI storage `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
+    ///- `name` uses ABI storage `* const < :: core :: primitive :: u8 as crate :: ComValue > :: AbiRepr` for `crate :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -4430,11 +4368,11 @@ pub struct ISerializerVTable {
     )]
     pub begin_variant: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_arg_0_16: <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
+        __nc_arg_0_16: <::core::primitive::u32 as crate::ComValue>::AbiRepr,
         __nc_arg_1_offset: ::core::primitive::u64,
         __nc_arg_1_len: ::core::primitive::u64,
-        __nc_arg_1_ptr: *const <::core::primitive::u8 as ::neocogi_com::ComValue>::AbiRepr,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_arg_1_ptr: *const <::core::primitive::u8 as crate::ComValue>::AbiRepr,
+    ) -> crate::NcStatus,
     /// Completes the selected case and its optional payload.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:50:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializer::end_variant`].
@@ -4452,7 +4390,7 @@ pub struct ISerializerVTable {
     )]
     pub end_variant: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-    ) -> ::neocogi_com::NcStatus,
+    ) -> crate::NcStatus,
     /// Marks a schema failure; no later operation may succeed.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:52:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializer::fail`].
@@ -4462,7 +4400,7 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `message` uses ABI storage `* const < :: core :: primitive :: u8 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: neocogi_com :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
+    ///- `message` uses ABI storage `* const < :: core :: primitive :: u8 as crate :: ComValue > :: AbiRepr` for `crate :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -4473,8 +4411,8 @@ pub struct ISerializerVTable {
         __nc_this: *mut ::core::ffi::c_void,
         __nc_arg_0_17_offset: ::core::primitive::u64,
         __nc_arg_0_17_len: ::core::primitive::u64,
-        __nc_arg_0_17_ptr: *const <::core::primitive::u8 as ::neocogi_com::ComValue>::AbiRepr,
-    ) -> ::neocogi_com::NcStatus,
+        __nc_arg_0_17_ptr: *const <::core::primitive::u8 as crate::ComValue>::AbiRepr,
+    ) -> crate::NcStatus,
     /// Commits a complete document; repeated finish and further writes fail.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:54:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializer::finish`].
@@ -4492,17 +4430,17 @@ pub struct ISerializerVTable {
     )]
     pub finish: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-    ) -> ::neocogi_com::NcStatus,
+    ) -> crate::NcStatus,
 }
-unsafe impl ::neocogi_com::ComInterface for ISerializerAbi {
-    const IID: ::neocogi_com::NcGuid = ::neocogi_com::NcGuid {
+unsafe impl crate::ComInterface for ISerializerAbi {
+    const IID: crate::NcGuid = crate::NcGuid {
         data1: 1280412527u32,
         data2: 27648u16,
         data3: 22052u16,
         data4: [170u8, 83u8, 45u8, 140u8, 69u8, 140u8, 91u8, 193u8],
     };
-    const INTERFACE_ID: ::neocogi_com::NcInterfaceId = ::neocogi_com::NcInterfaceId::new(
-        ::neocogi_com::NcGuid {
+    const INTERFACE_ID: crate::NcInterfaceId = crate::NcInterfaceId::new(
+        crate::NcGuid {
             data1: 1280412527u32,
             data2: 27648u16,
             data3: 22052u16,
@@ -4511,30 +4449,30 @@ unsafe impl ::neocogi_com::ComInterface for ISerializerAbi {
         ISerializerAbi::ABI_SIGNATURE,
     );
     type VTable = ISerializerVTable;
-    type Threading = ::neocogi_com::ThreadLocal;
+    type Threading = crate::ThreadLocal;
 }
 #[repr(transparent)]
 ///Borrowed Rust method wrapper for [`ISerializer`].
 pub struct ISerializerWrapper<
-    __NcThreading: ::neocogi_com::ThreadingModel = ::neocogi_com::ThreadLocal,
+    __NcThreading: crate::ThreadingModel = crate::ThreadLocal,
 > {
     /// Opaque pointer borrowed from retained interface/control storage; provider entry admits value access.
-    __nc_pointer: ::neocogi_com::ComInterfacePointer<ISerializerAbi, __NcThreading>,
+    __nc_pointer: crate::ComInterfacePointer<ISerializerAbi, __NcThreading>,
 }
-unsafe impl ::neocogi_com::ComRustInterface for ISerializerAbi {
-    type Wrapper<__NcThreading: ::neocogi_com::ThreadingModel> = ISerializerWrapper<
+unsafe impl crate::ComRustInterface for ISerializerAbi {
+    type Wrapper<__NcThreading: crate::ThreadingModel> = ISerializerWrapper<
         __NcThreading,
     >;
-    fn __nc_wrapper_ref<__NcThreading: ::neocogi_com::ThreadingModel>(
-        pointer: &::neocogi_com::ComInterfacePointer<Self, __NcThreading>,
+    fn __nc_wrapper_ref<__NcThreading: crate::ThreadingModel>(
+        pointer: &crate::ComInterfacePointer<Self, __NcThreading>,
     ) -> &Self::Wrapper<__NcThreading> {
         unsafe {
             &*(::core::ptr::from_ref(pointer)
                 as *const ISerializerWrapper<__NcThreading>)
         }
     }
-    fn __nc_wrapper_mut<__NcThreading: ::neocogi_com::ThreadingModel>(
-        pointer: &mut ::neocogi_com::ComInterfacePointer<Self, __NcThreading>,
+    fn __nc_wrapper_mut<__NcThreading: crate::ThreadingModel>(
+        pointer: &mut crate::ComInterfacePointer<Self, __NcThreading>,
     ) -> &mut Self::Wrapper<__NcThreading> {
         unsafe {
             &mut *(::core::ptr::from_mut(pointer)
@@ -4692,9 +4630,7 @@ const _: () = {
         identity as __nc_status_25, identity as __nc_result_25,
         identity as __nc_prepared_24, identity as __nc_out_25,
     };
-    impl<
-        __NcThreading: ::neocogi_com::ThreadingModel,
-    > ISerializerWrapper<__NcThreading> {
+    impl<__NcThreading: crate::ThreadingModel> ISerializerWrapper<__NcThreading> {
         /// Writes a unit value.
         /// IDL source: `neocogi/com/serialization/formats.ncidl:4:8` (module `neocogi.com.serialization`).
         ///
@@ -4704,9 +4640,7 @@ const _: () = {
         ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
         ///
         ///On success, returns `()`.
-        pub fn serialize_unit(
-            &mut self,
-        ) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
+        pub fn serialize_unit(&mut self) -> ::core::result::Result<(), crate::NcStatus> {
             let __nc_this_0 = self.__nc_pointer.as_raw();
             let __nc_status_0 = unsafe {
                 ((*__nc_this_0.vtable).serialize_unit)(__nc_this_0.object)
@@ -4730,8 +4664,8 @@ const _: () = {
         pub fn serialize_bool(
             &mut self,
             __nc_arg_0: ::core::primitive::bool,
-        ) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
-            let __nc_arg_0 = ::neocogi_com::encode_inline(&__nc_arg_0)?;
+        ) -> ::core::result::Result<(), crate::NcStatus> {
+            let __nc_arg_0 = crate::encode_inline(&__nc_arg_0)?;
             let __nc_this_1 = self.__nc_pointer.as_raw();
             let __nc_status_1 = unsafe {
                 ((*__nc_this_1.vtable).serialize_bool)(__nc_this_1.object, __nc_arg_0)
@@ -4755,8 +4689,8 @@ const _: () = {
         pub fn serialize_u8(
             &mut self,
             __nc_arg_0_0: ::core::primitive::u8,
-        ) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
-            let __nc_arg_0_0 = ::neocogi_com::encode_inline(&__nc_arg_0_0)?;
+        ) -> ::core::result::Result<(), crate::NcStatus> {
+            let __nc_arg_0_0 = crate::encode_inline(&__nc_arg_0_0)?;
             let __nc_this_2 = self.__nc_pointer.as_raw();
             let __nc_status_2 = unsafe {
                 ((*__nc_this_2.vtable).serialize_u8)(__nc_this_2.object, __nc_arg_0_0)
@@ -4780,8 +4714,8 @@ const _: () = {
         pub fn serialize_u16(
             &mut self,
             __nc_arg_0_1: ::core::primitive::u16,
-        ) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
-            let __nc_arg_0_1 = ::neocogi_com::encode_inline(&__nc_arg_0_1)?;
+        ) -> ::core::result::Result<(), crate::NcStatus> {
+            let __nc_arg_0_1 = crate::encode_inline(&__nc_arg_0_1)?;
             let __nc_this_3 = self.__nc_pointer.as_raw();
             let __nc_status_3 = unsafe {
                 ((*__nc_this_3.vtable).serialize_u16)(__nc_this_3.object, __nc_arg_0_1)
@@ -4805,8 +4739,8 @@ const _: () = {
         pub fn serialize_u32(
             &mut self,
             __nc_arg_0_2: ::core::primitive::u32,
-        ) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
-            let __nc_arg_0_2 = ::neocogi_com::encode_inline(&__nc_arg_0_2)?;
+        ) -> ::core::result::Result<(), crate::NcStatus> {
+            let __nc_arg_0_2 = crate::encode_inline(&__nc_arg_0_2)?;
             let __nc_this_4 = self.__nc_pointer.as_raw();
             let __nc_status_4 = unsafe {
                 ((*__nc_this_4.vtable).serialize_u32)(__nc_this_4.object, __nc_arg_0_2)
@@ -4830,8 +4764,8 @@ const _: () = {
         pub fn serialize_u64(
             &mut self,
             __nc_arg_0_3: ::core::primitive::u64,
-        ) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
-            let __nc_arg_0_3 = ::neocogi_com::encode_inline(&__nc_arg_0_3)?;
+        ) -> ::core::result::Result<(), crate::NcStatus> {
+            let __nc_arg_0_3 = crate::encode_inline(&__nc_arg_0_3)?;
             let __nc_this_5 = self.__nc_pointer.as_raw();
             let __nc_status_5 = unsafe {
                 ((*__nc_this_5.vtable).serialize_u64)(__nc_this_5.object, __nc_arg_0_3)
@@ -4855,8 +4789,8 @@ const _: () = {
         pub fn serialize_i8(
             &mut self,
             __nc_arg_0_4: ::core::primitive::i8,
-        ) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
-            let __nc_arg_0_4 = ::neocogi_com::encode_inline(&__nc_arg_0_4)?;
+        ) -> ::core::result::Result<(), crate::NcStatus> {
+            let __nc_arg_0_4 = crate::encode_inline(&__nc_arg_0_4)?;
             let __nc_this_6 = self.__nc_pointer.as_raw();
             let __nc_status_6 = unsafe {
                 ((*__nc_this_6.vtable).serialize_i8)(__nc_this_6.object, __nc_arg_0_4)
@@ -4880,8 +4814,8 @@ const _: () = {
         pub fn serialize_i16(
             &mut self,
             __nc_arg_0_5: ::core::primitive::i16,
-        ) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
-            let __nc_arg_0_5 = ::neocogi_com::encode_inline(&__nc_arg_0_5)?;
+        ) -> ::core::result::Result<(), crate::NcStatus> {
+            let __nc_arg_0_5 = crate::encode_inline(&__nc_arg_0_5)?;
             let __nc_this_7 = self.__nc_pointer.as_raw();
             let __nc_status_7 = unsafe {
                 ((*__nc_this_7.vtable).serialize_i16)(__nc_this_7.object, __nc_arg_0_5)
@@ -4905,8 +4839,8 @@ const _: () = {
         pub fn serialize_i32(
             &mut self,
             __nc_arg_0_6: ::core::primitive::i32,
-        ) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
-            let __nc_arg_0_6 = ::neocogi_com::encode_inline(&__nc_arg_0_6)?;
+        ) -> ::core::result::Result<(), crate::NcStatus> {
+            let __nc_arg_0_6 = crate::encode_inline(&__nc_arg_0_6)?;
             let __nc_this_8 = self.__nc_pointer.as_raw();
             let __nc_status_8 = unsafe {
                 ((*__nc_this_8.vtable).serialize_i32)(__nc_this_8.object, __nc_arg_0_6)
@@ -4930,8 +4864,8 @@ const _: () = {
         pub fn serialize_i64(
             &mut self,
             __nc_arg_0_7: ::core::primitive::i64,
-        ) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
-            let __nc_arg_0_7 = ::neocogi_com::encode_inline(&__nc_arg_0_7)?;
+        ) -> ::core::result::Result<(), crate::NcStatus> {
+            let __nc_arg_0_7 = crate::encode_inline(&__nc_arg_0_7)?;
             let __nc_this_9 = self.__nc_pointer.as_raw();
             let __nc_status_9 = unsafe {
                 ((*__nc_this_9.vtable).serialize_i64)(__nc_this_9.object, __nc_arg_0_7)
@@ -4955,8 +4889,8 @@ const _: () = {
         pub fn serialize_f32(
             &mut self,
             __nc_arg_0_8: ::core::primitive::f32,
-        ) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
-            let __nc_arg_0_8 = ::neocogi_com::encode_inline(&__nc_arg_0_8)?;
+        ) -> ::core::result::Result<(), crate::NcStatus> {
+            let __nc_arg_0_8 = crate::encode_inline(&__nc_arg_0_8)?;
             let __nc_this_10 = self.__nc_pointer.as_raw();
             let __nc_status_10 = unsafe {
                 ((*__nc_this_10.vtable).serialize_f32)(__nc_this_10.object, __nc_arg_0_8)
@@ -4980,8 +4914,8 @@ const _: () = {
         pub fn serialize_f64(
             &mut self,
             __nc_arg_0_9: ::core::primitive::f64,
-        ) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
-            let __nc_arg_0_9 = ::neocogi_com::encode_inline(&__nc_arg_0_9)?;
+        ) -> ::core::result::Result<(), crate::NcStatus> {
+            let __nc_arg_0_9 = crate::encode_inline(&__nc_arg_0_9)?;
             let __nc_this_11 = self.__nc_pointer.as_raw();
             let __nc_status_11 = unsafe {
                 ((*__nc_this_11.vtable).serialize_f64)(__nc_this_11.object, __nc_arg_0_9)
@@ -5004,12 +4938,9 @@ const _: () = {
         ///On success, returns `()`.
         pub fn serialize_string(
             &mut self,
-            __nc_arg_0_10: ::neocogi_com::NcCopyFromBufferOffset<
-                '_,
-                ::core::primitive::u8,
-            >,
-        ) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
-            let __nc_arg_0_10 = ::neocogi_com::EncodedInput::new(__nc_arg_0_10)?;
+            __nc_arg_0_10: crate::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
+        ) -> ::core::result::Result<(), crate::NcStatus> {
+            let __nc_arg_0_10 = crate::EncodedInput::new(__nc_arg_0_10)?;
             let __nc_this_12 = self.__nc_pointer.as_raw();
             let __nc_status_12 = unsafe {
                 ((*__nc_this_12.vtable)
@@ -5039,8 +4970,8 @@ const _: () = {
         pub fn begin_option(
             &mut self,
             __nc_arg_0_11: ::core::primitive::bool,
-        ) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
-            let __nc_arg_0_11 = ::neocogi_com::encode_inline(&__nc_arg_0_11)?;
+        ) -> ::core::result::Result<(), crate::NcStatus> {
+            let __nc_arg_0_11 = crate::encode_inline(&__nc_arg_0_11)?;
             let __nc_this_13 = self.__nc_pointer.as_raw();
             let __nc_status_13 = unsafe {
                 ((*__nc_this_13.vtable).begin_option)(__nc_this_13.object, __nc_arg_0_11)
@@ -5060,9 +4991,7 @@ const _: () = {
         ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
         ///
         ///On success, returns `()`.
-        pub fn end_option(
-            &mut self,
-        ) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
+        pub fn end_option(&mut self) -> ::core::result::Result<(), crate::NcStatus> {
             let __nc_this_14 = self.__nc_pointer.as_raw();
             let __nc_status_14 = unsafe {
                 ((*__nc_this_14.vtable).end_option)(__nc_this_14.object)
@@ -5086,8 +5015,8 @@ const _: () = {
         pub fn begin_record(
             &mut self,
             __nc_arg_0_12: ::core::primitive::u32,
-        ) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
-            let __nc_arg_0_12 = ::neocogi_com::encode_inline(&__nc_arg_0_12)?;
+        ) -> ::core::result::Result<(), crate::NcStatus> {
+            let __nc_arg_0_12 = crate::encode_inline(&__nc_arg_0_12)?;
             let __nc_this_15 = self.__nc_pointer.as_raw();
             let __nc_status_15 = unsafe {
                 ((*__nc_this_15.vtable).begin_record)(__nc_this_15.object, __nc_arg_0_12)
@@ -5110,12 +5039,9 @@ const _: () = {
         ///On success, returns `()`.
         pub fn field(
             &mut self,
-            __nc_arg_0_13: ::neocogi_com::NcCopyFromBufferOffset<
-                '_,
-                ::core::primitive::u8,
-            >,
-        ) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
-            let __nc_arg_0_13 = ::neocogi_com::EncodedInput::new(__nc_arg_0_13)?;
+            __nc_arg_0_13: crate::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
+        ) -> ::core::result::Result<(), crate::NcStatus> {
+            let __nc_arg_0_13 = crate::EncodedInput::new(__nc_arg_0_13)?;
             let __nc_this_16 = self.__nc_pointer.as_raw();
             let __nc_status_16 = unsafe {
                 ((*__nc_this_16.vtable)
@@ -5141,9 +5067,7 @@ const _: () = {
         ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
         ///
         ///On success, returns `()`.
-        pub fn end_record(
-            &mut self,
-        ) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
+        pub fn end_record(&mut self) -> ::core::result::Result<(), crate::NcStatus> {
             let __nc_this_17 = self.__nc_pointer.as_raw();
             let __nc_status_17 = unsafe {
                 ((*__nc_this_17.vtable).end_record)(__nc_this_17.object)
@@ -5167,8 +5091,8 @@ const _: () = {
         pub fn begin_sequence(
             &mut self,
             __nc_arg_0_14: ::core::primitive::u32,
-        ) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
-            let __nc_arg_0_14 = ::neocogi_com::encode_inline(&__nc_arg_0_14)?;
+        ) -> ::core::result::Result<(), crate::NcStatus> {
+            let __nc_arg_0_14 = crate::encode_inline(&__nc_arg_0_14)?;
             let __nc_this_18 = self.__nc_pointer.as_raw();
             let __nc_status_18 = unsafe {
                 ((*__nc_this_18.vtable)
@@ -5189,9 +5113,7 @@ const _: () = {
         ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
         ///
         ///On success, returns `()`.
-        pub fn end_sequence(
-            &mut self,
-        ) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
+        pub fn end_sequence(&mut self) -> ::core::result::Result<(), crate::NcStatus> {
             let __nc_this_19 = self.__nc_pointer.as_raw();
             let __nc_status_19 = unsafe {
                 ((*__nc_this_19.vtable).end_sequence)(__nc_this_19.object)
@@ -5215,8 +5137,8 @@ const _: () = {
         pub fn begin_map(
             &mut self,
             __nc_arg_0_15: ::core::primitive::u32,
-        ) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
-            let __nc_arg_0_15 = ::neocogi_com::encode_inline(&__nc_arg_0_15)?;
+        ) -> ::core::result::Result<(), crate::NcStatus> {
+            let __nc_arg_0_15 = crate::encode_inline(&__nc_arg_0_15)?;
             let __nc_this_20 = self.__nc_pointer.as_raw();
             let __nc_status_20 = unsafe {
                 ((*__nc_this_20.vtable).begin_map)(__nc_this_20.object, __nc_arg_0_15)
@@ -5236,9 +5158,7 @@ const _: () = {
         ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
         ///
         ///On success, returns `()`.
-        pub fn end_map(
-            &mut self,
-        ) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
+        pub fn end_map(&mut self) -> ::core::result::Result<(), crate::NcStatus> {
             let __nc_this_21 = self.__nc_pointer.as_raw();
             let __nc_status_21 = unsafe {
                 ((*__nc_this_21.vtable).end_map)(__nc_this_21.object)
@@ -5263,10 +5183,10 @@ const _: () = {
         pub fn begin_variant(
             &mut self,
             __nc_arg_0_16: ::core::primitive::u32,
-            __nc_arg_1: ::neocogi_com::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
-        ) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
-            let __nc_arg_0_16 = ::neocogi_com::encode_inline(&__nc_arg_0_16)?;
-            let __nc_arg_1 = ::neocogi_com::EncodedInput::new(__nc_arg_1)?;
+            __nc_arg_1: crate::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
+        ) -> ::core::result::Result<(), crate::NcStatus> {
+            let __nc_arg_0_16 = crate::encode_inline(&__nc_arg_0_16)?;
+            let __nc_arg_1 = crate::EncodedInput::new(__nc_arg_1)?;
             let __nc_this_22 = self.__nc_pointer.as_raw();
             let __nc_status_22 = unsafe {
                 ((*__nc_this_22.vtable)
@@ -5293,9 +5213,7 @@ const _: () = {
         ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
         ///
         ///On success, returns `()`.
-        pub fn end_variant(
-            &mut self,
-        ) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
+        pub fn end_variant(&mut self) -> ::core::result::Result<(), crate::NcStatus> {
             let __nc_this_23 = self.__nc_pointer.as_raw();
             let __nc_status_23 = unsafe {
                 ((*__nc_this_23.vtable).end_variant)(__nc_this_23.object)
@@ -5318,12 +5236,9 @@ const _: () = {
         ///On success, returns `()`.
         pub fn fail(
             &mut self,
-            __nc_arg_0_17: ::neocogi_com::NcCopyFromBufferOffset<
-                '_,
-                ::core::primitive::u8,
-            >,
-        ) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
-            let __nc_arg_0_17 = ::neocogi_com::EncodedInput::new(__nc_arg_0_17)?;
+            __nc_arg_0_17: crate::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
+        ) -> ::core::result::Result<(), crate::NcStatus> {
+            let __nc_arg_0_17 = crate::EncodedInput::new(__nc_arg_0_17)?;
             let __nc_this_24 = self.__nc_pointer.as_raw();
             let __nc_status_24 = unsafe {
                 ((*__nc_this_24.vtable)
@@ -5349,7 +5264,7 @@ const _: () = {
         ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
         ///
         ///On success, returns `()`.
-        pub fn finish(&mut self) -> ::core::result::Result<(), ::neocogi_com::NcStatus> {
+        pub fn finish(&mut self) -> ::core::result::Result<(), crate::NcStatus> {
             let __nc_this_25 = self.__nc_pointer.as_raw();
             let __nc_status_25 = unsafe {
                 ((*__nc_this_25.vtable).finish)(__nc_this_25.object)
@@ -5364,608 +5279,556 @@ const _: () = {
 };
 impl ISerializerAbi {
     ///Canonical validation form of this interface's typed ABI contract.
-    pub const ABI_SIGNATURE: ::neocogi_com::NcAbiDigest = ::neocogi_com::NcAbiDigest::from_static(
+    pub const ABI_SIGNATURE: crate::NcAbiDigest = crate::NcAbiDigest::from_static(
         b"\xCC\x0C\xBA\xF7\xB68\xE1\xE1\xF3\xFFBEI%\x85\0\xA8\xF9\xDB%\xFD\xF5\xC9\xFD'\x1AQ?\xF1\xBC\xBB\xD9",
     );
     ///Static descriptors for this interface's ABI methods.
-    pub const METHOD_DESCRIPTORS: [::neocogi_com::NcMethodDescriptor; 26usize] = [
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("serialize_unit"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_MUTABLE,
+    pub const METHOD_DESCRIPTORS: [crate::NcMethodDescriptor; 26usize] = [
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("serialize_unit"),
+            receiver: crate::NC_ABI_RECEIVER_MUTABLE,
             param_count: 0u32,
-            params: (&[] as &'static [::neocogi_com::NcMethodParamDescriptor]).as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Void,
+            params: (&[] as &'static [crate::NcMethodParamDescriptor]).as_ptr(),
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Void,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::NcAbiType::Void,
-                ),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(crate::NcAbiType::Void),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("serialize_bool"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_MUTABLE,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("serialize_bool"),
+            receiver: crate::NC_ABI_RECEIVER_MUTABLE,
             param_count: 1u32,
             params: (&[
-                ::neocogi_com::NcMethodParamDescriptor {
-                    name: ::neocogi_com::NcStaticUtf8::from_static("value"),
-                    passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                        ::neocogi_com::NcAbiPassing::Value,
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("value"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                        crate::NcAbiPassing::Value,
                     ),
-                    ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                        ::neocogi_com::__nc_abi_type::<::core::primitive::bool>(),
+                    ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                        crate::__nc_abi_type::<::core::primitive::bool>(),
                     ),
                 },
-            ] as &'static [::neocogi_com::NcMethodParamDescriptor])
+            ] as &'static [crate::NcMethodParamDescriptor])
                 .as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Void,
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Void,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::NcAbiType::Void,
-                ),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(crate::NcAbiType::Void),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("serialize_u8"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_MUTABLE,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("serialize_u8"),
+            receiver: crate::NC_ABI_RECEIVER_MUTABLE,
             param_count: 1u32,
             params: (&[
-                ::neocogi_com::NcMethodParamDescriptor {
-                    name: ::neocogi_com::NcStaticUtf8::from_static("value"),
-                    passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                        ::neocogi_com::NcAbiPassing::Value,
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("value"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                        crate::NcAbiPassing::Value,
                     ),
-                    ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                        ::neocogi_com::__nc_abi_type::<::core::primitive::u8>(),
+                    ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                        crate::__nc_abi_type::<::core::primitive::u8>(),
                     ),
                 },
-            ] as &'static [::neocogi_com::NcMethodParamDescriptor])
+            ] as &'static [crate::NcMethodParamDescriptor])
                 .as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Void,
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Void,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::NcAbiType::Void,
-                ),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(crate::NcAbiType::Void),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("serialize_u16"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_MUTABLE,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("serialize_u16"),
+            receiver: crate::NC_ABI_RECEIVER_MUTABLE,
             param_count: 1u32,
             params: (&[
-                ::neocogi_com::NcMethodParamDescriptor {
-                    name: ::neocogi_com::NcStaticUtf8::from_static("value"),
-                    passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                        ::neocogi_com::NcAbiPassing::Value,
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("value"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                        crate::NcAbiPassing::Value,
                     ),
-                    ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                        ::neocogi_com::__nc_abi_type::<::core::primitive::u16>(),
+                    ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                        crate::__nc_abi_type::<::core::primitive::u16>(),
                     ),
                 },
-            ] as &'static [::neocogi_com::NcMethodParamDescriptor])
+            ] as &'static [crate::NcMethodParamDescriptor])
                 .as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Void,
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Void,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::NcAbiType::Void,
-                ),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(crate::NcAbiType::Void),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("serialize_u32"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_MUTABLE,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("serialize_u32"),
+            receiver: crate::NC_ABI_RECEIVER_MUTABLE,
             param_count: 1u32,
             params: (&[
-                ::neocogi_com::NcMethodParamDescriptor {
-                    name: ::neocogi_com::NcStaticUtf8::from_static("value"),
-                    passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                        ::neocogi_com::NcAbiPassing::Value,
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("value"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                        crate::NcAbiPassing::Value,
                     ),
-                    ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                        ::neocogi_com::__nc_abi_type::<::core::primitive::u32>(),
+                    ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                        crate::__nc_abi_type::<::core::primitive::u32>(),
                     ),
                 },
-            ] as &'static [::neocogi_com::NcMethodParamDescriptor])
+            ] as &'static [crate::NcMethodParamDescriptor])
                 .as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Void,
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Void,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::NcAbiType::Void,
-                ),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(crate::NcAbiType::Void),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("serialize_u64"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_MUTABLE,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("serialize_u64"),
+            receiver: crate::NC_ABI_RECEIVER_MUTABLE,
             param_count: 1u32,
             params: (&[
-                ::neocogi_com::NcMethodParamDescriptor {
-                    name: ::neocogi_com::NcStaticUtf8::from_static("value"),
-                    passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                        ::neocogi_com::NcAbiPassing::Value,
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("value"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                        crate::NcAbiPassing::Value,
                     ),
-                    ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                        ::neocogi_com::__nc_abi_type::<::core::primitive::u64>(),
+                    ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                        crate::__nc_abi_type::<::core::primitive::u64>(),
                     ),
                 },
-            ] as &'static [::neocogi_com::NcMethodParamDescriptor])
+            ] as &'static [crate::NcMethodParamDescriptor])
                 .as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Void,
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Void,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::NcAbiType::Void,
-                ),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(crate::NcAbiType::Void),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("serialize_i8"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_MUTABLE,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("serialize_i8"),
+            receiver: crate::NC_ABI_RECEIVER_MUTABLE,
             param_count: 1u32,
             params: (&[
-                ::neocogi_com::NcMethodParamDescriptor {
-                    name: ::neocogi_com::NcStaticUtf8::from_static("value"),
-                    passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                        ::neocogi_com::NcAbiPassing::Value,
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("value"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                        crate::NcAbiPassing::Value,
                     ),
-                    ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                        ::neocogi_com::__nc_abi_type::<::core::primitive::i8>(),
+                    ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                        crate::__nc_abi_type::<::core::primitive::i8>(),
                     ),
                 },
-            ] as &'static [::neocogi_com::NcMethodParamDescriptor])
+            ] as &'static [crate::NcMethodParamDescriptor])
                 .as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Void,
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Void,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::NcAbiType::Void,
-                ),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(crate::NcAbiType::Void),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("serialize_i16"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_MUTABLE,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("serialize_i16"),
+            receiver: crate::NC_ABI_RECEIVER_MUTABLE,
             param_count: 1u32,
             params: (&[
-                ::neocogi_com::NcMethodParamDescriptor {
-                    name: ::neocogi_com::NcStaticUtf8::from_static("value"),
-                    passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                        ::neocogi_com::NcAbiPassing::Value,
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("value"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                        crate::NcAbiPassing::Value,
                     ),
-                    ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                        ::neocogi_com::__nc_abi_type::<::core::primitive::i16>(),
+                    ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                        crate::__nc_abi_type::<::core::primitive::i16>(),
                     ),
                 },
-            ] as &'static [::neocogi_com::NcMethodParamDescriptor])
+            ] as &'static [crate::NcMethodParamDescriptor])
                 .as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Void,
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Void,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::NcAbiType::Void,
-                ),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(crate::NcAbiType::Void),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("serialize_i32"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_MUTABLE,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("serialize_i32"),
+            receiver: crate::NC_ABI_RECEIVER_MUTABLE,
             param_count: 1u32,
             params: (&[
-                ::neocogi_com::NcMethodParamDescriptor {
-                    name: ::neocogi_com::NcStaticUtf8::from_static("value"),
-                    passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                        ::neocogi_com::NcAbiPassing::Value,
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("value"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                        crate::NcAbiPassing::Value,
                     ),
-                    ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                        ::neocogi_com::__nc_abi_type::<::core::primitive::i32>(),
+                    ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                        crate::__nc_abi_type::<::core::primitive::i32>(),
                     ),
                 },
-            ] as &'static [::neocogi_com::NcMethodParamDescriptor])
+            ] as &'static [crate::NcMethodParamDescriptor])
                 .as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Void,
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Void,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::NcAbiType::Void,
-                ),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(crate::NcAbiType::Void),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("serialize_i64"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_MUTABLE,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("serialize_i64"),
+            receiver: crate::NC_ABI_RECEIVER_MUTABLE,
             param_count: 1u32,
             params: (&[
-                ::neocogi_com::NcMethodParamDescriptor {
-                    name: ::neocogi_com::NcStaticUtf8::from_static("value"),
-                    passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                        ::neocogi_com::NcAbiPassing::Value,
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("value"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                        crate::NcAbiPassing::Value,
                     ),
-                    ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                        ::neocogi_com::__nc_abi_type::<::core::primitive::i64>(),
+                    ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                        crate::__nc_abi_type::<::core::primitive::i64>(),
                     ),
                 },
-            ] as &'static [::neocogi_com::NcMethodParamDescriptor])
+            ] as &'static [crate::NcMethodParamDescriptor])
                 .as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Void,
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Void,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::NcAbiType::Void,
-                ),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(crate::NcAbiType::Void),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("serialize_f32"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_MUTABLE,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("serialize_f32"),
+            receiver: crate::NC_ABI_RECEIVER_MUTABLE,
             param_count: 1u32,
             params: (&[
-                ::neocogi_com::NcMethodParamDescriptor {
-                    name: ::neocogi_com::NcStaticUtf8::from_static("value"),
-                    passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                        ::neocogi_com::NcAbiPassing::Value,
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("value"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                        crate::NcAbiPassing::Value,
                     ),
-                    ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                        ::neocogi_com::__nc_abi_type::<::core::primitive::f32>(),
+                    ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                        crate::__nc_abi_type::<::core::primitive::f32>(),
                     ),
                 },
-            ] as &'static [::neocogi_com::NcMethodParamDescriptor])
+            ] as &'static [crate::NcMethodParamDescriptor])
                 .as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Void,
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Void,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::NcAbiType::Void,
-                ),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(crate::NcAbiType::Void),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("serialize_f64"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_MUTABLE,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("serialize_f64"),
+            receiver: crate::NC_ABI_RECEIVER_MUTABLE,
             param_count: 1u32,
             params: (&[
-                ::neocogi_com::NcMethodParamDescriptor {
-                    name: ::neocogi_com::NcStaticUtf8::from_static("value"),
-                    passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                        ::neocogi_com::NcAbiPassing::Value,
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("value"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                        crate::NcAbiPassing::Value,
                     ),
-                    ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                        ::neocogi_com::__nc_abi_type::<::core::primitive::f64>(),
+                    ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                        crate::__nc_abi_type::<::core::primitive::f64>(),
                     ),
                 },
-            ] as &'static [::neocogi_com::NcMethodParamDescriptor])
+            ] as &'static [crate::NcMethodParamDescriptor])
                 .as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Void,
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Void,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::NcAbiType::Void,
-                ),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(crate::NcAbiType::Void),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("serialize_string"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_MUTABLE,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("serialize_string"),
+            receiver: crate::NC_ABI_RECEIVER_MUTABLE,
             param_count: 1u32,
             params: (&[
-                ::neocogi_com::NcMethodParamDescriptor {
-                    name: ::neocogi_com::NcStaticUtf8::from_static("value"),
-                    passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                        ::neocogi_com::NcAbiPassing::CopyFromBufferOffset,
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("value"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                        crate::NcAbiPassing::CopyFromBufferOffset,
                     ),
-                    ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                        ::neocogi_com::__nc_abi_plain_type::<::core::primitive::u8>(),
+                    ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                        crate::__nc_abi_plain_type::<::core::primitive::u8>(),
                     ),
                 },
-            ] as &'static [::neocogi_com::NcMethodParamDescriptor])
+            ] as &'static [crate::NcMethodParamDescriptor])
                 .as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Void,
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Void,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::NcAbiType::Void,
-                ),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(crate::NcAbiType::Void),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("begin_option"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_MUTABLE,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("begin_option"),
+            receiver: crate::NC_ABI_RECEIVER_MUTABLE,
             param_count: 1u32,
             params: (&[
-                ::neocogi_com::NcMethodParamDescriptor {
-                    name: ::neocogi_com::NcStaticUtf8::from_static("present"),
-                    passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                        ::neocogi_com::NcAbiPassing::Value,
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("present"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                        crate::NcAbiPassing::Value,
                     ),
-                    ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                        ::neocogi_com::__nc_abi_type::<::core::primitive::bool>(),
+                    ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                        crate::__nc_abi_type::<::core::primitive::bool>(),
                     ),
                 },
-            ] as &'static [::neocogi_com::NcMethodParamDescriptor])
+            ] as &'static [crate::NcMethodParamDescriptor])
                 .as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Void,
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Void,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::NcAbiType::Void,
-                ),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(crate::NcAbiType::Void),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("end_option"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_MUTABLE,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("end_option"),
+            receiver: crate::NC_ABI_RECEIVER_MUTABLE,
             param_count: 0u32,
-            params: (&[] as &'static [::neocogi_com::NcMethodParamDescriptor]).as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Void,
+            params: (&[] as &'static [crate::NcMethodParamDescriptor]).as_ptr(),
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Void,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::NcAbiType::Void,
-                ),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(crate::NcAbiType::Void),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("begin_record"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_MUTABLE,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("begin_record"),
+            receiver: crate::NC_ABI_RECEIVER_MUTABLE,
             param_count: 1u32,
             params: (&[
-                ::neocogi_com::NcMethodParamDescriptor {
-                    name: ::neocogi_com::NcStaticUtf8::from_static("fields"),
-                    passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                        ::neocogi_com::NcAbiPassing::Value,
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("fields"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                        crate::NcAbiPassing::Value,
                     ),
-                    ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                        ::neocogi_com::__nc_abi_type::<::core::primitive::u32>(),
+                    ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                        crate::__nc_abi_type::<::core::primitive::u32>(),
                     ),
                 },
-            ] as &'static [::neocogi_com::NcMethodParamDescriptor])
+            ] as &'static [crate::NcMethodParamDescriptor])
                 .as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Void,
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Void,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::NcAbiType::Void,
-                ),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(crate::NcAbiType::Void),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("field"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_MUTABLE,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("field"),
+            receiver: crate::NC_ABI_RECEIVER_MUTABLE,
             param_count: 1u32,
             params: (&[
-                ::neocogi_com::NcMethodParamDescriptor {
-                    name: ::neocogi_com::NcStaticUtf8::from_static("name"),
-                    passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                        ::neocogi_com::NcAbiPassing::CopyFromBufferOffset,
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("name"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                        crate::NcAbiPassing::CopyFromBufferOffset,
                     ),
-                    ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                        ::neocogi_com::__nc_abi_plain_type::<::core::primitive::u8>(),
+                    ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                        crate::__nc_abi_plain_type::<::core::primitive::u8>(),
                     ),
                 },
-            ] as &'static [::neocogi_com::NcMethodParamDescriptor])
+            ] as &'static [crate::NcMethodParamDescriptor])
                 .as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Void,
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Void,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::NcAbiType::Void,
-                ),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(crate::NcAbiType::Void),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("end_record"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_MUTABLE,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("end_record"),
+            receiver: crate::NC_ABI_RECEIVER_MUTABLE,
             param_count: 0u32,
-            params: (&[] as &'static [::neocogi_com::NcMethodParamDescriptor]).as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Void,
+            params: (&[] as &'static [crate::NcMethodParamDescriptor]).as_ptr(),
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Void,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::NcAbiType::Void,
-                ),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(crate::NcAbiType::Void),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("begin_sequence"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_MUTABLE,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("begin_sequence"),
+            receiver: crate::NC_ABI_RECEIVER_MUTABLE,
             param_count: 1u32,
             params: (&[
-                ::neocogi_com::NcMethodParamDescriptor {
-                    name: ::neocogi_com::NcStaticUtf8::from_static("length"),
-                    passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                        ::neocogi_com::NcAbiPassing::Value,
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("length"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                        crate::NcAbiPassing::Value,
                     ),
-                    ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                        ::neocogi_com::__nc_abi_type::<::core::primitive::u32>(),
+                    ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                        crate::__nc_abi_type::<::core::primitive::u32>(),
                     ),
                 },
-            ] as &'static [::neocogi_com::NcMethodParamDescriptor])
+            ] as &'static [crate::NcMethodParamDescriptor])
                 .as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Void,
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Void,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::NcAbiType::Void,
-                ),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(crate::NcAbiType::Void),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("end_sequence"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_MUTABLE,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("end_sequence"),
+            receiver: crate::NC_ABI_RECEIVER_MUTABLE,
             param_count: 0u32,
-            params: (&[] as &'static [::neocogi_com::NcMethodParamDescriptor]).as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Void,
+            params: (&[] as &'static [crate::NcMethodParamDescriptor]).as_ptr(),
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Void,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::NcAbiType::Void,
-                ),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(crate::NcAbiType::Void),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("begin_map"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_MUTABLE,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("begin_map"),
+            receiver: crate::NC_ABI_RECEIVER_MUTABLE,
             param_count: 1u32,
             params: (&[
-                ::neocogi_com::NcMethodParamDescriptor {
-                    name: ::neocogi_com::NcStaticUtf8::from_static("pairs"),
-                    passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                        ::neocogi_com::NcAbiPassing::Value,
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("pairs"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                        crate::NcAbiPassing::Value,
                     ),
-                    ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                        ::neocogi_com::__nc_abi_type::<::core::primitive::u32>(),
+                    ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                        crate::__nc_abi_type::<::core::primitive::u32>(),
                     ),
                 },
-            ] as &'static [::neocogi_com::NcMethodParamDescriptor])
+            ] as &'static [crate::NcMethodParamDescriptor])
                 .as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Void,
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Void,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::NcAbiType::Void,
-                ),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(crate::NcAbiType::Void),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("end_map"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_MUTABLE,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("end_map"),
+            receiver: crate::NC_ABI_RECEIVER_MUTABLE,
             param_count: 0u32,
-            params: (&[] as &'static [::neocogi_com::NcMethodParamDescriptor]).as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Void,
+            params: (&[] as &'static [crate::NcMethodParamDescriptor]).as_ptr(),
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Void,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::NcAbiType::Void,
-                ),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(crate::NcAbiType::Void),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("begin_variant"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_MUTABLE,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("begin_variant"),
+            receiver: crate::NC_ABI_RECEIVER_MUTABLE,
             param_count: 2u32,
             params: (&[
-                ::neocogi_com::NcMethodParamDescriptor {
-                    name: ::neocogi_com::NcStaticUtf8::from_static("index"),
-                    passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                        ::neocogi_com::NcAbiPassing::Value,
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("index"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                        crate::NcAbiPassing::Value,
                     ),
-                    ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                        ::neocogi_com::__nc_abi_type::<::core::primitive::u32>(),
-                    ),
-                },
-                ::neocogi_com::NcMethodParamDescriptor {
-                    name: ::neocogi_com::NcStaticUtf8::from_static("name"),
-                    passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                        ::neocogi_com::NcAbiPassing::CopyFromBufferOffset,
-                    ),
-                    ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                        ::neocogi_com::__nc_abi_plain_type::<::core::primitive::u8>(),
+                    ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                        crate::__nc_abi_type::<::core::primitive::u32>(),
                     ),
                 },
-            ] as &'static [::neocogi_com::NcMethodParamDescriptor])
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("name"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                        crate::NcAbiPassing::CopyFromBufferOffset,
+                    ),
+                    ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                        crate::__nc_abi_plain_type::<::core::primitive::u8>(),
+                    ),
+                },
+            ] as &'static [crate::NcMethodParamDescriptor])
                 .as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Void,
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Void,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::NcAbiType::Void,
-                ),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(crate::NcAbiType::Void),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("end_variant"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_MUTABLE,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("end_variant"),
+            receiver: crate::NC_ABI_RECEIVER_MUTABLE,
             param_count: 0u32,
-            params: (&[] as &'static [::neocogi_com::NcMethodParamDescriptor]).as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Void,
+            params: (&[] as &'static [crate::NcMethodParamDescriptor]).as_ptr(),
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Void,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::NcAbiType::Void,
-                ),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(crate::NcAbiType::Void),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("fail"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_MUTABLE,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("fail"),
+            receiver: crate::NC_ABI_RECEIVER_MUTABLE,
             param_count: 1u32,
             params: (&[
-                ::neocogi_com::NcMethodParamDescriptor {
-                    name: ::neocogi_com::NcStaticUtf8::from_static("message"),
-                    passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                        ::neocogi_com::NcAbiPassing::CopyFromBufferOffset,
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("message"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                        crate::NcAbiPassing::CopyFromBufferOffset,
                     ),
-                    ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                        ::neocogi_com::__nc_abi_plain_type::<::core::primitive::u8>(),
+                    ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                        crate::__nc_abi_plain_type::<::core::primitive::u8>(),
                     ),
                 },
-            ] as &'static [::neocogi_com::NcMethodParamDescriptor])
+            ] as &'static [crate::NcMethodParamDescriptor])
                 .as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Void,
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Void,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::NcAbiType::Void,
-                ),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(crate::NcAbiType::Void),
             },
         },
-        ::neocogi_com::NcMethodDescriptor {
-            name: ::neocogi_com::NcStaticUtf8::from_static("finish"),
-            receiver: ::neocogi_com::NC_ABI_RECEIVER_MUTABLE,
+        crate::NcMethodDescriptor {
+            name: crate::NcStaticUtf8::from_static("finish"),
+            receiver: crate::NC_ABI_RECEIVER_MUTABLE,
             param_count: 0u32,
-            params: (&[] as &'static [::neocogi_com::NcMethodParamDescriptor]).as_ptr(),
-            returns: ::neocogi_com::NcMethodReturnDescriptor {
-                passing: ::neocogi_com::NcAbiPassingDescriptor::from_abi_passing(
-                    ::neocogi_com::NcAbiPassing::Void,
+            params: (&[] as &'static [crate::NcMethodParamDescriptor]).as_ptr(),
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Void,
                 ),
-                ty: ::neocogi_com::NcAbiTypeDescriptor::from_abi_type(
-                    ::neocogi_com::NcAbiType::Void,
-                ),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(crate::NcAbiType::Void),
             },
         },
     ];
     ///Static ABI descriptor for this interface.
-    pub const INTERFACE_DESCRIPTOR: ::neocogi_com::NcInterfaceDescriptor = ::neocogi_com::NcInterfaceDescriptor {
-        interface_id: <Self as ::neocogi_com::ComInterface>::IID,
-        qualified_name: ::neocogi_com::NcStaticUtf8::from_static(
+    pub const INTERFACE_DESCRIPTOR: crate::NcInterfaceDescriptor = crate::NcInterfaceDescriptor {
+        interface_id: <Self as crate::ComInterface>::IID,
+        qualified_name: crate::NcStaticUtf8::from_static(
             "neocogi.com.serialization.ISerializer",
         ),
         abi_signature: Self::ABI_SIGNATURE,
-        base: ::neocogi_com::NcInterfaceId::NONE,
+        base: crate::NcInterfaceId::NONE,
         method_count: 26u32,
         methods: Self::METHOD_DESCRIPTORS.as_ptr(),
     };
     /// Distinct projections in derived-first, declared-parent order.
     /// Shared ancestors occur once; repeated identities must have the same ABI.
-    pub const INTERFACE_CHAIN: [&'static ::neocogi_com::NcInterfaceDescriptor; ::neocogi_com::__nc_object_interface_count(
+    pub const INTERFACE_CHAIN: [&'static crate::NcInterfaceDescriptor; crate::__nc_object_interface_count(
         &[&[&Self::INTERFACE_DESCRIPTOR]],
-    )] = ::neocogi_com::__nc_interface_chain(&Self::INTERFACE_DESCRIPTOR, &[]);
+    )] = crate::__nc_interface_chain(&Self::INTERFACE_DESCRIPTOR, &[]);
 }
