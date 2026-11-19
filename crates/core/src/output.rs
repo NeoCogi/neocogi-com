@@ -20,7 +20,7 @@ pub struct NcOutputWriter<'a, T: ComInlineValue> {
     /// Method-defined source offset; independent of the raw destination address.
     offset: u64,
     /// Caller-owned storage; inactive payload and padding bytes need not be initialized.
-    slots: &'a mut [MaybeUninit<T::Wire>],
+    slots: &'a mut [MaybeUninit<T::AbiRepr>],
     /// Thunk-local count, borrowed so a moved writer can report completed writes.
     written: &'a mut u64,
     /// Keeps this view invariant in its native element without owning such elements.
@@ -36,12 +36,12 @@ impl<'a, T: ComInlineValue> NcOutputWriter<'a, T> {
     /// The caller must not read slots until successful count publication. Neither
     /// the elements nor their restricted fields need to be initialized on entry.
     #[doc(hidden)]
-    pub unsafe fn from_raw(offset: u64, pointer: *mut T::Wire, capacity: u64, written: &'a mut u64) -> Result<Self, NcStatus> {
+    pub unsafe fn from_raw(offset: u64, pointer: *mut T::AbiRepr, capacity: u64, written: &'a mut u64) -> Result<Self, NcStatus> {
         crate::check_buffer_output::<T>(capacity)?;
         let count = usize::try_from(capacity).map_err(|_| NC_E_OUT_OF_RANGE)?;
         let pointer = match count {
-            0 => core::ptr::NonNull::<MaybeUninit<T::Wire>>::dangling().as_ptr(),
-            _ if pointer.is_null() || pointer.align_offset(core::mem::align_of::<T::Wire>()) != 0 => return Err(NC_E_POINTER),
+            0 => core::ptr::NonNull::<MaybeUninit<T::AbiRepr>>::dangling().as_ptr(),
+            _ if pointer.is_null() || pointer.align_offset(core::mem::align_of::<T::AbiRepr>()) != 0 => return Err(NC_E_POINTER),
             _ => pointer.cast(),
         };
         *written = 0;
@@ -97,7 +97,7 @@ impl<'a, T: ComInlineValue> NcOutputWriter<'a, T> {
 
     /// Encodes one native value directly into its next raw destination slot.
     pub fn push(&mut self, value: T) -> Result<(), NcStatus> {
-        if T::BORROW_WIRE {
+        if T::BORROW_ABI_REPR {
             // Identity admission requires no conversion budget. Individual and
             // bulk writes must use exactly the same direct-copy rule afterward.
             return self.extend_from_slice(core::slice::from_ref(&value));
@@ -120,14 +120,14 @@ impl<'a, T: ComInlineValue> NcOutputWriter<'a, T> {
         if values.len() > self.remaining() {
             return Err(NC_E_OUT_OF_RANGE);
         }
-        match T::BORROW_WIRE {
+        match T::BORROW_ABI_REPR {
             true => {
                 // SAFETY: the codec proves identical layout, unrestricted bits,
                 // and identity conversion. Source and exclusive destination do
                 // not overlap; the checked prefix has enough writable capacity.
                 unsafe {
                     core::ptr::copy_nonoverlapping(
-                        values.as_ptr().cast::<T::Wire>(),
+                        values.as_ptr().cast::<T::AbiRepr>(),
                         self.slots.as_mut_ptr().add(self.written()).cast(),
                         values.len(),
                     );
@@ -157,7 +157,7 @@ pub struct NcOutputBuffer<T: ComInlineValue> {
     /// Only fully acquired, published native results may be observed through this field.
     values: Vec<T>,
     /// Converted slots have capacity but no readable element length outside a call.
-    wires: Vec<MaybeUninit<T::Wire>>,
+    wires: Vec<MaybeUninit<T::AbiRepr>>,
 }
 
 #[cfg(feature = "alloc")]
@@ -261,7 +261,7 @@ enum OutputTarget<'a, T: ComInlineValue> {
     /// Provider-to-provider lending uses already admitted wire slots and a local count.
     Forward {
         /// No old contents are read; the nested call produces a fresh prefix.
-        slots: &'a mut [MaybeUninit<T::Wire>],
+        slots: &'a mut [MaybeUninit<T::AbiRepr>],
         /// Outer thunk's private count, published only when the inner call completes.
         count: &'a mut u64,
     },
@@ -293,7 +293,7 @@ impl<'a, T: ComInlineValue> NcOutput<'a, T> {
     /// Restricted booleans/enums require the allocation-backed output buffer.
     /// The supplied count publishes only after the whole generated call succeeds.
     pub fn from_slots(offset: u64, slots: &'a mut [MaybeUninit<T>], count: &'a mut usize) -> Result<Self, NcStatus> {
-        match T::BORROW_WIRE {
+        match T::BORROW_ABI_REPR {
             false => Err(crate::NC_E_INVALID_ARG),
             true => {
                 *count = 0;
@@ -317,7 +317,7 @@ impl<'a, T: ComInlineValue> NcOutput<'a, T> {
             OutputTarget::Buffer(buffer) => {
                 // Native length is zero; reserve keeps earlier reusable capacity.
                 buffer.values.try_reserve_exact(self.capacity).map_err(|_| crate::NC_E_OUT_OF_MEMORY)?;
-                if !T::BORROW_WIRE {
+                if !T::BORROW_ABI_REPR {
                     buffer.wires.try_reserve_exact(self.capacity).map_err(|_| crate::NC_E_OUT_OF_MEMORY)?;
                 }
             }
@@ -350,10 +350,10 @@ impl<T: ComInlineValue> PreparedOutput<'_, T> {
         self.output.capacity as u64
     }
     /// Borrows raw output storage without creating initialized native elements.
-    pub fn as_mut_ptr(&mut self) -> *mut T::Wire {
+    pub fn as_mut_ptr(&mut self) -> *mut T::AbiRepr {
         match &mut self.output.target {
             #[cfg(feature = "alloc")]
-            OutputTarget::Buffer(buffer) => match T::BORROW_WIRE {
+            OutputTarget::Buffer(buffer) => match T::BORROW_ABI_REPR {
                 true => buffer.values.as_mut_ptr().cast(),
                 false => buffer.wires.as_mut_ptr().cast(),
             },
@@ -382,7 +382,7 @@ impl<T: ComInlineValue> PreparedOutput<'_, T> {
         }
         match &mut self.output.target {
             #[cfg(feature = "alloc")]
-            OutputTarget::Buffer(buffer) => match T::BORROW_WIRE {
+            OutputTarget::Buffer(buffer) => match T::BORROW_ABI_REPR {
                 true => {
                     // SAFETY: the provider initialized the checked prefix, and
                     // the codec proves unrestricted bits and identical layout.
@@ -406,7 +406,7 @@ impl<T: ComInlineValue> PreparedOutput<'_, T> {
             // waits until every output in the generated call has validated.
             OutputTarget::Direct { .. } => {}
             OutputTarget::Forward { slots, .. } => {
-                if !T::BORROW_WIRE {
+                if !T::BORROW_ABI_REPR {
                     for slot in &slots[..count] {
                         // SAFETY: successful nested provider initialized active
                         // fields in the checked prefix. No native storage escapes.

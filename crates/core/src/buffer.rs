@@ -10,7 +10,7 @@
 ///
 /// `NcCopyFromBufferOffset<'a, T>` is the safe Rust parameter form for the
 /// typed `CopyFromBufferOffset<T>` passing mode. Generated raw methods receive
-/// an offset, a count and a pointer to `T::Wire`, whose representation may differ
+/// an offset, a count and a pointer to `T::AbiRepr`, whose representation may differ
 /// from these native elements. Checked input guards own that conversion.
 pub struct NcCopyFromBufferOffset<'a, T> {
     /// Logical source offset interpreted by the receiving interface method.

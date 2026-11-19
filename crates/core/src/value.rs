@@ -106,24 +106,24 @@ impl Default for ValueBudget {
     }
 }
 
-/// One recursively checked application-value/wire conversion.
+/// Recursively checked conversion between a Rust value and its COM ABI representation.
 ///
 /// # Safety
-/// `Wire` has a concrete C field layout with no references or drop glue. Active
+/// `AbiRepr` has a concrete C field layout with no references or drop glue. Active
 /// scalar fields must be readable without already assuming restricted Rust
-/// values are valid. Encoding returns storage that keeps every generated wire
-/// pointer live while the application value is borrowed. Decoding validates raw
-/// tags/fields before constructing Rust values and acquires all retained data.
-/// Moving Wire, Storage or their call guard must not invalidate wire backing.
+/// values are valid. The source borrow and the returned `KeepAlive` together
+/// keep every pointer in `AbiRepr` live through the call. Decoding validates raw
+/// tags and fields before constructing Rust values and acquires all retained data.
+/// Moving `AbiRepr`, `KeepAlive` or their call guard must preserve those pointees.
 /// Decoder inputs borrow the raw record and active text/element regions; those
 /// shared regions remain live and immutable throughout conversion, including
 /// reentrant acquisition callbacks (with normal UnsafeCell rules). Referenced
 /// COM objects retain their own mutable-state and lifecycle contracts.
 pub unsafe trait ComValue: Sized + 'static {
-    /// True only when Self and Wire have identical layout and all initialized
+    /// True only when `Self` and `AbiRepr` have identical layout and all initialized
     /// bit patterns require no content validation, ownership, or conversion.
     /// The unsafe implementor must prove this for every field recursively.
-    const BORROW_WIRE: bool = false;
+    const BORROW_ABI_REPR: bool = false;
     /// Exact cost when every active alternative has the same allocation-free shape.
     /// Some(cost) promises that the hidden fixed converters validate the same raw
     /// fields as ordinary conversion without allocating or visiting dynamic data.
@@ -138,12 +138,14 @@ pub unsafe trait ComValue: Sized + 'static {
     /// With that bound prepaid, valid native values cannot fail resource admission;
     /// decoding still rejects invalid raw contents. Neither converter may allocate.
     const MAX_COST: Option<ValueCost> = Self::FIXED_COST;
-    /// Call-scoped raw representation, recursively composed of wire fields.
-    type Wire: Copy;
-    /// Concrete producer-owned backing storage for converted indirect fields.
-    type Storage;
-    /// Encodes this value, retaining every temporary wire allocation in Storage.
-    fn encode_value(&self, budget: &mut ValueBudget) -> Result<(Self::Wire, Self::Storage), NcStatus>;
+    /// Call-scoped ABI representation, recursively composed of raw fields.
+    type AbiRepr: Copy;
+    /// Owns any converted indirect data needed to keep `AbiRepr` pointers valid.
+    /// Direct borrows still rely on the source value. Use `()` when encoding
+    /// produces no owned data to retain.
+    type KeepAlive;
+    /// Encodes this value and returns the temporary allocations in `KeepAlive`.
+    fn encode_value(&self, budget: &mut ValueBudget) -> Result<(Self::AbiRepr, Self::KeepAlive), NcStatus>;
     /// Converts fields after their resource requirements have been checked.
     /// This is macro infrastructure, not an alternative unchecked wire format.
     ///
@@ -155,7 +157,7 @@ pub unsafe trait ComValue: Sized + 'static {
     /// Every active child must have a finite allocation-free MAX_COST. Content
     /// validation remains required even though budget bookkeeping is omitted.
     #[doc(hidden)]
-    unsafe fn encode_prechecked(&self) -> Result<(Self::Wire, Self::Storage), NcStatus> {
+    unsafe fn encode_prechecked(&self) -> Result<(Self::AbiRepr, Self::KeepAlive), NcStatus> {
         unreachable!("unbounded codec cannot use prechecked conversion")
     }
     /// Validates raw fields after proving the entire conversion fits its budget.
@@ -164,7 +166,7 @@ pub unsafe trait ComValue: Sized + 'static {
     /// The caller must satisfy decode_value's memory contract and encode_prechecked's
     /// resource preflight contract. Restricted boolean/tag values still require checks.
     #[doc(hidden)]
-    unsafe fn decode_prechecked(_wire: &Self::Wire) -> Result<Self, NcStatus> {
+    unsafe fn decode_prechecked(_wire: &Self::AbiRepr) -> Result<Self, NcStatus> {
         unreachable!("unbounded codec cannot use prechecked conversion")
     }
     /// Borrows a raw value and acquires independent application-owned contents.
@@ -175,7 +177,7 @@ pub unsafe trait ComValue: Sized + 'static {
     /// conversion. Interface fields pair live COM objects with matching tables;
     /// their mutable state follows their separate synchronization contracts.
     /// These memory obligations do not require raw boolean/tag values to be valid.
-    unsafe fn decode_value(wire: &Self::Wire, budget: &mut ValueBudget) -> Result<Self, NcStatus>;
+    unsafe fn decode_value(wire: &Self::AbiRepr, budget: &mut ValueBudget) -> Result<Self, NcStatus>;
 }
 
 /// A named value's compiler-assigned identity, independent of its ownership.
@@ -209,17 +211,17 @@ pub fn check_buffer_output<T: ComInlineValue>(len: u64) -> Result<(), NcStatus> 
     // Every output region must be representable before reservation or dispatch,
     // including identity buffers that need no conversion-resource budget.
     let count = usize::try_from(len).map_err(|_| NC_E_OUT_OF_RANGE)?;
-    for size in [core::mem::size_of::<T>(), core::mem::size_of::<T::Wire>()] {
+    for size in [core::mem::size_of::<T>(), core::mem::size_of::<T::AbiRepr>()] {
         count.checked_mul(size).filter(|bytes| *bytes <= isize::MAX as usize).ok_or(NC_E_OUT_OF_RANGE)?;
     }
-    match T::BORROW_WIRE {
+    match T::BORROW_ABI_REPR {
         // Identity buffers have no conversion or allocation at completion.
         true => Ok(()),
         false => {
             let cost = T::MAX_COST.and_then(|cost| cost.elements(count)).ok_or(NC_E_OUT_OF_RANGE)?;
             let mut budget = ValueBudget::default();
             budget.sequence::<T>(count)?;
-            ValueBudget::default().sequence::<T::Wire>(count)?;
+            ValueBudget::default().sequence::<T::AbiRepr>(count)?;
             budget.fixed(cost)
         }
     }
@@ -237,9 +239,9 @@ pub fn check_buffer_output<T: ComInlineValue>(len: u64) -> Result<(), NcStatus> 
 /// borrow of those records. The macro enforces this at the declaration boundary.
 pub struct NcValueRef<'a, T: ComValue> {
     /// Raw record passed only to the synchronous COM call.
-    wire: T::Wire,
+    wire: T::AbiRepr,
     /// Encoding owns storage; raw receiver reconstruction borrows producer storage.
-    _storage: Option<T::Storage>,
+    _storage: Option<T::KeepAlive>,
     /// Keeps original application allocations live for the complete call guard.
     owner: PhantomData<&'a T>,
 }
@@ -260,7 +262,7 @@ impl<'a, T: ComValue> NcValueRef<'a, T> {
         unsafe { T::decode_value(&self.wire, &mut ValueBudget::default()) }
     }
     /// Borrows the raw record while this guard retains its typed backing storage.
-    pub fn as_ptr(&self) -> *const T::Wire {
+    pub fn as_ptr(&self) -> *const T::AbiRepr {
         &self.wire
     }
     /// Reconstructs a borrowed call guard at a generated COM entry point.
@@ -272,13 +274,13 @@ impl<'a, T: ComValue> NcValueRef<'a, T> {
     /// The returned guard does not own that storage; `'a` must not outlive it.
     /// Generated entry points bound this borrow to the synchronous call.
     /// Raw scalar/tag contents may be invalid and will be checked by `to_owned`.
-    pub unsafe fn from_raw(pointer: *const T::Wire) -> Result<Self, NcStatus> {
+    pub unsafe fn from_raw(pointer: *const T::AbiRepr) -> Result<Self, NcStatus> {
         if pointer.is_null() {
             return Err(NC_E_POINTER);
         }
         // Rust type alignment is a nonzero power of two. The mask preserves the
         // alignment check without using APIs unavailable on our Rust 1.85 floor.
-        if (pointer as usize) & (core::mem::align_of::<T::Wire>() - 1) != 0 {
+        if (pointer as usize) & (core::mem::align_of::<T::AbiRepr>() - 1) != 0 {
             return Err(NC_E_INVALID_ARG);
         }
         // SAFETY: the caller provides initialized, aligned raw wire storage.
@@ -296,10 +298,10 @@ macro_rules! scalar_values {
         // SAFETY: these primitive wire values have no restricted bit patterns,
         // borrowed fields, or ownership obligations.
         unsafe impl ComValue for $ty {
-            const BORROW_WIRE: bool = true;
+            const BORROW_ABI_REPR: bool = true;
             const FIXED_COST: Option<ValueCost> = Some(ValueCost::SCALAR);
-            type Wire = Self;
-            type Storage = ();
+            type AbiRepr = Self;
+            type KeepAlive = ();
             /// Counts this scalar and copies its unrestricted value.
             fn encode_value(&self, budget: &mut ValueBudget) -> Result<(Self, ()), NcStatus> {
                 budget.value(|_| Ok((*self, ())))
@@ -322,8 +324,8 @@ scalar_values!(u8, u16, u32, u64, usize, i8, i16, i32, i64, isize, f32, f64, cra
 // SAFETY: boolean wire storage is an unrestricted byte, checked before conversion.
 unsafe impl ComValue for bool {
     const FIXED_COST: Option<ValueCost> = Some(ValueCost::SCALAR);
-    type Wire = u8;
-    type Storage = ();
+    type AbiRepr = u8;
+    type KeepAlive = ();
     /// Counts the boolean and lowers its known Rust value to a valid wire byte.
     fn encode_value(&self, budget: &mut ValueBudget) -> Result<(u8, ()), NcStatus> {
         budget.value(|_| Ok((u8::from(*self), ())))
@@ -366,9 +368,9 @@ impl<W: Copy> Clone for ValueOption<W> {
 // SAFETY: the optional tag is inspected before the recursively checked payload.
 unsafe impl<T: ComValue> ComValue for Option<T> {
     const MAX_COST: Option<ValueCost> = ValueCost::aggregate(&[T::MAX_COST]);
-    type Wire = ValueOption<T::Wire>;
-    type Storage = Option<T::Storage>;
-    fn encode_value(&self, budget: &mut ValueBudget) -> Result<(Self::Wire, Self::Storage), NcStatus> {
+    type AbiRepr = ValueOption<T::AbiRepr>;
+    type KeepAlive = Option<T::KeepAlive>;
+    fn encode_value(&self, budget: &mut ValueBudget) -> Result<(Self::AbiRepr, Self::KeepAlive), NcStatus> {
         budget.value(|budget| match self {
             None => Ok((
                 ValueOption {
@@ -389,7 +391,7 @@ unsafe impl<T: ComValue> ComValue for Option<T> {
             }
         })
     }
-    unsafe fn decode_value(wire: &Self::Wire, budget: &mut ValueBudget) -> Result<Self, NcStatus> {
+    unsafe fn decode_value(wire: &Self::AbiRepr, budget: &mut ValueBudget) -> Result<Self, NcStatus> {
         budget.value(|budget| match wire.present {
             0 => Ok(None),
             // SAFETY: the validated present tag selects the initialized raw payload.
@@ -398,7 +400,7 @@ unsafe impl<T: ComValue> ComValue for Option<T> {
         })
     }
     /// Converts the selected optional payload after the complete bound was checked.
-    unsafe fn encode_prechecked(&self) -> Result<(Self::Wire, Self::Storage), NcStatus> {
+    unsafe fn encode_prechecked(&self) -> Result<(Self::AbiRepr, Self::KeepAlive), NcStatus> {
         match self {
             None => Ok((
                 ValueOption {
@@ -421,7 +423,7 @@ unsafe impl<T: ComValue> ComValue for Option<T> {
         }
     }
     /// Validates presence before inspecting the prechecked optional payload.
-    unsafe fn decode_prechecked(wire: &Self::Wire) -> Result<Self, NcStatus> {
+    unsafe fn decode_prechecked(wire: &Self::AbiRepr) -> Result<Self, NcStatus> {
         match wire.present {
             0 => Ok(None),
             // SAFETY: the tag selects initialized storage and the child bound fits.
@@ -441,15 +443,15 @@ pub struct ValueArray<W: Copy, const N: usize> {
 // SAFETY: every array element uses its declared checked raw representation.
 unsafe impl<T: ComValue, const N: usize> ComValue for [T; N] {
     // The repr(C) wrapper contains exactly the element array at offset zero.
-    const BORROW_WIRE: bool = T::BORROW_WIRE
-        && core::mem::size_of::<Self>() == core::mem::size_of::<Self::Wire>()
-        && core::mem::align_of::<Self>() == core::mem::align_of::<Self::Wire>();
+    const BORROW_ABI_REPR: bool = T::BORROW_ABI_REPR
+        && core::mem::size_of::<Self>() == core::mem::size_of::<Self::AbiRepr>()
+        && core::mem::align_of::<Self>() == core::mem::align_of::<Self::AbiRepr>();
     const FIXED_COST: Option<ValueCost> = ValueCost::array(T::FIXED_COST, N);
     const MAX_COST: Option<ValueCost> = ValueCost::array(T::MAX_COST, N);
-    type Wire = ValueArray<T::Wire, N>;
-    type Storage = [T::Storage; N];
+    type AbiRepr = ValueArray<T::AbiRepr, N>;
+    type KeepAlive = [T::KeepAlive; N];
     /// Preflights a fixed array once or shares dynamic accounting with its children.
-    fn encode_value(&self, budget: &mut ValueBudget) -> Result<(Self::Wire, Self::Storage), NcStatus> {
+    fn encode_value(&self, budget: &mut ValueBudget) -> Result<(Self::AbiRepr, Self::KeepAlive), NcStatus> {
         match Self::FIXED_COST {
             Some(cost) => {
                 budget.fixed(cost)?;
@@ -460,7 +462,7 @@ unsafe impl<T: ComValue, const N: usize> ComValue for [T; N] {
         }
     }
     /// Active raw elements remain checked in both accounting modes.
-    unsafe fn decode_value(wire: &Self::Wire, budget: &mut ValueBudget) -> Result<Self, NcStatus> {
+    unsafe fn decode_value(wire: &Self::AbiRepr, budget: &mut ValueBudget) -> Result<Self, NcStatus> {
         match Self::FIXED_COST {
             Some(cost) => {
                 budget.fixed(cost)?;
@@ -471,25 +473,25 @@ unsafe impl<T: ComValue, const N: usize> ComValue for [T; N] {
         }
     }
     /// Converts each statically accounted child without double charging it.
-    unsafe fn encode_prechecked(&self) -> Result<(Self::Wire, Self::Storage), NcStatus> {
+    unsafe fn encode_prechecked(&self) -> Result<(Self::AbiRepr, Self::KeepAlive), NcStatus> {
         encode_array(self, |value| unsafe { T::encode_prechecked(value) })
     }
     /// Validates each statically accounted child before assembling application storage.
-    unsafe fn decode_prechecked(wire: &Self::Wire) -> Result<Self, NcStatus> {
+    unsafe fn decode_prechecked(wire: &Self::AbiRepr) -> Result<Self, NcStatus> {
         decode_array(wire, |raw| unsafe { T::decode_prechecked(raw) })
     }
 }
 
 /// An array's wire and lifetime storage come from its one ComValue contract.
-type EncodedArray<T, const N: usize> = (<[T; N] as ComValue>::Wire, <[T; N] as ComValue>::Storage);
+type EncodedArray<T, const N: usize> = (<[T; N] as ComValue>::AbiRepr, <[T; N] as ComValue>::KeepAlive);
 
 /// Keeps independent wire/storage layouts and guards only the owning storage prefix.
 fn encode_array<T: ComValue, const N: usize>(
     values: &[T; N],
-    mut convert: impl FnMut(&T) -> Result<(T::Wire, T::Storage), NcStatus>,
+    mut convert: impl FnMut(&T) -> Result<(T::AbiRepr, T::KeepAlive), NcStatus>,
 ) -> Result<EncodedArray<T, N>, NcStatus> {
-    let mut wires = core::mem::MaybeUninit::<[T::Wire; N]>::uninit();
-    let pointer = wires.as_mut_ptr().cast::<T::Wire>();
+    let mut wires = core::mem::MaybeUninit::<[T::AbiRepr; N]>::uninit();
+    let pointer = wires.as_mut_ptr().cast::<T::AbiRepr>();
     let storage = crate::array::try_from_fn::<_, N>(|index| {
         let (wire, storage) = convert(&values[index])?;
         // SAFETY: the initializer calls each index in 0..N once. Wire is Copy
@@ -507,8 +509,8 @@ fn encode_array<T: ComValue, const N: usize>(
 
 /// Acquires an array transactionally without leaking an already-decoded prefix.
 fn decode_array<T: ComValue, const N: usize>(
-    wire: &ValueArray<T::Wire, N>,
-    mut convert: impl FnMut(&T::Wire) -> Result<T, NcStatus>,
+    wire: &ValueArray<T::AbiRepr, N>,
+    mut convert: impl FnMut(&T::AbiRepr) -> Result<T, NcStatus>,
 ) -> Result<[T; N], NcStatus> {
     crate::array::try_from_fn(|index| convert(&wire.elements[index]))
 }
@@ -550,11 +552,11 @@ impl<W: Copy> ValueSlice<W> {
     }
 }
 
-/// Call-scoped sequence backing; the producer source remains borrowed separately.
+/// Retains converted sequence data for a call. The source stays borrowed separately.
 /// Identity elements with an exact prepaid cost use their original region. Other
-/// elements retain concrete wire arrays and every child guard until the call ends.
+/// elements retain concrete ABI arrays and every child keep-alive until the call ends.
 #[cfg(feature = "alloc")]
-pub struct ValueSequenceStorage<T: ComValue> {
+pub struct ValueSequenceKeepAlive<T: ComValue> {
     /// Representation is local codec infrastructure, never part of the raw ABI.
     _arrays: SequenceArrays<T>,
 }
@@ -567,9 +569,9 @@ enum SequenceArrays<T: ComValue> {
     /// Converted elements require both contiguous raw slots and child backing.
     Converted {
         /// Contiguous wire elements addressed by the exported sequence descriptor.
-        _wires: Vec<T::Wire>,
-        /// Storage for every element, retained until the synchronous call returns.
-        _children: Vec<T::Storage>,
+        _wires: Vec<T::AbiRepr>,
+        /// Keeps every converted element's indirect data live through the call.
+        _children: Vec<T::KeepAlive>,
     },
 }
 #[cfg(feature = "alloc")]
@@ -577,24 +579,24 @@ enum SequenceArrays<T: ComValue> {
 // source-borrow contract. Converted elements and children live in the call guard.
 // Decoding validates each element before returning independently owned Vec<T>.
 unsafe impl<T: ComValue> ComValue for Vec<T> {
-    type Wire = ValueSlice<T::Wire>;
-    type Storage = ValueSequenceStorage<T>;
-    fn encode_value(&self, budget: &mut ValueBudget) -> Result<(Self::Wire, Self::Storage), NcStatus> {
+    type AbiRepr = ValueSlice<T::AbiRepr>;
+    type KeepAlive = ValueSequenceKeepAlive<T>;
+    fn encode_value(&self, budget: &mut ValueBudget) -> Result<(Self::AbiRepr, Self::KeepAlive), NcStatus> {
         budget.value(|budget| {
-            budget.sequence::<T::Wire>(self.len())?;
+            budget.sequence::<T::AbiRepr>(self.len())?;
             let exact = budget.exact_elements::<T>(self.len())?;
-            if T::BORROW_WIRE && exact {
+            if T::BORROW_ABI_REPR && exact {
                 // SAFETY: the recursive identity proof includes size, alignment,
                 // initialized bits and identity conversion. Exact prepayment is
                 // required even here because later siblings share this budget.
                 let wire = ValueSlice {
-                    pointer: self.as_ptr().cast::<T::Wire>(),
+                    pointer: self.as_ptr().cast::<T::AbiRepr>(),
                     len: self.len() as u64,
                 };
-                return Ok((wire, ValueSequenceStorage { _arrays: SequenceArrays::Borrowed }));
+                return Ok((wire, ValueSequenceKeepAlive { _arrays: SequenceArrays::Borrowed }));
             }
             // The second allocation owns child guards as well as the wire array.
-            budget.bytes(self.len().checked_mul(core::mem::size_of::<T::Storage>()).ok_or(NC_E_OUT_OF_RANGE)?)?;
+            budget.bytes(self.len().checked_mul(core::mem::size_of::<T::KeepAlive>()).ok_or(NC_E_OUT_OF_RANGE)?)?;
             let mut wires = Vec::new();
             let mut children = Vec::new();
             wires.try_reserve_exact(self.len()).map_err(|_| NC_E_OUT_OF_MEMORY)?;
@@ -614,13 +616,13 @@ unsafe impl<T: ComValue> ComValue for Vec<T> {
             };
             Ok((
                 wire,
-                ValueSequenceStorage {
+                ValueSequenceKeepAlive {
                     _arrays: SequenceArrays::Converted { _wires: wires, _children: children },
                 },
             ))
         })
     }
-    unsafe fn decode_value(wire: &Self::Wire, budget: &mut ValueBudget) -> Result<Self, NcStatus> {
+    unsafe fn decode_value(wire: &Self::AbiRepr, budget: &mut ValueBudget) -> Result<Self, NcStatus> {
         budget.value(|budget| {
             let len = usize::try_from(wire.len).map_err(|_| NC_E_OUT_OF_RANGE)?;
             budget.sequence::<T>(len)?;
@@ -645,9 +647,9 @@ unsafe impl<T: ComValue> ComValue for Vec<T> {
 #[cfg(feature = "alloc")]
 // SAFETY: wire text is raw bytes; UTF-8 is checked before creating String.
 unsafe impl ComValue for String {
-    type Wire = ValueSlice<u8>;
-    type Storage = ();
-    fn encode_value(&self, budget: &mut ValueBudget) -> Result<(Self::Wire, ()), NcStatus> {
+    type AbiRepr = ValueSlice<u8>;
+    type KeepAlive = ();
+    fn encode_value(&self, budget: &mut ValueBudget) -> Result<(Self::AbiRepr, ()), NcStatus> {
         budget.value(|budget| {
             budget.bytes(self.len())?;
             Ok((
@@ -659,7 +661,7 @@ unsafe impl ComValue for String {
             ))
         })
     }
-    unsafe fn decode_value(wire: &Self::Wire, budget: &mut ValueBudget) -> Result<Self, NcStatus> {
+    unsafe fn decode_value(wire: &Self::AbiRepr, budget: &mut ValueBudget) -> Result<Self, NcStatus> {
         budget.value(|budget| {
             budget.bytes(usize::try_from(wire.len).map_err(|_| NC_E_OUT_OF_RANGE)?)?;
             // SAFETY: the caller supplies live bytes and the size was preflighted.
@@ -675,12 +677,12 @@ unsafe impl ComValue for String {
 // SAFETY: wire object fields borrow a valid COM projection. Acquisition checks
 // its complete interface identity and obtains a reference before returning.
 unsafe impl<T: crate::ComInterface + 'static, M: crate::ThreadingModel> ComValue for crate::ComPtr<T, M> {
-    type Wire = crate::ComRaw<T>;
-    type Storage = ();
-    fn encode_value(&self, budget: &mut ValueBudget) -> Result<(Self::Wire, ()), NcStatus> {
+    type AbiRepr = crate::ComRaw<T>;
+    type KeepAlive = ();
+    fn encode_value(&self, budget: &mut ValueBudget) -> Result<(Self::AbiRepr, ()), NcStatus> {
         budget.value(|_| Ok((self.as_raw(), ())))
     }
-    unsafe fn decode_value(wire: &Self::Wire, budget: &mut ValueBudget) -> Result<Self, NcStatus> {
+    unsafe fn decode_value(wire: &Self::AbiRepr, budget: &mut ValueBudget) -> Result<Self, NcStatus> {
         budget.value(|_| {
             // SAFETY: raw callers provide a live common lifecycle pair; this operation
             // checks identity before acquiring a separately owned reference.
@@ -692,14 +694,14 @@ unsafe impl<T: crate::ComInterface + 'static, M: crate::ThreadingModel> ComValue
 // SAFETY: the ABI wire contract borrows one genuine shared state. Acquisition
 // validates exact identity, then retains bookkeeping without promoting T.
 unsafe impl<T: crate::ComInterface + 'static, M: crate::ThreadingModel> ComValue for crate::WeakComPtr<T, M> {
-    type Wire = crate::NcWeakRaw;
-    type Storage = ();
+    type AbiRepr = crate::NcWeakRaw;
+    type KeepAlive = ();
     /// The borrowed native handle keeps header and provider metadata alive.
-    fn encode_value(&self, budget: &mut ValueBudget) -> Result<(Self::Wire, ()), NcStatus> {
+    fn encode_value(&self, budget: &mut ValueBudget) -> Result<(Self::AbiRepr, ()), NcStatus> {
         budget.value(|_| Ok((self.as_raw(), ())))
     }
     /// Acquires an independent weak reference, even after concrete destruction.
-    unsafe fn decode_value(wire: &Self::Wire, budget: &mut ValueBudget) -> Result<Self, NcStatus> {
+    unsafe fn decode_value(wire: &Self::AbiRepr, budget: &mut ValueBudget) -> Result<Self, NcStatus> {
         budget.value(|_| {
             // SAFETY: this ABI value borrows genuine shared backing. Validate
             // presence and the requested interface before retaining another weak.
@@ -717,14 +719,14 @@ unsafe impl<T: crate::ComInterface + 'static, M: crate::ThreadingModel> ComValue
 // projection. The producer proves boxed backing; acquisition checks identity,
 // then retains only the weak header, including after the value has expired.
 unsafe impl<T: crate::ComInterface + 'static, M: crate::ThreadingModel> ComValue for crate::WeakComBox<T, M> {
-    type Wire = crate::ComRaw<T>;
-    type Storage = ();
+    type AbiRepr = crate::ComRaw<T>;
+    type KeepAlive = ();
     /// The native observer keeps both the header and provider metadata alive.
-    fn encode_value(&self, budget: &mut ValueBudget) -> Result<(Self::Wire, ()), NcStatus> {
+    fn encode_value(&self, budget: &mut ValueBudget) -> Result<(Self::AbiRepr, ()), NcStatus> {
         budget.value(|_| Ok((self.as_raw(), ())))
     }
     /// Acquires an observer without borrowing, promoting or resurrecting its value.
-    unsafe fn decode_value(wire: &Self::Wire, budget: &mut ValueBudget) -> Result<Self, NcStatus> {
+    unsafe fn decode_value(wire: &Self::AbiRepr, budget: &mut ValueBudget) -> Result<Self, NcStatus> {
         budget.value(|_| {
             // SAFETY: the caller lends initialized common header/table storage.
             // Validate the supplied pair before finding the canonical projection.
@@ -754,7 +756,7 @@ unsafe impl<T: ComInlineValue, const N: usize> ComInlineValue for [T; N] {}
 /// Converts a copied input or output using the same recursive checked codec.
 /// Inline proof ensures discarded storage cannot invalidate the returned wire.
 #[inline(always)]
-pub fn encode_inline<T: ComInlineValue>(value: &T) -> Result<T::Wire, NcStatus> {
+pub fn encode_inline<T: ComInlineValue>(value: &T) -> Result<T::AbiRepr, NcStatus> {
     match T::MAX_COST {
         Some(cost) if cost.values <= MAX_VALUE_COUNT && cost.depth <= MAX_VALUE_DEPTH => {
             // SAFETY: every possible allocation-free shape fits this isolated conversion.
@@ -769,7 +771,7 @@ pub fn encode_inline<T: ComInlineValue>(value: &T) -> Result<T::Wire, NcStatus> 
 /// # Safety
 /// The raw value must satisfy ComValue::decode_value's initialized-storage contract.
 #[inline(always)]
-pub unsafe fn decode_inline<T: ComInlineValue>(wire: &T::Wire) -> Result<T, NcStatus> {
+pub unsafe fn decode_inline<T: ComInlineValue>(wire: &T::AbiRepr) -> Result<T, NcStatus> {
     match T::MAX_COST {
         Some(cost) if cost.values <= MAX_VALUE_COUNT && cost.depth <= MAX_VALUE_DEPTH => {
             // SAFETY: raw storage is initialized; the complete bound fits an isolated
@@ -817,7 +819,7 @@ fn buffer_budget<Element: ComInlineValue, Stored>(len: usize) -> Result<(ValueBu
 /// Encodes into capacity already owned by the caller, using the shared codec loop.
 /// Capacity is an internal preparation invariant; no reserve occurs in this loop.
 #[cfg(feature = "alloc")]
-fn encode_buffer_elements<T: ComInlineValue>(values: &[T], result: &mut Vec<T::Wire>, mut budget: ValueBudget, prechecked: bool) -> Result<(), NcStatus> {
+fn encode_buffer_elements<T: ComInlineValue>(values: &[T], result: &mut Vec<T::AbiRepr>, mut budget: ValueBudget, prechecked: bool) -> Result<(), NcStatus> {
     assert!(result.capacity() >= values.len(), "output wire capacity was not prepared");
     result.clear();
     for value in values {
@@ -837,7 +839,7 @@ fn encode_buffer_elements<T: ComInlineValue>(values: &[T], result: &mut Vec<T::W
 /// The caller keeps the complete wire slice readable throughout this conversion.
 #[cfg(feature = "alloc")]
 unsafe fn decode_buffer_elements<T: ComInlineValue>(
-    elements: &[T::Wire],
+    elements: &[T::AbiRepr],
     result: &mut Vec<T>,
     mut budget: ValueBudget,
     prechecked: bool,
@@ -857,8 +859,8 @@ unsafe fn decode_buffer_elements<T: ComInlineValue>(
 
 /// Encodes an initialized buffer into raw elements without assuming Rust layout.
 #[cfg(feature = "alloc")]
-pub fn encode_value_buffer<T: ComInlineValue>(values: &[T]) -> Result<Vec<T::Wire>, NcStatus> {
-    let (budget, prechecked) = buffer_budget::<T, T::Wire>(values.len())?;
+pub fn encode_value_buffer<T: ComInlineValue>(values: &[T]) -> Result<Vec<T::AbiRepr>, NcStatus> {
+    let (budget, prechecked) = buffer_budget::<T, T::AbiRepr>(values.len())?;
     let mut result = reserve_value_buffer(values.len())?;
     encode_buffer_elements(values, &mut result, budget, prechecked)?;
     Ok(result)
@@ -869,7 +871,7 @@ pub fn encode_value_buffer<T: ComInlineValue>(values: &[T]) -> Result<Vec<T::Wir
 /// # Safety
 /// The pointer addresses len initialized raw elements, live for this call.
 #[cfg(feature = "alloc")]
-pub unsafe fn decode_value_buffer<T: ComInlineValue>(pointer: *const T::Wire, len: u64) -> Result<Vec<T>, NcStatus> {
+pub unsafe fn decode_value_buffer<T: ComInlineValue>(pointer: *const T::AbiRepr, len: u64) -> Result<Vec<T>, NcStatus> {
     let count = usize::try_from(len).map_err(|_| NC_E_OUT_OF_RANGE)?;
     let (budget, prechecked) = buffer_budget::<T, T>(count)?;
     // SAFETY: the raw producer supplies live initialized storage for this call.
@@ -883,8 +885,8 @@ pub unsafe fn decode_value_buffer<T: ComInlineValue>(pointer: *const T::Wire, le
 // SAFETY: unit has a concrete byte representation; only its sole value is accepted.
 unsafe impl ComValue for () {
     const FIXED_COST: Option<ValueCost> = Some(ValueCost::SCALAR);
-    type Wire = u8;
-    type Storage = ();
+    type AbiRepr = u8;
+    type KeepAlive = ();
     fn encode_value(&self, budget: &mut ValueBudget) -> Result<(u8, ()), NcStatus> {
         budget.value(|_| Ok((0, ())))
     }

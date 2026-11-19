@@ -627,7 +627,7 @@ fn expand_parts(plan: InterfacePlan, dispatch: ProviderDispatch) -> Result<Inter
             for arg in &method.args {
                 if let AbiArgKind::OutputBuffer { element_ty } = &arg.kind {
                     proofs.push(quote! {
-                        ::core::assert!(<#element_ty as #nc::ComValue>::BORROW_WIRE || <#element_ty as #nc::ComValue>::MAX_COST.is_some(),
+                        ::core::assert!(<#element_ty as #nc::ComValue>::BORROW_ABI_REPR || <#element_ty as #nc::ComValue>::MAX_COST.is_some(),
                             "consuming COM converted buffer output requires an allocation-free MAX_COST");
                     });
                 }

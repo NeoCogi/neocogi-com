@@ -108,8 +108,8 @@ impl ComDeserialize for AlignedUnit {
 // SAFETY: unit validation/accounting, no pointers, independent native alignment.
 unsafe impl ComValue for AlignedUnit {
     const FIXED_COST: Option<ValueCost> = Some(ValueCost::SCALAR);
-    type Wire = u8;
-    type Storage = ();
+    type AbiRepr = u8;
+    type KeepAlive = ();
     fn encode_value(&self, budget: &mut ValueBudget) -> Result<(u8, ()), NcStatus> {
         ().encode_value(budget)
     }
@@ -131,8 +131,8 @@ struct StorageUnit;
 // SAFETY: valid unit byte, no pointees; Storage is concrete and move-independent.
 unsafe impl ComValue for StorageUnit {
     const FIXED_COST: Option<ValueCost> = Some(ValueCost::SCALAR);
-    type Wire = u8;
-    type Storage = AlignedUnit;
+    type AbiRepr = u8;
+    type KeepAlive = AlignedUnit;
     fn encode_value(&self, budget: &mut ValueBudget) -> Result<(u8, AlignedUnit), NcStatus> {
         ().encode_value(budget).map(|(wire, _)| (wire, AlignedUnit))
     }

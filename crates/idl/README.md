@@ -318,7 +318,7 @@ names before code generation. Collisions receive source-located diagnostics.
 Payload enums use their native Rust type in copied fields, methods and buffers.
 They do not emit public `FooAbi`, `FooTag`, `FooPayload` or per-variant application
 records; those names remain available to authored declarations. Their actual
-checked `ComValue::Wire` helpers start with `__` and cannot collide with IDL's
+checked `ComValue::AbiRepr` helpers start with `__` and cannot collide with IDL's
 UpperCamel declarations. Rust enum layout never crosses COM.
 
 Records, enums and bit sets acquire symmetric persistence automatically when

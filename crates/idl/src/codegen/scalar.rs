@@ -291,11 +291,11 @@ pub fn emit_scalar(plan: &ScalarPlan, nc: &syn::Path) -> TokenStream {
         // SAFETY: the wrapper contains only its fixed-width primitive.
         unsafe impl #nc::AbiPlainValue for #name {}
         // SAFETY: raw integers are checked before accepting the declared live domain.
-        // BORROW_WIRE remains false: identical layout cannot bypass domain validation.
+        // BORROW_ABI_REPR remains false: identical layout cannot bypass domain validation.
         unsafe impl #nc::ComValue for #name {
             const FIXED_COST: ::core::option::Option<#nc::ValueCost> = <#repr as #nc::ComValue>::FIXED_COST;
-            type Wire = #repr;
-            type Storage = ();
+            type AbiRepr = #repr;
+            type KeepAlive = ();
             /// Accounts for one scalar, then validates the native domain.
             fn encode_value(&self, #budget: &mut #nc::ValueBudget) -> ::core::result::Result<(#repr, ()), #nc::NcStatus> {
                 // SAFETY: value charges the scalar before the allocation-free checked converter.

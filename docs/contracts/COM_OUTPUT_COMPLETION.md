@@ -105,7 +105,7 @@ are no incoming output elements whose actual contents could justify admission.
 | --- | --- |
 | Copied result of a consuming call | Allocation-free `ComInlineValue::MAX_COST`; maximum count/depth must fit before invocation. |
 | Converted output, consuming or ordinary | Finite allocation-free element maximum; capacity times maximum logical cost, depth, native bytes, and wire bytes must fit before invocation. |
-| Identity-wire output | Recursive `BORROW_WIRE` proof, representable region and pre-reserved native capacity; no conversion scratch. |
+| Identity-wire output | Recursive `BORROW_ABI_REPR` proof, representable region and pre-reserved native capacity; no conversion scratch. |
 | Readable input | Existing checked decoding and actual-input resource policy. |
 | Ordinary non-consuming copied return | Existing actual-output budget; recoverable output errors remain allowed. |
 

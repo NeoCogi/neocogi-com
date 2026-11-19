@@ -220,14 +220,14 @@ pub struct IDeserializerVTable {
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: bool as :: neocogi_com :: ComValue > :: Wire`.
+    ///On success, `out` receives `< :: core :: primitive :: bool as :: neocogi_com :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub deserialize_bool: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_out: *mut <::core::primitive::bool as ::neocogi_com::ComValue>::Wire,
+        __nc_out: *mut <::core::primitive::bool as ::neocogi_com::ComValue>::AbiRepr,
     ) -> ::neocogi_com::NcStatus,
     /// Acquires one validated u8 value.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:68:8` (module `neocogi.com.serialization`).
@@ -239,14 +239,14 @@ pub struct IDeserializerVTable {
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: u8 as :: neocogi_com :: ComValue > :: Wire`.
+    ///On success, `out` receives `< :: core :: primitive :: u8 as :: neocogi_com :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub deserialize_u8: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_out: *mut <::core::primitive::u8 as ::neocogi_com::ComValue>::Wire,
+        __nc_out: *mut <::core::primitive::u8 as ::neocogi_com::ComValue>::AbiRepr,
     ) -> ::neocogi_com::NcStatus,
     /// Acquires one validated u16 value.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:70:8` (module `neocogi.com.serialization`).
@@ -258,14 +258,14 @@ pub struct IDeserializerVTable {
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: u16 as :: neocogi_com :: ComValue > :: Wire`.
+    ///On success, `out` receives `< :: core :: primitive :: u16 as :: neocogi_com :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub deserialize_u16: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_out: *mut <::core::primitive::u16 as ::neocogi_com::ComValue>::Wire,
+        __nc_out: *mut <::core::primitive::u16 as ::neocogi_com::ComValue>::AbiRepr,
     ) -> ::neocogi_com::NcStatus,
     /// Acquires one validated u32 value.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:72:8` (module `neocogi.com.serialization`).
@@ -277,14 +277,14 @@ pub struct IDeserializerVTable {
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: Wire`.
+    ///On success, `out` receives `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub deserialize_u32: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
+        __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
     ) -> ::neocogi_com::NcStatus,
     /// Acquires one validated u64 value.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:74:8` (module `neocogi.com.serialization`).
@@ -296,14 +296,14 @@ pub struct IDeserializerVTable {
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: u64 as :: neocogi_com :: ComValue > :: Wire`.
+    ///On success, `out` receives `< :: core :: primitive :: u64 as :: neocogi_com :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub deserialize_u64: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_out: *mut <::core::primitive::u64 as ::neocogi_com::ComValue>::Wire,
+        __nc_out: *mut <::core::primitive::u64 as ::neocogi_com::ComValue>::AbiRepr,
     ) -> ::neocogi_com::NcStatus,
     /// Acquires one validated i8 value.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:76:8` (module `neocogi.com.serialization`).
@@ -315,14 +315,14 @@ pub struct IDeserializerVTable {
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: i8 as :: neocogi_com :: ComValue > :: Wire`.
+    ///On success, `out` receives `< :: core :: primitive :: i8 as :: neocogi_com :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub deserialize_i8: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_out: *mut <::core::primitive::i8 as ::neocogi_com::ComValue>::Wire,
+        __nc_out: *mut <::core::primitive::i8 as ::neocogi_com::ComValue>::AbiRepr,
     ) -> ::neocogi_com::NcStatus,
     /// Acquires one validated i16 value.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:78:8` (module `neocogi.com.serialization`).
@@ -334,14 +334,14 @@ pub struct IDeserializerVTable {
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: i16 as :: neocogi_com :: ComValue > :: Wire`.
+    ///On success, `out` receives `< :: core :: primitive :: i16 as :: neocogi_com :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub deserialize_i16: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_out: *mut <::core::primitive::i16 as ::neocogi_com::ComValue>::Wire,
+        __nc_out: *mut <::core::primitive::i16 as ::neocogi_com::ComValue>::AbiRepr,
     ) -> ::neocogi_com::NcStatus,
     /// Acquires one validated i32 value.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:80:8` (module `neocogi.com.serialization`).
@@ -353,14 +353,14 @@ pub struct IDeserializerVTable {
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: i32 as :: neocogi_com :: ComValue > :: Wire`.
+    ///On success, `out` receives `< :: core :: primitive :: i32 as :: neocogi_com :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub deserialize_i32: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_out: *mut <::core::primitive::i32 as ::neocogi_com::ComValue>::Wire,
+        __nc_out: *mut <::core::primitive::i32 as ::neocogi_com::ComValue>::AbiRepr,
     ) -> ::neocogi_com::NcStatus,
     /// Acquires one validated i64 value.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:82:8` (module `neocogi.com.serialization`).
@@ -372,14 +372,14 @@ pub struct IDeserializerVTable {
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: i64 as :: neocogi_com :: ComValue > :: Wire`.
+    ///On success, `out` receives `< :: core :: primitive :: i64 as :: neocogi_com :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub deserialize_i64: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_out: *mut <::core::primitive::i64 as ::neocogi_com::ComValue>::Wire,
+        __nc_out: *mut <::core::primitive::i64 as ::neocogi_com::ComValue>::AbiRepr,
     ) -> ::neocogi_com::NcStatus,
     /// Acquires one validated f32 value.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:84:8` (module `neocogi.com.serialization`).
@@ -391,14 +391,14 @@ pub struct IDeserializerVTable {
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: f32 as :: neocogi_com :: ComValue > :: Wire`.
+    ///On success, `out` receives `< :: core :: primitive :: f32 as :: neocogi_com :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub deserialize_f32: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_out: *mut <::core::primitive::f32 as ::neocogi_com::ComValue>::Wire,
+        __nc_out: *mut <::core::primitive::f32 as ::neocogi_com::ComValue>::AbiRepr,
     ) -> ::neocogi_com::NcStatus,
     /// Acquires one validated f64 value.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:86:8` (module `neocogi.com.serialization`).
@@ -410,14 +410,14 @@ pub struct IDeserializerVTable {
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: f64 as :: neocogi_com :: ComValue > :: Wire`.
+    ///On success, `out` receives `< :: core :: primitive :: f64 as :: neocogi_com :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub deserialize_f64: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_out: *mut <::core::primitive::f64 as ::neocogi_com::ComValue>::Wire,
+        __nc_out: *mut <::core::primitive::f64 as ::neocogi_com::ComValue>::AbiRepr,
     ) -> ::neocogi_com::NcStatus,
     /// Admits a complete UTF-8 string and reports its byte length before allocation.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:88:8` (module `neocogi.com.serialization`).
@@ -429,14 +429,14 @@ pub struct IDeserializerVTable {
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: Wire`.
+    ///On success, `out` receives `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub string_len: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
+        __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
     ) -> ::neocogi_com::NcStatus,
     /// Copies exactly the admitted string into fresh caller-owned output.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:90:8` (module `neocogi.com.serialization`).
@@ -447,9 +447,9 @@ pub struct IDeserializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `output` uses ABI storage `* mut < :: core :: primitive :: u8 as :: neocogi_com :: ComValue > :: Wire` for `:: neocogi_com :: NcOutputWriter < '_ , :: core :: primitive :: u8 >`. The writable buffer pointer is accompanied by `offset: u64`, `capacity: u64`, and a separate `written: *mut u64`. Old contents are not input. Only the successfully reported initialized prefix may be read; count and element storage must not alias.
+    ///- `output` uses ABI storage `* mut < :: core :: primitive :: u8 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: neocogi_com :: NcOutputWriter < '_ , :: core :: primitive :: u8 >`. The writable buffer pointer is accompanied by `offset: u64`, `capacity: u64`, and a separate `written: *mut u64`. Old contents are not input. Only the successfully reported initialized prefix may be read; count and element storage must not alias.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: Wire`.
+    ///On success, `out` receives `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
@@ -458,9 +458,9 @@ pub struct IDeserializerVTable {
         __nc_this: *mut ::core::ffi::c_void,
         __nc_arg_0_offset: ::core::primitive::u64,
         __nc_arg_0_len: ::core::primitive::u64,
-        __nc_arg_0_ptr: *mut <::core::primitive::u8 as ::neocogi_com::ComValue>::Wire,
+        __nc_arg_0_ptr: *mut <::core::primitive::u8 as ::neocogi_com::ComValue>::AbiRepr,
         __nc_arg_0_written: *mut ::core::primitive::u64,
-        __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
+        __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
     ) -> ::neocogi_com::NcStatus,
     /// Reads optional presence; a present child follows within this value scope.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:92:8` (module `neocogi.com.serialization`).
@@ -472,14 +472,14 @@ pub struct IDeserializerVTable {
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: bool as :: neocogi_com :: ComValue > :: Wire`.
+    ///On success, `out` receives `< :: core :: primitive :: bool as :: neocogi_com :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub option_present: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_out: *mut <::core::primitive::bool as ::neocogi_com::ComValue>::Wire,
+        __nc_out: *mut <::core::primitive::bool as ::neocogi_com::ComValue>::AbiRepr,
     ) -> ::neocogi_com::NcStatus,
     /// Opens a record and rejects more than maximum fields.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:94:8` (module `neocogi.com.serialization`).
@@ -490,17 +490,17 @@ pub struct IDeserializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `maximum` uses ABI storage `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: Wire` for `:: core :: primitive :: u32`. Passed by value.
+    ///- `maximum` uses ABI storage `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: Wire`.
+    ///On success, `out` receives `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub begin_record: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_arg_0_0: <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
-        __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
+        __nc_arg_0_0: <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
+        __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
     ) -> ::neocogi_com::NcStatus,
     /// Selects a named field in schema order; false means genuinely absent.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:96:8` (module `neocogi.com.serialization`).
@@ -511,9 +511,9 @@ pub struct IDeserializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `name` uses ABI storage `* const < :: core :: primitive :: u8 as :: neocogi_com :: ComValue > :: Wire` for `:: neocogi_com :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
+    ///- `name` uses ABI storage `* const < :: core :: primitive :: u8 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: neocogi_com :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: bool as :: neocogi_com :: ComValue > :: Wire`.
+    ///On success, `out` receives `< :: core :: primitive :: bool as :: neocogi_com :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
@@ -522,8 +522,8 @@ pub struct IDeserializerVTable {
         __nc_this: *mut ::core::ffi::c_void,
         __nc_arg_0_1_offset: ::core::primitive::u64,
         __nc_arg_0_1_len: ::core::primitive::u64,
-        __nc_arg_0_1_ptr: *const <::core::primitive::u8 as ::neocogi_com::ComValue>::Wire,
-        __nc_out: *mut <::core::primitive::bool as ::neocogi_com::ComValue>::Wire,
+        __nc_arg_0_1_ptr: *const <::core::primitive::u8 as ::neocogi_com::ComValue>::AbiRepr,
+        __nc_out: *mut <::core::primitive::bool as ::neocogi_com::ComValue>::AbiRepr,
     ) -> ::neocogi_com::NcStatus,
     /// Completes the record, rejecting unconsumed or unknown fields.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:98:8` (module `neocogi.com.serialization`).
@@ -553,14 +553,14 @@ pub struct IDeserializerVTable {
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: Wire`.
+    ///On success, `out` receives `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub begin_sequence: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
+        __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
     ) -> ::neocogi_com::NcStatus,
     /// Completes the collection, rejecting unconsumed elements.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:102:8` (module `neocogi.com.serialization`).
@@ -590,14 +590,14 @@ pub struct IDeserializerVTable {
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: Wire`.
+    ///On success, `out` receives `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub begin_map: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
+        __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
     ) -> ::neocogi_com::NcStatus,
     /// Completes the map.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:106:8` (module `neocogi.com.serialization`).
@@ -626,21 +626,21 @@ pub struct IDeserializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `index` uses ABI storage `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: Wire` for `:: core :: primitive :: u32`. Passed by value.
-    ///- `name` uses ABI storage `* const < :: core :: primitive :: u8 as :: neocogi_com :: ComValue > :: Wire` for `:: neocogi_com :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
+    ///- `index` uses ABI storage `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
+    ///- `name` uses ABI storage `* const < :: core :: primitive :: u8 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: neocogi_com :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: bool as :: neocogi_com :: ComValue > :: Wire`.
+    ///On success, `out` receives `< :: core :: primitive :: bool as :: neocogi_com :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub variant_is: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_arg_0_2: <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
+        __nc_arg_0_2: <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
         __nc_arg_1_offset: ::core::primitive::u64,
         __nc_arg_1_len: ::core::primitive::u64,
-        __nc_arg_1_ptr: *const <::core::primitive::u8 as ::neocogi_com::ComValue>::Wire,
-        __nc_out: *mut <::core::primitive::bool as ::neocogi_com::ComValue>::Wire,
+        __nc_arg_1_ptr: *const <::core::primitive::u8 as ::neocogi_com::ComValue>::AbiRepr,
+        __nc_out: *mut <::core::primitive::bool as ::neocogi_com::ComValue>::AbiRepr,
     ) -> ::neocogi_com::NcStatus,
     /// Marks a schema failure; no later operation may succeed.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:110:8` (module `neocogi.com.serialization`).
@@ -651,7 +651,7 @@ pub struct IDeserializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `message` uses ABI storage `* const < :: core :: primitive :: u8 as :: neocogi_com :: ComValue > :: Wire` for `:: neocogi_com :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
+    ///- `message` uses ABI storage `* const < :: core :: primitive :: u8 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: neocogi_com :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -662,7 +662,7 @@ pub struct IDeserializerVTable {
         __nc_this: *mut ::core::ffi::c_void,
         __nc_arg_0_3_offset: ::core::primitive::u64,
         __nc_arg_0_3_len: ::core::primitive::u64,
-        __nc_arg_0_3_ptr: *const <::core::primitive::u8 as ::neocogi_com::ComValue>::Wire,
+        __nc_arg_0_3_ptr: *const <::core::primitive::u8 as ::neocogi_com::ComValue>::AbiRepr,
     ) -> ::neocogi_com::NcStatus,
     /// Requires a complete root with no trailing input and closes the session.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:112:8` (module `neocogi.com.serialization`).
@@ -902,7 +902,7 @@ const _: () = {
             &mut self,
         ) -> ::core::result::Result<::core::primitive::bool, ::neocogi_com::NcStatus> {
             let mut __nc_out_3 = ::core::mem::MaybeUninit::<
-                <::core::primitive::bool as ::neocogi_com::ComValue>::Wire,
+                <::core::primitive::bool as ::neocogi_com::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_3 = self.__nc_pointer.as_raw();
             let __nc_status_3 = unsafe {
@@ -932,7 +932,7 @@ const _: () = {
             &mut self,
         ) -> ::core::result::Result<::core::primitive::u8, ::neocogi_com::NcStatus> {
             let mut __nc_out_4 = ::core::mem::MaybeUninit::<
-                <::core::primitive::u8 as ::neocogi_com::ComValue>::Wire,
+                <::core::primitive::u8 as ::neocogi_com::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_4 = self.__nc_pointer.as_raw();
             let __nc_status_4 = unsafe {
@@ -962,7 +962,7 @@ const _: () = {
             &mut self,
         ) -> ::core::result::Result<::core::primitive::u16, ::neocogi_com::NcStatus> {
             let mut __nc_out_5 = ::core::mem::MaybeUninit::<
-                <::core::primitive::u16 as ::neocogi_com::ComValue>::Wire,
+                <::core::primitive::u16 as ::neocogi_com::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_5 = self.__nc_pointer.as_raw();
             let __nc_status_5 = unsafe {
@@ -992,7 +992,7 @@ const _: () = {
             &mut self,
         ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus> {
             let mut __nc_out_6 = ::core::mem::MaybeUninit::<
-                <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
+                <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_6 = self.__nc_pointer.as_raw();
             let __nc_status_6 = unsafe {
@@ -1022,7 +1022,7 @@ const _: () = {
             &mut self,
         ) -> ::core::result::Result<::core::primitive::u64, ::neocogi_com::NcStatus> {
             let mut __nc_out_7 = ::core::mem::MaybeUninit::<
-                <::core::primitive::u64 as ::neocogi_com::ComValue>::Wire,
+                <::core::primitive::u64 as ::neocogi_com::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_7 = self.__nc_pointer.as_raw();
             let __nc_status_7 = unsafe {
@@ -1052,7 +1052,7 @@ const _: () = {
             &mut self,
         ) -> ::core::result::Result<::core::primitive::i8, ::neocogi_com::NcStatus> {
             let mut __nc_out_8 = ::core::mem::MaybeUninit::<
-                <::core::primitive::i8 as ::neocogi_com::ComValue>::Wire,
+                <::core::primitive::i8 as ::neocogi_com::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_8 = self.__nc_pointer.as_raw();
             let __nc_status_8 = unsafe {
@@ -1082,7 +1082,7 @@ const _: () = {
             &mut self,
         ) -> ::core::result::Result<::core::primitive::i16, ::neocogi_com::NcStatus> {
             let mut __nc_out_9 = ::core::mem::MaybeUninit::<
-                <::core::primitive::i16 as ::neocogi_com::ComValue>::Wire,
+                <::core::primitive::i16 as ::neocogi_com::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_9 = self.__nc_pointer.as_raw();
             let __nc_status_9 = unsafe {
@@ -1112,7 +1112,7 @@ const _: () = {
             &mut self,
         ) -> ::core::result::Result<::core::primitive::i32, ::neocogi_com::NcStatus> {
             let mut __nc_out_10 = ::core::mem::MaybeUninit::<
-                <::core::primitive::i32 as ::neocogi_com::ComValue>::Wire,
+                <::core::primitive::i32 as ::neocogi_com::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_10 = self.__nc_pointer.as_raw();
             let __nc_status_10 = unsafe {
@@ -1142,7 +1142,7 @@ const _: () = {
             &mut self,
         ) -> ::core::result::Result<::core::primitive::i64, ::neocogi_com::NcStatus> {
             let mut __nc_out_11 = ::core::mem::MaybeUninit::<
-                <::core::primitive::i64 as ::neocogi_com::ComValue>::Wire,
+                <::core::primitive::i64 as ::neocogi_com::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_11 = self.__nc_pointer.as_raw();
             let __nc_status_11 = unsafe {
@@ -1172,7 +1172,7 @@ const _: () = {
             &mut self,
         ) -> ::core::result::Result<::core::primitive::f32, ::neocogi_com::NcStatus> {
             let mut __nc_out_12 = ::core::mem::MaybeUninit::<
-                <::core::primitive::f32 as ::neocogi_com::ComValue>::Wire,
+                <::core::primitive::f32 as ::neocogi_com::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_12 = self.__nc_pointer.as_raw();
             let __nc_status_12 = unsafe {
@@ -1202,7 +1202,7 @@ const _: () = {
             &mut self,
         ) -> ::core::result::Result<::core::primitive::f64, ::neocogi_com::NcStatus> {
             let mut __nc_out_13 = ::core::mem::MaybeUninit::<
-                <::core::primitive::f64 as ::neocogi_com::ComValue>::Wire,
+                <::core::primitive::f64 as ::neocogi_com::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_13 = self.__nc_pointer.as_raw();
             let __nc_status_13 = unsafe {
@@ -1232,7 +1232,7 @@ const _: () = {
             &mut self,
         ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus> {
             let mut __nc_out_14 = ::core::mem::MaybeUninit::<
-                <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
+                <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_14 = self.__nc_pointer.as_raw();
             let __nc_status_14 = unsafe {
@@ -1265,7 +1265,7 @@ const _: () = {
         ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus> {
             let mut __nc_arg_0 = __nc_arg_0.prepare()?;
             let mut __nc_out_15 = ::core::mem::MaybeUninit::<
-                <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
+                <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_15 = self.__nc_pointer.as_raw();
             let __nc_status_15 = unsafe {
@@ -1304,7 +1304,7 @@ const _: () = {
             &mut self,
         ) -> ::core::result::Result<::core::primitive::bool, ::neocogi_com::NcStatus> {
             let mut __nc_out_16 = ::core::mem::MaybeUninit::<
-                <::core::primitive::bool as ::neocogi_com::ComValue>::Wire,
+                <::core::primitive::bool as ::neocogi_com::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_16 = self.__nc_pointer.as_raw();
             let __nc_status_16 = unsafe {
@@ -1337,7 +1337,7 @@ const _: () = {
         ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus> {
             let __nc_arg_0_0 = ::neocogi_com::encode_inline(&__nc_arg_0_0)?;
             let mut __nc_out_17 = ::core::mem::MaybeUninit::<
-                <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
+                <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_17 = self.__nc_pointer.as_raw();
             let __nc_status_17 = unsafe {
@@ -1377,7 +1377,7 @@ const _: () = {
         ) -> ::core::result::Result<::core::primitive::bool, ::neocogi_com::NcStatus> {
             let __nc_arg_0_1 = ::neocogi_com::EncodedInput::new(__nc_arg_0_1)?;
             let mut __nc_out_18 = ::core::mem::MaybeUninit::<
-                <::core::primitive::bool as ::neocogi_com::ComValue>::Wire,
+                <::core::primitive::bool as ::neocogi_com::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_18 = self.__nc_pointer.as_raw();
             let __nc_status_18 = unsafe {
@@ -1435,7 +1435,7 @@ const _: () = {
             &mut self,
         ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus> {
             let mut __nc_out_20 = ::core::mem::MaybeUninit::<
-                <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
+                <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_20 = self.__nc_pointer.as_raw();
             let __nc_status_20 = unsafe {
@@ -1487,7 +1487,7 @@ const _: () = {
             &mut self,
         ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus> {
             let mut __nc_out_22 = ::core::mem::MaybeUninit::<
-                <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
+                <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_22 = self.__nc_pointer.as_raw();
             let __nc_status_22 = unsafe {
@@ -1545,7 +1545,7 @@ const _: () = {
             let __nc_arg_0_2 = ::neocogi_com::encode_inline(&__nc_arg_0_2)?;
             let __nc_arg_1 = ::neocogi_com::EncodedInput::new(__nc_arg_1)?;
             let mut __nc_out_24 = ::core::mem::MaybeUninit::<
-                <::core::primitive::bool as ::neocogi_com::ComValue>::Wire,
+                <::core::primitive::bool as ::neocogi_com::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_24 = self.__nc_pointer.as_raw();
             let __nc_status_24 = unsafe {
@@ -2156,14 +2156,14 @@ pub struct ISerializationDiagnosticsVTable {
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
-    ///On success, `out` receives `< :: neocogi_com :: NcStatus as :: neocogi_com :: ComValue > :: Wire`.
+    ///On success, `out` receives `< :: neocogi_com :: NcStatus as :: neocogi_com :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub failure_status: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_out: *mut <::neocogi_com::NcStatus as ::neocogi_com::ComValue>::Wire,
+        __nc_out: *mut <::neocogi_com::NcStatus as ::neocogi_com::ComValue>::AbiRepr,
     ) -> ::neocogi_com::NcStatus,
     /// Reports a zero-based byte cursor/offset, or u64::MAX when unavailable.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:145:8` (module `neocogi.com.serialization`).
@@ -2175,14 +2175,14 @@ pub struct ISerializationDiagnosticsVTable {
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: u64 as :: neocogi_com :: ComValue > :: Wire`.
+    ///On success, `out` receives `< :: core :: primitive :: u64 as :: neocogi_com :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub byte_offset: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_out: *mut <::core::primitive::u64 as ::neocogi_com::ComValue>::Wire,
+        __nc_out: *mut <::core::primitive::u64 as ::neocogi_com::ComValue>::AbiRepr,
     ) -> ::neocogi_com::NcStatus,
     /// Reports a one-based source line, or zero when unavailable.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:147:8` (module `neocogi.com.serialization`).
@@ -2194,14 +2194,14 @@ pub struct ISerializationDiagnosticsVTable {
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: Wire`.
+    ///On success, `out` receives `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub line: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
+        __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
     ) -> ::neocogi_com::NcStatus,
     /// Reports a one-based source column, or zero when unavailable.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:149:8` (module `neocogi.com.serialization`).
@@ -2213,14 +2213,14 @@ pub struct ISerializationDiagnosticsVTable {
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: Wire`.
+    ///On success, `out` receives `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub column: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
+        __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
     ) -> ::neocogi_com::NcStatus,
     /// Reports the diagnostic message's UTF-8 byte length.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:151:8` (module `neocogi.com.serialization`).
@@ -2232,14 +2232,14 @@ pub struct ISerializationDiagnosticsVTable {
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: Wire`.
+    ///On success, `out` receives `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub message_len: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
+        __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
     ) -> ::neocogi_com::NcStatus,
     /// Copies the complete message to fresh output; short capacity writes no prefix.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:153:8` (module `neocogi.com.serialization`).
@@ -2250,9 +2250,9 @@ pub struct ISerializationDiagnosticsVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `output` uses ABI storage `* mut < :: core :: primitive :: u8 as :: neocogi_com :: ComValue > :: Wire` for `:: neocogi_com :: NcOutputWriter < '_ , :: core :: primitive :: u8 >`. The writable buffer pointer is accompanied by `offset: u64`, `capacity: u64`, and a separate `written: *mut u64`. Old contents are not input. Only the successfully reported initialized prefix may be read; count and element storage must not alias.
+    ///- `output` uses ABI storage `* mut < :: core :: primitive :: u8 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: neocogi_com :: NcOutputWriter < '_ , :: core :: primitive :: u8 >`. The writable buffer pointer is accompanied by `offset: u64`, `capacity: u64`, and a separate `written: *mut u64`. Old contents are not input. Only the successfully reported initialized prefix may be read; count and element storage must not alias.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: Wire`.
+    ///On success, `out` receives `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
@@ -2261,9 +2261,9 @@ pub struct ISerializationDiagnosticsVTable {
         __nc_this: *mut ::core::ffi::c_void,
         __nc_arg_0_offset: ::core::primitive::u64,
         __nc_arg_0_len: ::core::primitive::u64,
-        __nc_arg_0_ptr: *mut <::core::primitive::u8 as ::neocogi_com::ComValue>::Wire,
+        __nc_arg_0_ptr: *mut <::core::primitive::u8 as ::neocogi_com::ComValue>::AbiRepr,
         __nc_arg_0_written: *mut ::core::primitive::u64,
-        __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
+        __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
     ) -> ::neocogi_com::NcStatus,
     /// Reports the logical field/index path's UTF-8 byte length.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:155:8` (module `neocogi.com.serialization`).
@@ -2275,14 +2275,14 @@ pub struct ISerializationDiagnosticsVTable {
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: Wire`.
+    ///On success, `out` receives `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub path_len: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
+        __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
     ) -> ::neocogi_com::NcStatus,
     /// Copies the complete logical path, rooted at $, into fresh output.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:157:8` (module `neocogi.com.serialization`).
@@ -2293,9 +2293,9 @@ pub struct ISerializationDiagnosticsVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `output` uses ABI storage `* mut < :: core :: primitive :: u8 as :: neocogi_com :: ComValue > :: Wire` for `:: neocogi_com :: NcOutputWriter < '_ , :: core :: primitive :: u8 >`. The writable buffer pointer is accompanied by `offset: u64`, `capacity: u64`, and a separate `written: *mut u64`. Old contents are not input. Only the successfully reported initialized prefix may be read; count and element storage must not alias.
+    ///- `output` uses ABI storage `* mut < :: core :: primitive :: u8 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: neocogi_com :: NcOutputWriter < '_ , :: core :: primitive :: u8 >`. The writable buffer pointer is accompanied by `offset: u64`, `capacity: u64`, and a separate `written: *mut u64`. Old contents are not input. Only the successfully reported initialized prefix may be read; count and element storage must not alias.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: Wire`.
+    ///On success, `out` receives `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
@@ -2304,9 +2304,9 @@ pub struct ISerializationDiagnosticsVTable {
         __nc_this: *mut ::core::ffi::c_void,
         __nc_arg_0_0_offset: ::core::primitive::u64,
         __nc_arg_0_0_len: ::core::primitive::u64,
-        __nc_arg_0_0_ptr: *mut <::core::primitive::u8 as ::neocogi_com::ComValue>::Wire,
+        __nc_arg_0_0_ptr: *mut <::core::primitive::u8 as ::neocogi_com::ComValue>::AbiRepr,
         __nc_arg_0_0_written: *mut ::core::primitive::u64,
-        __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
+        __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
     ) -> ::neocogi_com::NcStatus,
 }
 unsafe impl ::neocogi_com::ComInterface for ISerializationDiagnosticsAbi {
@@ -2409,7 +2409,7 @@ const _: () = {
             &self,
         ) -> ::core::result::Result<::neocogi_com::NcStatus, ::neocogi_com::NcStatus> {
             let mut __nc_out_0 = ::core::mem::MaybeUninit::<
-                <::neocogi_com::NcStatus as ::neocogi_com::ComValue>::Wire,
+                <::neocogi_com::NcStatus as ::neocogi_com::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_0 = self.__nc_pointer.as_raw();
             let __nc_status_0 = unsafe {
@@ -2439,7 +2439,7 @@ const _: () = {
             &self,
         ) -> ::core::result::Result<::core::primitive::u64, ::neocogi_com::NcStatus> {
             let mut __nc_out_1 = ::core::mem::MaybeUninit::<
-                <::core::primitive::u64 as ::neocogi_com::ComValue>::Wire,
+                <::core::primitive::u64 as ::neocogi_com::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_1 = self.__nc_pointer.as_raw();
             let __nc_status_1 = unsafe {
@@ -2469,7 +2469,7 @@ const _: () = {
             &self,
         ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus> {
             let mut __nc_out_2 = ::core::mem::MaybeUninit::<
-                <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
+                <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_2 = self.__nc_pointer.as_raw();
             let __nc_status_2 = unsafe {
@@ -2498,7 +2498,7 @@ const _: () = {
             &self,
         ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus> {
             let mut __nc_out_3 = ::core::mem::MaybeUninit::<
-                <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
+                <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_3 = self.__nc_pointer.as_raw();
             let __nc_status_3 = unsafe {
@@ -2528,7 +2528,7 @@ const _: () = {
             &self,
         ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus> {
             let mut __nc_out_4 = ::core::mem::MaybeUninit::<
-                <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
+                <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_4 = self.__nc_pointer.as_raw();
             let __nc_status_4 = unsafe {
@@ -2561,7 +2561,7 @@ const _: () = {
         ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus> {
             let mut __nc_arg_0 = __nc_arg_0.prepare()?;
             let mut __nc_out_5 = ::core::mem::MaybeUninit::<
-                <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
+                <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_5 = self.__nc_pointer.as_raw();
             let __nc_status_5 = unsafe {
@@ -2600,7 +2600,7 @@ const _: () = {
             &self,
         ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus> {
             let mut __nc_out_6 = ::core::mem::MaybeUninit::<
-                <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
+                <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_6 = self.__nc_pointer.as_raw();
             let __nc_status_6 = unsafe {
@@ -2633,7 +2633,7 @@ const _: () = {
         ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com::NcStatus> {
             let mut __nc_arg_0_0 = __nc_arg_0_0.prepare()?;
             let mut __nc_out_7 = ::core::mem::MaybeUninit::<
-                <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
+                <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_7 = self.__nc_pointer.as_raw();
             let __nc_status_7 = unsafe {
@@ -2865,10 +2865,10 @@ pub struct ISerializationFormatVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `max_bytes` uses ABI storage `< :: core :: primitive :: u64 as :: neocogi_com :: ComValue > :: Wire` for `:: core :: primitive :: u64`. Passed by value.
-    ///- `max_elements` uses ABI storage `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: Wire` for `:: core :: primitive :: u32`. Passed by value.
-    ///- `max_depth` uses ABI storage `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: Wire` for `:: core :: primitive :: u32`. Passed by value.
-    ///- `max_values` uses ABI storage `< :: core :: primitive :: u64 as :: neocogi_com :: ComValue > :: Wire` for `:: core :: primitive :: u64`. Passed by value.
+    ///- `max_bytes` uses ABI storage `< :: core :: primitive :: u64 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: u64`. Passed by value.
+    ///- `max_elements` uses ABI storage `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
+    ///- `max_depth` uses ABI storage `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
+    ///- `max_values` uses ABI storage `< :: core :: primitive :: u64 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: u64`. Passed by value.
     ///
     ///On success, `out` receives `:: neocogi_com :: ComRaw < self :: ISerializerAbi >` for `:: neocogi_com :: ComBox < self :: ISerializerAbi >`. The caller receives the sole exclusive owner; interface queries cannot duplicate it.
     #[allow(
@@ -2877,10 +2877,10 @@ pub struct ISerializationFormatVTable {
     )]
     pub create_serializer: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_arg_0: <::core::primitive::u64 as ::neocogi_com::ComValue>::Wire,
-        __nc_arg_1: <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
-        __nc_arg_2: <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
-        __nc_arg_3: <::core::primitive::u64 as ::neocogi_com::ComValue>::Wire,
+        __nc_arg_0: <::core::primitive::u64 as ::neocogi_com::ComValue>::AbiRepr,
+        __nc_arg_1: <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
+        __nc_arg_2: <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
+        __nc_arg_3: <::core::primitive::u64 as ::neocogi_com::ComValue>::AbiRepr,
         __nc_out: *mut ::neocogi_com::ComRaw<self::ISerializerAbi>,
     ) -> ::neocogi_com::NcStatus,
     /// Copies the complete borrowed document into a new bounded source session.
@@ -2892,11 +2892,11 @@ pub struct ISerializationFormatVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `input` uses ABI storage `* const < :: core :: primitive :: u8 as :: neocogi_com :: ComValue > :: Wire` for `:: neocogi_com :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
-    ///- `max_bytes` uses ABI storage `< :: core :: primitive :: u64 as :: neocogi_com :: ComValue > :: Wire` for `:: core :: primitive :: u64`. Passed by value.
-    ///- `max_elements` uses ABI storage `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: Wire` for `:: core :: primitive :: u32`. Passed by value.
-    ///- `max_depth` uses ABI storage `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: Wire` for `:: core :: primitive :: u32`. Passed by value.
-    ///- `max_values` uses ABI storage `< :: core :: primitive :: u64 as :: neocogi_com :: ComValue > :: Wire` for `:: core :: primitive :: u64`. Passed by value.
+    ///- `input` uses ABI storage `* const < :: core :: primitive :: u8 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: neocogi_com :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
+    ///- `max_bytes` uses ABI storage `< :: core :: primitive :: u64 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: u64`. Passed by value.
+    ///- `max_elements` uses ABI storage `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
+    ///- `max_depth` uses ABI storage `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
+    ///- `max_values` uses ABI storage `< :: core :: primitive :: u64 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: u64`. Passed by value.
     ///
     ///On success, `out` receives `:: neocogi_com :: ComRaw < self :: IDeserializerAbi >` for `:: neocogi_com :: ComBox < self :: IDeserializerAbi >`. The caller receives the sole exclusive owner; interface queries cannot duplicate it.
     #[allow(
@@ -2907,11 +2907,11 @@ pub struct ISerializationFormatVTable {
         __nc_this: *mut ::core::ffi::c_void,
         __nc_arg_0_0_offset: ::core::primitive::u64,
         __nc_arg_0_0_len: ::core::primitive::u64,
-        __nc_arg_0_0_ptr: *const <::core::primitive::u8 as ::neocogi_com::ComValue>::Wire,
-        __nc_arg_1_0: <::core::primitive::u64 as ::neocogi_com::ComValue>::Wire,
-        __nc_arg_2_0: <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
-        __nc_arg_3_0: <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
-        __nc_arg_4: <::core::primitive::u64 as ::neocogi_com::ComValue>::Wire,
+        __nc_arg_0_0_ptr: *const <::core::primitive::u8 as ::neocogi_com::ComValue>::AbiRepr,
+        __nc_arg_1_0: <::core::primitive::u64 as ::neocogi_com::ComValue>::AbiRepr,
+        __nc_arg_2_0: <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
+        __nc_arg_3_0: <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
+        __nc_arg_4: <::core::primitive::u64 as ::neocogi_com::ComValue>::AbiRepr,
         __nc_out: *mut ::neocogi_com::ComRaw<self::IDeserializerAbi>,
     ) -> ::neocogi_com::NcStatus,
 }
@@ -3306,14 +3306,14 @@ pub struct ISerializationOutputVTable {
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: u64 as :: neocogi_com :: ComValue > :: Wire`.
+    ///On success, `out` receives `< :: core :: primitive :: u64 as :: neocogi_com :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
     )]
     pub byte_len: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_out: *mut <::core::primitive::u64 as ::neocogi_com::ComValue>::Wire,
+        __nc_out: *mut <::core::primitive::u64 as ::neocogi_com::ComValue>::AbiRepr,
     ) -> ::neocogi_com::NcStatus,
     /// Copies the complete document; insufficient capacity publishes no prefix.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:120:8` (module `neocogi.com.serialization`).
@@ -3324,9 +3324,9 @@ pub struct ISerializationOutputVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `output` uses ABI storage `* mut < :: core :: primitive :: u8 as :: neocogi_com :: ComValue > :: Wire` for `:: neocogi_com :: NcOutputWriter < '_ , :: core :: primitive :: u8 >`. The writable buffer pointer is accompanied by `offset: u64`, `capacity: u64`, and a separate `written: *mut u64`. Old contents are not input. Only the successfully reported initialized prefix may be read; count and element storage must not alias.
+    ///- `output` uses ABI storage `* mut < :: core :: primitive :: u8 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: neocogi_com :: NcOutputWriter < '_ , :: core :: primitive :: u8 >`. The writable buffer pointer is accompanied by `offset: u64`, `capacity: u64`, and a separate `written: *mut u64`. Old contents are not input. Only the successfully reported initialized prefix may be read; count and element storage must not alias.
     ///
-    ///On success, `out` receives `< :: core :: primitive :: u64 as :: neocogi_com :: ComValue > :: Wire`.
+    ///On success, `out` receives `< :: core :: primitive :: u64 as :: neocogi_com :: ComValue > :: AbiRepr`.
     #[allow(
         clippy::type_complexity,
         reason = "Raw vtable slots retain the exact flattened IDL ABI."
@@ -3335,9 +3335,9 @@ pub struct ISerializationOutputVTable {
         __nc_this: *mut ::core::ffi::c_void,
         __nc_arg_0_offset: ::core::primitive::u64,
         __nc_arg_0_len: ::core::primitive::u64,
-        __nc_arg_0_ptr: *mut <::core::primitive::u8 as ::neocogi_com::ComValue>::Wire,
+        __nc_arg_0_ptr: *mut <::core::primitive::u8 as ::neocogi_com::ComValue>::AbiRepr,
         __nc_arg_0_written: *mut ::core::primitive::u64,
-        __nc_out: *mut <::core::primitive::u64 as ::neocogi_com::ComValue>::Wire,
+        __nc_out: *mut <::core::primitive::u64 as ::neocogi_com::ComValue>::AbiRepr,
     ) -> ::neocogi_com::NcStatus,
 }
 unsafe impl ::neocogi_com::ComInterface for ISerializationOutputAbi {
@@ -3423,7 +3423,7 @@ const _: () = {
             &self,
         ) -> ::core::result::Result<::core::primitive::u64, ::neocogi_com::NcStatus> {
             let mut __nc_out_0 = ::core::mem::MaybeUninit::<
-                <::core::primitive::u64 as ::neocogi_com::ComValue>::Wire,
+                <::core::primitive::u64 as ::neocogi_com::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_0 = self.__nc_pointer.as_raw();
             let __nc_status_0 = unsafe {
@@ -3456,7 +3456,7 @@ const _: () = {
         ) -> ::core::result::Result<::core::primitive::u64, ::neocogi_com::NcStatus> {
             let mut __nc_arg_0 = __nc_arg_0.prepare()?;
             let mut __nc_out_1 = ::core::mem::MaybeUninit::<
-                <::core::primitive::u64 as ::neocogi_com::ComValue>::Wire,
+                <::core::primitive::u64 as ::neocogi_com::ComValue>::AbiRepr,
             >::uninit();
             let __nc_this_1 = self.__nc_pointer.as_raw();
             let __nc_status_1 = unsafe {
@@ -3604,7 +3604,7 @@ pub struct ISerializationPluginVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `name` uses ABI storage `* const < :: core :: primitive :: u8 as :: neocogi_com :: ComValue > :: Wire` for `:: neocogi_com :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
+    ///- `name` uses ABI storage `* const < :: core :: primitive :: u8 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: neocogi_com :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
     ///
     ///On success, `out` receives `:: neocogi_com :: ComRaw < self :: ISerializationFormatAbi >` for `:: neocogi_com :: ComPtr < self :: ISerializationFormatAbi >`. The caller receives one shared owner and releases it when finished.
     #[allow(
@@ -3615,7 +3615,7 @@ pub struct ISerializationPluginVTable {
         __nc_this: *mut ::core::ffi::c_void,
         __nc_arg_0_offset: ::core::primitive::u64,
         __nc_arg_0_len: ::core::primitive::u64,
-        __nc_arg_0_ptr: *const <::core::primitive::u8 as ::neocogi_com::ComValue>::Wire,
+        __nc_arg_0_ptr: *const <::core::primitive::u8 as ::neocogi_com::ComValue>::AbiRepr,
         __nc_out: *mut ::neocogi_com::ComRaw<self::ISerializationFormatAbi>,
     ) -> ::neocogi_com::NcStatus,
 }
@@ -4004,7 +4004,7 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `value` uses ABI storage `< :: core :: primitive :: bool as :: neocogi_com :: ComValue > :: Wire` for `:: core :: primitive :: bool`. Passed by value.
+    ///- `value` uses ABI storage `< :: core :: primitive :: bool as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: bool`. Passed by value.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -4013,7 +4013,7 @@ pub struct ISerializerVTable {
     )]
     pub serialize_bool: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_arg_0: <::core::primitive::bool as ::neocogi_com::ComValue>::Wire,
+        __nc_arg_0: <::core::primitive::bool as ::neocogi_com::ComValue>::AbiRepr,
     ) -> ::neocogi_com::NcStatus,
     /// Writes a u8 value with its declared width.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:8:8` (module `neocogi.com.serialization`).
@@ -4024,7 +4024,7 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `value` uses ABI storage `< :: core :: primitive :: u8 as :: neocogi_com :: ComValue > :: Wire` for `:: core :: primitive :: u8`. Passed by value.
+    ///- `value` uses ABI storage `< :: core :: primitive :: u8 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: u8`. Passed by value.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -4033,7 +4033,7 @@ pub struct ISerializerVTable {
     )]
     pub serialize_u8: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_arg_0_0: <::core::primitive::u8 as ::neocogi_com::ComValue>::Wire,
+        __nc_arg_0_0: <::core::primitive::u8 as ::neocogi_com::ComValue>::AbiRepr,
     ) -> ::neocogi_com::NcStatus,
     /// Writes a u16 value with its declared width.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:10:8` (module `neocogi.com.serialization`).
@@ -4044,7 +4044,7 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `value` uses ABI storage `< :: core :: primitive :: u16 as :: neocogi_com :: ComValue > :: Wire` for `:: core :: primitive :: u16`. Passed by value.
+    ///- `value` uses ABI storage `< :: core :: primitive :: u16 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: u16`. Passed by value.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -4053,7 +4053,7 @@ pub struct ISerializerVTable {
     )]
     pub serialize_u16: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_arg_0_1: <::core::primitive::u16 as ::neocogi_com::ComValue>::Wire,
+        __nc_arg_0_1: <::core::primitive::u16 as ::neocogi_com::ComValue>::AbiRepr,
     ) -> ::neocogi_com::NcStatus,
     /// Writes a u32 value with its declared width.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:12:8` (module `neocogi.com.serialization`).
@@ -4064,7 +4064,7 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `value` uses ABI storage `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: Wire` for `:: core :: primitive :: u32`. Passed by value.
+    ///- `value` uses ABI storage `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -4073,7 +4073,7 @@ pub struct ISerializerVTable {
     )]
     pub serialize_u32: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_arg_0_2: <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
+        __nc_arg_0_2: <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
     ) -> ::neocogi_com::NcStatus,
     /// Writes a u64 value with its declared width.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:14:8` (module `neocogi.com.serialization`).
@@ -4084,7 +4084,7 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `value` uses ABI storage `< :: core :: primitive :: u64 as :: neocogi_com :: ComValue > :: Wire` for `:: core :: primitive :: u64`. Passed by value.
+    ///- `value` uses ABI storage `< :: core :: primitive :: u64 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: u64`. Passed by value.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -4093,7 +4093,7 @@ pub struct ISerializerVTable {
     )]
     pub serialize_u64: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_arg_0_3: <::core::primitive::u64 as ::neocogi_com::ComValue>::Wire,
+        __nc_arg_0_3: <::core::primitive::u64 as ::neocogi_com::ComValue>::AbiRepr,
     ) -> ::neocogi_com::NcStatus,
     /// Writes a i8 value with its declared width.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:16:8` (module `neocogi.com.serialization`).
@@ -4104,7 +4104,7 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `value` uses ABI storage `< :: core :: primitive :: i8 as :: neocogi_com :: ComValue > :: Wire` for `:: core :: primitive :: i8`. Passed by value.
+    ///- `value` uses ABI storage `< :: core :: primitive :: i8 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: i8`. Passed by value.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -4113,7 +4113,7 @@ pub struct ISerializerVTable {
     )]
     pub serialize_i8: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_arg_0_4: <::core::primitive::i8 as ::neocogi_com::ComValue>::Wire,
+        __nc_arg_0_4: <::core::primitive::i8 as ::neocogi_com::ComValue>::AbiRepr,
     ) -> ::neocogi_com::NcStatus,
     /// Writes a i16 value with its declared width.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:18:8` (module `neocogi.com.serialization`).
@@ -4124,7 +4124,7 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `value` uses ABI storage `< :: core :: primitive :: i16 as :: neocogi_com :: ComValue > :: Wire` for `:: core :: primitive :: i16`. Passed by value.
+    ///- `value` uses ABI storage `< :: core :: primitive :: i16 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: i16`. Passed by value.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -4133,7 +4133,7 @@ pub struct ISerializerVTable {
     )]
     pub serialize_i16: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_arg_0_5: <::core::primitive::i16 as ::neocogi_com::ComValue>::Wire,
+        __nc_arg_0_5: <::core::primitive::i16 as ::neocogi_com::ComValue>::AbiRepr,
     ) -> ::neocogi_com::NcStatus,
     /// Writes a i32 value with its declared width.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:20:8` (module `neocogi.com.serialization`).
@@ -4144,7 +4144,7 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `value` uses ABI storage `< :: core :: primitive :: i32 as :: neocogi_com :: ComValue > :: Wire` for `:: core :: primitive :: i32`. Passed by value.
+    ///- `value` uses ABI storage `< :: core :: primitive :: i32 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: i32`. Passed by value.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -4153,7 +4153,7 @@ pub struct ISerializerVTable {
     )]
     pub serialize_i32: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_arg_0_6: <::core::primitive::i32 as ::neocogi_com::ComValue>::Wire,
+        __nc_arg_0_6: <::core::primitive::i32 as ::neocogi_com::ComValue>::AbiRepr,
     ) -> ::neocogi_com::NcStatus,
     /// Writes a i64 value with its declared width.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:22:8` (module `neocogi.com.serialization`).
@@ -4164,7 +4164,7 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `value` uses ABI storage `< :: core :: primitive :: i64 as :: neocogi_com :: ComValue > :: Wire` for `:: core :: primitive :: i64`. Passed by value.
+    ///- `value` uses ABI storage `< :: core :: primitive :: i64 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: i64`. Passed by value.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -4173,7 +4173,7 @@ pub struct ISerializerVTable {
     )]
     pub serialize_i64: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_arg_0_7: <::core::primitive::i64 as ::neocogi_com::ComValue>::Wire,
+        __nc_arg_0_7: <::core::primitive::i64 as ::neocogi_com::ComValue>::AbiRepr,
     ) -> ::neocogi_com::NcStatus,
     /// Writes a f32 value with its declared width.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:24:8` (module `neocogi.com.serialization`).
@@ -4184,7 +4184,7 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `value` uses ABI storage `< :: core :: primitive :: f32 as :: neocogi_com :: ComValue > :: Wire` for `:: core :: primitive :: f32`. Passed by value.
+    ///- `value` uses ABI storage `< :: core :: primitive :: f32 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: f32`. Passed by value.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -4193,7 +4193,7 @@ pub struct ISerializerVTable {
     )]
     pub serialize_f32: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_arg_0_8: <::core::primitive::f32 as ::neocogi_com::ComValue>::Wire,
+        __nc_arg_0_8: <::core::primitive::f32 as ::neocogi_com::ComValue>::AbiRepr,
     ) -> ::neocogi_com::NcStatus,
     /// Writes a f64 value with its declared width.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:26:8` (module `neocogi.com.serialization`).
@@ -4204,7 +4204,7 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `value` uses ABI storage `< :: core :: primitive :: f64 as :: neocogi_com :: ComValue > :: Wire` for `:: core :: primitive :: f64`. Passed by value.
+    ///- `value` uses ABI storage `< :: core :: primitive :: f64 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: f64`. Passed by value.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -4213,7 +4213,7 @@ pub struct ISerializerVTable {
     )]
     pub serialize_f64: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_arg_0_9: <::core::primitive::f64 as ::neocogi_com::ComValue>::Wire,
+        __nc_arg_0_9: <::core::primitive::f64 as ::neocogi_com::ComValue>::AbiRepr,
     ) -> ::neocogi_com::NcStatus,
     /// Copies one UTF-8 string during this call.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:28:8` (module `neocogi.com.serialization`).
@@ -4224,7 +4224,7 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `value` uses ABI storage `* const < :: core :: primitive :: u8 as :: neocogi_com :: ComValue > :: Wire` for `:: neocogi_com :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
+    ///- `value` uses ABI storage `* const < :: core :: primitive :: u8 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: neocogi_com :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -4235,7 +4235,7 @@ pub struct ISerializerVTable {
         __nc_this: *mut ::core::ffi::c_void,
         __nc_arg_0_10_offset: ::core::primitive::u64,
         __nc_arg_0_10_len: ::core::primitive::u64,
-        __nc_arg_0_10_ptr: *const <::core::primitive::u8 as ::neocogi_com::ComValue>::Wire,
+        __nc_arg_0_10_ptr: *const <::core::primitive::u8 as ::neocogi_com::ComValue>::AbiRepr,
     ) -> ::neocogi_com::NcStatus,
     /// Opens optional presence; the present child follows before end_option.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:30:8` (module `neocogi.com.serialization`).
@@ -4246,7 +4246,7 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `present` uses ABI storage `< :: core :: primitive :: bool as :: neocogi_com :: ComValue > :: Wire` for `:: core :: primitive :: bool`. Passed by value.
+    ///- `present` uses ABI storage `< :: core :: primitive :: bool as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: bool`. Passed by value.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -4255,7 +4255,7 @@ pub struct ISerializerVTable {
     )]
     pub begin_option: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_arg_0_11: <::core::primitive::bool as ::neocogi_com::ComValue>::Wire,
+        __nc_arg_0_11: <::core::primitive::bool as ::neocogi_com::ComValue>::AbiRepr,
     ) -> ::neocogi_com::NcStatus,
     /// Completes the optional value.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:32:8` (module `neocogi.com.serialization`).
@@ -4284,7 +4284,7 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `fields` uses ABI storage `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: Wire` for `:: core :: primitive :: u32`. Passed by value.
+    ///- `fields` uses ABI storage `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -4293,7 +4293,7 @@ pub struct ISerializerVTable {
     )]
     pub begin_record: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_arg_0_12: <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
+        __nc_arg_0_12: <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
     ) -> ::neocogi_com::NcStatus,
     /// Selects the next named field before writing its typed value.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:36:8` (module `neocogi.com.serialization`).
@@ -4304,7 +4304,7 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `name` uses ABI storage `* const < :: core :: primitive :: u8 as :: neocogi_com :: ComValue > :: Wire` for `:: neocogi_com :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
+    ///- `name` uses ABI storage `* const < :: core :: primitive :: u8 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: neocogi_com :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -4315,7 +4315,7 @@ pub struct ISerializerVTable {
         __nc_this: *mut ::core::ffi::c_void,
         __nc_arg_0_13_offset: ::core::primitive::u64,
         __nc_arg_0_13_len: ::core::primitive::u64,
-        __nc_arg_0_13_ptr: *const <::core::primitive::u8 as ::neocogi_com::ComValue>::Wire,
+        __nc_arg_0_13_ptr: *const <::core::primitive::u8 as ::neocogi_com::ComValue>::AbiRepr,
     ) -> ::neocogi_com::NcStatus,
     /// Completes the record.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:38:8` (module `neocogi.com.serialization`).
@@ -4344,7 +4344,7 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `length` uses ABI storage `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: Wire` for `:: core :: primitive :: u32`. Passed by value.
+    ///- `length` uses ABI storage `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -4353,7 +4353,7 @@ pub struct ISerializerVTable {
     )]
     pub begin_sequence: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_arg_0_14: <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
+        __nc_arg_0_14: <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
     ) -> ::neocogi_com::NcStatus,
     /// Completes the collection.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:42:8` (module `neocogi.com.serialization`).
@@ -4382,7 +4382,7 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `pairs` uses ABI storage `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: Wire` for `:: core :: primitive :: u32`. Passed by value.
+    ///- `pairs` uses ABI storage `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -4391,7 +4391,7 @@ pub struct ISerializerVTable {
     )]
     pub begin_map: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_arg_0_15: <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
+        __nc_arg_0_15: <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
     ) -> ::neocogi_com::NcStatus,
     /// Completes the map.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:46:8` (module `neocogi.com.serialization`).
@@ -4420,8 +4420,8 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `index` uses ABI storage `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: Wire` for `:: core :: primitive :: u32`. Passed by value.
-    ///- `name` uses ABI storage `* const < :: core :: primitive :: u8 as :: neocogi_com :: ComValue > :: Wire` for `:: neocogi_com :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
+    ///- `index` uses ABI storage `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
+    ///- `name` uses ABI storage `* const < :: core :: primitive :: u8 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: neocogi_com :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -4430,10 +4430,10 @@ pub struct ISerializerVTable {
     )]
     pub begin_variant: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_arg_0_16: <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
+        __nc_arg_0_16: <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
         __nc_arg_1_offset: ::core::primitive::u64,
         __nc_arg_1_len: ::core::primitive::u64,
-        __nc_arg_1_ptr: *const <::core::primitive::u8 as ::neocogi_com::ComValue>::Wire,
+        __nc_arg_1_ptr: *const <::core::primitive::u8 as ::neocogi_com::ComValue>::AbiRepr,
     ) -> ::neocogi_com::NcStatus,
     /// Completes the selected case and its optional payload.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:50:8` (module `neocogi.com.serialization`).
@@ -4462,7 +4462,7 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `message` uses ABI storage `* const < :: core :: primitive :: u8 as :: neocogi_com :: ComValue > :: Wire` for `:: neocogi_com :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
+    ///- `message` uses ABI storage `* const < :: core :: primitive :: u8 as :: neocogi_com :: ComValue > :: AbiRepr` for `:: neocogi_com :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -4473,7 +4473,7 @@ pub struct ISerializerVTable {
         __nc_this: *mut ::core::ffi::c_void,
         __nc_arg_0_17_offset: ::core::primitive::u64,
         __nc_arg_0_17_len: ::core::primitive::u64,
-        __nc_arg_0_17_ptr: *const <::core::primitive::u8 as ::neocogi_com::ComValue>::Wire,
+        __nc_arg_0_17_ptr: *const <::core::primitive::u8 as ::neocogi_com::ComValue>::AbiRepr,
     ) -> ::neocogi_com::NcStatus,
     /// Commits a complete document; repeated finish and further writes fail.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:54:8` (module `neocogi.com.serialization`).

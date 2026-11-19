@@ -35,9 +35,9 @@ pub(crate) fn expand(
     let authored_fields = cases.iter().map(|case| &case.fields);
     let authored_variants = cases.iter().filter_map(|case| case.variant.as_ref());
     let mut names = PrivateNames::new(quote! { #name #nc #(#authored_fields)* #(#authored_variants)* });
-    let wire_name = names.fresh("__NcWire");
+    let wire_name = names.fresh("__NcAbiRepr");
     let union_name = names.fresh("__NcPayload");
-    let storage_name = names.fresh("__NcStorage");
+    let storage_name = names.fresh("__NcKeepAlive");
     // These are implementation locals, never authored field bindings. Positional
     // renaming remains correct when generated tokens are serialized as Rust text.
     let budget = names.binding("__nc_budget");
@@ -82,9 +82,9 @@ pub(crate) fn expand(
             let stored = names.binding(&format!("__nc_storage_field_{position}"));
             let ty = &field.ty;
             raw_fields.push(quote! { /// Recursively checked raw field; never an application reference.
-            pub #member: <#ty as #nc::ComValue>::Wire });
+            pub #member: <#ty as #nc::ComValue>::AbiRepr });
             stored_fields.push(quote! { /// Retains this field's converted indirect storage through the call.
-            #member: <#ty as #nc::ComValue>::Storage });
+            #member: <#ty as #nc::ComValue>::KeepAlive });
             // A local copy allows packed application fields to be borrowed safely.
             let field_value = if inline {
                 quote! { &#binding }
@@ -263,15 +263,15 @@ pub(crate) fn expand(
                 quote! { #index }
             });
             let raw = field.ident.clone().unwrap_or_else(|| format_ident!("field_{index}"));
-            quote! { ::core::mem::offset_of!(Self, #application) == ::core::mem::offset_of!(<Self as #nc::ComValue>::Wire, #raw) }
+            quote! { ::core::mem::offset_of!(Self, #application) == ::core::mem::offset_of!(<Self as #nc::ComValue>::AbiRepr, #raw) }
         });
         // Sibling breadth must not become a recursively nested Syn binary tree.
         // Each statement remains shallow and preserves left-to-right short circuit.
-        quote! { const BORROW_WIRE: ::core::primitive::bool = {
+        quote! { const BORROW_ABI_REPR: ::core::primitive::bool = {
             let mut valid = true;
-            #(valid = valid && <#fields as #nc::ComValue>::BORROW_WIRE;)*
-            valid = valid && ::core::mem::size_of::<Self>() == ::core::mem::size_of::<<Self as #nc::ComValue>::Wire>();
-            valid = valid && ::core::mem::align_of::<Self>() == ::core::mem::align_of::<<Self as #nc::ComValue>::Wire>();
+            #(valid = valid && <#fields as #nc::ComValue>::BORROW_ABI_REPR;)*
+            valid = valid && ::core::mem::size_of::<Self>() == ::core::mem::size_of::<<Self as #nc::ComValue>::AbiRepr>();
+            valid = valid && ::core::mem::align_of::<Self>() == ::core::mem::align_of::<<Self as #nc::ComValue>::AbiRepr>();
             #(valid = valid && #offsets;)*
             valid
         }; }
@@ -280,17 +280,17 @@ pub(crate) fn expand(
     };
     let direct_encode = inline.then(|| {
         quote! {
-            if <Self as #nc::ComValue>::BORROW_WIRE {
-                // SAFETY: BORROW_WIRE proves identical field offsets/size/alignment,
+            if <Self as #nc::ComValue>::BORROW_ABI_REPR {
+                // SAFETY: BORROW_ABI_REPR proves identical field offsets/size/alignment,
                 // unrestricted initialized bits, and no ownership or conversion work.
-                let #wire_input = unsafe { ::core::ptr::from_ref(self).cast::<<Self as #nc::ComValue>::Wire>().read() };
+                let #wire_input = unsafe { ::core::ptr::from_ref(self).cast::<<Self as #nc::ComValue>::AbiRepr>().read() };
                 return ::core::result::Result::Ok((#wire_input, ()));
             }
         }
     });
     let direct_decode = inline.then(|| {
         quote! {
-            if <Self as #nc::ComValue>::BORROW_WIRE {
+            if <Self as #nc::ComValue>::BORROW_ABI_REPR {
                 // SAFETY: the recursive proof excludes bools/tags and equates every
                 // active field layout. Padding stays padding in the copied value.
                 return ::core::result::Result::Ok(unsafe { ::core::ptr::from_ref(#wire_input).cast::<Self>().read() });
@@ -342,12 +342,12 @@ pub(crate) fn expand(
             #borrow_wire
             const FIXED_COST: ::core::option::Option<#nc::ValueCost> = #fixed_cost;
             const MAX_COST: ::core::option::Option<#nc::ValueCost> = #maximum_cost;
-            type Wire = #wire_name;
-            type Storage = #storage_type;
+            type AbiRepr = #wire_name;
+            type KeepAlive = #storage_type;
             /// Retains the storage required by every recursively converted child.
             /// Keep the budgeted traversal shared; isolated small copies use prechecked conversion.
             #[inline(never)]
-            fn encode_value(&self, #budget: &mut #nc::ValueBudget) -> ::core::result::Result<(<Self as #nc::ComValue>::Wire, <Self as #nc::ComValue>::Storage), #nc::NcStatus> {
+            fn encode_value(&self, #budget: &mut #nc::ValueBudget) -> ::core::result::Result<(<Self as #nc::ComValue>::AbiRepr, <Self as #nc::ComValue>::KeepAlive), #nc::NcStatus> {
                 match <Self as #nc::ComValue>::FIXED_COST {
                     ::core::option::Option::Some(#cost) => {
                         #budget.fixed(#cost)?;
@@ -360,7 +360,7 @@ pub(crate) fn expand(
             /// Selects the valid alternative before decoding any application field.
             /// A shared traversal avoids duplicating its budget handling into every buffer adapter.
             #[inline(never)]
-            unsafe fn decode_value(#wire_input: &<Self as #nc::ComValue>::Wire, #budget: &mut #nc::ValueBudget) -> ::core::result::Result<Self, #nc::NcStatus> {
+            unsafe fn decode_value(#wire_input: &<Self as #nc::ComValue>::AbiRepr, #budget: &mut #nc::ValueBudget) -> ::core::result::Result<Self, #nc::NcStatus> {
                 match <Self as #nc::ComValue>::FIXED_COST {
                     ::core::option::Option::Some(#cost) => {
                         #budget.fixed(#cost)?;
@@ -372,13 +372,13 @@ pub(crate) fn expand(
             }
             /// Converts fields through their same validators after the resource preflight.
             #[inline]
-            unsafe fn encode_prechecked(&self) -> ::core::result::Result<(<Self as #nc::ComValue>::Wire, <Self as #nc::ComValue>::Storage), #nc::NcStatus> {
+            unsafe fn encode_prechecked(&self) -> ::core::result::Result<(<Self as #nc::ComValue>::AbiRepr, <Self as #nc::ComValue>::KeepAlive), #nc::NcStatus> {
                 #direct_encode
                 match #encode_source { #(#encode_prechecked),* }
             }
             /// Checks tags and every field after the whole conversion was proved to fit.
             #[inline]
-            unsafe fn decode_prechecked(#wire_input: &<Self as #nc::ComValue>::Wire) -> ::core::result::Result<Self, #nc::NcStatus> {
+            unsafe fn decode_prechecked(#wire_input: &<Self as #nc::ComValue>::AbiRepr) -> ::core::result::Result<Self, #nc::NcStatus> {
                 #direct_decode
                 #decode_prechecked_body
             }

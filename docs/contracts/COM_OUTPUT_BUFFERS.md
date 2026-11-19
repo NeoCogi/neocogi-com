@@ -17,7 +17,7 @@ retain their separately defined boundary contracts.
 `push` encodes a native value directly into caller-owned wire storage. For enums,
 the existing codec writes the explicit C-layout tag and selected wire payload.
 Booleans remain bytes. `extend_from_slice` uses direct bulk copying only when the
-recursive `BORROW_WIRE` proof establishes identical layout and unrestricted bits;
+recursive `BORROW_ABI_REPR` proof establishes identical layout and unrestricted bits;
 otherwise it uses the same checked typed encoding as individual writes.
 
 The writer admits capacity and validates pointer shape before implementation

@@ -65,6 +65,15 @@ Use `ComBytesExt` and `ComStringExt` for byte and string conversions on both
 owning `ComPtr` handles and borrowed `ComRef` handles. The methods still perform
 bounded copies through the selected interface.
 
+## Name live ABI values and their temporary allocations
+
+When implementing or calling `ComValue` explicitly, use `AbiRepr` for the raw
+C-shaped record and `KeepAlive` for the converted data it points into. Retain the
+source borrow and any keep-alive through the call. The `BORROW_ABI_REPR` proof
+allows direct access only when the layouts and bit validity match recursively.
+Regenerate bindings for those associated names. The same representations,
+admission checks and IDL encoding apply under ABI v3/core 21.
+
 ## Choose one concrete ownership header
 
 Ordinary `#[com_object]` users keep their shared/exclusive declaration and

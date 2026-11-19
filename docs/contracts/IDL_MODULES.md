@@ -459,7 +459,7 @@ integer newtype with that representation and preserves unknown integer storage.
 Checked live COM conversion still validates the declared domain.
 
 An enum with tuple or named payloads generates a native Rust enum. Its foreign
-`ComValue::Wire` is a C record with an explicit `i64` tag and recursively lowered
+`ComValue::AbiRepr` is a C record with an explicit `i64` tag and recursively lowered
 active payload. The suffix bounds the declaration ordinals; it does not narrow
 this foreign tag. Native Rust enum layout is not the foreign ABI and is not
 promised stable. See [native copied enums](RECURSIVE_VALUE_CONTRACT.md#native-copied-enums)
@@ -486,7 +486,7 @@ enum Choice: u8 {
 
 `Mode` has a one-byte integer wire. `Choice` still has an eight-byte `i64`
 foreign tag: `Empty` is ordinal 0 and `Data` is ordinal 1, despite the `: u8`
-suffix. Access its foreign record through `<Choice as ComValue>::Wire` and the
+suffix. Access its foreign record through `<Choice as ComValue>::AbiRepr` and the
 checked codecs, independently of the native Rust enum's size or layout.
 
 After generating these declarations into an `enums` module, this check observes
@@ -500,7 +500,7 @@ fn documented_enum_wire_contract() {
     use enums::{Choice, Mode};
 
     for (native, expected) in [(Mode::Off, 0_u8), (Mode::On, 1_u8)] {
-        let wire: <Mode as neocogi_com::ComValue>::Wire =
+        let wire: <Mode as neocogi_com::ComValue>::AbiRepr =
             neocogi_com::encode_inline(&native).unwrap();
         let integer: u8 = wire;
         assert_eq!(core::mem::size_of_val(&wire), 1);
@@ -508,7 +508,7 @@ fn documented_enum_wire_contract() {
     }
 
     for (native, expected) in [(Choice::Empty, 0_i64), (Choice::Data(7), 1_i64)] {
-        let wire: <Choice as neocogi_com::ComValue>::Wire =
+        let wire: <Choice as neocogi_com::ComValue>::AbiRepr =
             neocogi_com::encode_inline(&native).unwrap();
         let tag: i64 = wire.tag;
         assert_eq!(core::mem::size_of_val(&wire.tag), 8);
@@ -1195,7 +1195,7 @@ checked-in persistence ABI and the facade's provider half from the same plan.
 
 Copied native records have ordinary Rust application layout. COM owns their
 explicit C wire layout and checked conversion. Direct borrowing still requires
-the codec's complete `BORROW_WIRE` size, alignment, offset and bit-validity proof.
+the codec's complete `BORROW_ABI_REPR` size, alignment, offset and bit-validity proof.
 It cannot infer identity from the application's representation attribute.
 
 Generated contract definitions need no procedural macro feature. A package that

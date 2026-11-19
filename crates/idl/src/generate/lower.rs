@@ -64,13 +64,13 @@ fn buffer(element_ty: syn::Type, output: bool) -> (syn::Type, syn::Type, AbiArgK
     if output {
         (
             syn::parse_quote!(::neocogi_com::NcOutputWriter<'_, #element_ty>),
-            syn::parse_quote!(*mut <#element_ty as ::neocogi_com::ComValue>::Wire),
+            syn::parse_quote!(*mut <#element_ty as ::neocogi_com::ComValue>::AbiRepr),
             AbiArgKind::OutputBuffer { element_ty: Box::new(element_ty) },
         )
     } else {
         (
             syn::parse_quote!(::neocogi_com::NcCopyFromBufferOffset<'_, #element_ty>),
-            syn::parse_quote!(*const <#element_ty as ::neocogi_com::ComValue>::Wire),
+            syn::parse_quote!(*const <#element_ty as ::neocogi_com::ComValue>::AbiRepr),
             AbiArgKind::CopyFromBufferOffset { element_ty: Box::new(element_ty) },
         )
     }
@@ -81,7 +81,7 @@ fn argument(graph: &mut Generation<'_>, module: &ResolvedModule, parameter: &Par
     let (rust_ty, abi_ty, kind) = match &parameter.ty {
         IdlType::Scalar(_) | IdlType::Named(_) | IdlType::Array { .. } => {
             let ty = rust_type(value_type(graph, module, &parameter.ty)?)?;
-            (ty.clone(), syn::parse_quote!(<#ty as ::neocogi_com::ComValue>::Wire), AbiArgKind::Plain)
+            (ty.clone(), syn::parse_quote!(<#ty as ::neocogi_com::ComValue>::AbiRepr), AbiArgKind::Plain)
         }
         IdlType::Slice(element) => buffer(rust_type(value_type(graph, module, element)?)?, false),
         IdlType::OutputSlice(element) => buffer(rust_type(value_type(graph, module, element)?)?, true),
@@ -107,7 +107,7 @@ fn argument(graph: &mut Generation<'_>, module: &ResolvedModule, parameter: &Par
                 let value_ty = rust_type(named_rust_type(graph, module, resolve(graph, module, name)?, false)?)?;
                 (
                     syn::parse_quote!(::neocogi_com::NcValueRef<'_, #value_ty>),
-                    syn::parse_quote!(*const <#value_ty as ::neocogi_com::ComValue>::Wire),
+                    syn::parse_quote!(*const <#value_ty as ::neocogi_com::ComValue>::AbiRepr),
                     AbiArgKind::BorrowedValue { value_ty: Box::new(value_ty) },
                 )
             }
@@ -180,7 +180,7 @@ fn result(graph: &mut Generation<'_>, module: &ResolvedModule, output: &IdlType)
     let ty = rust_type(value_type(graph, module, output)?)?;
     Ok(AbiReturn {
         rust_ty: ty.clone(),
-        abi_ty: syn::parse_quote!(<#ty as ::neocogi_com::ComValue>::Wire),
+        abi_ty: syn::parse_quote!(<#ty as ::neocogi_com::ComValue>::AbiRepr),
         kind: AbiReturnKind::Plain,
     })
 }

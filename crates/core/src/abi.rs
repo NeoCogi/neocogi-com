@@ -12,7 +12,7 @@ use crate::status::NcStatus;
 
 /// Canonical type metadata for copied application values with checked wire codecs.
 ///
-/// Generated calls transport [`crate::ComValue::Wire`], never `Self` directly.
+/// Generated calls transport [`crate::ComValue::AbiRepr`], never `Self` directly.
 /// A native Rust enum is a valid application value even when its local layout
 /// differs between compilers. [`crate::ComInlineValue`] proves that its separate
 /// wire record is self-contained; this trait only supplies type identity. Call
@@ -143,7 +143,7 @@ const fn array_signature(element: NcAbiType, len: usize) -> [u8; 32] {
 }
 
 // SAFETY: This identity depends only on element contracts and length. The
-// application array may contain native enums; calls use ValueArray<T::Wire, N>
+// application array may contain native enums; calls use ValueArray<T::AbiRepr, N>
 // and validate each element instead of exposing local application layout.
 unsafe impl<T: AbiPlainValue, const N: usize> AbiType for [T; N] {
     const ABI_TYPE: NcAbiType = NcAbiType::Aggregate(NcAbiDigest::from_static(&array_signature(T::ABI_TYPE, N)));
@@ -167,10 +167,10 @@ mod array_tests {
         assert_ne!(<[(); 0]>::ABI_TYPE, <[u8; 0]>::ABI_TYPE);
         assert_ne!(<[(); 2]>::ABI_TYPE, <[u8; 2]>::ABI_TYPE);
         const {
-            assert!(!<() as crate::ComValue>::BORROW_WIRE);
+            assert!(!<() as crate::ComValue>::BORROW_ABI_REPR);
         }
         const {
-            assert!(!<[(); 2] as crate::ComValue>::BORROW_WIRE);
+            assert!(!<[(); 2] as crate::ComValue>::BORROW_ABI_REPR);
         }
         assert_eq!(crate::encode_inline(&()), Ok(0));
         // SAFETY: initialized u8 storage tests semantic validity, not pointer validity.

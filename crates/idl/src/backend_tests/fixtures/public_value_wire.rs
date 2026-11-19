@@ -13,7 +13,7 @@ fn public_wires_and_storage_preserve_bound_idl_types() {
         wire: 61,
         result: 79,
     };
-    let mut wire: <Record as ComValue>::Wire = encode_inline(&native).unwrap();
+    let mut wire: <Record as ComValue>::AbiRepr = encode_inline(&native).unwrap();
     assert_eq!(
         (wire.first, wire.raw_0, wire.budget, wire.storage, wire.wire, wire.result),
         (1, 5, 43, 57, 61, 79)
@@ -27,7 +27,7 @@ fn public_wires_and_storage_preserve_bound_idl_types() {
         .into_iter()
         .enumerate()
     {
-        let wire: <Choice as ComValue>::Wire = encode_inline(&native).unwrap();
+        let wire: <Choice as ComValue>::AbiRepr = encode_inline(&native).unwrap();
         assert_eq!(wire.tag, tag as ::core::primitive::i64);
         // SAFETY: encoding initialized exactly the active payload selected by tag.
         let decoded = unsafe { decode_inline::<Choice>(&wire) }.unwrap();
@@ -40,15 +40,15 @@ fn public_wires_and_storage_preserve_bound_idl_types() {
         budget: "owned backing".to_owned(),
         storage: vec![native],
     };
-    let (wire, storage): (<Owned as ComValue>::Wire, <Owned as ComValue>::Storage) =
+    let (repr, keep_alive): (<Owned as ComValue>::AbiRepr, <Owned as ComValue>::KeepAlive) =
         <Owned as ComValue>::encode_value(&owned, &mut ValueBudget::default()).unwrap();
-    assert_eq!((wire.first, wire.raw_0), (1, 11));
-    // SAFETY: source text and converted Vec<Record> storage stay alive through decode.
-    // Record's bool requires checked conversion, so this nonempty vector uses backing.
-    let decoded = unsafe { <Owned as ComValue>::decode_value(&wire, &mut ValueBudget::default()) }.unwrap();
+    assert_eq!((repr.first, repr.raw_0), (1, 11));
+    // SAFETY: the source text and the temporary array of converted records
+    // remain live. The records' booleans require conversion.
+    let decoded = unsafe { <Owned as ComValue>::decode_value(&repr, &mut ValueBudget::default()) }.unwrap();
     assert!(decoded.first);
     assert_eq!(decoded.raw_0, 11);
     assert_eq!(decoded.budget, "owned backing");
     assert_eq!(decoded.storage, [native]);
-    drop(storage);
+    drop(keep_alive);
 }

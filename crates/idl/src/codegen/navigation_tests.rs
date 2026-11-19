@@ -38,7 +38,7 @@ fn typed_interface_and_value_names_keep_their_supplied_identifier_spans() {
         args: Vec::new(),
         ok: AbiReturn {
             rust_ty: syn::parse_quote!(u32),
-            abi_ty: syn::parse_quote!(<u32 as ::neocogi_com::ComValue>::Wire),
+            abi_ty: syn::parse_quote!(<u32 as ::neocogi_com::ComValue>::AbiRepr),
             kind: AbiReturnKind::Plain,
         },
     };

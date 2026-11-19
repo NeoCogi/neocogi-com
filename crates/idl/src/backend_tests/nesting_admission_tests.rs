@@ -101,8 +101,8 @@ fn broad_copied_values_generate_shallow_proofs_and_call_across_bindings() {
         }}
         #[test] fn real_call() {{
             use neocogi_com::ComValue;
-            assert!(producer::Wide::BORROW_WIRE);
-            assert!(consumer::Wide::BORROW_WIRE);
+            assert!(producer::Wide::BORROW_ABI_REPR);
+            assert!(consumer::Wide::BORROW_ABI_REPR);
             assert_eq!(producer::ABI_FINGERPRINT, consumer::ABI_FINGERPRINT);
             let echo = Probe::from_value(Probe).query::<consumer::EchoAbi>().unwrap();
             let result = echo.echo(consumer::Wide {{ {initializers} }}).unwrap();

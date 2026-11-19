@@ -629,12 +629,12 @@ fn value_case(family: ValueFamily, incompatible: bool) -> String {
     let encode_return = if incompatible {
         "u32"
     } else {
-        "Result<(<Self as neocogi_com::ComValue>::Wire, <Self as neocogi_com::ComValue>::Storage), neocogi_com::NcStatus>"
+        "Result<(<Self as neocogi_com::ComValue>::AbiRepr, <Self as neocogi_com::ComValue>::KeepAlive), neocogi_com::NcStatus>"
     };
     let decode = if incompatible {
-        "fn decode_prechecked(_: <Self as neocogi_com::ComValue>::Wire) -> u32 { 99 }".to_owned()
+        "fn decode_prechecked(_: <Self as neocogi_com::ComValue>::AbiRepr) -> u32 { 99 }".to_owned()
     } else {
-        format!("fn decode_prechecked(_: <Self as neocogi_com::ComValue>::Wire) -> Result<Self, neocogi_com::NcStatus> {{ Ok({wrong}) }}")
+        format!("fn decode_prechecked(_: <Self as neocogi_com::ComValue>::AbiRepr) -> Result<Self, neocogi_com::NcStatus> {{ Ok({wrong}) }}")
     };
     format!(
         r#"
@@ -649,7 +649,7 @@ fn value_case(family: ValueFamily, incompatible: bool) -> String {
         {declaration}
         impl Record {{
             const FIXED_COST: Option<neocogi_com::ValueCost> = Some(neocogi_com::ValueCost::SCALAR);
-            const BORROW_WIRE: u32 = 7;
+            const BORROW_ABI_REPR: u32 = 7;
             fn encode_prechecked(&self) -> {encode_return} {{ unreachable!("application encode must not run") }}
             {decode}
         }}
@@ -706,7 +706,7 @@ fn value_support_has_trait_and_lexical_owners_in_normal_and_printed_code() {
 #[test]
 fn authored_wire_names_are_distinct_from_private_wire_definitions() {
     let cases = [false, true].map(|expand| {
-        let first = contract("struct Wire { value: u32 } enum Selection: u8 { Wire(Wire), Storage(Wire) }");
+        let first = contract("struct AbiRepr { value: u32 } enum Selection: u8 { AbiRepr(AbiRepr), KeepAlive(AbiRepr) }");
         let second = "";
         (
             format!("printed={expand}"),
@@ -714,11 +714,11 @@ fn authored_wire_names_are_distinct_from_private_wire_definitions() {
                 r#"
             {first} {second}
             #[test] fn associated_wire_type_is_the_only_required_locator() {{
-                for native in [Selection::Wire(Wire {{ value: 73 }}), Selection::Storage(Wire {{ value: 91 }})] {{
+                for native in [Selection::AbiRepr(AbiRepr {{ value: 73 }}), Selection::KeepAlive(AbiRepr {{ value: 91 }})] {{
                     let wire = neocogi_com::encode_inline(&native).unwrap();
                     let decoded = unsafe {{ neocogi_com::decode_inline::<Selection>(&wire) }}.unwrap();
                     match (native, decoded) {{
-                        (Selection::Wire(a), Selection::Wire(b)) | (Selection::Storage(a), Selection::Storage(b)) => assert_eq!(a.value, b.value),
+                        (Selection::AbiRepr(a), Selection::AbiRepr(b)) | (Selection::KeepAlive(a), Selection::KeepAlive(b)) => assert_eq!(a.value, b.value),
                         _ => panic!("variant changed"),
                     }}
                 }}

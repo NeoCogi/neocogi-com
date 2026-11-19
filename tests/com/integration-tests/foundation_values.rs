@@ -176,7 +176,7 @@ impl IOutput for Output {
 /// Safe generated calls and raw provider admission agree, with stack-only output.
 #[test]
 fn admitted_identity_push_and_bulk_complete_through_generated_calls() {
-    const { assert!(Deep::BORROW_WIRE) };
+    const { assert!(Deep::BORROW_ABI_REPR) };
     assert_eq!(check_buffer_output::<Deep>(1), Ok(()));
     let provider = Output::from_value(Output).query::<IOutputAbi>().unwrap();
     for bulk in [false, true] {
@@ -194,7 +194,7 @@ fn admitted_identity_push_and_bulk_complete_through_generated_calls() {
     assert_eq!(owner.as_raw().object, identity);
     assert_eq!(owner.value(), Ok(73));
     assert_eq!(output.as_slice(), &[deep()]);
-    let mut raw_output = core::mem::MaybeUninit::<<Deep as ComValue>::Wire>::uninit();
+    let mut raw_output = core::mem::MaybeUninit::<<Deep as ComValue>::AbiRepr>::uninit();
     let mut written = 99;
     let raw = provider.as_raw();
     // SAFETY: a live receiver, one aligned writable wire slot, and separate count.

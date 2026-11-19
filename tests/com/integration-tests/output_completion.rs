@@ -82,7 +82,7 @@ unsafe extern "C" fn invalid_later_buffer(
     flags_written: *mut u64,
     _choices_offset: u64,
     choices_len: u64,
-    choices: *mut <Choice as ComValue>::Wire,
+    choices: *mut <Choice as ComValue>::AbiRepr,
     choices_written: *mut u64,
 ) -> NcStatus {
     assert_eq!((flags_len, choices_len), (1, 1));
@@ -166,20 +166,20 @@ fn consuming_output_admission_checks_bytes_count_depth_and_exact_boundaries() {
     // The one-value maximum and both prechecked converters allocate nothing.
     unsafe impl ComValue for Padded {
         const FIXED_COST: Option<ValueCost> = Some(ValueCost::SCALAR);
-        type Wire = [u8; 128];
-        type Storage = ();
-        fn encode_value(&self, budget: &mut ValueBudget) -> Result<(Self::Wire, ()), NcStatus> {
+        type AbiRepr = [u8; 128];
+        type KeepAlive = ();
+        fn encode_value(&self, budget: &mut ValueBudget) -> Result<(Self::AbiRepr, ()), NcStatus> {
             budget.value(|_| unsafe { self.encode_prechecked() })
         }
-        unsafe fn decode_value(wire: &Self::Wire, budget: &mut ValueBudget) -> Result<Self, NcStatus> {
+        unsafe fn decode_value(wire: &Self::AbiRepr, budget: &mut ValueBudget) -> Result<Self, NcStatus> {
             budget.value(|_| unsafe { Self::decode_prechecked(wire) })
         }
-        unsafe fn encode_prechecked(&self) -> Result<(Self::Wire, ()), NcStatus> {
+        unsafe fn encode_prechecked(&self) -> Result<(Self::AbiRepr, ()), NcStatus> {
             let mut raw = [0; 128];
             raw[0] = u8::from(self.0);
             Ok((raw, ()))
         }
-        unsafe fn decode_prechecked(wire: &Self::Wire) -> Result<Self, NcStatus> {
+        unsafe fn decode_prechecked(wire: &Self::AbiRepr) -> Result<Self, NcStatus> {
             // SAFETY: the first initialized wire byte has the checked bool format.
             unsafe { bool::decode_prechecked(&wire[0]) }.map(Self)
         }

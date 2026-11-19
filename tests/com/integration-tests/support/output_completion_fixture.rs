@@ -316,7 +316,7 @@ fn raw_provider_count_failure_never_adopts_an_owner() {
     let mut first = first.into_raw();
     let mut second = second.into_raw();
     let identities = [first.object, second.object];
-    let mut choice = std::mem::MaybeUninit::<<Choice as ComValue>::Wire>::uninit();
+    let mut choice = std::mem::MaybeUninit::<<Choice as ComValue>::AbiRepr>::uninit();
     let mut flag = std::mem::MaybeUninit::<u8>::uninit();
     let mut output = std::mem::MaybeUninit::uninit();
     let mut flags_written = 0;
@@ -395,7 +395,7 @@ unsafe extern "C" fn invalid_committed_output(
     second: *mut ComRaw<IItemAbi>,
     _choices_offset: u64,
     choices_len: u64,
-    choices: *mut <Choice as ComValue>::Wire,
+    choices: *mut <Choice as ComValue>::AbiRepr,
     choices_written: *mut u64,
     _flags_offset: u64,
     flags_len: u64,
@@ -403,7 +403,7 @@ unsafe extern "C" fn invalid_committed_output(
     flags_written: *mut u64,
     _reject: u8,
     _deny: u8,
-    result: *mut <Choice as ComValue>::Wire,
+    result: *mut <Choice as ComValue>::AbiRepr,
 ) -> NcStatus {
     assert_eq!((choices_len, flags_len), (1, 1));
     // SAFETY: the fixture supplies unique live tokens in distinct writable slots.

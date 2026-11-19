@@ -107,7 +107,7 @@ mod tests {
         null_copy_to_status: i32,
         zero_copy_from_status: i32,
         zero_copy_to_status: i32,
-        aggregate: <NativeAggregate as neocogi_com::ComValue>::Wire,
+        aggregate: <NativeAggregate as neocogi_com::ComValue>::AbiRepr,
     }
 
     impl Default for NativeCResults {
@@ -284,8 +284,8 @@ mod tests {
             object: *mut core::ffi::c_void,
             echo: unsafe extern "C" fn(
                 *mut core::ffi::c_void,
-                <NativeChoice as neocogi_com::ComValue>::Wire,
-                *mut <NativeChoice as neocogi_com::ComValue>::Wire,
+                <NativeChoice as neocogi_com::ComValue>::AbiRepr,
+                *mut <NativeChoice as neocogi_com::ComValue>::AbiRepr,
             ) -> NcStatus,
             invalid_tag: NcStatus,
             invalid_bool: NcStatus,
@@ -348,10 +348,10 @@ mod tests {
             host_runtime_offset: core::mem::offset_of!(neocogi_com::NcHostApiV3, runtime),
             host_debug_offset: core::mem::offset_of!(neocogi_com::NcHostApiV3, debug),
             host_persistence_offset: core::mem::offset_of!(neocogi_com::NcHostApiV3, persistence),
-            aggregate_size: core::mem::size_of::<<NativeAggregate as neocogi_com::ComValue>::Wire>(),
-            aggregate_align: core::mem::align_of::<<NativeAggregate as neocogi_com::ComValue>::Wire>(),
-            aggregate_count_offset: core::mem::offset_of!(<NativeAggregate as neocogi_com::ComValue>::Wire, count),
-            aggregate_value_offset: core::mem::offset_of!(<NativeAggregate as neocogi_com::ComValue>::Wire, value),
+            aggregate_size: core::mem::size_of::<<NativeAggregate as neocogi_com::ComValue>::AbiRepr>(),
+            aggregate_align: core::mem::align_of::<<NativeAggregate as neocogi_com::ComValue>::AbiRepr>(),
+            aggregate_count_offset: core::mem::offset_of!(<NativeAggregate as neocogi_com::ComValue>::AbiRepr, count),
+            aggregate_value_offset: core::mem::offset_of!(<NativeAggregate as neocogi_com::ComValue>::AbiRepr, value),
         }
     }
 
@@ -392,7 +392,7 @@ unsafe extern "C" {
     /// C reads the explicit prefix count and verifies inactive tail bytes stay untouched.
     fn nc_c_exercise_choice_output(
         object: *mut core::ffi::c_void,
-        output: unsafe extern "C" fn(*mut core::ffi::c_void, u64, u64, *mut <NativeChoice as neocogi_com::ComValue>::Wire, *mut u64, *mut u32) -> NcStatus,
+        output: unsafe extern "C" fn(*mut core::ffi::c_void, u64, u64, *mut <NativeChoice as neocogi_com::ComValue>::AbiRepr, *mut u64, *mut u32) -> NcStatus,
         pointer_status: NcStatus,
     ) -> i32;
 }

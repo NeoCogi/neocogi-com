@@ -22,12 +22,12 @@ enum InputWire<'a, T: ComInlineValue> {
     Direct(&'a [T]),
     /// Restricted fields require a separately converted raw element array.
     #[cfg(feature = "alloc")]
-    Converted(Vec<T::Wire>),
+    Converted(Vec<T::AbiRepr>),
 }
 impl<'a, T: ComInlineValue> EncodedInput<'a, T> {
     /// Retains a direct borrow or prepares checked raw elements before the call.
     pub fn new(value: NcCopyFromBufferOffset<'a, T>) -> Result<Self, NcStatus> {
-        let storage = match T::BORROW_WIRE {
+        let storage = match T::BORROW_ABI_REPR {
             true => InputWire::Direct(value.as_slice()),
             false => {
                 #[cfg(feature = "alloc")]
@@ -59,7 +59,7 @@ impl<'a, T: ComInlineValue> EncodedInput<'a, T> {
         self.len() == 0
     }
     /// Borrows only raw representations with a justified identical-layout cast.
-    pub fn as_ptr(&self) -> *const T::Wire {
+    pub fn as_ptr(&self) -> *const T::AbiRepr {
         match &self.storage {
             InputWire::Direct(values) => values.as_ptr().cast(),
             #[cfg(feature = "alloc")]
@@ -81,8 +81,8 @@ impl<'a, T: ComInlineValue> DecodedInput<'a, T> {
     ///
     /// # Safety
     /// The raw caller keeps initialized elements readable for this call.
-    pub unsafe fn from_raw(pointer: *const T::Wire, len: u64) -> Result<Self, NcStatus> {
-        match T::BORROW_WIRE {
+    pub unsafe fn from_raw(pointer: *const T::AbiRepr, len: u64) -> Result<Self, NcStatus> {
+        match T::BORROW_ABI_REPR {
             true => {
                 let raw = unsafe { ValueSlice { pointer, len }.elements() }?;
                 // SAFETY: the unsafe codec explicitly proves equal layout and

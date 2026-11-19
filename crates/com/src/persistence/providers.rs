@@ -72,7 +72,7 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn count_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
+            __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
         ) -> ::neocogi_com::NcStatus {
             if __nc_this.is_null() || __nc_out.is_null() {
                 return ::neocogi_com::NC_E_POINTER;
@@ -119,7 +119,7 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn get_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_arg_0: <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
+            __nc_arg_0: <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
             __nc_out: *mut ::neocogi_com::ComRaw<::neocogi_com::IUnknown>,
         ) -> ::neocogi_com::NcStatus {
             if __nc_this.is_null() || __nc_out.is_null() {
@@ -239,7 +239,7 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn type_id_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_out: *mut <::neocogi_com::NcGuid as ::neocogi_com::ComValue>::Wire,
+            __nc_out: *mut <::neocogi_com::NcGuid as ::neocogi_com::ComValue>::AbiRepr,
         ) -> ::neocogi_com::NcStatus {
             if __nc_this.is_null() || __nc_out.is_null() {
                 return ::neocogi_com::NC_E_POINTER;
@@ -286,7 +286,7 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn schema_version_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
+            __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
         ) -> ::neocogi_com::NcStatus {
             if __nc_this.is_null() || __nc_out.is_null() {
                 return ::neocogi_com::NC_E_POINTER;
@@ -376,7 +376,7 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn child_count_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
+            __nc_out: *mut <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
         ) -> ::neocogi_com::NcStatus {
             if __nc_this.is_null() || __nc_out.is_null() {
                 return ::neocogi_com::NC_E_POINTER;
@@ -423,7 +423,7 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn child_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_arg_0: <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
+            __nc_arg_0: <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
             __nc_out: *mut ::neocogi_com::ComRaw<::neocogi_com::IUnknown>,
         ) -> ::neocogi_com::NcStatus {
             if __nc_this.is_null() || __nc_out.is_null() {
@@ -557,11 +557,11 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn validate_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_arg_0: <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
+            __nc_arg_0: <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
             __nc_arg_1_offset: ::core::primitive::u64,
             __nc_arg_1_len: ::core::primitive::u64,
-            __nc_arg_1_ptr: *const <::core::primitive::u8 as ::neocogi_com::ComValue>::Wire,
-            __nc_arg_2: <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
+            __nc_arg_1_ptr: *const <::core::primitive::u8 as ::neocogi_com::ComValue>::AbiRepr,
+            __nc_arg_2: <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
         ) -> ::neocogi_com::NcStatus {
             if __nc_this.is_null() {
                 return ::neocogi_com::NC_E_POINTER;
@@ -627,10 +627,10 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn restore_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_arg_0_0: <::core::primitive::u32 as ::neocogi_com::ComValue>::Wire,
+            __nc_arg_0_0: <::core::primitive::u32 as ::neocogi_com::ComValue>::AbiRepr,
             __nc_arg_1_0_offset: ::core::primitive::u64,
             __nc_arg_1_0_len: ::core::primitive::u64,
-            __nc_arg_1_0_ptr: *const <::core::primitive::u8 as ::neocogi_com::ComValue>::Wire,
+            __nc_arg_1_0_ptr: *const <::core::primitive::u8 as ::neocogi_com::ComValue>::AbiRepr,
             __nc_arg_2_0: ::neocogi_com::ComRaw<self::IObjectChildrenAbi>,
             __nc_out: *mut ::neocogi_com::ComRaw<::neocogi_com::IUnknown>,
         ) -> ::neocogi_com::NcStatus {

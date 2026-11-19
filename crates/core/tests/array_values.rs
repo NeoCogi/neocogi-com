@@ -42,8 +42,8 @@ enum Unit {
 // concrete move-independent owner. Fixed conversion allocates no backing memory.
 unsafe impl ComValue for Unit {
     const FIXED_COST: Option<ValueCost> = Some(ValueCost::SCALAR);
-    type Wire = u8;
-    type Storage = Backing;
+    type AbiRepr = u8;
+    type KeepAlive = Backing;
     fn encode_value(&self, budget: &mut ValueBudget) -> Result<(u8, Backing), NcStatus> {
         budget.value(|_| unsafe { self.encode_prechecked() })
     }

@@ -46,8 +46,8 @@ registered pattern names. These never-called imports prevent ambient constants
 from changing a pattern into a constant match after printing. They are required
 lexical protection, not runtime state.
 
-Wire, payload and backing-storage declarations live in anonymous scopes. The
-public raw integration boundary is `<Value as ComValue>::Wire` and `::Storage`;
+ABI representations, payloads and keep-alive declarations live in anonymous scopes. The
+public raw integration boundary is `<Value as ComValue>::AbiRepr` and `::KeepAlive`;
 private helper spellings are not APIs. Converters explicitly select `ComValue`
 operations and constants, even when a native type has same-named inherent members
 with plausible wrong values. Layout identity additionally proves recursive size,
@@ -61,14 +61,14 @@ value contract. Public native records may retain private field types.
 
 Live value emission is compiler-private. Its field types are already bound by
 IDL lowering and name core, the supplying module or the owning dependency directly.
-Those same types supply raw Wire/Storage, validation, costs and layout proofs;
+Those same types supply `AbiRepr`, `KeepAlive`, validation, costs and layout proofs;
 there is no native field-projection trait or second field-resolution layer.
 `codegen::emit_value` and `ValueCase` are internal compiler operations, not a Rust
 value-declaration frontend. Public persistence/procedural expanders remain callable
 by the separate macros crate. The shared IDL fixture denies private-interface
 leaks where generated definitions compile, and a separate integration crate names
-associated Wire/Storage, accesses valid raw fields and retains nonempty owned
-backing through checked decoding.
+associated types, accesses valid raw fields and retains converted data through
+checked decoding.
 
 ## Public method and companion admission
 

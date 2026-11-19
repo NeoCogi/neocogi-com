@@ -12,6 +12,9 @@ Historical draft numbers do not define additional supported COM baselines.
   `LocalRefMut` alongside `LocalRef`.
 - Import `ComBytesExt` and `ComStringExt` for the Rust methods on owned and
   borrowed byte and string interfaces.
+- Use `ComValue::AbiRepr` for the live ABI representation and `KeepAlive` for
+  temporary data it addresses. Regenerate Rust bindings for the new associated
+  names and `BORROW_ABI_REPR`. ABI v3/core 21 and the NCB format stay the same.
 
 ## 0.4.0-alpha.1 candidate
 

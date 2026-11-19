@@ -105,7 +105,7 @@ IDL owns interface identity, signatures, required projections and copied/owning
 value classification. The typed backend generates explicit C wires, one borrowed
 Rust method wrapper and checked provider thunks without parsing Rust wrappers to recover
 that information. Native records/enums have ordinary Rust application layout;
-associated `ComValue::Wire` and `Storage` are their raw integration boundary.
+associated `ComValue::AbiRepr` and `KeepAlive` are their raw integration boundary.
 The recursive identity-borrow proof checks size, alignment, field offsets and
 content validity. There are no COM packing/alignment/external-field modes.
 External native adapters explicitly convert to a generated contract's wire.
@@ -129,7 +129,7 @@ decoding have independent normal/printed semantic controls. See [generated ident
 for the contract, the corruption it prevents, and executable regression coverage.
 
 Value wire/payload/storage definitions live in anonymous implementation scopes.
-Use `<Value as neocogi_com::ComValue>::Wire` or `::Storage` for explicit raw-slot
+Use `<Value as neocogi_com::ComValue>::AbiRepr` or `::KeepAlive` for explicit raw-slot
 integration; private sibling helper spellings are no longer generated APIs.
 Codec proofs and conversions select their trait explicitly, independently of
 same-named application methods/constants. Signature literals need no sibling static.

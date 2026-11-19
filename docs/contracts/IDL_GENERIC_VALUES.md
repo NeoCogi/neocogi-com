@@ -109,7 +109,7 @@ payload; `Some` requires a valid present COM capability. `Rc<RefCell<...>>` and
 Generated concrete names retain the deterministic specialization suffix.
 Copied and owned payload enums both use their native generated Rust type.
 Copied methods accept/return that enum directly; no `...Abi` enum wrapper or
-`.into()`/`try_into()` adaptation exists. Only `ComValue::Wire` crosses the
+`.into()`/`try_into()` adaptation exists. Only `ComValue::AbiRepr` crosses the
 foreign boundary, with tag and active-field validation in generated calls.
 Neither the native enum's layout nor Rust's built-in `std::option::Option`
 niche/nullable layout is an IDL promise. Native Rust optional helpers used by

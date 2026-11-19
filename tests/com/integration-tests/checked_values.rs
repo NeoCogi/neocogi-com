@@ -130,8 +130,8 @@ fn native_enums_cross_copied_nested_array_and_buffer_slots() {
     assert!(matches!(Flags::ABI_TYPE, NcAbiType::Aggregate(signature) if signature == Flags::VALUE_SIGNATURE));
     assert!(matches!(Settings::ABI_TYPE, NcAbiType::Aggregate(signature) if signature == Settings::VALUE_SIGNATURE));
     assert!(matches!(ActionSet::ABI_TYPE, NcAbiType::Aggregate(signature) if signature == ActionSet::VALUE_SIGNATURE));
-    const { assert!(!Action::BORROW_WIRE) };
-    const { assert!(!ActionSet::BORROW_WIRE) };
+    const { assert!(!Action::BORROW_ABI_REPR) };
+    const { assert!(!ActionSet::BORROW_ABI_REPR) };
 }
 
 /// A later malformed enum element must not publish an earlier valid element's mutation.
@@ -360,7 +360,7 @@ fn numeric_arrays_borrow_in_place_but_boolean_arrays_are_checked() {
     // SAFETY: the encoded guard borrows the original initialized numeric array.
     let decoded = unsafe { DecodedInput::<[Coordinates; 2]>::from_raw(encoded.as_ptr(), encoded.len()) }.unwrap();
     assert_eq!(decoded.as_slice().as_ptr(), values.as_ptr());
-    const { assert!(!<[Settings; 2]>::BORROW_WIRE) };
+    const { assert!(!<[Settings; 2]>::BORROW_ABI_REPR) };
 }
 
 /// Identity decode must address the raw pointee rather than a reference variable.

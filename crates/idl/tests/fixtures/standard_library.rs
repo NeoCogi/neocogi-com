@@ -83,7 +83,7 @@ mod tests {
         assert_eq!(unsafe { ((*view.vtable).flags)(view.object, 0, 1, &raw, &mut count) }, NC_E_INVALID_ARG);
         // A unit variant has no active payload at all. The union may therefore
         // remain uninitialized; only the integer tag is initialized and read.
-        let mut absent = core::mem::MaybeUninit::<<MaybeCount as ComValue>::Wire>::uninit();
+        let mut absent = core::mem::MaybeUninit::<<MaybeCount as ComValue>::AbiRepr>::uninit();
         unsafe {
             core::ptr::addr_of_mut!((*absent.as_mut_ptr()).tag).write(0);
             // SAFETY: the tag is valid i64 storage and an uninspected union has

@@ -115,8 +115,8 @@ fn parameter_and_output_expressions_cannot_merge_with_following_siblings() {
         #[test] fn generated_wire_and_negotiation_proof() {
             assert_eq!(small::ExchangeAbi::INTERFACE_ID.iid,large::ExchangeAbi::INTERFACE_ID.iid);
             assert_ne!(small::ExchangeAbi::INTERFACE_ID,large::ExchangeAbi::INTERFACE_ID);
-            assert_eq!(core::mem::size_of::<<small::Shell as ComValue>::Wire>(),1);
-            assert_eq!(core::mem::size_of::<<large::Shell as ComValue>::Wire>(),4);
+            assert_eq!(core::mem::size_of::<<small::Shell as ComValue>::AbiRepr>(),1);
+            assert_eq!(core::mem::size_of::<<large::Shell as ComValue>::AbiRepr>(),4);
             let small=Small::from_value(Small).query::<small::ExchangeAbi>().unwrap();
             let large=Large::from_value(Large).query::<large::ExchangeAbi>().unwrap();
             assert_eq!(small.accept(NcValueRef::new(&small::Shell {inner:small::Phantom{data:()}}).unwrap()),Ok(17));

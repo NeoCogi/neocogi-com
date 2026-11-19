@@ -22,12 +22,12 @@ mod external_fields {
     // External layout alone is insufficient; the adapter explicitly provides
     // the same checked conversion contract required of every other field.
     unsafe impl neocogi_com::ComValue for Pair {
-        type Wire = <ContractPair as neocogi_com::ComValue>::Wire;
-        type Storage = ();
-        fn encode_value(&self, budget: &mut neocogi_com::ValueBudget) -> Result<(Self::Wire, ()), NcStatus> {
+        type AbiRepr = <ContractPair as neocogi_com::ComValue>::AbiRepr;
+        type KeepAlive = ();
+        fn encode_value(&self, budget: &mut neocogi_com::ValueBudget) -> Result<(Self::AbiRepr, ()), NcStatus> {
             neocogi_com::ComValue::encode_value(&ContractPair { x: self.x, y: self.y }, budget)
         }
-        unsafe fn decode_value(wire: &Self::Wire, budget: &mut neocogi_com::ValueBudget) -> Result<Self, NcStatus> {
+        unsafe fn decode_value(wire: &Self::AbiRepr, budget: &mut neocogi_com::ValueBudget) -> Result<Self, NcStatus> {
             // SAFETY: the caller supplies the explicit generated ContractPair wire.
             let pair = unsafe { <ContractPair as neocogi_com::ComValue>::decode_value(wire, budget) }?;
             Ok(Self { x: pair.x, y: pair.y })

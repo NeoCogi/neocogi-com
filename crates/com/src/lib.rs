@@ -62,7 +62,7 @@
 //! are rejected by IDL using the core-owned member inventory.
 //!
 //! Application records and enums have ordinary native Rust layout. [`ComValue`]
-//! supplies a separate explicit associated `Wire` and typed backing `Storage`.
+//! supplies a separate explicit associated `AbiRepr` and typed backing `KeepAlive`.
 //! Copied positions require self-contained [`ComInlineValue`] wires; owning
 //! records use [`NcValueRef`] for synchronous borrowing. A receiver explicitly
 //! acquires owned fields with `to_owned()` to keep them beyond that call.
@@ -195,7 +195,7 @@ pub use neocogi_com_core::{
     check_inline_output, check_buffer_output, MAX_VALUE_BYTES, MAX_VALUE_COUNT, MAX_VALUE_DEPTH,
 };
 #[cfg(feature = "alloc")]
-pub use neocogi_com_core::{ValueSequenceStorage, encode_value_buffer, decode_value_buffer};
+pub use neocogi_com_core::{ValueSequenceKeepAlive, encode_value_buffer, decode_value_buffer};
 
 #[doc(hidden)]
 pub use neocogi_com_core::{EncodedInput, DecodedInput};

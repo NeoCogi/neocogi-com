@@ -48,7 +48,7 @@ and typed temporary storage for converted indirect elements. No `Any` registry,
 erased allocation list, or shared mutable parent object is involved.
 
 Decoding borrows its raw input: `ComValue::decode_value` and
-`decode_prechecked` accept `&Self::Wire`, and `decode_inline` accepts `&T::Wire`.
+`decode_prechecked` accept `&Self::AbiRepr`, and `decode_inline` accepts `&T::AbiRepr`.
 Record fields, selected enum/option payloads, arrays and sequence elements are
 borrowed recursively rather than copied into another whole raw record at each
 decoder boundary. Validate a tag before borrowing its active payload. Borrowing
@@ -63,10 +63,10 @@ wire snapshot and backing owners; `to_owned()` borrows that snapshot. This Rust
 decoder contract does not change the C wire layout, vtables or signatures.
 
 Fixed-array conversion uses storage with the actual element layout and one
-initialized-prefix owner. Encoding keeps wire slots separate from backing
-Storage slots, so their independent alignments cannot introduce per-element
-tuple padding. Only Storage needs partial destruction; raw Wire slots are Copy
-and are never published until the complete array succeeds. Decoding borrows raw
+initialized-prefix owner. Encoding keeps `AbiRepr` slots separate from
+`KeepAlive` slots, so their independent alignments cannot introduce per-element
+tuple padding. Only `KeepAlive` slots need partial destruction. The raw
+representation is `Copy` and published only when the complete array succeeds. Decoding borrows raw
 elements and acquires each native element once. No per-element Option completion
 tag, allocator or Default bound is introduced by array construction.
 
@@ -94,7 +94,7 @@ flowchart LR
 
 Generated Rust fields, parameters, results, and buffers use the native enum:
 `Choice`, `[Choice; N]`, and `&[Choice]`. The only foreign representation is
-`<Choice as ComValue>::Wire`: an explicit C record with the existing `i64` tag
+`<Choice as ComValue>::AbiRepr`: an explicit C record with the existing `i64` tag
 and recursively lowered active payload. There is no `ChoiceAbi` application
 wrapper, public `ChoiceTag`/`ChoicePayload`, or wrapper conversion API.
 Interface markers such as `IWidgetAbi` remain a separate object contract.
@@ -103,7 +103,7 @@ Copied capability means the codec's wire is self-contained. It does **not**
 promise stable native Rust enum layout. `AbiType` supplies nominal metadata;
 `ComInlineValue` proves the codec's copied capability. Application-memory layout
 tables are not published: concrete wire records, checked conversions, and the
-recursive `BORROW_WIRE` proof own the foreign-storage contract. Generated calls
+recursive `BORROW_ABI_REPR` proof own the foreign-storage contract. Generated calls
 must continue encoding/decoding even when native and wire sizes happen to match.
 This permits separately compiled libraries to use different Rust layouts.
 
@@ -218,7 +218,7 @@ acceptance. Consuming method outputs have a stricter admission rule: all possibl
 outputs must fit before accepting owners, as described below.
 
 A borrowed `Vec<T>` producer reuses its original element region when the recursive
-`BORROW_WIRE` layout proof and an exact element cost both hold. The source remains
+`BORROW_ABI_REPR` layout proof and an exact element cost both hold. The source remains
 borrowed by `NcValueRef`; wire/storage alone are not an independently owned
 encoding. Shared count/depth and element-region byte checks still apply. Other
 elements retain a converted wire vector and concrete child guards. Receiver
@@ -472,7 +472,7 @@ addresses safe; the raw memory obligations above remain part of every call.
 
 `Array<T, N>` and `[T; N]` are copied values when `T` is recursively copied.
 They can occur directly in arguments/results, inside copied records/enums, and
-as readable or writable buffer elements. The checked `ValueArray<T::Wire, N>`
+as readable or writable buffer elements. The checked `ValueArray<T::AbiRepr, N>`
 codec validates every element; a `[bool; N]` is never reconstructed from foreign
 bytes as a native Rust boolean array. Owning elements still require borrowing a
 named aggregate; a fixed length does not remove their ownership obligations.

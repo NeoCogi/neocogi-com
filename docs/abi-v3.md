@@ -542,7 +542,9 @@ concrete classes and plugin acquisition are Rust implementation concerns.
 The [IDL reference](contracts/IDL_MODULES.md) owns accepted syntax,
 identity and canonical encoding. Special class/factory/event IDL roles are absent.
 
-`ComValue` supplies separate raw `Wire` and concrete producer `Storage` types.
+`ComValue` supplies a raw `AbiRepr` and a `KeepAlive` for producer-owned
+temporaries. The source value and `KeepAlive` retain the regions addressed by
+`AbiRepr` through the call.
 Boolean wire fields are bytes checked for 0 or 1. Payload enums decode an integer
 tag before reading only its selected lowered payload. Records, options, arrays
 and sequences use the same recursive conversion. `ComInlineValue` additionally

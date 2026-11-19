@@ -2,7 +2,7 @@
 #![cfg(feature = "alloc")]
 
 use neocogi_com_core::{
-    ComValue, NcStatus, NcValueRef, ValueBudget, ValueOption, ValueSequenceStorage, ValueSlice, NC_E_INVALID_ARG, NC_E_INVALID_TAG, NC_E_OUT_OF_RANGE,
+    ComValue, NcStatus, NcValueRef, ValueBudget, ValueOption, ValueSequenceKeepAlive, ValueSlice, NC_E_INVALID_ARG, NC_E_INVALID_TAG, NC_E_OUT_OF_RANGE,
 };
 
 /// A finite application tree with an explicitly indirect recursive edge.
@@ -25,12 +25,12 @@ struct NodeWire {
 /// Concrete guards own every level of converted sequence backing.
 struct NodeStorage {
     /// Vec indirection also gives recursively defined storage a finite size.
-    _children: ValueSequenceStorage<Node>,
+    _children: ValueSequenceKeepAlive<Node>,
 }
 // SAFETY: fields are converted recursively, and guards retain all wire backing.
 unsafe impl ComValue for Node {
-    type Wire = NodeWire;
-    type Storage = NodeStorage;
+    type AbiRepr = NodeWire;
+    type KeepAlive = NodeStorage;
     fn encode_value(&self, budget: &mut ValueBudget) -> Result<(NodeWire, NodeStorage), NcStatus> {
         budget.value(|budget| {
             let (enabled, ()) = self.enabled.encode_value(budget)?;

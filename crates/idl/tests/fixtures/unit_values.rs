@@ -35,7 +35,7 @@ mod unit_tests {
     /// Forwards a successful real provider call, then corrupts an initialized
     /// active wire byte. It leaves the successful owned result intact.
     unsafe extern "C" fn malformed_finish(this:*mut core::ffi::c_void,offset:u64,count:u64,
-        output:*mut <Completion as ComValue>::Wire,written:*mut u64,out:*mut ComRaw<IUnknown>)->NcStatus {
+        output:*mut <Completion as ComValue>::AbiRepr,written:*mut u64,out:*mut ComRaw<IUnknown>)->NcStatus {
         // SAFETY: this table is paired only with Units; all storage is the
         // generated wrapper's real prepared output and return slots.
         let status=unsafe { (IUnitsVtblFor::<Units>::VTABLE.finish)(this,offset,count,output,written,out) };
@@ -51,7 +51,7 @@ mod unit_tests {
     /// Both the generated codec and the actual provider gate participate.
     #[test]
     fn unit_calls_and_malformed_storage() {
-        const { assert!(!<()>::BORROW_WIRE); assert!(!<[();2]>::BORROW_WIRE); assert!(!Mixed::BORROW_WIRE); }
+        const { assert!(!<()>::BORROW_ABI_REPR); assert!(!<[();2]>::BORROW_ABI_REPR); assert!(!Mixed::BORROW_ABI_REPR); }
         let drops=Arc::new(AtomicUsize::new(0));
         let local=Units::into_local(Units { accepted:0,drops:drops.clone() });
         let mut owner:ComPtr<IUnitsAbi>=local.query().unwrap();
@@ -98,12 +98,12 @@ mod unit_tests {
         let _=guard;
         assert!(matches!(mixed.encode_value(&mut ValueBudget::new(0,4,2)),Err(NC_E_OUT_OF_RANGE)));
         assert!(matches!([();2].encode_value(&mut ValueBudget::new(0,2,2)),Err(NC_E_OUT_OF_RANGE)));
-        assert_eq!(core::mem::size_of::<<() as ComValue>::Wire>(),1);
+        assert_eq!(core::mem::size_of::<<() as ComValue>::AbiRepr>(),1);
         assert_eq!(core::mem::size_of::<()>(),0);
         assert_ne!(<()>::ABI_TYPE,NcAbiType::Void);
         let table=&IUnitsVtblFor::<Units>::VTABLE;
         let _:unsafe extern "C" fn(*mut core::ffi::c_void)->NcStatus=table.status;
-        let _:unsafe extern "C" fn(*mut core::ffi::c_void,<Completion as ComValue>::Wire,*mut <Completion as ComValue>::Wire)->NcStatus=table.completion;
+        let _:unsafe extern "C" fn(*mut core::ffi::c_void,<Completion as ComValue>::AbiRepr,*mut <Completion as ComValue>::AbiRepr)->NcStatus=table.completion;
         assert!(matches!(Completion::ABI_TYPE,NcAbiType::Aggregate(_)));
         assert_eq!(Mixed::IDL_TYPE.shape, neocogi_com::idl_metadata::TypeShape::Struct(&[
             neocogi_com::idl_metadata::FieldMetadata { name:"before",ty:neocogi_com::idl_metadata::ValueType::Scalar("u32") },
