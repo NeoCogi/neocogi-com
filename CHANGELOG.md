@@ -10,6 +10,8 @@ Historical draft numbers do not define additional supported COM baselines.
   `ComBorrowGate`, and its read/write permits by access mode. Generated Rust uses
   `__ComSharedInner` and `__ComBoxedInner`. Mutable local access returns
   `LocalRefMut` alongside `LocalRef`.
+- Import `ComBytesExt` and `ComStringExt` for the Rust methods on owned and
+  borrowed byte and string interfaces.
 
 ## 0.4.0-alpha.1 candidate
 

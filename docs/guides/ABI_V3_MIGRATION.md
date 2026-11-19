@@ -61,6 +61,10 @@ These two types select the shared and the boxed layout of `ComObjectInner`.
 object's reader/writer admission. In handwritten Rust, use `LocalRefMut` for
 the mutable guard returned by `LocalCom::try_borrow_mut`, alongside `LocalRef`.
 
+Use `ComBytesExt` and `ComStringExt` for byte and string conversions on both
+owning `ComPtr` handles and borrowed `ComRef` handles. The methods still perform
+bounded copies through the selected interface.
+
 ## Choose one concrete ownership header
 
 Ordinary `#[com_object]` users keep their shared/exclusive declaration and

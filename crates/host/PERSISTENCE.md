@@ -30,7 +30,7 @@ result is an NCB-v1 document, which the application may embed or save wherever
 its platform permits. Saving observes the provider's current persistent fields.
 It is not an automatic dump of arbitrary private COM implementation memory.
 
-State copying uses the SDK's `INcBytesComPtrExt::to_vec_bounded` contract. The
+State copying uses the SDK's `ComBytesExt::to_vec_bounded` contract. The
 provider's length is checked before host-local allocation or copying; lengths
 above the selected limit or Rust vector capacity return `NC_E_OUT_OF_RANGE`.
 A successfully reported zero length yields empty state without calling the

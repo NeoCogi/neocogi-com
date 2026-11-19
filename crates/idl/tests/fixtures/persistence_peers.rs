@@ -83,7 +83,7 @@ macro_rules! exercise {
         assert_eq!(persistent.schema_version().unwrap(), 7);
         assert_eq!(persistent.child_count().unwrap(), 0);
         assert_eq!(persistent.child(0).err(), Some(NC_E_OUT_OF_RANGE));
-        use neocogi_com::INcBytesComPtrExt;
+        use neocogi_com::ComBytesExt;
         assert_eq!(persistent.save_state().unwrap().to_vec().unwrap(), STATE);
         let factory = root.query::<$api::IPersistenceFactoryAbi>().unwrap();
         assert_eq!(factory.validate(7, NcCopyFromBufferOffset::new(0, STATE), 0), Ok(()));

@@ -29,8 +29,8 @@ mod tests;
 
 /// Default maximum allocation performed by an owned COM byte/string conversion.
 ///
-/// [`INcBytesComPtrExt::to_vec`], [`INcBytesComPtrExt::to_i8_vec`],
-/// [`INcStringComPtrExt::to_bytes`], and [`INcStringComPtrExt::to_string`]
+/// [`ComBytesExt::to_vec`], [`ComBytesExt::to_i8_vec`],
+/// [`ComStringExt::to_bytes`], and [`ComStringExt::to_string`]
 /// reject larger reported lengths with [`NC_E_OUT_OF_RANGE`]. Use their
 /// `_bounded` variants to select a different application-specific maximum, or
 /// copy chunks into caller-owned storage with `copy_to`.
@@ -51,10 +51,10 @@ pub struct NcBytes;
 ///
 /// This type only constructs COM objects. It has no borrowed `as_str` method,
 /// and the returned interface exposes bounded copying rather than its storage
-/// address. Import [`INcStringComPtrExt`] to obtain an owned Rust string:
+/// address. Import [`ComStringExt`] to obtain an owned Rust string:
 ///
 /// ```
-/// use neocogi_com::{INcStringComPtrExt, NcString};
+/// use neocogi_com::{ComStringExt, NcString};
 ///
 /// let value = NcString::from_utf8_str("hello");
 /// let text = value.to_string()?;
@@ -148,7 +148,7 @@ impl NcString {
 }
 
 /// Safe call helpers for owned and borrowed `INcBytesAbi` pointers.
-pub trait INcBytesComPtrExt {
+pub trait ComBytesExt {
     /// Returns the byte length.
     fn len(&self) -> Result<u64, NcStatus>;
 
@@ -192,7 +192,7 @@ pub trait INcBytesComPtrExt {
 // Each pointer type already establishes a live interface for the call lifetime.
 macro_rules! impl_bytes_methods {
     ($pointer:ty) => {
-        impl<M: ThreadingModel> INcBytesComPtrExt for $pointer {
+        impl<M: ThreadingModel> ComBytesExt for $pointer {
             /// Calls the raw `len` slot and reads its initialized output on success.
             fn len(&self) -> Result<u64, NcStatus> {
                 let mut out = MaybeUninit::<u64>::uninit();
@@ -262,7 +262,7 @@ impl_bytes_methods!(ComPtr<INcBytesAbi, M>);
 impl_bytes_methods!(ComRef<'_, INcBytesAbi, M>);
 
 /// Safe call helpers for owned and borrowed `INcStringAbi` pointers.
-pub trait INcStringComPtrExt {
+pub trait ComStringExt {
     /// Returns the UTF-8 byte length.
     fn byte_len(&self) -> Result<u64, NcStatus>;
 
@@ -301,7 +301,7 @@ pub trait INcStringComPtrExt {
 // Each pointer type already establishes a live interface for the call lifetime.
 macro_rules! impl_string_methods {
     ($pointer:ty) => {
-        impl<M: ThreadingModel> INcStringComPtrExt for $pointer {
+        impl<M: ThreadingModel> ComStringExt for $pointer {
             /// Calls the raw byte-length slot and reads its output on success.
             fn byte_len(&self) -> Result<u64, NcStatus> {
                 let mut out = MaybeUninit::<u64>::uninit();

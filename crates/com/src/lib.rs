@@ -136,7 +136,7 @@ pub use neocogi_com_core::{ComBox, WeakComBox};
 pub use neocogi_com_core::{NcCopyFromBufferOffset, WeakComPtr, NcWeakRaw};
 pub use neocogi_com_core::{NC_GET_HOST_API_SYMBOL, NcGetHostApi, NcHostApiV3, validate_host_api};
 #[cfg(feature = "alloc")]
-pub use data::{INcBytesComPtrExt, INcStringComPtrExt, NC_COM_DEFAULT_OWNED_COPY_MAX_BYTES, NcBytes, NcString};
+pub use data::{ComBytesExt, ComStringExt, NC_COM_DEFAULT_OWNED_COPY_MAX_BYTES, NcBytes, NcString};
 #[cfg(feature = "macros")]
 pub use neocogi_com_macros::{ComDeserialize, ComSerialize, com_object, com_main, plugin};
 #[cfg(feature = "alloc")]

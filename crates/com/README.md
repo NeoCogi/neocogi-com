@@ -108,7 +108,7 @@ capture implementation support or positional locals. See the
 
 `com_object` generates reference-counted storage and signature-checked
 `QueryInterface`. It does not publish the object as something the runtime can
-construct. Handwritten helpers such as `INcStringComPtrExt::to_string` remain
+construct. Handwritten helpers such as `ComStringExt::to_string` remain
 separate because they add bounded copying, allocation, and UTF-8 validation
 rather than duplicate a generated interface method.
 These shared objects contain state, lifetime counters, and one call-borrow guard;
@@ -151,7 +151,7 @@ With `alloc` (also enabled by the default `std` feature), `NcString` and
 are not Rust string/vector wrappers that expose their provider's allocation.
 
 ```rust
-use neocogi_com::{INcStringComPtrExt, NcStatus, NcString};
+use neocogi_com::{ComStringExt, NcStatus, NcString};
 
 let value = NcString::from_utf8_str("hello");
 let owned = value.to_string()?;
@@ -163,10 +163,10 @@ assert_eq!(&prefix, b"he");
 # Ok::<(), NcStatus>(())
 ```
 
-`INcStringComPtrExt` works on both `ComPtr<INcStringAbi>` and
+`ComStringExt` works on both `ComPtr<INcStringAbi>` and
 `ComRef<'_, INcStringAbi>`. Its `to_string(&self) -> Result<String, NcStatus>`
 copies through the ABI and validates UTF-8; `to_bytes` returns owned bytes.
-`INcBytesComPtrExt::to_vec` and `to_i8_vec` copy byte objects. These helpers
+`ComBytesExt::to_vec` and `to_i8_vec` copy byte objects. These helpers
 default to a 64 MiB allocation ceiling; `_bounded(max_len)` variants select a
 different maximum. `copy_to(offset, &mut [u8])` copies the requested range into
 caller storage without allocating a complete result. The COM string contract

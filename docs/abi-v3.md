@@ -571,7 +571,7 @@ sequence indirection permits finite recursive values. See the
 Built-in data interfaces exercise shared ownership and checked native calls:
 
 ```rust
-use neocogi_com::{INcBytesAbi, INcBytesComPtrExt, INcStringComPtrExt, IUnknown, NcString};
+use neocogi_com::{INcBytesAbi, ComBytesExt, ComStringExt, IUnknown, NcString};
 let text = NcString::from_utf8_str("ABI v3");
 let another = text.clone();
 let bytes = text.query::<INcBytesAbi>().unwrap();

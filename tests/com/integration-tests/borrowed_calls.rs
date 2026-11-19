@@ -145,7 +145,7 @@ fn borrowed_generated_calls_perform_no_lifecycle_operations() {
 
 #[test]
 fn borrowed_builtin_handles_share_copy_and_utf8_validation() {
-    use neocogi_com::{NcString, INcStringComPtrExt, INcBytesComPtrExt, INcBytesAbi};
+    use neocogi_com::{NcString, ComStringExt, ComBytesExt, INcBytesAbi};
     let string = NcString::from_utf8_str("snowman: ☃");
     let borrowed = string.as_com_ref();
     assert_eq!(borrowed.to_string().unwrap(), "snowman: ☃");
