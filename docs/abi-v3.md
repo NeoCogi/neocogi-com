@@ -1,6 +1,6 @@
 # COM ABI v3 (WIP)
 
-**Status: WORK IN PROGRESS (WIP), unreleased and not frozen.**
+**WORK IN PROGRESS (WIP) for the 0.4.0-alpha.1 candidate.**
 
 Layouts, vtables, callback signatures, ownership contracts and Rust APIs may
 change before the ABI-v3 release freeze. The [versions below](#abi-identities-and-versions)
@@ -10,7 +10,7 @@ core generations and admission checks coherent so incompatible binaries are
 rejected. Rebuild hosts, providers and generated consumers from the same source
 revision. Do not describe this candidate as final or frozen before release freeze.
 
-This is the unreleased development COM binary contract. It deliberately rejects the published 0.3.0 SDK's ABI v2/core-generation-19
+This is the provisional alpha COM binary contract. It deliberately rejects the published 0.3.0 SDK's ABI v2/core-generation-19
 contract. The [released ABI v2 specification](https://github.com/NeoCogi/neocogi-com/blob/v0.3.0/docs/abi-v2.md)
 and [ABI v1 specification](https://github.com/NeoCogi/neocogi-com/blob/v0.1.0/docs/abi-v1.md)
 remain available at their release tags. No fallback symbols, aliases or automatic
@@ -22,8 +22,7 @@ header; provider metadata contains no ownership discriminator.
 Header field order and type-information layout therefore require the fresh
 generation. Host and plugin discovery exports are now nc_get_host_api_v3 and
 nc_get_plugin_descriptor_v3. Rebuild all hosts, providers and generated consumers
-together before exchanging objects. This development change does not publish
-packages or change an existing release tag.
+together before exchanging objects.
 
 ## ABI identities and versions
 
@@ -787,7 +786,7 @@ tables because their callback and caller-owned context lifecycles differ.
 
 ### Optional native host bootstrap
 
-The unreleased `0.4.0-wip` addition exports `nc_get_host_api_v3` from the host
+The alpha candidate exports `nc_get_host_api_v3` from the host
 shim, typed as `NcGetHostApi` and named by `NC_GET_HOST_API_SYMBOL`:
 
 ```text

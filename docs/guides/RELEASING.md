@@ -11,8 +11,8 @@ Keep the nine SDK packages on one version and their internal dependency requirem
 exact. The authoritative package inventory is `PUBLISHED` in
 [packages.rs](../../tools/xtask/src/packages.rs).
 
-The ninth package, `neocogi-com-host-dylib`, is new and unreleased on
-`0.4.0-wip`; the published `0.3.0` cohort below still consists of eight packages.
+The ninth package, `neocogi-com-host-dylib`, is new for the
+`0.4.0-alpha.1` candidate. The published `0.3.0` cohort consists of eight packages.
 Preparing this branch does not change the published version or release tag.
 
 Check all nine names and the intended version on crates.io. A name available

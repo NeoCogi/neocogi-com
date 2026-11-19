@@ -1,6 +1,6 @@
 # neocogi-com-host-dylib
 
-**WIP ABI v3:** this unreleased bootstrap contract is provisional and not frozen.
+**WIP ABI v3.** The `0.4.0-alpha.1` bootstrap contract is provisional.
 
 Optional native `cdylib` shim over `neocogi-com-host`. The application loads one
 selected runtime image instead of linking the static host implementation.

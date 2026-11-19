@@ -17,18 +17,18 @@ protocol.
 This is experimental software. Build the host, plugins and generated interfaces
 with the same SDK release. Loaded plugins stay mapped until the process exits.
 
-The current release is **[0.3.0](https://crates.io/crates/neocogi-com/0.3.0)**.
-All eight packages listed below are published on crates.io with ABI v2/core
-generation 19. The development contract and current version authorities are
-listed in [ABI v3](docs/abi-v3.md#abi-identities-and-versions).
+The current stable release is **[0.3.0](https://crates.io/crates/neocogi-com/0.3.0)**.
+It includes eight packages on crates.io with ABI v2/core generation 19.
+This checkout prepares the **0.4.0-alpha.1** cohort with provisional ABI v3/core
+generation 21. See the [current ABI versions](docs/abi-v3.md#abi-identities-and-versions).
 Persistence applications explicitly supply their selected serialization provider;
 see [host persistence](crates/host/PERSISTENCE.md).
 
 Start with the complete [application and calculator plugin walkthrough](https://github.com/NeoCogi/neocogi-com/blob/v0.3.0/examples/getting-started/README.md).
 It includes every source file, build script and dependency, plus commands for
 Linux, macOS and Windows. It requires Rust 1.85 or newer and a native linker.
-The [development walkthrough](examples/getting-started/README.md) exercises the
-current checkout through its archive gate.
+The [alpha walkthrough](examples/getting-started/README.md) covers archive
+qualification and standalone builds once the alpha packages are available.
 
 | Package | Purpose |
 | --- | --- |
@@ -41,9 +41,9 @@ current checkout through its archive gate.
 | `neocogi-com-host` | Host-owned runtime and native plugin loader (`neocogi_com_host` rlib) |
 | `neocogi-inspect` | Plugin metadata inspection, checks, plans, and comparisons |
 
-Development on `0.4.0-wip` additionally includes
+The alpha cohort additionally includes
 [`neocogi-com-host-dylib`](crates/host-dylib/README.md), an optional native host
-bootstrap shim. It is unreleased. Applications choose one static or dynamic host
+bootstrap shim. Applications choose one static or dynamic host
 owner and supply that owner's runtime access to every plugin.
 The approved [Rust API renames](docs/COM.md#rust-names-in-040-development) are
 recorded with migration names. The lifetime-policy split introduces distinct

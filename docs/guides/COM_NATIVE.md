@@ -32,9 +32,9 @@ same contract and print `factory object: 44 x 31` after executing calls,
 notifications, persistence, and ownership checks. See the
 [complete example](../../examples/com-plugin/README.md).
 
-## Shared host runtime (0.4.0 work in progress)
+## Shared host runtime (0.4.0-alpha.1)
 
-This unreleased route loads the host implementation itself from a native image.
+This alpha route loads the host implementation itself from a native image.
 Build the thin shim from the checkout:
 
 ```sh

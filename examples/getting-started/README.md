@@ -4,11 +4,54 @@ This example builds an application and a calculator plugin separately. The
 application loads the plugin, calls `add(2, 3)`, and prints `2 + 3 = 5`. It also
 checks that addition overflow returns the documented error.
 
-For a standalone crates.io build, use the [released 0.3.0 walkthrough](https://github.com/NeoCogi/neocogi-com/blob/v0.3.0/examples/getting-started/README.md).
-This directory exercises the current development SDK with the
+For the stable SDK, use the [released 0.3.0 walkthrough](https://github.com/NeoCogi/neocogi-com/blob/v0.3.0/examples/getting-started/README.md).
+This directory exercises the `0.4.0-alpha.1` candidate with the
 [WIP ABI](../../docs/abi-v3.md#abi-identities-and-versions). Each project compiles
 the same IDL into its own Rust bindings. The application selects the static host;
 the plugin receives that host through its bootstrap.
+
+## Standalone alpha build
+
+Once the `0.4.0-alpha.1` crates are available on crates.io, copy this directory
+from the matching source tag to a location outside the checkout. The manifests
+pin the alpha SDK. Use Rust 1.85 or newer and a native linker.
+
+From the copied directory, build the plugin:
+
+```sh
+cargo build --manifest-path plugin/Cargo.toml
+```
+
+On Linux, run:
+
+```sh
+cargo run --manifest-path host/Cargo.toml -- "$PWD/plugin/target/debug/libgetting_started_plugin.so"
+```
+
+On macOS, run:
+
+```sh
+cargo run --manifest-path host/Cargo.toml -- "$PWD/plugin/target/debug/libgetting_started_plugin.dylib"
+```
+
+On Windows PowerShell, run:
+
+```powershell
+cargo run --manifest-path host/Cargo.toml -- "$PWD/plugin/target/debug/getting_started_plugin.dll"
+```
+
+The host prints `2 + 3 = 5`. The paths assume Cargo's default target directory.
+With a custom target directory, pass the path of the shared library produced
+there. The host loads the explicitly selected plugin and pins it for the process.
+
+Install the matching inspector, then run `neocogi-inspect dump PATH_TO_LIBRARY`
+and `neocogi-inspect check PATH_TO_LIBRARY` on the same library:
+
+```sh
+cargo install neocogi-inspect --version '=0.4.0-alpha.1' --locked
+```
+
+## Candidate archive qualification
 
 From the checkout root, install the [archive gate prerequisites](../../tools/xtask/README.md)
 including Rust 1.85.0 and a native linker. Fetch the locked dependencies for a

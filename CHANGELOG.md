@@ -1,10 +1,32 @@
 # Changelog
 
-Development uses **WIP [ABI v3](docs/abi-v3.md#abi-identities-and-versions)**; it is unreleased and not frozen. Published 0.3.0 uses ABI v2/core 19.
+Development uses provisional **[ABI v3](docs/abi-v3.md#abi-identities-and-versions)**. Published 0.3.0 uses ABI v2/core 19.
 Entries below record development; later entries can supersede older implementation details.
 Historical draft numbers do not define additional supported COM baselines.
 
-## Unreleased
+## 0.4.0-alpha.1 candidate
+
+This candidate versions all nine SDK packages together, including the optional
+native host shim. It uses provisional ABI v3/core 21. Rebuild the host, every
+provider and all generated bindings with the same SDK version. See the
+[ABI migration guide](docs/guides/ABI_V3_MIGRATION.md) and
+[standalone alpha walkthrough](examples/getting-started/README.md).
+
+- Restore checks declared child counts and object depth during decoding before
+  reading descendants or reserving their record storage. A refused local
+  child-storage allocation returns `NC_E_OUT_OF_MEMORY`.
+- The NCB writer reports allocation refusal as `NC_E_OUT_OF_MEMORY` during
+  factory creation and active writes. NCB-v1 documents keep their byte format.
+- IDL reserves the canonical `IUnknown` IID for the built-in callable interface.
+  Generated borrow docs explain how a successful retain grants ownership.
+- Native qualification selects the actual inspector integration target on
+  Linux, macOS and Windows. The Linux row also compares min-size diagnostics
+  and covers native paths containing invalid UTF-8 bytes.
+
+Known limitation. A generated interface with 384 distinct direct parents was
+accepted by IDL and then hit Rust's default constant-evaluation limit on stable
+and 1.85. The observed breadth depends on how many projections composition must
+merge and on the compiler and graph shape.
 
 - Name the private present interface pair `NonNullComRaw` and its borrowed
   method-pointer constructors `borrow_pair`/`borrow_pair_mut`. Presence checks

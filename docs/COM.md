@@ -15,7 +15,7 @@ metadata and discovery changes.
 
 ## Rust names in 0.4.0 development
 
-The unreleased `0.4.0-wip` source uses these names. Update direct Rust imports
+The `0.4.0-alpha.1` source uses these names. Update direct Rust imports
 and regenerate bindings together; the previous names have no compatibility aliases.
 
 | Previous Rust name | Current Rust name |
@@ -122,7 +122,7 @@ paths are `neocogi_com` and `neocogi_com_host`, respectively.
 
 ### Optional shared host deployment
 
-The unreleased `0.4.0-wip` source adds `neocogi-com-host-dylib`, a thin native
+The `0.4.0-alpha.1` cohort includes `neocogi-com-host-dylib`, a thin native
 `cdylib` over the same host rlib. A dynamic application depends on the SDK with
 `runtime`, calls unsafe `RuntimeHandle::load_host_library(path)` with an explicit
 trusted image, and passes the resulting handle to its providers. It does not

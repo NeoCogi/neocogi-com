@@ -28,7 +28,7 @@ application selects this implementation once, either linked directly or inside
 the optional `neocogi-com-host-dylib` native shim. Host-side inspection tools can reuse its loader and
 metadata utilities without initializing the plugin catalog.
 
-See [the role and dependency guide](https://github.com/NeoCogi/neocogi-com/blob/v0.3.0/docs/COM.md#hosts-callers-and-providers)
+See [the role and dependency guide](https://github.com/NeoCogi/neocogi-com/blob/v0.4.0-alpha.1/docs/COM.md#hosts-callers-and-providers)
 for the complete graph and startup/call sequence.
 
 For dynamic host deployment, the application loads the host shim with the SDK's
@@ -101,7 +101,7 @@ can instead build and deploy `neocogi-com-host-dylib`, enable the SDK's `runtime
 feature and load the shim by path with unsafe `RuntimeHandle::load_host_library`.
 Both startup paths supply the selected host's tables to plugins and their nested
 acquisitions. The host requires `std`. Core and the access handle retain
-reduced-feature support. See the [native build guide](../../docs/guides/COM_NATIVE.md).
+reduced-feature support. See the [native build guide](https://github.com/NeoCogi/neocogi-com/blob/v0.4.0-alpha.1/docs/guides/COM_NATIVE.md).
 
 For linked startup, `initialize_runtime()` admits the host service graph and
 returns a safe `neocogi_com::RuntimeHandle`. It invokes no plugin, and repeated
