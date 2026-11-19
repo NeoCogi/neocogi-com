@@ -71,8 +71,16 @@ fn rust_locations_only_change_import_paths() {
     );
     // Removing documentation cannot make the relocation regression pass: both
     // outputs must describe the actual selected supplying interface projection.
-    assert!(baseline.contains("- `source` borrows a `:: example_contract_contracts :: IBaseAbi`"));
-    assert!(relocated.contains("- `source` borrows a `:: shared_api :: contracts :: IBaseAbi`"));
+    for (generated, supplying_abi) in [
+        (&baseline, ":: example_contract_contracts :: IBaseAbi"),
+        (&relocated, ":: shared_api :: contracts :: IBaseAbi"),
+    ] {
+        let wording = generated
+            .lines()
+            .find(|line| line.contains("- `source` borrows "))
+            .expect("borrow documentation");
+        assert!(wording.contains(&format!("`{supplying_abi}`")), "{wording}");
+    }
 
     assert!(relocated.contains("shared_api::contracts::Changed"));
 }
