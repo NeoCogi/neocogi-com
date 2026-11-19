@@ -1,6 +1,6 @@
 # COM ABI v3 (WIP)
 
-**WORK IN PROGRESS (WIP) for the 0.4.0-alpha.1 candidate.**
+**WORK IN PROGRESS (WIP) for the 0.4.0-alpha.2 candidate.**
 
 Layouts, vtables, callback signatures, ownership contracts and Rust APIs may
 change before the ABI-v3 release freeze. The [versions below](#abi-identities-and-versions)

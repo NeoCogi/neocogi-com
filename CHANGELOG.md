@@ -4,7 +4,13 @@ Development uses provisional **[ABI v3](docs/abi-v3.md#abi-identities-and-versio
 Entries below record development; later entries can supersede older implementation details.
 Historical draft numbers do not define additional supported COM baselines.
 
-## Unreleased
+## 0.4.0-alpha.2 candidate
+
+This candidate versions eight SDK packages together. It uses provisional
+ABI v3/core generation 21, plugin discovery family 3, IDL encoding v14
+and NCB v1. Rebuild the host, providers and generated bindings together.
+The [migration guide](docs/guides/ABI_V3_MIGRATION.md#update-the-sdk-packages-together)
+describes the package-name changes.
 
 - Rename the ABI and pointer package to `neocogi-com` and the Rust SDK to
   `neocogi-com-sdk`. The compiler uses the base package. Regenerated bindings
@@ -27,13 +33,13 @@ Historical draft numbers do not define additional supported COM baselines.
   table `NcPluginApiV3` in Rust and C. Their field layouts and discovery symbols
   retain ABI v3/core 21.
 
-## 0.4.0-alpha.1 candidate
+## 0.4.0-alpha.1
 
-This candidate versions all nine SDK packages together, including the optional
-native host shim. It uses provisional ABI v3/core 21. Rebuild the host, every
+This alpha versioned nine SDK packages together, including the optional native
+host shim. It used provisional ABI v3/core 21. Rebuild the host, every
 provider and all generated bindings with the same SDK version. See the
-[ABI migration guide](docs/guides/ABI_V3_MIGRATION.md) and
-[standalone alpha walkthrough](examples/getting-started/README.md).
+[ABI migration guide](https://github.com/NeoCogi/neocogi-com/blob/v0.4.0-alpha.1/docs/guides/ABI_V3_MIGRATION.md) and
+[standalone alpha walkthrough](https://github.com/NeoCogi/neocogi-com/blob/v0.4.0-alpha.1/examples/getting-started/README.md).
 
 - Restore checks declared child counts and object depth during decoding before
   reading descendants or reserving their record storage. A refused local

@@ -13,7 +13,7 @@ generation 19 and cannot inspect these incompatible providers. See the
 [provider migration guide](../../docs/guides/ABI_V3_MIGRATION.md).
 
 For alpha providers, once the matching SDK is available on crates.io, install
-the inspector pinned by the [alpha walkthrough](https://github.com/NeoCogi/neocogi-com/blob/v0.4.0-alpha.1/examples/getting-started/README.md).
+the inspector pinned by the [alpha walkthrough](https://github.com/NeoCogi/neocogi-com/blob/v0.4.0-alpha.2/examples/getting-started/README.md).
 
 For published ABI-v2 providers, install the released `0.3.0` inspector:
 
@@ -72,5 +72,5 @@ executable inspection, not a sandbox or publisher authentication. Successfully
 opened mappings stay pinned until the inspector exits; inspection errors remain
 recoverable. See the
 [native loading contract](../../docs/abi-v3.md#runtime-and-global-registry).
-The [sample plugin](https://github.com/NeoCogi/neocogi-com/blob/v0.4.0-alpha.1/examples/com-plugin/README.md) can be built and
+The [sample plugin](https://github.com/NeoCogi/neocogi-com/blob/v0.4.0-alpha.2/examples/com-plugin/README.md) can be built and
 inspected with ordinary Cargo, without the assembly driver.

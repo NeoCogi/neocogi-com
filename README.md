@@ -19,7 +19,7 @@ with the same SDK release. Loaded plugins stay mapped until the process exits.
 
 The current stable release is **[0.3.0](https://crates.io/crates/neocogi-com/0.3.0)**.
 It includes eight packages on crates.io with ABI v2/core generation 19.
-This checkout prepares the **0.4.0-alpha.1** cohort with provisional ABI v3/core
+This checkout prepares the **0.4.0-alpha.2** cohort with provisional ABI v3/core
 generation 21. See the [current ABI versions](docs/abi-v3.md#abi-identities-and-versions).
 Persistence applications explicitly supply their selected serialization provider;
 see [host persistence](crates/host/PERSISTENCE.md).

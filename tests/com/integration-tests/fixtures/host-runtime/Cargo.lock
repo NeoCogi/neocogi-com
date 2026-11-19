@@ -27,11 +27,11 @@ checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
 
 [[package]]
 name = "neocogi-com"
-version = "0.4.0-alpha.1"
+version = "0.4.0-alpha.2"
 
 [[package]]
 name = "neocogi-com-host"
-version = "0.4.0-alpha.1"
+version = "0.4.0-alpha.2"
 dependencies = [
  "neocogi-com",
  "neocogi-com-sdk",
@@ -39,7 +39,7 @@ dependencies = [
 
 [[package]]
 name = "neocogi-com-macros"
-version = "0.4.0-alpha.1"
+version = "0.4.0-alpha.2"
 dependencies = [
  "neocogi-idl",
  "syn 2.0.119",
@@ -47,7 +47,7 @@ dependencies = [
 
 [[package]]
 name = "neocogi-com-sdk"
-version = "0.4.0-alpha.1"
+version = "0.4.0-alpha.2"
 dependencies = [
  "neocogi-com",
  "neocogi-com-macros",
@@ -55,14 +55,14 @@ dependencies = [
 
 [[package]]
 name = "neocogi-com-serialization"
-version = "0.4.0-alpha.1"
+version = "0.4.0-alpha.2"
 dependencies = [
  "neocogi-com-sdk",
 ]
 
 [[package]]
 name = "neocogi-idl"
-version = "0.4.0-alpha.1"
+version = "0.4.0-alpha.2"
 dependencies = [
  "neocogi-com",
  "prettyplease",

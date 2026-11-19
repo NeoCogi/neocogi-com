@@ -27,7 +27,7 @@ Providers link the SDK and receive host access during bootstrap. The final
 application links this implementation. Host-side inspection tools can reuse its
 loader and metadata utilities without initializing the plugin catalog.
 
-See [the role and dependency guide](https://github.com/NeoCogi/neocogi-com/blob/v0.4.0-alpha.1/docs/COM.md#hosts-callers-and-providers)
+See [the role and dependency guide](https://github.com/NeoCogi/neocogi-com/blob/v0.4.0-alpha.2/docs/COM.md#hosts-callers-and-providers)
 for the complete graph and startup/call sequence.
 
 A provider dynamic library exports `nc_get_plugin_descriptor_v3`, lending an
@@ -90,7 +90,7 @@ Native and browser applications can link the `neocogi_com_host` Rust rlib and us
 `#[neocogi_com_sdk::com_main]` to obtain a copyable runtime handle. It supplies the
 host's tables to providers and their nested acquisitions. The host requires
 `std`. Core and the access handle retain reduced-feature support. See the
-[native build guide](https://github.com/NeoCogi/neocogi-com/blob/v0.4.0-alpha.1/docs/guides/COM_NATIVE.md#linked-host-with-a-shared-provider).
+[native build guide](https://github.com/NeoCogi/neocogi-com/blob/v0.4.0-alpha.2/docs/guides/COM_NATIVE.md#linked-host-with-a-shared-provider).
 
 For linked startup, `initialize_runtime()` admits the host service graph and
 returns a safe `neocogi_com_sdk::RuntimeHandle`. It invokes no plugin, and repeated

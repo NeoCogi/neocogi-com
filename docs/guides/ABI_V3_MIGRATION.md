@@ -4,7 +4,7 @@
 are provisional and may change before the release freeze. This guide describes
 the current candidate; rebuild all participants from matching source revisions.
 
-This guide applies to the provisional `0.4.0-alpha.1` sources. Published SDK `0.3.0`
+This guide applies to the provisional `0.4.0-alpha.2` sources. Published SDK `0.3.0`
 uses ABI v2/core generation 19. Package versions, live object ABI versions,
 interface identities and persistence document versions are separate authorities.
 The [ABI version table](../abi-v3.md#abi-identities-and-versions) owns the current

@@ -15,7 +15,7 @@ metadata and discovery changes.
 
 ## Rust names in 0.4.0 development
 
-The `0.4.0-alpha.1` source uses these names. Update direct Rust imports
+The `0.4.0-alpha.2` source uses these names. Update direct Rust imports
 and regenerate bindings together; the previous names have no compatibility aliases.
 
 | Previous Rust name | Current Rust name |
