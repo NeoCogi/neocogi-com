@@ -137,7 +137,10 @@ returned or retained as ordinary owning format objects.
 NCB conveniences preserve detailed local byte-offset errors. COM format methods
 return `NcStatus`; no Rust error representation crosses an artifact boundary.
 An owning NCB factory returns `NC_E_OUT_OF_RANGE` when its byte limit cannot
-hold the header. This creation failure precedes session diagnostics.
+hold the header. A refused output-buffer reservation returns
+`NC_E_OUT_OF_MEMORY`, both during creation and during a write. Creation failures
+precede session diagnostics. Once writing has begun, the session retains its
+first failure status and byte offset.
 `ncb::NcbSerializer::create` and `ncb::NcbDeserializer::create` construct ordinary
 owning objects. The strict native source constructor returns a native NCB error
 on failed admission. `ncb::format` selects NCB; `Format::new` selects any compatible

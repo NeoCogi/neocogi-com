@@ -342,6 +342,61 @@ fn measurement_needs_no_output_allocation_and_encoding_failure_is_recoverable() 
     assert_eq!(report.denied, 1);
 }
 
+/// Generated owning format calls preserve allocation status at creation and during writes.
+#[test]
+fn owning_ncb_reports_output_allocation_refusal() {
+    use allocation_probe::Probe;
+    use neocogi_com::{NC_E_INVALID_ARG, NC_E_OUT_OF_MEMORY, NcOutputBuffer};
+    use neocogi_com::serialization::{ISerializationDiagnosticsAbi, ISerializationOutputAbi};
+
+    let format = binary::factory();
+    let probe = Probe::start(Some(1));
+    let creation = format.create_serializer(64, 16, 8, 32);
+    let report = probe.finish();
+    assert_eq!(creation.err(), Some(NC_E_OUT_OF_MEMORY));
+    assert_eq!(report.denied, 1);
+
+    let mut writer = format.create_serializer(64, 16, 8, 32).unwrap();
+    let probe = Probe::start(Some(1));
+    let write = writer.serialize_u64(8);
+    let report = probe.finish();
+    assert_eq!(write, Err(NC_E_OUT_OF_MEMORY));
+    assert_eq!(report.denied, 1);
+    assert_eq!(writer.finish(), Err(NC_E_OUT_OF_MEMORY));
+
+    let diagnostic = writer.query_ref::<ISerializationDiagnosticsAbi>().unwrap();
+    assert_eq!(diagnostic.failure_status(), Ok(NC_E_OUT_OF_MEMORY));
+    assert_eq!(diagnostic.byte_offset(), Ok(4));
+    let mut message = NcOutputBuffer::<u8>::new();
+    let len = diagnostic.message_len().unwrap() as usize;
+    diagnostic.copy_message(message.output(0, len)).unwrap();
+    assert_eq!(message.into_vec(), b"output allocation failed");
+    assert_eq!(writer.query_ref::<ISerializationOutputAbi>().unwrap().byte_len(), Err(NC_E_INVALID_ARG));
+}
+
+/// A caller-supplied diagnostic retains its text and uses the exact schema status rules.
+#[test]
+fn ncb_schema_messages_use_explicit_statuses() {
+    use neocogi_com::{NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE, NcCopyFromBufferOffset, NcOutputBuffer};
+    use neocogi_com::serialization::ISerializationDiagnosticsAbi;
+
+    let format = binary::factory();
+    for (message, status) in [
+        ("collection element limit", NC_E_OUT_OF_RANGE),
+        ("document byte limit", NC_E_OUT_OF_RANGE),
+        ("length exceeds u32", NC_E_INVALID_ARG),
+        ("custom limit diagnostic", NC_E_INVALID_ARG),
+    ] {
+        let mut writer = format.create_serializer(64, 16, 8, 32).unwrap();
+        assert_eq!(writer.fail(NcCopyFromBufferOffset::new(0, message.as_bytes())), Err(status));
+        let diagnostic = writer.query_ref::<ISerializationDiagnosticsAbi>().unwrap();
+        assert_eq!(diagnostic.failure_status(), Ok(status));
+        let mut copied = NcOutputBuffer::<u8>::new();
+        diagnostic.copy_message(copied.output(0, message.len())).unwrap();
+        assert_eq!(copied.into_vec(), message.as_bytes());
+    }
+}
+
 /// Ordinary ordered fields must be required unless trailing defaults are explicit.
 #[derive(Debug, PartialEq, ComSerialize, ComDeserialize)]
 struct OrderedState {

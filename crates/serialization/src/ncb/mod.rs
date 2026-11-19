@@ -14,7 +14,7 @@
 
 #[cfg(feature = "alloc")]
 use alloc::vec::Vec;
-use neocogi_com::{ComDeserialize, ComSerialize};
+use neocogi_com::{ComDeserialize, ComSerialize, NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE, NcStatus};
 
 /// Wire-format marker, including the independently versioned codec revision.
 const MAGIC: &[u8; 4] = b"NCB\x01";
@@ -36,6 +36,38 @@ impl core::fmt::Display for Error {
     }
 }
 impl core::error::Error for Error {}
+
+/// One NCB failure with independently selected COM status and native diagnostic.
+#[derive(Clone, Copy, Debug)]
+struct Failure {
+    /// Status selected by the operation that refused the input or output.
+    status: NcStatus,
+    /// Stable diagnostic exposed by the native helpers and the COM projection.
+    diagnostic: Error,
+}
+
+impl Failure {
+    /// Preserves the failure position for either the Rust or COM caller.
+    fn new(status: NcStatus, offset: usize, message: &'static str) -> Self {
+        Self { status, diagnostic: Error { offset, message } }
+    }
+
+    /// The given bytes or operation cannot satisfy the format or session contract.
+    fn invalid(offset: usize, message: &'static str) -> Self {
+        Self::new(NC_E_INVALID_ARG, offset, message)
+    }
+
+    /// The document would exceed a resource or output-capacity limit.
+    fn range(offset: usize, message: &'static str) -> Self {
+        Self::new(NC_E_OUT_OF_RANGE, offset, message)
+    }
+}
+
+impl From<Failure> for Error {
+    fn from(failure: Failure) -> Self {
+        failure.diagnostic
+    }
+}
 
 /// Serializes one complete typed value with the default limits.
 #[cfg(feature = "alloc")]
@@ -124,12 +156,9 @@ impl Budget {
     }
 
     /// Charges one value, using the protocol's current open depth.
-    fn enter(&mut self, offset: usize, open_depth: usize) -> Result<(), Error> {
+    fn enter(&mut self, offset: usize, open_depth: usize) -> Result<(), Failure> {
         if open_depth >= self.limits.depth || self.remaining == 0 {
-            return Err(Error {
-                offset,
-                message: "value or nesting limit",
-            });
+            return Err(Failure::range(offset, "value or nesting limit"));
         }
         self.remaining -= 1;
         Ok(())
@@ -137,13 +166,10 @@ impl Budget {
 
     /// Checks immediate cardinality and the minimum values required by its entries.
     /// Records/sequences need one value per entry; maps need a key and a value.
-    fn collection(&self, len: usize, values_per_entry: usize, offset: usize) -> Result<(), Error> {
+    fn collection(&self, len: usize, values_per_entry: usize, offset: usize) -> Result<(), Failure> {
         let fits_values = len.checked_mul(values_per_entry).is_some_and(|minimum| minimum <= self.remaining);
         if len > self.limits.elements || !fits_values {
-            return Err(Error {
-                offset,
-                message: "collection or value limit",
-            });
+            return Err(Failure::range(offset, "collection or value limit"));
         }
         Ok(())
     }
@@ -181,21 +207,18 @@ pub struct Encoder<'a> {
 }
 impl Encoder<'_> {
     /// Associates a static diagnostic with the current output position.
-    fn error(&self, message: &'static str) -> Error {
-        Error { offset: self.offset, message }
+    fn error(&self, message: &'static str) -> Failure {
+        Failure::invalid(self.offset, message)
     }
     /// Checks the complete append before touching the buffer.
-    fn write(&mut self, bytes: &[u8]) -> Result<(), Error> {
+    fn write(&mut self, bytes: &[u8]) -> Result<(), Failure> {
         if bytes.len() > self.budget.limits.bytes.saturating_sub(self.offset) {
-            return Err(self.error("document byte limit"));
+            return Err(Failure::range(self.offset, "document byte limit"));
         }
         match &mut self.output {
             Output::Slice(output) => {
                 let end = self.offset + bytes.len();
-                let destination = output.get_mut(self.offset..end).ok_or(Error {
-                    offset: self.offset,
-                    message: "output buffer too small",
-                })?;
+                let destination = output.get_mut(self.offset..end).ok_or_else(|| Failure::range(self.offset, "output buffer too small"))?;
                 destination.copy_from_slice(bytes);
             }
             #[cfg(feature = "alloc")]
@@ -205,10 +228,7 @@ impl Encoder<'_> {
                 let required = self.offset + bytes.len();
                 if required > output.capacity() {
                     let capacity = required.max(output.capacity().saturating_mul(2)).min(self.budget.limits.bytes);
-                    output.try_reserve_exact(capacity - output.len()).map_err(|_| Error {
-                        offset: self.offset,
-                        message: "output allocation failed",
-                    })?;
+                    output.try_reserve_exact(capacity - output.len()).map_err(|_| Failure::new(neocogi_com::NC_E_OUT_OF_MEMORY, self.offset, "output allocation failed"))?;
                 }
                 output.extend_from_slice(bytes);
             }
@@ -218,32 +238,32 @@ impl Encoder<'_> {
         Ok(())
     }
     /// Opens a schema value; callers must close it after all its children.
-    fn enter(&mut self) -> Result<(), Error> {
+    fn enter(&mut self) -> Result<(), Failure> {
         self.budget.enter(self.offset, self.protocol.open_depth())?;
-        self.protocol.enter().map_err(|message| self.error(message))
+        self.protocol.enter(self.offset)
     }
     /// Ends a previously opened schema value, including an empty container.
-    fn leave(&mut self) -> Result<(), Error> {
+    fn leave(&mut self) -> Result<(), Failure> {
         self.protocol.leave().map_err(|message| self.error(message))
     }
     /// Runs a leaf or option value within one budget scope.
     /// Any error aborts serialization; the caller discards the incomplete output
     /// rather than attempting to continue through unfinished child containers.
-    fn value(&mut self, write: impl FnOnce(&mut Self) -> Result<(), Error>) -> Result<(), Error> {
+    fn value(&mut self, write: impl FnOnce(&mut Self) -> Result<(), Failure>) -> Result<(), Failure> {
         self.enter()?;
         let result = write(self);
         self.leave()?;
         result
     }
     /// Encodes one scalar without counting its individual representation bytes.
-    fn scalar(&mut self, bytes: &[u8]) -> Result<(), Error> {
+    fn scalar(&mut self, bytes: &[u8]) -> Result<(), Failure> {
         self.value(|writer| {
             writer.scalar_shape()?;
             writer.write(bytes)
         })
     }
     /// Writes a count as framing after the shared collection preflight succeeds.
-    fn count(&mut self, len: usize, values_per_entry: usize) -> Result<(), Error> {
+    fn count(&mut self, len: usize, values_per_entry: usize) -> Result<(), Failure> {
         self.budget.collection(len, values_per_entry, self.offset)?;
         let count = u32::try_from(len).map_err(|_| self.error("length exceeds u32"))?;
         self.write(&count.to_le_bytes())
@@ -251,55 +271,55 @@ impl Encoder<'_> {
 }
 impl Encoder<'_> {
     /// Unit has no payload bytes.
-    fn serialize_unit(&mut self) -> Result<(), Error> {
+    fn serialize_unit(&mut self) -> Result<(), Failure> {
         self.scalar(&[])
     }
     /// Boolean has precisely two accepted encodings.
-    fn serialize_bool(&mut self, value: bool) -> Result<(), Error> {
+    fn serialize_bool(&mut self, value: bool) -> Result<(), Failure> {
         self.scalar(&[u8::from(value)])
     }
     /// Writes the declared width in little-endian order.
-    fn serialize_u8(&mut self, value: u8) -> Result<(), Error> {
+    fn serialize_u8(&mut self, value: u8) -> Result<(), Failure> {
         self.scalar(&value.to_le_bytes())
     }
     /// Writes the declared width in little-endian order.
-    fn serialize_u16(&mut self, value: u16) -> Result<(), Error> {
+    fn serialize_u16(&mut self, value: u16) -> Result<(), Failure> {
         self.scalar(&value.to_le_bytes())
     }
     /// Writes the declared width in little-endian order.
-    fn serialize_u32(&mut self, value: u32) -> Result<(), Error> {
+    fn serialize_u32(&mut self, value: u32) -> Result<(), Failure> {
         self.scalar(&value.to_le_bytes())
     }
     /// Writes the declared width in little-endian order.
-    fn serialize_u64(&mut self, value: u64) -> Result<(), Error> {
+    fn serialize_u64(&mut self, value: u64) -> Result<(), Failure> {
         self.scalar(&value.to_le_bytes())
     }
     /// Writes the declared width in little-endian order.
-    fn serialize_i8(&mut self, value: i8) -> Result<(), Error> {
+    fn serialize_i8(&mut self, value: i8) -> Result<(), Failure> {
         self.scalar(&value.to_le_bytes())
     }
     /// Writes the declared width in little-endian order.
-    fn serialize_i16(&mut self, value: i16) -> Result<(), Error> {
+    fn serialize_i16(&mut self, value: i16) -> Result<(), Failure> {
         self.scalar(&value.to_le_bytes())
     }
     /// Writes the declared width in little-endian order.
-    fn serialize_i32(&mut self, value: i32) -> Result<(), Error> {
+    fn serialize_i32(&mut self, value: i32) -> Result<(), Failure> {
         self.scalar(&value.to_le_bytes())
     }
     /// Writes the declared width in little-endian order.
-    fn serialize_i64(&mut self, value: i64) -> Result<(), Error> {
+    fn serialize_i64(&mut self, value: i64) -> Result<(), Failure> {
         self.scalar(&value.to_le_bytes())
     }
     /// Writes the declared width in little-endian order.
-    fn serialize_f32(&mut self, value: f32) -> Result<(), Error> {
+    fn serialize_f32(&mut self, value: f32) -> Result<(), Failure> {
         self.scalar(&value.to_le_bytes())
     }
     /// Writes the declared width in little-endian order.
-    fn serialize_f64(&mut self, value: f64) -> Result<(), Error> {
+    fn serialize_f64(&mut self, value: f64) -> Result<(), Failure> {
         self.scalar(&value.to_le_bytes())
     }
     /// Strings use a byte count, independent of the collection-element limit.
-    fn serialize_string(&mut self, value: &str) -> Result<(), Error> {
+    fn serialize_string(&mut self, value: &str) -> Result<(), Failure> {
         self.value(|writer| {
             writer.scalar_shape()?;
             let len = u32::try_from(value.len()).map_err(|_| writer.error("string exceeds u32"))?;
@@ -309,30 +329,30 @@ impl Encoder<'_> {
         })
     }
     /// Collections carry their element count.
-    fn begin_sequence(&mut self, len: usize) -> Result<(), Error> {
+    fn begin_sequence(&mut self, len: usize) -> Result<(), Failure> {
         self.enter()?;
         self.count(len, 1)
     }
     /// Finishes a collection.
-    fn end_sequence(&mut self) -> Result<(), Error> {
+    fn end_sequence(&mut self) -> Result<(), Failure> {
         self.leave()
     }
     /// Maps carry their pair count.
-    fn begin_map(&mut self, len: usize) -> Result<(), Error> {
+    fn begin_map(&mut self, len: usize) -> Result<(), Failure> {
         self.enter()?;
         self.count(len, 2)
     }
     /// Finishes a map.
-    fn end_map(&mut self) -> Result<(), Error> {
+    fn end_map(&mut self) -> Result<(), Failure> {
         self.leave()
     }
     /// Ordinals belong to the persistent schema, not to Rust enum memory layout.
-    fn begin_variant(&mut self, index: u32) -> Result<(), Error> {
+    fn begin_variant(&mut self, index: u32) -> Result<(), Failure> {
         self.enter()?;
         self.write(&index.to_le_bytes())
     }
     /// Finishes a variant's payload.
-    fn end_variant(&mut self) -> Result<(), Error> {
+    fn end_variant(&mut self) -> Result<(), Failure> {
         self.leave()
     }
 }
@@ -357,18 +377,18 @@ pub struct Decoder<'de> {
 }
 impl<'de> Decoder<'de> {
     /// Creates a non-allocating diagnostic at the current cursor.
-    fn error(&self, message: &'static str) -> Error {
-        Error { offset: self.offset, message }
+    fn error(&self, message: &'static str) -> Failure {
+        Failure::invalid(self.offset, message)
     }
     /// Checks the range before advancing or allocating owned data.
-    fn take(&mut self, len: usize) -> Result<&[u8], Error> {
+    fn take(&mut self, len: usize) -> Result<&[u8], Failure> {
         let end = self.offset.checked_add(len).ok_or_else(|| self.error("length overflow"))?;
         let value = self.bytes.as_slice().get(self.offset..end).ok_or_else(|| self.error("truncated value"))?;
         self.offset = end;
         Ok(value)
     }
     /// Rejects large collection counts before Vec preallocation.
-    fn count(&mut self, values_per_entry: usize) -> Result<usize, Error> {
+    fn count(&mut self, values_per_entry: usize) -> Result<usize, Failure> {
         let len = self.deserialize_u32()? as usize;
         self.budget.collection(len, values_per_entry, self.offset)?;
         Ok(len)
@@ -376,11 +396,11 @@ impl<'de> Decoder<'de> {
 }
 impl Decoder<'_> {
     /// Unit consumes no payload bytes.
-    pub(crate) fn deserialize_unit(&mut self) -> Result<(), Error> {
+    fn deserialize_unit(&mut self) -> Result<(), Failure> {
         Ok(())
     }
     /// Rejects every boolean tag other than zero or one.
-    pub(crate) fn deserialize_bool(&mut self) -> Result<bool, Error> {
+    fn deserialize_bool(&mut self) -> Result<bool, Failure> {
         match self.take(1)?[0] {
             0 => Ok(false),
             1 => Ok(true),
@@ -388,43 +408,43 @@ impl Decoder<'_> {
         }
     }
     /// Reads exactly the declared width without pointer casts.
-    pub(crate) fn deserialize_u8(&mut self) -> Result<u8, Error> {
+    fn deserialize_u8(&mut self) -> Result<u8, Failure> {
         Ok(u8::from_le_bytes(self.take(1)?.try_into().expect("checked scalar width")))
     }
     /// Reads exactly the declared width without pointer casts.
-    pub(crate) fn deserialize_u16(&mut self) -> Result<u16, Error> {
+    fn deserialize_u16(&mut self) -> Result<u16, Failure> {
         Ok(u16::from_le_bytes(self.take(2)?.try_into().expect("checked scalar width")))
     }
     /// Reads exactly the declared width without pointer casts.
-    pub(crate) fn deserialize_u32(&mut self) -> Result<u32, Error> {
+    fn deserialize_u32(&mut self) -> Result<u32, Failure> {
         Ok(u32::from_le_bytes(self.take(4)?.try_into().expect("checked scalar width")))
     }
     /// Reads exactly the declared width without pointer casts.
-    pub(crate) fn deserialize_u64(&mut self) -> Result<u64, Error> {
+    fn deserialize_u64(&mut self) -> Result<u64, Failure> {
         Ok(u64::from_le_bytes(self.take(8)?.try_into().expect("checked scalar width")))
     }
     /// Reads exactly the declared width without pointer casts.
-    pub(crate) fn deserialize_i8(&mut self) -> Result<i8, Error> {
+    fn deserialize_i8(&mut self) -> Result<i8, Failure> {
         Ok(i8::from_le_bytes(self.take(1)?.try_into().expect("checked scalar width")))
     }
     /// Reads exactly the declared width without pointer casts.
-    pub(crate) fn deserialize_i16(&mut self) -> Result<i16, Error> {
+    fn deserialize_i16(&mut self) -> Result<i16, Failure> {
         Ok(i16::from_le_bytes(self.take(2)?.try_into().expect("checked scalar width")))
     }
     /// Reads exactly the declared width without pointer casts.
-    pub(crate) fn deserialize_i32(&mut self) -> Result<i32, Error> {
+    fn deserialize_i32(&mut self) -> Result<i32, Failure> {
         Ok(i32::from_le_bytes(self.take(4)?.try_into().expect("checked scalar width")))
     }
     /// Reads exactly the declared width without pointer casts.
-    pub(crate) fn deserialize_i64(&mut self) -> Result<i64, Error> {
+    fn deserialize_i64(&mut self) -> Result<i64, Failure> {
         Ok(i64::from_le_bytes(self.take(8)?.try_into().expect("checked scalar width")))
     }
     /// Reads exactly the declared width without pointer casts.
-    pub(crate) fn deserialize_f32(&mut self) -> Result<f32, Error> {
+    fn deserialize_f32(&mut self) -> Result<f32, Failure> {
         Ok(f32::from_le_bytes(self.take(4)?.try_into().expect("checked scalar width")))
     }
     /// Reads exactly the declared width without pointer casts.
-    pub(crate) fn deserialize_f64(&mut self) -> Result<f64, Error> {
+    fn deserialize_f64(&mut self) -> Result<f64, Failure> {
         Ok(f64::from_le_bytes(self.take(8)?.try_into().expect("checked scalar width")))
     }
 }

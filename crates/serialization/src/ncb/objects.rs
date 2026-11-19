@@ -28,8 +28,13 @@ pub struct NcbFormat;
 impl NcbSerializer {
     /// Allocates the sole owner of a fresh NCB format object; no host is linked.
     pub fn create(limits: Limits) -> Result<ComBox<ISerializerAbi>, binary::Error> {
+        Self::session(limits).map_err(Into::into)
+    }
+
+    /// Creates the one owning writer, retaining its typed header failure if needed.
+    fn session(limits: Limits) -> Result<ComBox<ISerializerAbi>, binary::Failure> {
         let value = Self {
-            encoder: binary::Encoder::new(limits)?,
+            encoder: binary::Encoder::owned(limits)?,
             message: None,
         };
         Ok(Self::into_box(value)
@@ -307,7 +312,7 @@ impl ISerializationOutput for NcbSerializer {
 impl ISerializationFormat for NcbFormat {
     /// Creates a fresh independently bounded NCB writer object.
     fn create_serializer(&self, max_bytes: u64, max_elements: u32, max_depth: u32, max_values: u64) -> Result<ComBox<ISerializerAbi>, NcStatus> {
-        NcbSerializer::create(limits(max_bytes, max_elements, max_depth, max_values)?).map_err(super::protocol::status)
+        NcbSerializer::session(limits(max_bytes, max_elements, max_depth, max_values)?).map_err(|failure| failure.status)
     }
     /// Acquires the caller's complete input before returning a source object.
     fn create_deserializer(
@@ -350,12 +355,12 @@ enum Source {
     /// Input header and size were admitted; subsequent failures stay in the decoder.
     Ready(binary::Decoder<'static>),
     /// Initial parsing failed before a decoder could be published.
-    Rejected(binary::Error),
+    Rejected(binary::Failure),
 }
 impl NcbDeserializer {
     /// Creates a source whose first read reports an initial parse failure, if any.
     fn session(bytes: neocogi_com::__alloc::vec::Vec<u8>, limits: Limits) -> ComBox<IDeserializerAbi> {
-        let source = match binary::Decoder::new(bytes, limits) {
+        let source = match binary::Decoder::input(binary::Input::Owned(bytes), limits) {
             Ok(value) => Source::Ready(value),
             Err(error) => Source::Rejected(error),
         };
@@ -367,21 +372,21 @@ impl NcbDeserializer {
     fn decoder(&mut self) -> Result<&mut binary::Decoder<'static>, NcStatus> {
         match &mut self.source {
             Source::Ready(value) => Ok(value),
-            Source::Rejected(error) => Err(super::protocol::status(*error)),
+            Source::Rejected(error) => Err(error.status),
         }
     }
     /// Borrows the original native diagnostic without allocating during queries.
     fn details(&self) -> Result<crate::diagnostics::Details<'_>, NcStatus> {
         let error = match &self.source {
-            Source::Ready(value) => value.last_error(),
+            Source::Ready(value) => value.phase.failure(),
             Source::Rejected(error) => Some(*error),
         }
         .ok_or(NC_E_INVALID_ARG)?;
         Ok(crate::diagnostics::Details {
-            status: super::protocol::status(error),
-            message: self.message.as_deref().unwrap_or(error.message),
+            status: error.status,
+            message: self.message.as_deref().unwrap_or(error.diagnostic.message),
             path: "$",
-            offset: error.offset as u64,
+            offset: error.diagnostic.offset as u64,
             line: 0,
             column: 0,
         })
@@ -390,12 +395,12 @@ impl NcbDeserializer {
 impl NcbSerializer {
     /// Exposes the first failed NCB operation; active/finished documents have no error.
     fn details(&self) -> Result<crate::diagnostics::Details<'_>, NcStatus> {
-        let error = self.encoder.last_error().ok_or(NC_E_INVALID_ARG)?;
+        let error = self.encoder.phase.failure().ok_or(NC_E_INVALID_ARG)?;
         Ok(crate::diagnostics::Details {
-            status: super::protocol::status(error),
-            message: self.message.as_deref().unwrap_or(error.message),
+            status: error.status,
+            message: self.message.as_deref().unwrap_or(error.diagnostic.message),
             path: "$",
-            offset: error.offset as u64,
+            offset: error.diagnostic.offset as u64,
             line: 0,
             column: 0,
         })

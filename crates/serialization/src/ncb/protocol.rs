@@ -1,7 +1,7 @@
 //! NCB implementations of the shared COM format sessions and their bounded state machine.
 
 use super::*;
-use neocogi_com::{NcCopyFromBufferOffset, NcStatus, NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE};
+use neocogi_com::NcCopyFromBufferOffset;
 use neocogi_com::serialization::{ISerializer, IDeserializer};
 
 /// A session starts active and ends permanently on either success or first failure.
@@ -10,9 +10,18 @@ pub(super) enum Phase {
     /// Exactly one root may still be traversed.
     Active,
     /// The first failure is retained without allowing later operations to replace it.
-    Failed(Error),
+    Failed(Failure),
     /// The root is complete and output may be observed.
     Finished,
+}
+impl Phase {
+    /// Exposes the first terminal failure to native and COM diagnostic callers.
+    pub(super) fn failure(self) -> Option<Failure> {
+        match self {
+            Self::Failed(failure) => Some(failure),
+            Self::Active | Self::Finished => None,
+        }
+    }
 }
 /// Matching begin/end operations are part of the session contract.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -71,13 +80,13 @@ impl Protocol {
     }
 
     /// Reserves one child before placing its fresh value on the bounded stack.
-    pub(super) fn enter(&mut self) -> Result<(), &'static str> {
+    pub(super) fn enter(&mut self, offset: usize) -> Result<(), Failure> {
         if self.depth == self.values.len() {
-            return Err("value or nesting limit");
+            return Err(Failure::range(offset, "value or nesting limit"));
         }
         if self.depth == 0 {
             if self.root {
-                return Err("multiple root values");
+                return Err(Failure::invalid(offset, "multiple root values"));
             }
             self.root = true;
         } else {
@@ -88,7 +97,7 @@ impl Protocol {
                 }
                 Value::Ordered { remaining, .. } if *remaining > 0 => *remaining -= 1,
                 Value::Variant { children } if *children == 0 => *children = 1,
-                _ => return Err("unexpected child value"),
+                _ => return Err(Failure::invalid(offset, "unexpected child value")),
             }
         }
         self.values[self.depth] = Value::Empty;
@@ -197,45 +206,40 @@ fn schema_message(message: &str) -> &'static str {
         "usize overflow" => "usize overflow",
         "isize overflow" => "isize overflow",
         "length exceeds u32" => "length exceeds u32",
-        "collection element limit" => "collection element limit",
-        "document byte limit" => "document byte limit",
         _ => "invalid persistent value",
     }
 }
-/// Maps an NCB diagnostic to the public COM status without exposing Rust errors.
-pub(super) fn status(error: Error) -> NcStatus {
-    if error.message.contains("limit") || error.message == "output buffer too small" {
-        NC_E_OUT_OF_RANGE
-    } else {
-        NC_E_INVALID_ARG
+/// Translates the legacy text-only application failure operation at its boundary.
+fn schema_failure(message: &str, offset: usize) -> Failure {
+    match message {
+        "collection element limit" => Failure::range(offset, "collection element limit"),
+        "document byte limit" => Failure::range(offset, "document byte limit"),
+        _ => Failure::invalid(offset, schema_message(message)),
     }
 }
 impl Encoder<'_> {
     /// Returns the original failed diagnostic or a schema failure at the current position.
     pub(super) fn failure(&self, fallback: &'static str) -> Error {
-        match self.phase {
-            Phase::Failed(error) => error,
-            _ => self.error(fallback),
-        }
+        self.last_error().unwrap_or_else(|| self.error(fallback).diagnostic)
     }
     /// Executes one operation or preserves the terminal session state on failure.
-    fn run<T>(&mut self, operation: impl FnOnce(&mut Self) -> Result<T, Error>) -> Result<T, NcStatus> {
+    fn run<T>(&mut self, operation: impl FnOnce(&mut Self) -> Result<T, Failure>) -> Result<T, NcStatus> {
         match self.phase {
             Phase::Active => {}
-            Phase::Failed(error) => return Err(status(error)),
+            Phase::Failed(error) => return Err(error.status),
             Phase::Finished => return Err(NC_E_INVALID_ARG),
         }
         operation(self).map_err(|error| {
             self.phase = Phase::Failed(error);
-            status(error)
+            error.status
         })
     }
     /// Sets the newly opened container's exact semantic representation.
-    fn shape(&mut self, value: Value) -> Result<(), Error> {
+    fn shape(&mut self, value: Value) -> Result<(), Failure> {
         self.protocol.select(value).map_err(|message| self.error(message))
     }
     /// Marks the current raw scalar as complete before leaving its value scope.
-    pub(super) fn scalar_shape(&mut self) -> Result<(), Error> {
+    pub(super) fn scalar_shape(&mut self) -> Result<(), Failure> {
         self.shape(Value::Done)
     }
     /// Reports a completed byte document without transferring allocator ownership.
@@ -247,21 +251,23 @@ impl Encoder<'_> {
             #[cfg(feature = "alloc")]
             Output::Owned(bytes) => Ok(bytes),
             Output::Slice(bytes) => Ok(&bytes[..self.offset]),
-            Output::Count => Err(self.error("counting output has no bytes")),
+            Output::Count => Err(self.error("counting output has no bytes").diagnostic),
         }
     }
     /// Returns the retained format diagnostic after a failed COM operation.
     pub fn last_error(&self) -> Option<Error> {
-        match self.phase {
-            Phase::Failed(error) => Some(error),
-            _ => None,
-        }
+        self.phase.failure().map(|failure| failure.diagnostic)
     }
 }
 #[cfg(feature = "alloc")]
 impl Encoder<'static> {
     /// Creates an owned COM-provider state with the NCB marker already admitted.
     pub fn new(limits: Limits) -> Result<Self, Error> {
+        Self::owned(limits).map_err(Into::into)
+    }
+
+    /// Creates the session while retaining the typed failure of the header write.
+    pub(super) fn owned(limits: Limits) -> Result<Self, Failure> {
         let mut writer = Self {
             output: Output::Owned(Vec::new()),
             offset: 0,
@@ -292,26 +298,23 @@ impl Encoder<'_> {
 impl Decoder<'_> {
     /// Returns the first format failure, preserving exact NCB error offsets.
     pub(super) fn failure(&self, fallback: &'static str) -> Error {
-        match self.phase {
-            Phase::Failed(error) => error,
-            _ => self.error(fallback),
-        }
+        self.last_error().unwrap_or_else(|| self.error(fallback).diagnostic)
     }
     /// Executes only active operations and makes every format failure terminal.
-    fn run<T>(&mut self, operation: impl FnOnce(&mut Self) -> Result<T, Error>) -> Result<T, NcStatus> {
+    fn run<T>(&mut self, operation: impl FnOnce(&mut Self) -> Result<T, Failure>) -> Result<T, NcStatus> {
         match self.phase {
             Phase::Active => {}
-            Phase::Failed(error) => return Err(status(error)),
+            Phase::Failed(error) => return Err(error.status),
             Phase::Finished => return Err(NC_E_INVALID_ARG),
         }
         operation(self).map_err(|error| {
             self.phase = Phase::Failed(error);
-            status(error)
+            error.status
         })
     }
     /// Reads a fresh representation after checking the active frame. The byte
     /// operation may update the cursor and budget but cannot change scopes.
-    fn read_value<T>(&mut self, read: impl FnOnce(&mut Self) -> Result<(Value, T), Error>) -> Result<T, NcStatus> {
+    fn read_value<T>(&mut self, read: impl FnOnce(&mut Self) -> Result<(Value, T), Failure>) -> Result<T, NcStatus> {
         self.run(|reader| {
             reader.protocol.require_empty().map_err(|message| reader.error(message))?;
             let (value, result) = read(reader)?;
@@ -320,24 +323,21 @@ impl Decoder<'_> {
         })
     }
     /// All primitive reads share phase admission and one successful completion.
-    fn read_scalar<T>(&mut self, read: impl FnOnce(&mut Self) -> Result<T, Error>) -> Result<T, NcStatus> {
+    fn read_scalar<T>(&mut self, read: impl FnOnce(&mut Self) -> Result<T, Failure>) -> Result<T, NcStatus> {
         self.read_value(|reader| Ok((Value::Done, read(reader)?)))
     }
     /// Returns the first failed source diagnostic for local format-specific tools.
     pub fn last_error(&self) -> Option<Error> {
-        match self.phase {
-            Phase::Failed(error) => Some(error),
-            _ => None,
-        }
+        self.phase.failure().map(|failure| failure.diagnostic)
     }
 }
 impl<'a> Decoder<'a> {
     /// Admits a borrowed document without allocating or copying it.
-    pub(super) fn borrowed(bytes: &'a [u8], limits: Limits) -> Result<Self, Error> {
+    pub(super) fn borrowed(bytes: &'a [u8], limits: Limits) -> Result<Self, Failure> {
         Self::input(Input::Borrowed(bytes), limits)
     }
     /// Validates the complete input size and its format marker before publication.
-    fn input(bytes: Input<'a>, limits: Limits) -> Result<Self, Error> {
+    pub(super) fn input(bytes: Input<'a>, limits: Limits) -> Result<Self, Failure> {
         let mut reader = Self {
             bytes,
             offset: 0,
@@ -346,7 +346,7 @@ impl<'a> Decoder<'a> {
             phase: Phase::Active,
         };
         if reader.bytes.as_slice().len() > limits.bytes {
-            return Err(reader.error("document byte limit"));
+            return Err(Failure::range(reader.offset, "document byte limit"));
         }
         if reader.take(4)? != MAGIC {
             return Err(reader.error("unsupported binary format"));
@@ -358,7 +358,7 @@ impl<'a> Decoder<'a> {
 impl Decoder<'static> {
     /// Owns a bounded complete input document for a retainable COM session.
     pub fn new(bytes: Vec<u8>, limits: Limits) -> Result<Self, Error> {
-        Self::input(Input::Owned(bytes), limits)
+        Self::input(Input::Owned(bytes), limits).map_err(Into::into)
     }
 }
 
@@ -491,7 +491,7 @@ impl ISerializer for Encoder<'_> {
     fn fail(&mut self, message: NcCopyFromBufferOffset<'_, u8>) -> Result<(), NcStatus> {
         self.run(|writer| {
             let message = read_text(message).map_err(|message| writer.error(message))?;
-            Err(writer.error(schema_message(message)))
+            Err(schema_failure(message, writer.offset))
         })
     }
     fn finish(&mut self) -> Result<(), NcStatus> {
@@ -504,7 +504,7 @@ impl IDeserializer for Decoder<'_> {
     fn enter_value(&mut self) -> Result<(), NcStatus> {
         self.run(|reader| {
             reader.budget.enter(reader.offset, reader.protocol.open_depth())?;
-            reader.protocol.enter().map_err(|message| reader.error(message))
+            reader.protocol.enter(reader.offset)
         })
     }
     fn leave_value(&mut self) -> Result<(), NcStatus> {
@@ -551,10 +551,7 @@ impl IDeserializer for Decoder<'_> {
             let len = reader.deserialize_u32()?;
             let start = reader.offset;
             let text = reader.take(len as usize)?;
-            core::str::from_utf8(text).map_err(|_| Error {
-                offset: start + len as usize,
-                message: "invalid UTF-8",
-            })?;
+            core::str::from_utf8(text).map_err(|_| Failure::invalid(start + len as usize, "invalid UTF-8"))?;
             Ok((Value::StringPending(len), len))
         })
     }
@@ -571,11 +568,11 @@ impl IDeserializer for Decoder<'_> {
             let end = reader.offset;
             let start = end - len as usize;
             if output.remaining() < len as usize {
-                return Err(reader.error("output buffer too small"));
+                return Err(Failure::range(reader.offset, "output buffer too small"));
             }
             output
                 .extend_from_slice(&reader.bytes.as_slice()[start..end])
-                .map_err(|_| reader.error("output buffer too small"))?;
+                .map_err(|_| Failure::range(reader.offset, "output buffer too small"))?;
             reader.protocol.set_current(Value::Done);
             Ok(len)
         })
@@ -655,7 +652,7 @@ impl IDeserializer for Decoder<'_> {
     fn fail(&mut self, message: NcCopyFromBufferOffset<'_, u8>) -> Result<(), NcStatus> {
         self.run(|reader| {
             let message = read_text(message).map_err(|message| reader.error(message))?;
-            Err(reader.error(schema_message(message)))
+            Err(schema_failure(message, reader.offset))
         })
     }
     fn finish(&mut self) -> Result<(), NcStatus> {
