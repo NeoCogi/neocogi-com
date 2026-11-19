@@ -1204,17 +1204,17 @@ children are static. Copy callback metadata needed after a callback. See the
 
 ## Native and static composition
 
-The facade provides typed wrappers and owns no implementation dependency, including
-with all features. The final executable links the ordinary `neocogi_com_host` rlib. Native
-providers link contracts/facade only and export `nc_get_plugin_descriptor_v3`.
-Static composition registers a linked provider descriptor; dynamic composition
-loads a provider library. Both use the same host-owned registry and C service graph.
+The SDK provides typed wrappers over the selected host's C service graph.
+Native and browser applications can link the `neocogi_com_host` rlib. A native
+application can also stage `neocogi-com-host-dylib` and select that host with
+`RuntimeHandle::load_host_library`. Its bootstrap export is `nc_get_host_api_v3`.
 
-No COM shared image, import library, bridge crate, runtime environment variable or
-runtime-specific search path is deployed. Generic native library/resource staging
-remains responsible for providers and assets. Provider mappings stay process-pinned
-through final object/weak release. Host state, tables and callback code also stay
-process/Wasm-instance-lived after main returns, allowing browser callbacks.
+Native and browser applications can register linked provider descriptors.
+Native applications can also load provider libraries exporting
+`nc_get_plugin_descriptor_v3` with either host choice. Both operations
+use the selected host's registry. Native host and provider mappings stay
+process-pinned through final object and weak release. Linked host state, tables
+and callback code also outlive main in the process or Wasm instance.
 See the [native guide](guides/COM_NATIVE.md).
 
 ## Independent-build compatibility

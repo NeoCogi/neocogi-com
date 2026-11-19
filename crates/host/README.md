@@ -95,18 +95,18 @@ the [current ABI versions](../../docs/abi-v3.md#abi-identities-and-versions).
 
 ## Build and link
 
-The package builds the ordinary Rust `neocogi_com_host` rlib. Native and browser final
-hosts depend on it directly and use `#[neocogi_com::com_main]` to initialize its
-existing singleton and obtain a copyable access handle. Reusable libraries take
-that handle from their caller. Plugin acquisition receives it through the C
-bootstrap; providers select no implementation. No runtime DSO or native bridge
-is built or deployed. The runtime requires `std`; core and the access handle
-retain reduced-feature support. See the [sample host](https://github.com/NeoCogi/neocogi-com/tree/v0.3.0/examples/com-host).
+Native and browser applications can link the `neocogi_com_host` Rust rlib and use
+`#[neocogi_com::com_main]` to obtain a copyable runtime handle. A native application
+can instead build and deploy `neocogi-com-host-dylib`, enable the SDK's `runtime`
+feature and load the shim by path with unsafe `RuntimeHandle::load_host_library`.
+Both startup paths supply the selected host's tables to plugins and their nested
+acquisitions. The host requires `std`. Core and the access handle retain
+reduced-feature support. See the [native build guide](../../docs/guides/COM_NATIVE.md).
 
-`initialize_runtime()` returns an admitted `neocogi_com::RuntimeHandle` and invokes no
-plugin. Repeated calls use the same host. The host alone performs unsafe adoption
-of its service graph; `com_main` calls this safe typed constructor, including with
-an explicit dependency/module path. A raw table cannot satisfy that return type.
+For linked startup, `initialize_runtime()` admits the host service graph and
+returns a safe `neocogi_com::RuntimeHandle`. It invokes no plugin, and repeated
+calls use the same host. `com_main` calls this typed constructor, including with
+an explicit dependency/module path.
 `initialize_process()` lends the raw C description for ABI bootstrap. Its
 immutable `NcHostApiV3`, child tables, state and code remain process/instance-lived
 even after application main returns. The three existing C tables remain separate

@@ -63,7 +63,7 @@ fn raw_vtable_arg_docs(arg: &AbiArg) -> Vec<proc_macro2::TokenStream> {
         AbiArgKind::BorrowedValue { .. } => "The pointed-to checked representation is borrowed; the receiver acquires owned fields before retaining data.",
         AbiArgKind::Plain => "Passed by value.",
         AbiArgKind::ComRef { .. } => {
-            "This is a borrowed object/table pair. Both fields must be non-null. The callee must call `AddRef` before retaining the interface after the call returns."
+            "This object/table pair is borrowed for the call. Both fields must be non-null. To retain this pair, call `add_ref` during the borrow. A nonzero result grants one reference, which the callee releases when finished."
         }
         AbiArgKind::CopyFromBufferOffset { .. } => "The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.",
         AbiArgKind::OutputBuffer { .. } => {
@@ -170,7 +170,7 @@ fn safe_arg_docs(arg: &AbiArg) -> Vec<proc_macro2::TokenStream> {
             let interface_ty = interface_ty.as_ref();
             vec![literal_doc(
                 format!(
-                    "- `{ident}` borrows a `{interface_ty}` interface for the duration of the call. An interface is required. The callee must call `AddRef` before retaining a present interface.",
+                    "- `{ident}` borrows a required `{interface_ty}` interface for the call. To keep the interface afterward, the callee stores the `ComPtr` returned by a successful `try_add_ref()`.",
                     interface_ty = interface_ty.to_token_stream()
                 ),
                 ident.span(),

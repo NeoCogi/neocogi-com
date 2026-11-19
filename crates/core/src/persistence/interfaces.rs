@@ -831,7 +831,7 @@ pub struct IPersistenceFactoryVTable {
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///- `version` uses ABI storage `< :: core :: primitive :: u32 as :: neocogi_com :: ComValue > :: Wire` for `:: core :: primitive :: u32`. Passed by value.
     ///- `state` uses ABI storage `* const < :: core :: primitive :: u8 as :: neocogi_com :: ComValue > :: Wire` for `:: neocogi_com :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
-    ///- `children` uses ABI storage `:: neocogi_com :: ComRaw < self :: IObjectChildrenAbi >` for `:: neocogi_com :: ComRef < '_ , self :: IObjectChildrenAbi >`. This is a borrowed object/table pair. Both fields must be non-null. The callee must call `AddRef` before retaining the interface after the call returns.
+    ///- `children` uses ABI storage `:: neocogi_com :: ComRaw < self :: IObjectChildrenAbi >` for `:: neocogi_com :: ComRef < '_ , self :: IObjectChildrenAbi >`. This object/table pair is borrowed for the call. Both fields must be non-null. To retain this pair, call `add_ref` during the borrow. A nonzero result grants one reference, which the callee releases when finished.
     ///
     ///On success, `out` receives `:: neocogi_com :: ComRaw < :: neocogi_com :: IUnknown >` for `:: neocogi_com :: ComPtr < :: neocogi_com :: IUnknown >`. The caller receives one shared owner and releases it when finished.
     #[allow(
@@ -990,7 +990,7 @@ const _: () = {
         ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
         ///- `version` is passed by value as `:: core :: primitive :: u32`.
         ///- `state` is passed as a safe readable `:: core :: primitive :: u8` buffer plus offset.
-        ///- `children` borrows a `self :: IObjectChildrenAbi` interface for the duration of the call. An interface is required. The callee must call `AddRef` before retaining a present interface.
+        ///- `children` borrows a required `self :: IObjectChildrenAbi` interface for the call. To keep the interface afterward, the callee stores the `ComPtr` returned by a successful `try_add_ref()`.
         ///
         ///On success, returns `:: neocogi_com :: ComPtr < :: neocogi_com :: IUnknown >`. The caller receives one shared owner and releases it when finished.
         pub fn restore(

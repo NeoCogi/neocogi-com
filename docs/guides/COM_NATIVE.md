@@ -6,7 +6,7 @@ local deployment profiles; SDK qualification also checks stable and Rust 1.85.
 The final application selects one host runtime, statically linked or loaded from
 the optional host shim, and passes its access to providers.
 
-## Shared provider
+## Linked host with a shared provider
 
 From the repository root on Linux:
 
