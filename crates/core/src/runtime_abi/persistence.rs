@@ -52,8 +52,10 @@ pub type NcPersistenceWriteBytesV3 = unsafe extern "C" fn(user_data: *mut c_void
 /// implicitly, and no embedded codec is used as a fallback.
 ///
 /// A missing provider returns [`crate::NC_E_NOT_FOUND`]. Root acquisition and
-/// named-format selection errors propagate; encoding/decoding errors after
-/// selection map to [`crate::NC_E_INVALID_ARG`]. Neither provider absence nor a
+/// named-format selection errors propagate. Codec encoding and decoding errors
+/// map to [`crate::NC_E_INVALID_ARG`]. Restore's own object count and depth
+/// checks return [`crate::NC_E_OUT_OF_RANGE`], and refusal of its child-storage
+/// reservation returns [`crate::NC_E_OUT_OF_MEMORY`]. Neither provider absence nor a
 /// failed selection poisons a context: once the cause is resolved, the caller
 /// may retry with the same live context. This does not authorize replacing a
 /// registered plugin descriptor. NCB-v1 bytes and the table layout do
@@ -89,7 +91,10 @@ pub struct NcPersistenceApiV3 {
     /// `bytes` must be readable for `len` bytes (null is valid only for zero).
     /// `out` must be writable and receives one owned reference only on success.
     /// Clears `out` and checks arguments/input-byte bounds before selecting NCB.
-    /// Provider/selection failure runs no recipe validation or construction.
+    /// Restore admits the root object and each advertised child count during
+    /// decoding before reading descendants or reserving their storage. An earlier
+    /// shape or codec failure stops decoding. Recipe validation begins only after
+    /// complete document acceptance, and construction follows full validation.
     pub restore: unsafe extern "C" fn(
         context: *const NcPersistenceContext,
         bytes: *const u8,

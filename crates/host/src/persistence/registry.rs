@@ -29,18 +29,16 @@ impl Registry {
     /// Uses bounded decoding and preflight before invoking any constructors.
     pub(crate) fn restore_with_limits(&self, bytes: &[u8], limits: Limits) -> Result<ComPtr<IUnknown>, NcStatus> {
         let codec = super::ncb_format(limits.binary)?;
-        let record: ObjectRecord = codec.format.deserialize(bytes).map_err(|_| NC_E_INVALID_ARG)?;
+        let source = codec.format.deserializer(bytes).map_err(|_| NC_E_INVALID_ARG)?;
+        let record = ObjectRecord::decode_for_restore(source, limits)?;
+        // The exclusive reader has finished and dropped. The format and its
+        // provider remain live through both factory passes.
         // Complete preflight must succeed before the first constructor runs.
-        let mut remaining = limits.objects;
-        self.validate(&record, limits, 0, &mut remaining)?;
+        self.validate(&record)?;
         self.construct(&record)
     }
     /// Preflight traverses the complete tree, including children of known parents.
-    fn validate(&self, record: &ObjectRecord, limits: Limits, depth: usize, remaining: &mut usize) -> Result<(), NcStatus> {
-        if depth >= limits.depth || *remaining == 0 {
-            return Err(NC_E_OUT_OF_RANGE);
-        }
-        *remaining -= 1;
+    fn validate(&self, record: &ObjectRecord) -> Result<(), NcStatus> {
         // Providers inspect immutable initialization state; they must not publish
         // resources during validation. Their constructor validates again on direct use.
         let factory = self.factories.get(&record.type_id).ok_or(NC_E_NOT_FOUND)?;
@@ -50,7 +48,7 @@ impl Registry {
             u32::try_from(record.children.len()).map_err(|_| NC_E_OUT_OF_RANGE)?,
         )?;
         for child in &record.children {
-            self.validate(child, limits, depth + 1, remaining)?;
+            self.validate(child)?;
         }
         Ok(())
     }

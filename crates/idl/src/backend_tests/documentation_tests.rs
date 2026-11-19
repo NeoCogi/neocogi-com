@@ -221,7 +221,11 @@ fn raw_documentation_matches_physical_slots_and_returned_ownership() {
             _ => None,
         })
         .unwrap();
-    let raw_borrow = table.fields.iter().find(|field| field.ident.as_ref().is_some_and(|ident| ident == "borrow")).unwrap();
+    let raw_borrow = table
+        .fields
+        .iter()
+        .find(|field| field.ident.as_ref().is_some_and(|ident| ident == "borrow"))
+        .unwrap();
     assert!(definition_docs(&raw_borrow.attrs).contains("A nonzero result grants one reference"));
     assert!(generated.contains("the `ComPtr` returned by a successful `try_add_ref()`"));
     for (method, parameters) in [

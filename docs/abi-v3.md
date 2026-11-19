@@ -1154,14 +1154,22 @@ even when an external provider defaults to JSON. The shipped serialization
 provider still defaults to NCB; JSON-default tests challenge persistence's
 independence from default selection. There is no implicit registration, loading
 or embedded fallback. The provider root and selected format remain retained
-through codec use and restoration's recipe callbacks. Snapshot encoding produces
+through codec use and restoration's recipe callbacks. Restore counts the root
+and charges each admitted child count during decoding. The host rejects an
+impossible object count or depth before reading the children or reserving their
+record storage. Child-record storage grows as children complete. Snapshot encoding produces
 an independent host-owned byte vector; its later delivery callback does not
 retain the codec objects. Provider and delivery callbacks run outside catalog locks.
 
 A missing provider returns `NC_E_NOT_FOUND`; root-acquisition and named-format
 selection errors propagate unchanged. Argument admission precedes selection:
 restore clears its output and checks the input-byte bound first, while snapshot
-completes ownership, capability, cycle and capture-budget checks first. Selection
+completes ownership, capability, cycle and capture-budget checks first. Restore's
+object shape rejection reports `NC_E_OUT_OF_RANGE`, and refusal of host child
+storage reports `NC_E_OUT_OF_MEMORY`. Codec failures continue to map to
+`NC_E_INVALID_ARG`. A conclusive object limit can precede a malformed unread
+child or a recipe failure. Recipe validation starts after complete document
+admission and finishes before construction. Selection
 failure emits no snapshot callback and runs no restore recipe callbacks. After
 selection, encoding/decoding errors retain their `NC_E_INVALID_ARG` mapping.
 Supplying a provider later permits retry using the same live context.

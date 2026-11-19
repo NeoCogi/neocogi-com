@@ -1,5 +1,6 @@
 //! Thread-local allocation fault injection, isolated from parallel test threads.
 use std::alloc::{GlobalAlloc, Layout, System};
+use std::cell::Cell;
 use std::sync::atomic::{AtomicUsize, Ordering::Relaxed};
 
 /// Sentinel modes cannot collide with any realistic allocation ordinal.
@@ -13,6 +14,8 @@ thread_local! {
     static ATTEMPTS: AtomicUsize = const { AtomicUsize::new(0) };
     /// Requests denied during this test thread's current probe.
     static DENIED: AtomicUsize = const { AtomicUsize::new(0) };
+    /// When present, only allocations with this size and alignment participate.
+    static MATCH: Cell<Option<(usize, usize)>> = const { Cell::new(None) };
 }
 
 /// Allocator wrapper used only by this regression executable.
@@ -21,16 +24,27 @@ struct TestAllocator;
 static ALLOCATOR: TestAllocator = TestAllocator;
 
 /// Never allocates or panics, including while thread-local storage is tearing down.
-fn deny() -> bool {
+fn deny(size: usize, align: usize) -> bool {
     LIMIT
         .try_with(|limit| match limit.load(Relaxed) {
             OFF => false,
+            _ if !MATCH
+                .try_with(|filter| filter.get().is_none_or(|layout| layout == (size, align)))
+                .unwrap_or(false) =>
+            {
+                false
+            }
             mode => ATTEMPTS
                 .try_with(|count| {
                     let ordinal = count.fetch_add(1, Relaxed) + 1;
                     let denied = mode == 0 || mode == ordinal;
                     if denied {
                         let _ = DENIED.try_with(|count| count.fetch_add(1, Relaxed));
+                        // A layout-matched fault models continued exhaustion after
+                        // the chosen reservation, including diagnostics on unwind.
+                        if MATCH.try_with(|filter| filter.take().is_some()).unwrap_or(false) {
+                            limit.store(0, Relaxed);
+                        }
                     }
                     denied
                 })
@@ -43,19 +57,19 @@ fn deny() -> bool {
 // Failure returns null as GlobalAlloc requires; tracking performs no allocation.
 unsafe impl GlobalAlloc for TestAllocator {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        match deny() {
+        match deny(layout.size(), layout.align()) {
             true => std::ptr::null_mut(),
             false => unsafe { System.alloc(layout) },
         }
     }
     unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
-        match deny() {
+        match deny(layout.size(), layout.align()) {
             true => std::ptr::null_mut(),
             false => unsafe { System.alloc_zeroed(layout) },
         }
     }
     unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, size: usize) -> *mut u8 {
-        match deny() {
+        match deny(size, layout.align()) {
             true => std::ptr::null_mut(),
             false => unsafe { System.realloc(ptr, layout, size) },
         }
@@ -83,6 +97,13 @@ impl Probe {
         LIMIT.with(|limit| limit.store(fail_at.unwrap_or(OBSERVE), Relaxed));
         Self
     }
+    /// Observes one layout, or refuses all allocations starting at its selected request.
+    #[allow(dead_code)]
+    pub fn matching(layout: Layout, fail_at: Option<usize>) -> Self {
+        let probe = Self::start(fail_at);
+        MATCH.with(|filter| filter.set(Some((layout.size(), layout.align()))));
+        probe
+    }
     /// Stops injection before assertions or diagnostic formatting can allocate.
     pub fn finish(self) -> Report {
         drop(self);
@@ -95,6 +116,7 @@ impl Probe {
 impl Drop for Probe {
     fn drop(&mut self) {
         LIMIT.with(|limit| limit.store(OFF, Relaxed));
+        MATCH.with(|filter| filter.set(None));
     }
 }
 

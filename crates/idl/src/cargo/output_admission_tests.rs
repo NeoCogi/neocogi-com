@@ -418,6 +418,13 @@ fn reserved_iunknown_iid_rejects_publication() {
         return;
     }
     for builder in [Builder::Shared, Builder::File, Builder::Directory] {
-        child("cargo::output_admission_tests::reserved_iunknown_iid_rejects_publication", "reserved-iunknown", builder, false, false, false);
+        child(
+            "cargo::output_admission_tests::reserved_iunknown_iid_rejects_publication",
+            "reserved-iunknown",
+            builder,
+            false,
+            false,
+            false,
+        );
     }
 }

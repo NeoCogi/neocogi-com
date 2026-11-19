@@ -14,7 +14,7 @@ mod scoped;
 #[doc(hidden)]
 pub use scoped::{ISerializerVtblFor as ScopedSerializer, IDeserializerVtblFor as ScopedDeserializer};
 
-use crate::{ComDeserialize, ComSerialize, ComRef, NcStatus, NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE};
+use crate::{ComDeserialize, ComSerialize, ComRef, NcStatus, NC_E_INVALID_ARG, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE};
 
 /// Finite resource policy shared by format providers and typed construction.
 #[derive(Clone, Copy, Debug)]
@@ -105,6 +105,8 @@ pub struct Deserializer<'a> {
     interface: ComRef<'a, IDeserializerAbi>,
     /// Caller-side caps also bound allocation requests from foreign implementations.
     limits: Limits,
+    /// Whether to request a provider diagnostic after an allocation failure.
+    report_oom: bool,
 }
 impl<'a> Deserializer<'a> {
     /// Uses default construction limits with the caller-retained format object.
@@ -113,11 +115,21 @@ impl<'a> Deserializer<'a> {
     }
     /// Supplies explicit allocation and collection caps in addition to provider limits.
     pub fn with_limits(interface: ComRef<'a, IDeserializerAbi>, limits: Limits) -> Self {
-        Self { interface, limits }
+        Self { interface, limits, report_oom: true }
+    }
+    /// Restore consumes the owning source. Its discard path can return an
+    /// allocation failure without asking the provider to allocate diagnostics.
+    #[cfg(feature = "alloc")]
+    pub(crate) fn for_restore(interface: ComRef<'a, IDeserializerAbi>, limits: Limits) -> Self {
+        Self { interface, limits, report_oom: false }
     }
     /// Constructs one root and requires complete document consumption.
     pub fn deserialize<T: ComDeserialize>(&mut self) -> Result<T, NcStatus> {
-        let value = self.read()?;
+        self.deserialize_with(T::com_deserialize)
+    }
+    /// Completes a document whose typed reader needs caller-owned context.
+    pub(crate) fn deserialize_with<T>(&mut self, read: impl FnOnce(&mut Self) -> Result<T, NcStatus>) -> Result<T, NcStatus> {
+        let value = self.value(read)?;
         self.interface.finish()?;
         Ok(value)
     }
@@ -131,7 +143,9 @@ impl<'a> Deserializer<'a> {
         let value = match read(self) {
             Ok(value) => value,
             Err(status) => {
-                let _ = self.interface.fail(text("invalid persistent value"));
+                if self.report_oom || status != NC_E_OUT_OF_MEMORY {
+                    let _ = self.interface.fail(text("invalid persistent value"));
+                }
                 return Err(status.normalize_error());
             }
         };
@@ -246,12 +260,16 @@ pub struct RecordFieldReader<'a, 's> {
 impl RecordFieldReader<'_, '_> {
     /// Requests one named field, returning None only for genuine absence.
     pub fn read_field<T: ComDeserialize>(&mut self, name: &str) -> Result<Option<T>, NcStatus> {
+        self.read_field_with(name, T::com_deserialize)
+    }
+    /// Reads the field under the same value scope while passing local context to its reader.
+    pub(crate) fn read_field_with<T>(&mut self, name: &str, read: impl FnOnce(&mut Deserializer<'_>) -> Result<T, NcStatus>) -> Result<Option<T>, NcStatus> {
         if self.reader.interface.field(text(name))? {
             if self.remaining == 0 {
                 return Err(self.error("unknown record fields"));
             }
             self.remaining -= 1;
-            self.reader.read().map(Some)
+            self.reader.value(read).map(Some)
         } else {
             Ok(None)
         }
@@ -272,11 +290,15 @@ pub struct SequenceReader<'a, 's> {
 impl SequenceReader<'_, '_> {
     /// Acquires the next typed element, or None at a genuine collection end.
     pub fn read_next<T: ComDeserialize>(&mut self) -> Result<Option<T>, NcStatus> {
+        self.read_next_with(T::com_deserialize)
+    }
+    /// Reads an element with local context after opening its ordinary value scope.
+    pub(crate) fn read_next_with<T>(&mut self, read: impl FnOnce(&mut Deserializer<'_>) -> Result<T, NcStatus>) -> Result<Option<T>, NcStatus> {
         if self.remaining == 0 {
             Ok(None)
         } else {
             self.remaining -= 1;
-            self.reader.read().map(Some)
+            self.reader.value(read).map(Some)
         }
     }
     /// Gives a bounded count for conservative preallocation.

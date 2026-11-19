@@ -49,7 +49,10 @@ struct Failure {
 impl Failure {
     /// Preserves the failure position for either the Rust or COM caller.
     fn new(status: NcStatus, offset: usize, message: &'static str) -> Self {
-        Self { status, diagnostic: Error { offset, message } }
+        Self {
+            status,
+            diagnostic: Error { offset, message },
+        }
     }
 
     /// The given bytes or operation cannot satisfy the format or session contract.
@@ -218,7 +221,9 @@ impl Encoder<'_> {
         match &mut self.output {
             Output::Slice(output) => {
                 let end = self.offset + bytes.len();
-                let destination = output.get_mut(self.offset..end).ok_or_else(|| Failure::range(self.offset, "output buffer too small"))?;
+                let destination = output
+                    .get_mut(self.offset..end)
+                    .ok_or_else(|| Failure::range(self.offset, "output buffer too small"))?;
                 destination.copy_from_slice(bytes);
             }
             #[cfg(feature = "alloc")]
@@ -228,7 +233,9 @@ impl Encoder<'_> {
                 let required = self.offset + bytes.len();
                 if required > output.capacity() {
                     let capacity = required.max(output.capacity().saturating_mul(2)).min(self.budget.limits.bytes);
-                    output.try_reserve_exact(capacity - output.len()).map_err(|_| Failure::new(neocogi_com::NC_E_OUT_OF_MEMORY, self.offset, "output allocation failed"))?;
+                    output
+                        .try_reserve_exact(capacity - output.len())
+                        .map_err(|_| Failure::new(neocogi_com::NC_E_OUT_OF_MEMORY, self.offset, "output allocation failed"))?;
                 }
                 output.extend_from_slice(bytes);
             }

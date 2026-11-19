@@ -158,6 +158,8 @@ struct State {
 /// Per-test construction/destruction observations, shared only for assertions.
 #[derive(Default)]
 struct Counts {
+    /// Recipe validations, including validations repeated by constructors.
+    validated: AtomicUsize,
     /// Constructors actually invoked after preflight.
     created: AtomicUsize,
     /// Live fixture objects not yet destroyed.
@@ -249,6 +251,7 @@ fn decode(version: u32, state: NcCopyFromBufferOffset<'_, u8>) -> Result<State, 
 impl IPersistenceFactory for Factory {
     /// Invalid states and revisions fail during whole-tree preflight.
     fn validate(&self, version: u32, state: NcCopyFromBufferOffset<'_, u8>, child_count: u32) -> Result<(), NcStatus> {
+        self.counts.validated.fetch_add(1, Ordering::Relaxed);
         let state = decode(version, state)?;
         if state.label.is_empty() || child_count > 8 {
             return Err(NC_E_INVALID_ARG);

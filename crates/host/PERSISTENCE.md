@@ -117,6 +117,14 @@ and children also count toward binary container limits. Snapshot capture checks
 the advertised child count before visiting children, then grows each child
 vector fallibly as records complete. Allocation failure during child growth
 returns `NC_E_OUT_OF_MEMORY`.
+Restore charges the root and each declared child count during decoding. Pending
+siblings count toward the object limit as soon as their sequence's binary count
+is admitted. An impossible count or path returns `NC_E_OUT_OF_RANGE` before
+reading the children or reserving their record storage. Child storage grows
+fallibly as child records complete. A refused host reservation returns
+`NC_E_OUT_OF_MEMORY` and discards the source without requesting a diagnostic.
+The selected format owns its input copy and binary limits for the document and
+provider-state bytes.
 The format COM ABI represents container and value-depth ceilings as `u32`.
 Persistence saturates larger `usize` ceilings to `u32::MAX` at that boundary,
 so permissive caller policy still accepts small NCB-v1 documents.
@@ -139,8 +147,10 @@ and named-format selection errors propagate unchanged. They never trigger anothe
 format or an embedded implementation. ABI argument admission precedes selection,
 including restore's input-byte budget and cleared output. Snapshot completes its
 ownership, capability, cycle and capture-budget checks before selection. Restore
-selects and decodes before any recipe callback. Encoding/decoding errors after
-selection retain their existing `NC_E_INVALID_ARG` mapping and cleanup semantics.
+selects and decodes before any recipe callback. Source creation and codec errors
+map to `NC_E_INVALID_ARG`. An earlier codec failure takes precedence over an
+object limit. An admitted count exceeding the object budget takes precedence over
+unread child bytes and any recipe failure.
 Provider absence or selection failure does not invalidate a context or remove
 its registered recipes. Register/load a missing provider, or resolve a transient
 selection failure, then retry on the same live context. This does not permit

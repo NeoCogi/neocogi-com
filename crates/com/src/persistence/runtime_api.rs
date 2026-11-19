@@ -54,9 +54,10 @@ impl FactoryRegistry {
         self.restore_with_limits(bytes, Limits::default())
     }
 
-    /// Validates every recipe and state before invoking any construction callback.
-    /// Acquires named NCB before recipe callbacks. Provider acquisition/selection
-    /// errors propagate without invoking recipes or invalidating this context.
+    /// Acquires named NCB, then checks object count and depth while decoding.
+    /// Restore can reject a declared child count before reading child records.
+    /// Every recipe and state is validated before invoking any constructor.
+    /// Selection errors propagate and the context remains usable after failure.
     pub fn restore_with_limits(&self, bytes: &[u8], limits: Limits) -> Result<ComPtr<IUnknown>, NcStatus> {
         let mut root = crate::ComRaw::null();
         // SAFETY: The context, input slice and output slot all live through the

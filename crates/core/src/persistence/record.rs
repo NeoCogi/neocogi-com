@@ -1,7 +1,7 @@
 //! Portable initialization values, independent of runtime allocation ownership.
 
 use alloc::vec::Vec;
-use crate::{serialization, ComDeserialize, ComSerialize};
+use crate::{serialization, ComBox, ComDeserialize, ComSerialize, NC_E_INVALID_ARG, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NcStatus};
 
 /// One owned initialization tree with the original NCB-v1 field ordering.
 ///
@@ -87,16 +87,94 @@ impl ComSerialize for ByteCount {
     }
 }
 
-impl ComDeserialize for ObjectRecord {
-    /// Acquires each required field once, in the same order used by serialize_fields.
-    fn com_deserialize(reader: &mut crate::serialization::Deserializer<'_>) -> Result<Self, crate::NcStatus> {
+impl ObjectRecord {
+    /// Decodes a complete restore document under the caller's object policy.
+    ///
+    /// Consumes and releases the selected format's source, including on failure.
+    /// Codec errors map to invalid argument. Local shape admission reports range,
+    /// and refusal of a local child-storage reservation reports out of memory.
+    /// The latter discards the source without requesting a provider diagnostic.
+    #[doc(hidden)]
+    pub fn decode_for_restore(source: ComBox<serialization::IDeserializerAbi>, limits: Limits) -> Result<Self, NcStatus> {
+        let mut reader = serialization::Deserializer::for_restore(source.as_com_ref(), limits.binary);
+        let mut budget = RestoreBudget {
+            remaining: limits.objects,
+            depth: limits.depth,
+            rejected: None,
+        };
+        reader
+            .deserialize_with(|reader| Self::read_record(reader, Some(&mut budget), 1))
+            .map_err(|_| budget.rejected.unwrap_or(NC_E_INVALID_ARG))
+    }
+
+    /// Supplies the same field order and names to authoring tools and host restore.
+    fn read_record(reader: &mut serialization::Deserializer<'_>, mut budget: Option<&mut RestoreBudget>, depth: usize) -> Result<Self, NcStatus> {
         reader.record(Self::FIELD_COUNT, |fields| {
-            Ok(Self {
-                type_id: fields.read_field("type_id")?.ok_or_else(|| fields.error("missing field"))?,
-                schema_version: fields.read_field("schema_version")?.ok_or_else(|| fields.error("missing field"))?,
-                state: fields.read_field("state")?.ok_or_else(|| fields.error("missing field"))?,
-                children: fields.read_field("children")?.ok_or_else(|| fields.error("missing field"))?,
-            })
+            if let (1, Some(budget)) = (depth, budget.as_deref_mut()) {
+                budget.charge(1, 0)?;
+            }
+            let type_id = fields.read_field("type_id")?.ok_or_else(|| fields.error("missing field"))?;
+            let schema_version = fields.read_field("schema_version")?.ok_or_else(|| fields.error("missing field"))?;
+            let state = fields.read_field("state")?.ok_or_else(|| fields.error("missing field"))?;
+            let children = match budget {
+                Some(budget) => fields.read_field_with("children", |reader| budget.read_children(reader, depth))?,
+                None => fields.read_field("children")?,
+            }
+            .ok_or_else(|| fields.error("missing field"))?;
+            Ok(Self { type_id, schema_version, state, children })
+        })
+    }
+}
+
+impl ComDeserialize for ObjectRecord {
+    /// Authoring tools use the selected format's binary limits alone.
+    fn com_deserialize(reader: &mut serialization::Deserializer<'_>) -> Result<Self, NcStatus> {
+        Self::read_record(reader, None, 1)
+    }
+}
+
+/// One restore operation's allowance for decoded and already declared object slots.
+struct RestoreBudget {
+    /// Unclaimed slots after accounting for every admitted child count.
+    remaining: usize,
+    /// Maximum number of object records on one root-to-leaf path.
+    depth: usize,
+    /// A local rejection whose status must survive the codec error translation.
+    rejected: Option<NcStatus>,
+}
+
+impl RestoreBudget {
+    /// Applies the budget after binary count admission, before entering the next level.
+    fn charge(&mut self, count: usize, parent_depth: usize) -> Result<(), NcStatus> {
+        if count != 0 && (count > self.remaining || parent_depth >= self.depth) {
+            return Err(self.reject(NC_E_OUT_OF_RANGE));
+        }
+        self.remaining -= count;
+        Ok(())
+    }
+
+    /// Preserves the host failure separately from any selected provider status.
+    fn reject(&mut self, status: NcStatus) -> NcStatus {
+        self.rejected = Some(status);
+        status
+    }
+
+    /// Charges all declared siblings once, then allocates only for completed records.
+    fn read_children(&mut self, reader: &mut serialization::Deserializer<'_>, depth: usize) -> Result<Vec<ObjectRecord>, NcStatus> {
+        reader.sequence(|sequence| {
+            let count = sequence.remaining();
+            self.charge(count, depth)?;
+            let mut children = Vec::new();
+            while let Some(child) = sequence.read_next_with(|reader| ObjectRecord::read_record(reader, Some(self), depth + 1))? {
+                if children.len() == children.capacity() {
+                    let capacity = children.len().saturating_mul(2).max(1).min(count);
+                    children
+                        .try_reserve_exact(capacity - children.len())
+                        .map_err(|_| self.reject(NC_E_OUT_OF_MEMORY))?;
+                }
+                children.push(child);
+            }
+            Ok(children)
         })
     }
 }

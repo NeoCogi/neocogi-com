@@ -1,6 +1,6 @@
 //! Isolated processes exercise provider selection through the real host C tables.
 
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use neocogi_com::{ComBox, ComPtr, ComRef, INcBytesAbi, IUnknown, NcBytes, NcCopyFromBufferOffset, NcGuid, NcStatus};
 use neocogi_com::persistence::*;
 use neocogi_com::persistence::Limits;
@@ -18,6 +18,8 @@ static ROOTS: AtomicUsize = AtomicUsize::new(0);
 static FORMATS: AtomicUsize = AtomicUsize::new(0);
 /// Zero succeeds; the other cases inject distinct format-selection failures.
 static FAILURE: AtomicUsize = AtomicUsize::new(0);
+/// Refuses creation of the selected provider's owning input session.
+static REFUSE_SOURCE: AtomicBool = AtomicBool::new(false);
 /// Recipe callbacks must not run before format selection and complete decoding.
 static VALIDATIONS: AtomicUsize = AtomicUsize::new(0);
 
@@ -118,6 +120,9 @@ impl ISerializationFormat for Selected {
         values: u64,
     ) -> Result<ComBox<IDeserializerAbi>, NcStatus> {
         retained();
+        if REFUSE_SOURCE.load(Ordering::Relaxed) {
+            return Err(neocogi_com::NC_E_OUT_OF_MEMORY);
+        }
         neocogi_com_serialization::ncb::factory().create_deserializer(input, bytes, elements, depth, values)
     }
 }
@@ -211,6 +216,10 @@ fn missing_provider_preserves_error_precedence() {
     assert_eq!(snapshot(&runtime, value.as_com_ref()), Err(neocogi_com::NC_E_NOT_FOUND));
     assert_eq!(registry.restore(&bytes()).unwrap_err(), neocogi_com::NC_E_NOT_FOUND);
     assert_eq!(registry.restore(b"malformed").unwrap_err(), neocogi_com::NC_E_NOT_FOUND);
+    assert_eq!(
+        registry.restore_with_limits(&bytes(), Limits { objects: 0, ..Limits::default() }).unwrap_err(),
+        neocogi_com::NC_E_NOT_FOUND
+    );
     assert_eq!(
         snapshot_with_limits(&runtime, value.as_com_ref(), Limits { objects: 0, ..Limits::default() }),
         Err(neocogi_com::NC_E_OUT_OF_RANGE)
@@ -437,4 +446,11 @@ fn format_selection_errors_have_no_fallback() {
     assert_eq!(SELECTIONS.load(Ordering::Relaxed), 6);
     assert_eq!(DEFAULTS.load(Ordering::Relaxed), 0);
     assert_eq!(VALIDATIONS.load(Ordering::Relaxed), 0);
+    FAILURE.store(0, Ordering::Relaxed);
+    REFUSE_SOURCE.store(true, Ordering::Relaxed);
+    assert_eq!(registry.restore(&bytes()).unwrap_err(), neocogi_com::NC_E_INVALID_ARG);
+    assert_eq!(VALIDATIONS.load(Ordering::Relaxed), 0);
+    assert_eq!((ROOTS.load(Ordering::Relaxed), FORMATS.load(Ordering::Relaxed)), (0, 0));
+    REFUSE_SOURCE.store(false, Ordering::Relaxed);
+    assert!(registry.restore(&bytes()).is_ok());
 }
