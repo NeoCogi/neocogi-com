@@ -95,6 +95,32 @@ fn nil_callable_ids_are_rejected_before_specialization_or_generation() {
     .unwrap();
 }
 
+/// The canonical object root has one callable identity, even outside a class declaration.
+#[test]
+fn explicit_iunknown_iid_is_reserved_for_the_intrinsic() {
+    for parameters in ["", "<T>"] {
+        let source = format!("#[id(\"00000000-0000-0000-c000-000000000046\")] interface Alias{parameters} {{}}");
+        let error = resolve_modules(vec![module("proof/reserved.ncidl", &source)]).unwrap_err();
+        let neocogi_idl::ModuleGraphError::Resolution(error) = error else {
+            panic!("expected semantic diagnostics")
+        };
+        assert_eq!(error.diagnostics[0].code, "EIDL075");
+        assert_eq!(error.diagnostics[0].labels[0].span.path(), "proof/reserved.ncidl");
+        assert!(error.to_string().contains("reserved for IUnknown"));
+    }
+    let graph = resolve_modules(vec![module(
+        "proof/reserved.ncidl",
+        r#"
+        #[id("00000000-0000-0000-c000-000000000046")]
+        struct Value { number: u32 }
+        #[id("00000000-0000-0000-c000-000000000047")]
+        interface Ordinary { fn borrow(&self, value: &IUnknown) -> Result<Value>; }
+        "#,
+    )])
+    .unwrap();
+    neocogi_idl::generate_rust(&graph, "proof.reserved").unwrap();
+}
+
 /// Builds genuine peers with an unrelated bystander and optional requesting-local
 /// materialization. IChild itself has no local type roots: preference must select
 /// that projection even though all inherited method types still come from mid.

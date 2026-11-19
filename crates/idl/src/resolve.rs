@@ -547,13 +547,25 @@ fn build_entries(modules: Vec<Module>) -> Result<Vec<ModuleEntry>, ResolutionErr
                 None => module.name.qualify(&declaration.name),
             };
             let id = declaration.explicit_id.unwrap_or_else(|| derive_declaration_id(&qualified_name));
-            if matches!(declaration.kind, DeclarationKind::Interface(_)) && id.is_nil() {
-                return Err(source_error(
-                    "EIDL074",
-                    &declaration.span,
-                    "a callable interface ID must not be nil",
-                    "choose a nonnil explicit ID or an identity derived from the qualified name",
-                ));
+            if matches!(declaration.kind, DeclarationKind::Interface(_)) {
+                if id.is_nil() {
+                    return Err(source_error(
+                        "EIDL074",
+                        &declaration.span,
+                        "a callable interface ID must not be nil",
+                        "choose a nonnil explicit ID or an identity derived from the qualified name",
+                    ));
+                }
+                // Owned object composition supplies the canonical IUnknown
+                // projection even without an authored reference to it.
+                if id == neocogi_com_core::IID_IUNKNOWN {
+                    return Err(source_error(
+                        "EIDL075",
+                        &declaration.span,
+                        "the callable interface ID is reserved for IUnknown",
+                        "choose a different explicit ID or omit the ID to derive it from the qualified name",
+                    ));
+                }
             }
             if let Some(previous) = declaration_ids.insert(id, declaration.span.clone()) {
                 return Err(ResolutionError {

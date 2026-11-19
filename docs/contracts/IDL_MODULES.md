@@ -268,8 +268,9 @@ a new dependency. Rust paths and compiler-local declaration keys do not enter AB
 signatures.
 
 Callable interfaces, including unused templates with explicit IDs, reject the
-nil UUID with `EIDL074`. This admission matches typed plugin export. Nominal
-value IDs have a separate policy and may still explicitly use nil.
+nil UUID with `EIDL074` and the canonical `IUnknown` UUID with `EIDL075`.
+Every owned COM object supplies the canonical `IUnknown` contract. Nominal
+value IDs follow a separate policy and may still explicitly use nil.
 
 ### Canonical signatures
 

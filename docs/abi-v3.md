@@ -54,6 +54,9 @@ metadata, raw tokens and bootstrap names to this development contract.
 
 ## Interface identity and calls
 
+The canonical `IUnknown` IID is reserved. Every owned COM object supplies that
+projection, and IDL rejects authored callable interfaces that claim its IID.
+
 Every generated interface has a Rust marker, a `#[repr(C)]` method table,
 an exact GUID/signature identity, and separate inspection descriptions. The
 marker has no instances in object storage. Raw references are explicit C records:

@@ -396,3 +396,28 @@ fn nesting_rejection_preserves_outputs_and_withholds_cargo_success() {
         }
     }
 }
+
+/// Both Cargo source owners reject an authored alias before publishing bindings.
+#[test]
+fn reserved_iunknown_iid_rejects_publication() {
+    if std::env::var(CASE).as_deref() == Ok("reserved-iunknown") {
+        let builder = Builder::child();
+        let root = std::path::PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").unwrap());
+        let output = std::path::PathBuf::from(std::env::var_os("OUT_DIR").unwrap());
+        builder.sources(&root, "u32");
+        let before = snapshot(&output);
+        let path = match builder {
+            Builder::Shared | Builder::File => "schemas/proof/a.ncidl",
+            Builder::Directory => "schemas/proof/a/part.ncidl",
+        };
+        fs::write(root.join(path), "#[id(\"00000000-0000-0000-c000-000000000046\")] interface Alias {}").unwrap();
+        let error = builder.build("proof::z", false).unwrap_err().to_string();
+        assert!(error.contains("EIDL075") && error.contains("reserved for IUnknown"), "{error}");
+        assert_eq!(snapshot(&output), before);
+        println!("{OBSERVED}");
+        return;
+    }
+    for builder in [Builder::Shared, Builder::File, Builder::Directory] {
+        child("cargo::output_admission_tests::reserved_iunknown_iid_rejects_publication", "reserved-iunknown", builder, false, false, false);
+    }
+}
