@@ -176,7 +176,8 @@ fn strong_handles_keep_two_words_and_weak_handles_use_one() {
     assert_eq!(std::mem::size_of::<ComPtr<IUnknown>>(), 2 * std::mem::size_of::<usize>());
     assert_eq!(std::mem::size_of::<WeakComPtr<IUnknown>>(), std::mem::size_of::<usize>());
     assert_eq!(std::mem::size_of::<Option<WeakComPtr<IUnknown>>>(), std::mem::size_of::<usize>());
-    assert_eq!(std::mem::size_of::<neocogi_com::NcWeakRaw>(), std::mem::size_of::<usize>());
+    assert_eq!(std::mem::size_of::<neocogi_com::NcSharedWeakRaw>(), std::mem::size_of::<usize>());
+    assert_eq!(std::mem::offset_of!(neocogi_com::NcSharedWeakRaw, control), 0);
     assert_eq!(
         std::mem::size_of::<neocogi_com::lifetime::NcSharedLifetimeState>(),
         3 * std::mem::size_of::<usize>()
@@ -199,7 +200,7 @@ fn handwritten_provider_without_weak_support_returns_an_explicit_error() {
 #[test]
 fn absent_weak_tokens_are_rejected_without_accessing_their_pointers() {
     // SAFETY: absent records transfer no reference and require no readable allocation.
-    assert!(unsafe { WeakComPtr::<IUnknown>::from_raw_owned(neocogi_com::NcWeakRaw::null()) }.is_none());
+    assert!(unsafe { WeakComPtr::<IUnknown>::from_raw_owned(neocogi_com::NcSharedWeakRaw::null()) }.is_none());
 }
 
 /// Generated weak selection preserves exact revision errors without acquiring owners.
@@ -382,7 +383,7 @@ unsafe impl neocogi_com::ComInterface for WrongRevision {
 /// Wire checking validates immutable metadata even when promotion is impossible.
 #[test]
 fn checked_weak_wire_preserves_expiration_and_rejects_wrong_contracts() {
-    use neocogi_com::{ComValue, NcWeakRaw, ValueBudget, NC_E_ABI_VERSION, NC_E_NOINTERFACE, NC_E_POINTER};
+    use neocogi_com::{ComValue, NcSharedWeakRaw, ValueBudget, NC_E_ABI_VERSION, NC_E_NOINTERFACE, NC_E_POINTER};
     let drops = Arc::new(AtomicUsize::new(0));
     let owner = Value::from_value(Value {
         drops: drops.clone(),
@@ -411,11 +412,11 @@ fn checked_weak_wire_preserves_expiration_and_rejects_wrong_contracts() {
         );
         // SAFETY: null is valid malformed wire storage, never a valid pointer.
         assert_eq!(
-            unsafe { WeakComPtr::<IValueAbi>::__nc_from_raw_owned_checked(NcWeakRaw::null()) }.unwrap_err(),
+            unsafe { WeakComPtr::<IValueAbi>::__nc_from_raw_owned_checked(NcSharedWeakRaw::null()) }.unwrap_err(),
             NC_E_POINTER
         );
         assert_eq!(
-            unsafe { WeakComPtr::<IValueAbi>::decode_value(&NcWeakRaw::null(), &mut ValueBudget::default()) }.unwrap_err(),
+            unsafe { WeakComPtr::<IValueAbi>::decode_value(&NcSharedWeakRaw::null(), &mut ValueBudget::default()) }.unwrap_err(),
             NC_E_POINTER
         );
         drop((checked, acquired));

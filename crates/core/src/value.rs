@@ -694,7 +694,7 @@ unsafe impl<T: crate::ComInterface + 'static, M: crate::ThreadingModel> ComValue
 // SAFETY: the ABI wire contract borrows one genuine shared state. Acquisition
 // validates exact identity, then retains bookkeeping without promoting T.
 unsafe impl<T: crate::ComInterface + 'static, M: crate::ThreadingModel> ComValue for crate::WeakComPtr<T, M> {
-    type AbiRepr = crate::NcWeakRaw;
+    type AbiRepr = crate::NcSharedWeakRaw;
     type KeepAlive = ();
     /// The borrowed native handle keeps header and provider metadata alive.
     fn encode_value(&self, budget: &mut ValueBudget) -> Result<(Self::AbiRepr, ()), NcStatus> {

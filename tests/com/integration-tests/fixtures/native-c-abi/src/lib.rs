@@ -87,7 +87,7 @@ impl INativeChoice for Choice {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use neocogi_com::{ComInterface, IUnknown, NC_E_POINTER, NC_OK, NcDebugApiV3, NcInterfaceDescriptor, NcInterfaceId, NcRuntimeApiV3, NcPluginInfoV3};
+    use neocogi_com::{ComInterface, IUnknown, NC_E_POINTER, NC_OK, NcDebugApiV3, NcInterfaceDescriptor, NcInterfaceId, NcPluginApiV3, NcPluginInfoV3};
 
     #[repr(C)]
     struct NativeCResults {
@@ -184,8 +184,8 @@ mod tests {
     }
 
     /// Borrows a shared fixture token; its typed ABI argument proves backing.
-    unsafe fn clone_fixture_shared(control: *mut neocogi_com::lifetime::NcSharedLifetimeState) -> neocogi_com::NcWeakRaw {
-        let borrowed = core::mem::ManuallyDrop::new(unsafe { neocogi_com::WeakComPtr::<IUnknown>::from_raw_owned(neocogi_com::NcWeakRaw { control }) }.unwrap());
+    unsafe fn clone_fixture_shared(control: *mut neocogi_com::lifetime::NcSharedLifetimeState) -> neocogi_com::NcSharedWeakRaw {
+        let borrowed = core::mem::ManuallyDrop::new(unsafe { neocogi_com::WeakComPtr::<IUnknown>::from_raw_owned(neocogi_com::NcSharedWeakRaw { control }) }.unwrap());
         neocogi_com::WeakComPtr::clone(&borrowed).into_raw()
     }
     /// Binding-owned shared retain callback; no lifetime kind is discovered.
@@ -194,7 +194,7 @@ mod tests {
     }
     /// Consumes one shared token using its declared state.
     unsafe extern "C" fn fixture_weak_release(control: *mut neocogi_com::lifetime::NcSharedLifetimeState) {
-        drop(unsafe { neocogi_com::WeakComPtr::<IUnknown>::from_raw_owned(neocogi_com::NcWeakRaw { control }) });
+        drop(unsafe { neocogi_com::WeakComPtr::<IUnknown>::from_raw_owned(neocogi_com::NcSharedWeakRaw { control }) });
     }
     /// Borrows one boxed fixture token; this callback's ABI declares boxed backing.
     unsafe extern "C" fn fixture_boxed_weak_retain(control: *mut neocogi_com::lifetime::NcBoxedLifetimeState) {
@@ -331,12 +331,12 @@ mod tests {
             interface_qualified_name_offset: core::mem::offset_of!(NcInterfaceDescriptor, qualified_name),
             interface_method_count_offset: core::mem::offset_of!(NcInterfaceDescriptor, method_count),
             interface_methods_offset: core::mem::offset_of!(NcInterfaceDescriptor, methods),
-            runtime_core_abi_version_offset: core::mem::offset_of!(NcRuntimeApiV3, core_abi_version),
-            runtime_plugin_register_offset: core::mem::offset_of!(NcRuntimeApiV3, register_plugin_descriptor),
-            runtime_plugin_count_offset: core::mem::offset_of!(NcRuntimeApiV3, plugin_count),
-            runtime_plugin_info_offset: core::mem::offset_of!(NcRuntimeApiV3, plugin_info),
-            runtime_size: core::mem::size_of::<NcRuntimeApiV3>(),
-            runtime_plugin_infos_offset: core::mem::offset_of!(NcRuntimeApiV3, plugin_infos),
+            runtime_core_abi_version_offset: core::mem::offset_of!(NcPluginApiV3, core_abi_version),
+            runtime_plugin_register_offset: core::mem::offset_of!(NcPluginApiV3, register_plugin_descriptor),
+            runtime_plugin_count_offset: core::mem::offset_of!(NcPluginApiV3, plugin_count),
+            runtime_plugin_info_offset: core::mem::offset_of!(NcPluginApiV3, plugin_info),
+            runtime_size: core::mem::size_of::<NcPluginApiV3>(),
+            runtime_plugin_infos_offset: core::mem::offset_of!(NcPluginApiV3, plugin_infos),
             plugin_info_size: core::mem::size_of::<NcPluginInfoV3>(),
             plugin_factory_offset: core::mem::offset_of!(NcPluginInfoV3, factory),
             plugin_dependencies_offset: core::mem::offset_of!(NcPluginInfoV3, dependencies),

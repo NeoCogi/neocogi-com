@@ -76,7 +76,7 @@ unsafe extern "C" fn release(this: *mut core::ffi::c_void) -> u32 {
     unsafe { (neocogi_com::lifetime::SHARED_UNKNOWN_VTABLE.release)(this) }
 }
 /// Forwards weak acquisition without changing the provider's canonical control.
-unsafe extern "C" fn downgrade(this: *mut core::ffi::c_void, out: *mut neocogi_com::NcWeakRaw) -> NcStatus {
+unsafe extern "C" fn downgrade(this: *mut core::ffi::c_void, out: *mut neocogi_com::NcSharedWeakRaw) -> NcStatus {
     DOWNGRADES.fetch_add(1, Ordering::SeqCst);
     // SAFETY: the provider is live and out is the caller's writable token slot.
     unsafe { (neocogi_com::lifetime::SHARED_UNKNOWN_VTABLE.downgrade.unwrap())(this, out) }

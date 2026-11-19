@@ -74,6 +74,13 @@ allows direct access only when the layouts and bit validity match recursively.
 Regenerate bindings for those associated names. The same representations,
 admission checks and IDL encoding apply under ABI v3/core 21.
 
+## Update C and Rust type names
+
+Use `NcSharedWeakRaw` for the one-pointer shared weak token, formerly
+`NcWeakRaw`. Use `NcPluginApiV3` for the plugin operation table formerly named
+`NcRuntimeApiV3`. `NcHostApiV3.runtime` still points to that table. These
+source names carry the same C layouts, callbacks and ABI v3/core 21 versions.
+
 ## Choose one concrete ownership header
 
 Ordinary `#[com_object]` users keep their shared/exclusive declaration and
@@ -103,7 +110,7 @@ free its storage only after final weak release, using the allocating provider.
 The SDK uses concrete `ComObjectInner<T, Lifetime, Access>` instantiations; the ABI
 address does not introduce an application payload registry or dynamic downcast.
 
-`NcWeakRaw.control` is now `*mut NcSharedLifetimeState`, with the same one-word
+`NcSharedWeakRaw.control` is now `*mut NcSharedLifetimeState`, with the same one-word
 C pointer representation. Its ABI producer guarantees genuine shared backing.
 Boxed owner/weak ABI positions likewise guarantee boxed backing before adoption.
 Checked constructors/decoders check shape and exact interfaces, then retain or

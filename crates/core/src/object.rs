@@ -103,7 +103,7 @@ pub struct IUnknownVTable {
     /// When the callback is absent, [`crate::ComRef::downgrade`] reports
     /// `NC_E_NOINTERFACE`. Boxed prefixes supply a callback that rejects
     /// shared downgrade with `NC_E_INVALID_ARG` on valid arguments.
-    /// Success transfers one shared [`crate::NcWeakRaw`]
+    /// Success transfers one shared [`crate::NcSharedWeakRaw`]
     /// at the canonical allocation address for every interface of the object.
     /// The weak token keeps the shared header alive through final weak release.
     /// Every callback failure clears the output and transfers no weak token.
@@ -113,7 +113,7 @@ pub struct IUnknownVTable {
     /// `this` must be backed by a live shared owner for a shared downgrade,
     /// or valid matching storage for a rejecting prefix. `out` must be a
     /// distinct writable weak-token slot with no input alias.
-    pub downgrade: Option<unsafe extern "C" fn(this: *mut c_void, out: *mut crate::NcWeakRaw) -> NcStatus>,
+    pub downgrade: Option<unsafe extern "C" fn(this: *mut c_void, out: *mut crate::NcSharedWeakRaw) -> NcStatus>,
 }
 
 // SAFETY: Vtables contain only function pointers and

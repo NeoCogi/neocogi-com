@@ -11,7 +11,7 @@ use std::vec::Vec;
 
 use crate::{
     ComInterface, ComPtr, IUnknown, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG, NC_E_NOT_FOUND, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER,
-    NC_ABI_THREADING_THREAD_LOCAL, NcDebugApiV3, NcPluginDescriptor, NcGuid, NcRuntimeApiV3, NcStatus, NcUtf8View, ThreadingModel, RuntimeHandle,
+    NC_ABI_THREADING_THREAD_LOCAL, NcDebugApiV3, NcPluginDescriptor, NcGuid, NcPluginApiV3, NcStatus, NcUtf8View, ThreadingModel, RuntimeHandle,
 };
 
 mod bootstrap;
@@ -42,7 +42,7 @@ pub const NC_COM_RUNTIME_MAX_INSPECTION_TEXT_BYTES: usize = 1024 * 1024;
 
 impl RuntimeHandle {
     /// Borrows the admitted plugin operations without discovery or callbacks.
-    fn runtime_api(&self) -> &'static NcRuntimeApiV3 {
+    fn runtime_api(&self) -> &'static NcPluginApiV3 {
         self.runtime
     }
 

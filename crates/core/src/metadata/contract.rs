@@ -306,7 +306,7 @@ pub const NC_ABI_PASSING_COM_BOX_IN: u32 = 0x09;
 pub const NC_ABI_PASSING_COM_BOX_OUT: u32 = 0x0a;
 /// Cached weak exclusive token returned without value ownership.
 pub const NC_ABI_PASSING_WEAK_COM_BOX_OUT: u32 = 0x0b;
-/// One shared weak header token returned through an NcWeakRaw output slot.
+/// One shared weak header token returned through an NcSharedWeakRaw output slot.
 pub const NC_ABI_PASSING_WEAK_COM_PTR_OUT: u32 = 0x0d;
 /// One-way copied result capacity with a separate initialized-prefix count.
 pub const NC_ABI_PASSING_OUTPUT_BUFFER: u32 = 0x0c;

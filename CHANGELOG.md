@@ -15,6 +15,9 @@ Historical draft numbers do not define additional supported COM baselines.
 - Use `ComValue::AbiRepr` for the live ABI representation and `KeepAlive` for
   temporary data it addresses. Regenerate Rust bindings for the new associated
   names and `BORROW_ABI_REPR`. ABI v3/core 21 and the NCB format stay the same.
+- Name the shared weak token `NcSharedWeakRaw` and the host's plugin operation
+  table `NcPluginApiV3` in Rust and C. Their field layouts and discovery symbols
+  retain ABI v3/core 21.
 
 ## 0.4.0-alpha.1 candidate
 

@@ -61,7 +61,7 @@ an exact GUID/signature identity, and separate inspection descriptions. The
 marker has no instances in object storage. Raw references are explicit C records:
 
 ```c
-typedef struct NcWeakRaw NcWeakRaw;
+typedef struct NcSharedWeakRaw NcSharedWeakRaw;
 typedef struct IUnknownVTable IUnknownVTable;
 
 typedef struct NcRawInterface {
@@ -74,7 +74,7 @@ struct IUnknownVTable {
     NcStatus (*query_interface)(void *object, const NcInterfaceId *id, NcRawInterface *out);
     uint32_t (*add_ref)(void *object);
     uint32_t (*release)(void *object);
-    NcStatus (*downgrade)(void *object, NcWeakRaw *out); /* nullable capability */
+    NcStatus (*downgrade)(void *object, NcSharedWeakRaw *out); /* nullable capability */
 };
 ```
 
@@ -235,7 +235,7 @@ the common header and lifetime protocol, not an opaque Rust Weak token.
 The raw shared weak token contains one opaque allocation address:
 
 ```c
-typedef struct NcWeakRaw { struct NcSharedLifetimeState *control; } NcWeakRaw;
+typedef struct NcSharedWeakRaw { struct NcSharedLifetimeState *control; } NcSharedWeakRaw;
 ```
 
 The [lifetime engine](../crates/core/src/lifetime.rs) provides two distinct headers.
@@ -680,7 +680,7 @@ its encoded/decoded output guards have been removed.
 
 ## Shared weak result and value transport
 
-`WeakComPtr<I>` results transfer one `NcWeakRaw` through a writable output slot.
+`WeakComPtr<I>` results transfer one `NcSharedWeakRaw` through a writable output slot.
 The raw record is the existing single common-header pointer, without a cached
 interface table. `NC_ABI_PASSING_WEAK_COM_PTR_OUT` (`0x0d`) identifies this passing
 mode; the return type descriptor supplies the exact interface identity and the
@@ -696,7 +696,7 @@ interface metadata under weak ownership and never promotes or reads the value.
 Raw callers must supply a retained valid header, readable class metadata and
 provider code lifetime; checks cannot make an arbitrary pointer safe.
 
-A weak field in a borrowed value uses the same `NcWeakRaw` as a borrowed token.
+A weak field in a borrowed value uses the same `NcSharedWeakRaw` as a borrowed token.
 The source handle keeps its header alive throughout encoding and acquisition.
 Decoding validates before retaining an independent weak reference. Partial
 aggregate failure drops already acquired fields. It never creates a strong owner
@@ -927,7 +927,7 @@ identities remain separate.
 
 Operations use the supplied record in both deployment modes. The optional named
 bootstrap only returns that record; all three service tables remain required:
-`NcRuntimeApiV3` for plugin operations, `NcDebugApiV3` for diagnostics, and
+`NcPluginApiV3` for plugin operations, `NcDebugApiV3` for diagnostics, and
 `NcPersistenceApiV3` for caller-owned persistence contexts. The safe handle stores
 private references only after size/version checks and under the unsafe caller's
 complete process-lived graph guarantee. Unsupported versions and short records

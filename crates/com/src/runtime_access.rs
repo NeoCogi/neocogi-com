@@ -6,7 +6,7 @@
 
 use core::fmt;
 
-use crate::{NC_COM_RUNTIME_ABI_VERSION, NcDebugApiV3, NcHostApiV3, NcPersistenceApiV3, NcRuntimeApiV3, NcStatus, validate_host_api};
+use crate::{NC_COM_RUNTIME_ABI_VERSION, NcDebugApiV3, NcHostApiV3, NcPersistenceApiV3, NcPluginApiV3, NcStatus, validate_host_api};
 
 /// Copyable access to the selected host's process-lived runtime services.
 ///
@@ -19,7 +19,7 @@ use crate::{NC_COM_RUNTIME_ABI_VERSION, NcDebugApiV3, NcHostApiV3, NcPersistence
 #[derive(Clone, Copy)]
 pub struct RuntimeHandle {
     /// Admitted plugin/catalog operations whose callbacks execute in the host.
-    pub(crate) runtime: &'static NcRuntimeApiV3,
+    pub(crate) runtime: &'static NcPluginApiV3,
     /// Diagnostics operations from the same immutable host service graph.
     pub(crate) debug: &'static NcDebugApiV3,
     /// Persistence operations retained by every context created through access.

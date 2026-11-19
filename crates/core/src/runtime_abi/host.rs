@@ -7,7 +7,7 @@
 
 use core::{mem, ptr};
 
-use super::{NC_COM_RUNTIME_ABI_VERSION, NcDebugApiV3, NcPersistenceApiV3, NcRuntimeApiV3};
+use super::{NC_COM_RUNTIME_ABI_VERSION, NcDebugApiV3, NcPersistenceApiV3, NcPluginApiV3};
 use crate::{NC_COM_CORE_ABI_VERSION, NC_E_ABI_VERSION, NC_E_POINTER, NC_OK, NcStatus};
 
 /// Native bootstrap export of the optional host runtime shared library.
@@ -47,7 +47,7 @@ pub struct NcHostApiV3 {
     /// Core object/descriptor ABI understood by the supplied implementation.
     pub core_abi_version: u32,
     /// Required immutable plugin/catalog operation table in the host.
-    pub runtime: *const NcRuntimeApiV3,
+    pub runtime: *const NcPluginApiV3,
     /// Required immutable diagnostics operation table in the same host.
     pub debug: *const NcDebugApiV3,
     /// Required immutable caller-owned persistence operation table in that host.

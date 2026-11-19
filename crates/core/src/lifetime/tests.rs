@@ -151,7 +151,7 @@ fn final_strong_drops_value_before_final_weak_frees_storage() {
     let (control, observations) = allocation();
     unsafe {
         (*control).weak_retain();
-        (*control.cast::<Allocation>()).value.assume_init_mut().self_weak = crate::WeakComPtr::from_raw_owned(crate::NcWeakRaw { control });
+        (*control.cast::<Allocation>()).value.assume_init_mut().self_weak = crate::WeakComPtr::from_raw_owned(crate::NcSharedWeakRaw { control });
         (*control).weak_retain(); // External weak reference survives destruction.
         assert_eq!(nc_shared_retain(control.cast()), 2);
         assert_eq!(nc_shared_release(control.cast()), 1);
@@ -192,7 +192,7 @@ fn checked_projection_balances_all_ownership_paths() {
 /// Output rejection and borrowed acquisition balance weak counts without promotion.
 #[test]
 fn checked_weak_transport_balances_tokens_before_and_after_destruction() {
-    use crate::{ComValue, NcWeakRaw, ValueBudget, WeakComPtr};
+    use crate::{ComValue, NcSharedWeakRaw, ValueBudget, WeakComPtr};
     let (control, observed) = allocation();
     // SAFETY: this fixture owns the initial strong reference and retains one
     // explicit weak owner across both iterations and final value destruction.
@@ -207,19 +207,19 @@ fn checked_weak_transport_balances_tokens_before_and_after_destruction() {
         }
         // SAFETY: transfer the additional weak token with intentionally wrong T.
         assert_eq!(
-            unsafe { WeakComPtr::<crate::INcBytesAbi>::__nc_from_raw_owned_checked(NcWeakRaw { control: control.cast() }) }.unwrap_err(),
+            unsafe { WeakComPtr::<crate::INcBytesAbi>::__nc_from_raw_owned_checked(NcSharedWeakRaw { control: control.cast() }) }.unwrap_err(),
             crate::NC_E_NOINTERFACE
         );
         assert_eq!(unsafe { (*control).weak_count.load(Ordering::Relaxed) }, before);
         // SAFETY: the source lends a live header; acquisition adds only one weak owner.
-        let acquired = unsafe { WeakComPtr::<IUnknown>::decode_value(&NcWeakRaw { control: control.cast() }, &mut ValueBudget::default()) }.unwrap();
+        let acquired = unsafe { WeakComPtr::<IUnknown>::decode_value(&NcSharedWeakRaw { control: control.cast() }, &mut ValueBudget::default()) }.unwrap();
         assert_eq!(unsafe { (*control).weak_count.load(Ordering::Relaxed) }, before + 1);
         assert_eq!(unsafe { (*control).strong_count.load(Ordering::Relaxed) }, if expired { 0 } else { 1 });
         drop(acquired);
         assert_eq!(unsafe { (*control).weak_count.load(Ordering::Relaxed) }, before);
         // A rejected conversion neither acquires nor releases the caller's token.
         assert_eq!(
-            unsafe { WeakComPtr::<IUnknown>::decode_value(&NcWeakRaw { control: control.cast() }, &mut ValueBudget::new(0, 0, 0)) }.unwrap_err(),
+            unsafe { WeakComPtr::<IUnknown>::decode_value(&NcSharedWeakRaw { control: control.cast() }, &mut ValueBudget::new(0, 0, 0)) }.unwrap_err(),
             crate::NC_E_OUT_OF_RANGE
         );
         assert_eq!(unsafe { (*control).weak_count.load(Ordering::Relaxed) }, before);
@@ -497,7 +497,7 @@ fn weak_clone_exhaustion_cannot_unwind_to_its_caller() {
         unsafe {
             (*control).weak_count.store(isize::MAX as usize, Ordering::Relaxed);
         }
-        let weak = unsafe { crate::WeakComPtr::<IUnknown>::from_raw_owned(crate::NcWeakRaw { control: control.cast() }) }.unwrap();
+        let weak = unsafe { crate::WeakComPtr::<IUnknown>::from_raw_owned(crate::NcSharedWeakRaw { control: control.cast() }) }.unwrap();
         let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| weak.clone()));
         std::process::exit(97);
     }
@@ -552,7 +552,7 @@ fn failed_promotion_rollback_destroys_the_final_owner() {
         let (control, observed) = allocation();
         unsafe {
             (*control).weak_retain();
-            (*control.cast::<Allocation>()).value.assume_init_mut().self_weak = crate::WeakComPtr::from_raw_owned(crate::NcWeakRaw { control });
+            (*control.cast::<Allocation>()).value.assume_init_mut().self_weak = crate::WeakComPtr::from_raw_owned(crate::NcSharedWeakRaw { control });
             (*control).weak_retain();
             RELEASE_OWNER_AFTER_PROMOTION.with(|release| release.set(true));
             let expected = if requested.iid == crate::IID_IUNKNOWN {
@@ -579,7 +579,7 @@ fn shared_prefix_null_arguments_clear_outputs_without_acquiring_owners() {
     let (control, observed) = allocation();
     let object = control.cast();
     let mut output = ComRaw { object, vtable: &ROOT };
-    let mut weak = crate::NcWeakRaw { control };
+    let mut weak = crate::NcSharedWeakRaw { control };
     unsafe {
         assert_eq!(nc_shared_query_interface(object, core::ptr::null(), &mut output), NC_E_POINTER);
         assert!(!output.is_present());

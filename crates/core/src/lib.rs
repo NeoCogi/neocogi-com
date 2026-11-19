@@ -64,7 +64,7 @@ pub mod lifetime;
 mod raw_handle;
 mod ref_count;
 mod weak;
-pub use weak::{WeakComPtr, NcWeakRaw};
+pub use weak::{WeakComPtr, NcSharedWeakRaw};
 mod output;
 mod value_buffer;
 pub use output::{NcOutput, NcOutputWriter, PreparedOutput};
@@ -118,7 +118,7 @@ pub use runtime_abi::{
     NcPersistenceApiV3, NcPersistenceContext, NcPersistenceLimitsV3, NcPersistenceWriteBytesV3, NC_COM_RUNTIME_ABI_VERSION,
     NC_COM_RUNTIME_MAX_ACTIVE_DEBUG_MESSENGERS, NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS, NC_DEBUG_SEVERITY_ALL, NC_DEBUG_SEVERITY_ERROR, NC_DEBUG_SEVERITY_INFO,
     NC_DEBUG_SEVERITY_WARNING, NC_DEBUG_TYPE_ALL, NC_DEBUG_TYPE_PLUGIN, NC_DEBUG_TYPE_RUNTIME, NC_DEBUG_TYPE_VALIDATION, NcDebugApiV3, NcDebugCallbackV3,
-    NcDebugMessageV3, NcDebugMessengerCreateInfoV3, NcInspectPluginDescriptorCallbackV3, NcFactoryInfoV3, NcPluginInfoV3, NcRuntimeApiV3, NcUtf8View,
+    NcDebugMessageV3, NcDebugMessengerCreateInfoV3, NcInspectPluginDescriptorCallbackV3, NcFactoryInfoV3, NcPluginInfoV3, NcPluginApiV3, NcUtf8View,
     NC_GET_HOST_API_SYMBOL, NcGetHostApi, NcHostApiV3, validate_host_api,
 };
 pub use status::{

@@ -19,7 +19,7 @@ pub use debug::{
     NcDebugMessengerCreateInfoV3,
 };
 pub use plugin::{NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS, NcFactoryInfoV3, NcInspectPluginDescriptorCallbackV3, NcPluginInfoV3};
-pub use runtime::NcRuntimeApiV3;
+pub use runtime::NcPluginApiV3;
 pub use host::{NC_GET_HOST_API_SYMBOL, NcGetHostApi, NcHostApiV3, validate_host_api};
 
 /// Supplied host-service family for WIP ABI v3; not a finalized release contract.

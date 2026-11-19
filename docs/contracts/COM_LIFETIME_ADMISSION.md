@@ -22,7 +22,7 @@ The unsafe raw constructor contract makes the same obligation explicit. A pointe
 
 | Operation | Required proof | Checks and ownership |
 | --- | --- | --- |
-| Shared raw weak | `NcWeakRaw.control: *mut NcSharedLifetimeState` points to retained shared backing | Check presence/exact interface; failed owned adoption releases one shared weak |
+| Shared raw weak | `NcSharedWeakRaw.control: *mut NcSharedLifetimeState` points to retained shared backing | Check presence/exact interface; failed owned adoption releases one shared weak |
 | Boxed owner/weak raw pair | ABI producer supplies genuine boxed backing and a matching provider table | Check shape and incoming/canonical interface identity; reject through boxed owner/weak cleanup |
 | Borrowed weak wire | Declared shared/boxed backing, metadata and source reference retained throughout | Validate interfaces before retaining one independent weak; failure changes no source count |
 | Typed handle or matching callback | Construction, a valid owner or the unsafe matched-provider contract | Use its own state directly; no ownership classification |

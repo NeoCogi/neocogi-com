@@ -164,7 +164,7 @@ fn result(graph: &mut Generation<'_>, module: &ResolvedModule, output: &IdlType)
     if let Some((target, ownership)) = ownership {
         let (interface, mode_ty) = object(graph, module, target)?;
         let abi_ty = match ownership {
-            InterfaceOwnership::WeakShared => syn::parse_quote!(::neocogi_com::NcWeakRaw),
+            InterfaceOwnership::WeakShared => syn::parse_quote!(::neocogi_com::NcSharedWeakRaw),
             _ => syn::parse_quote!(::neocogi_com::ComRaw<#interface>),
         };
         return Ok(AbiReturn {

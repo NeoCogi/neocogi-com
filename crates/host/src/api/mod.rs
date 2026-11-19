@@ -11,7 +11,7 @@ use std::path::Path;
 use crate::debug;
 use neocogi_com_core::{
     NC_COM_CORE_ABI_VERSION, NC_DEBUG_SEVERITY_ERROR, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG, NC_E_POINTER, NC_OK, NcDebugApiV3, NcDebugMessageV3,
-    NcRuntimeApiV3, NcStatus, NcUtf8View,
+    NcPluginApiV3, NcStatus, NcUtf8View,
 };
 
 #[cfg(test)]
@@ -25,8 +25,8 @@ use inspection::{inspect_plugin_library_utf8, plugin_count, plugin_info, plugin_
 use runtime::{acquire_factory_plugin, load_plugin_library_utf8, register_plugin_descriptor};
 
 /// Immutable runtime-operation table supplied by the host API description.
-pub(super) static RUNTIME_API_V3: NcRuntimeApiV3 = NcRuntimeApiV3 {
-    size: mem::size_of::<NcRuntimeApiV3>(),
+pub(super) static RUNTIME_API_V3: NcPluginApiV3 = NcPluginApiV3 {
+    size: mem::size_of::<NcPluginApiV3>(),
     core_abi_version: NC_COM_CORE_ABI_VERSION,
 
     register_plugin_descriptor,
@@ -154,7 +154,7 @@ mod tests {
 
         assert_eq!(persistence.size, mem::size_of::<neocogi_com_core::NcPersistenceApiV3>());
         assert_eq!(persistence.core_abi_version, NC_COM_CORE_ABI_VERSION);
-        assert_eq!(runtime.size, mem::size_of::<NcRuntimeApiV3>());
+        assert_eq!(runtime.size, mem::size_of::<NcPluginApiV3>());
         assert_eq!(runtime.core_abi_version, NC_COM_CORE_ABI_VERSION);
         assert_eq!(debug.size, mem::size_of::<NcDebugApiV3>());
     }

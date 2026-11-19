@@ -272,7 +272,7 @@ fn raw_documentation_matches_physical_slots_and_returned_ownership() {
         assert!(returned.contains(&format!("`out` receives `{physical}`")), "{method}: {docs}");
         assert!(returned.contains(contract), "{method}: {docs}");
         if method == "weak_shared" {
-            assert!(physical.contains("NcWeakRaw"));
+            assert!(physical.contains("NcSharedWeakRaw"));
             assert!(!returned.contains("object/table pair"), "a shared weak result transfers one header token");
         }
     }

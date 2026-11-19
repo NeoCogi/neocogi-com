@@ -11,7 +11,7 @@ spells owned method results, while `&I` remains a call-scoped borrowed input.
 `String` means text data; use `ComPtr<INcString>` for an owned COM string object.
 `WeakComPtr<I>` retains shared lifetime bookkeeping without keeping the value
 alive. It can be stored recursively in borrowed aggregates or returned directly;
-its wire is `NcWeakRaw`. Acquisition validates shared ownership and the exact
+its wire is `NcSharedWeakRaw`. Acquisition validates shared ownership and the exact
 interface, then retains a weak token without promotion. Expired tokens remain
 valid transport values. Weak fields have distinct design metadata and do not
 acquire copied-buffer or persistence capability. See [development ABI](../abi-v3.md#shared-weak-result-and-value-transport).

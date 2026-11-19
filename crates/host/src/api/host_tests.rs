@@ -126,7 +126,7 @@ fn host_admission_reads_only_available_child_prefixes() {
 
 #[test]
 fn host_admission_rejects_inconsistent_service_core_versions() {
-    let runtime = neocogi_com_core::NcRuntimeApiV3 {
+    let runtime = neocogi_com_core::NcPluginApiV3 {
         core_abi_version: NC_COM_CORE_ABI_VERSION + 1,
         ..RUNTIME_API_V3
     };

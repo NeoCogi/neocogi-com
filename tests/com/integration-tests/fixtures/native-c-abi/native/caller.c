@@ -60,9 +60,9 @@ typedef struct NcPluginInfoV3 {
     size_t dependency_count;
 } NcPluginInfoV3;
 
-/* Current runtime-family-3 layout; the first three callback signatures are
- * retained as opaque pointers here because this test invokes metadata only. */
-typedef struct NcRuntimeApiV3 {
+/* Host plugin operations in runtime family 3. The fixture leaves callbacks
+ * opaque where it only compares their slots. */
+typedef struct NcPluginApiV3 {
     size_t size;
     uint32_t core_abi_version;
     int32_t (*register_plugin_descriptor)(const void *);
@@ -72,7 +72,7 @@ typedef struct NcRuntimeApiV3 {
     size_t (*plugin_count)(void);
     NcStatus (*plugin_infos)(NcPluginInfoV3 *, size_t, size_t *);
     void (*inspect_plugin_library_utf8)(void);
-} NcRuntimeApiV3;
+} NcPluginApiV3;
 
 typedef struct NcDebugApiV3Prefix {
     size_t size;
@@ -84,7 +84,7 @@ typedef struct NcPersistenceApiV3 NcPersistenceApiV3;
 typedef struct NcHostApiV3 {
     size_t size;
     uint32_t runtime_abi_version, core_abi_version;
-    const NcRuntimeApiV3 *runtime;
+    const NcPluginApiV3 *runtime;
     const NcDebugApiV3Prefix *debug;
     const NcPersistenceApiV3 *persistence;
 } NcHostApiV3;
@@ -102,8 +102,9 @@ struct IUnknown {
 /* Common lifetime entry points receive a one-pointer token. C need not
  * interpret the atomic header to call the shared functions supplied by Rust. */
 struct NcSharedLifetimeState;
-typedef struct NcWeakRaw { struct NcSharedLifetimeState *control; } NcWeakRaw;
-_Static_assert(sizeof(NcWeakRaw) == sizeof(void *), "weak token must be one pointer");
+typedef struct NcSharedWeakRaw { struct NcSharedLifetimeState *control; } NcSharedWeakRaw;
+_Static_assert(sizeof(NcSharedWeakRaw) == sizeof(void *), "weak token must be one pointer");
+_Static_assert(offsetof(NcSharedWeakRaw, control) == 0, "shared weak token starts at its header pointer");
 
 struct IUnknownVTable {
     /* Exact selected contract; receivers are direct object addresses in the current core ABI. */
@@ -116,7 +117,7 @@ struct IUnknownVTable {
     uint32_t (*add_ref)(void *self);
     uint32_t (*release)(void *self);
     /* Optional provider-owned weak lifetime token; this fixture does not request it. */
-    NcStatus (*downgrade)(void *self, NcWeakRaw *out_weak);
+    NcStatus (*downgrade)(void *self, NcSharedWeakRaw *out_weak);
 };
 
 /* A raw borrowed/owned capability; ownership follows the enclosing operation. */
@@ -261,10 +262,10 @@ _Static_assert(offsetof(NativeAggregate, value) == 8,
 _Static_assert(sizeof(NativeAggregate) == 16,
     "NativeAggregate ABI size changed");
 
-_Static_assert(offsetof(NcRuntimeApiV3, size) == 0,
-    "NcRuntimeApiV3 must begin with size");
-_Static_assert(offsetof(NcRuntimeApiV3, core_abi_version) == sizeof(size_t),
-    "NcRuntimeApiV3.core_abi_version prefix changed");
+_Static_assert(offsetof(NcPluginApiV3, size) == 0,
+    "NcPluginApiV3 must begin with size");
+_Static_assert(offsetof(NcPluginApiV3, core_abi_version) == sizeof(size_t),
+    "NcPluginApiV3.core_abi_version prefix changed");
 _Static_assert(offsetof(NcDebugApiV3Prefix, create_messenger) == sizeof(size_t),
     "NcDebugApiV3 prefix changed");
 
@@ -275,8 +276,8 @@ _Static_assert(offsetof(NcInterfaceDescriptor, method_count) == 64,
     "64-bit NcInterfaceDescriptor.method_count ABI offset changed");
 _Static_assert(offsetof(NcInterfaceDescriptor, methods) == 72,
     "64-bit NcInterfaceDescriptor.methods ABI offset changed");
-_Static_assert(offsetof(NcRuntimeApiV3, register_plugin_descriptor) == 16,
-    "64-bit NcRuntimeApiV3 registration prefix changed");
+_Static_assert(offsetof(NcPluginApiV3, register_plugin_descriptor) == 16,
+    "64-bit NcPluginApiV3 registration prefix changed");
 #elif UINTPTR_MAX == UINT32_MAX
 _Static_assert(sizeof(NcInterfaceDescriptor) == 56,
     "32-bit NcInterfaceDescriptor ABI size changed");
@@ -284,8 +285,8 @@ _Static_assert(offsetof(NcInterfaceDescriptor, method_count) == 48,
     "32-bit NcInterfaceDescriptor.method_count ABI offset changed");
 _Static_assert(offsetof(NcInterfaceDescriptor, methods) == 52,
     "32-bit NcInterfaceDescriptor.methods ABI offset changed");
-_Static_assert(offsetof(NcRuntimeApiV3, register_plugin_descriptor) == 8,
-    "32-bit NcRuntimeApiV3 registration prefix changed");
+_Static_assert(offsetof(NcPluginApiV3, register_plugin_descriptor) == 8,
+    "32-bit NcPluginApiV3 registration prefix changed");
 #else
 #error "native C ABI fixture supports only 32-bit and 64-bit targets"
 #endif
@@ -300,12 +301,12 @@ int32_t nc_c_validate_abi_layouts(const NativeAbiLayouts *layouts) {
         layouts->interface_qualified_name_offset == offsetof(NcInterfaceDescriptor, qualified_name) &&
         layouts->interface_method_count_offset == offsetof(NcInterfaceDescriptor, method_count) &&
         layouts->interface_methods_offset == offsetof(NcInterfaceDescriptor, methods) &&
-        layouts->runtime_core_abi_version_offset == offsetof(NcRuntimeApiV3, core_abi_version) &&
-        layouts->runtime_plugin_register_offset == offsetof(NcRuntimeApiV3, register_plugin_descriptor) &&
-        layouts->runtime_plugin_count_offset == offsetof(NcRuntimeApiV3, plugin_count) &&
-        layouts->runtime_plugin_info_offset == offsetof(NcRuntimeApiV3, plugin_info) &&
-        layouts->runtime_size == sizeof(NcRuntimeApiV3) &&
-        layouts->runtime_plugin_infos_offset == offsetof(NcRuntimeApiV3, plugin_infos) &&
+        layouts->runtime_core_abi_version_offset == offsetof(NcPluginApiV3, core_abi_version) &&
+        layouts->runtime_plugin_register_offset == offsetof(NcPluginApiV3, register_plugin_descriptor) &&
+        layouts->runtime_plugin_count_offset == offsetof(NcPluginApiV3, plugin_count) &&
+        layouts->runtime_plugin_info_offset == offsetof(NcPluginApiV3, plugin_info) &&
+        layouts->runtime_size == sizeof(NcPluginApiV3) &&
+        layouts->runtime_plugin_infos_offset == offsetof(NcPluginApiV3, plugin_infos) &&
         layouts->plugin_info_size == sizeof(NcPluginInfoV3) &&
         layouts->plugin_factory_offset == offsetof(NcPluginInfoV3, factory) &&
         layouts->plugin_dependencies_offset == offsetof(NcPluginInfoV3, dependencies) &&
@@ -518,7 +519,7 @@ release_calculator:
 int nc_c_exercise_weak(IUnknown owned, const NcInterfaceId *requested, NcStatus dropped_status,
     void (*retain)(struct NcSharedLifetimeState *), void (*release)(struct NcSharedLifetimeState *),
     NcStatus (*upgrade)(struct NcSharedLifetimeState *, const NcInterfaceId *, IUnknown *)) {
-    NcWeakRaw weak = {0};
+    NcSharedWeakRaw weak = {0};
     if (!owned.vtable->downgrade || owned.vtable->downgrade(owned.object, &weak) != 0) return 0;
     if ((void *)weak.control != owned.object) return 0;
     retain(weak.control);
@@ -712,7 +713,7 @@ int nc_c_exercise_split_lifetimes(
     output.vtable = exclusive_root;
     if (exclusive_root->query_interface(boxed, exclusive_root->interface_id, &output) != invalid ||
         output.object || output.vtable) return 0;
-    NcWeakRaw rejected = {0};
+    NcSharedWeakRaw rejected = {0};
     if (!exclusive_root->downgrade || exclusive_root->downgrade(boxed, &rejected) != invalid ||
         rejected.control || boxed->lifetime.weak_count != 2) return 0;
     if (exclusive_root->release(boxed) != 0 || boxed_counts.destroyed != 1 || boxed_counts.freed != 0) return 0;

@@ -109,12 +109,12 @@ fn host_entry_rejects_safe_modules_returning_unverified_raw_tables() {
             r#"
             #![deny(unsafe_code)]
             mod safe_local_host {{
-                use neocogi_com::{{NcHostApiV3, NcRuntimeApiV3}};
+                use neocogi_com::{{NcHostApiV3, NcPluginApiV3}};
                 static HOST: NcHostApiV3 = NcHostApiV3 {{
                     size: core::mem::size_of::<NcHostApiV3>(),
                     runtime_abi_version: neocogi_com::NC_COM_RUNTIME_ABI_VERSION,
                     core_abi_version: neocogi_com::NC_COM_CORE_ABI_VERSION,
-                    runtime: core::ptr::NonNull::<NcRuntimeApiV3>::dangling().as_ptr(),
+                    runtime: core::ptr::NonNull::<NcPluginApiV3>::dangling().as_ptr(),
                     debug: core::ptr::null(),
                     persistence: core::ptr::null(),
                 }};

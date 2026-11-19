@@ -133,7 +133,7 @@ mod tests;
 
 pub use neocogi_com_core::lifetime;
 pub use neocogi_com_core::{ComBox, WeakComBox};
-pub use neocogi_com_core::{NcCopyFromBufferOffset, WeakComPtr, NcWeakRaw};
+pub use neocogi_com_core::{NcCopyFromBufferOffset, WeakComPtr, NcSharedWeakRaw};
 pub use neocogi_com_core::{NC_GET_HOST_API_SYMBOL, NcGetHostApi, NcHostApiV3, validate_host_api};
 #[cfg(feature = "alloc")]
 pub use data::{ComBytesExt, ComStringExt, NC_COM_DEFAULT_OWNED_COPY_MAX_BYTES, NcBytes, NcString};
@@ -158,7 +158,7 @@ pub use neocogi_com_core::{
     NcAbiDigest, NcAbiPassing, NcAbiPassingDescriptor, NcAbiReceiver, NcAbiThreadingMode, NcAbiType, NcAbiTypeDescriptor, NcAcquirePluginFactory, NcDebugApiV3,
     NcDebugCallbackV3, NcDebugMessageV3, NcDebugMessengerCreateInfoV3, NcPluginDescriptor, NcGetPluginDescriptor, NcGuid, NcInspectPluginDescriptorCallbackV3,
     NcInterfaceDescriptor, NcInterfaceId, NcMethodDescriptor, NcMethodParamDescriptor, NcPersistenceApiV3, NcPersistenceContext, NcPersistenceLimitsV3,
-    NcPersistenceWriteBytesV3, NcMethodReturnDescriptor, NcPluginDependencyDescriptor, NcFactoryInfoV3, NcPluginInfoV3, NcQualifiedNameError, NcRuntimeApiV3,
+    NcPersistenceWriteBytesV3, NcMethodReturnDescriptor, NcPluginDependencyDescriptor, NcFactoryInfoV3, NcPluginInfoV3, NcQualifiedNameError, NcPluginApiV3,
     NcStaticUtf8, NcStatus, NcUtf8View, NcVersionTextError, ParseGuidError, QUALIFIED_NAME_INC_BYTES, QUALIFIED_NAME_INC_STRING, ThreadLocal, ThreadSafe,
     ThreadingModel, write_plugin_root, guid_from_qualified_name, raw, return_plugin_descriptor, validate_plugin_descriptor, validate_qualified_name,
     validate_version_text, validate_rust_path, NcRustPathError, NC_DESCRIPTOR_RUST_PATH_MAX_LEN,

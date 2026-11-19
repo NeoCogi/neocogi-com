@@ -7,16 +7,18 @@ use core::{marker::PhantomData, ptr::NonNull};
 use crate::lifetime::NcSharedLifetimeState;
 use crate::{ComInterface, ComPtr, ComRaw, IUnknown, NcStatus, ThreadLocal, ThreadSafe, ThreadingModel, NC_E_NOINTERFACE, NC_E_POINTER};
 
-/// One nullable shared-state address. The ABI producer guarantees shared backing; success transfers
-/// one weak reference; a null pointer represents absence and owns nothing.
+/// An ABI token for one nullable shared lifetime header.
+///
+/// A present token transfers one shared weak reference to the matching header.
+/// A null pointer represents absence and owns nothing.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct NcWeakRaw {
+pub struct NcSharedWeakRaw {
     /// Header at the allocation's canonical object address, retained through
     /// shared weak operations even after the concrete value is destroyed.
     pub control: *mut NcSharedLifetimeState,
 }
-impl NcWeakRaw {
+impl NcSharedWeakRaw {
     /// Empty output initialized before every fallible lifetime operation.
     pub const fn null() -> Self {
         Self { control: core::ptr::null_mut() }
@@ -64,10 +66,10 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> WeakComPtr<T, M> {
     ///
     /// Shared and boxed raw states are distinct pointer types:
     /// ```compile_fail
-    /// use neocogi_com_core::{NcWeakRaw, lifetime::NcBoxedLifetimeState};
-    /// let _ = NcWeakRaw { control: core::ptr::null_mut::<NcBoxedLifetimeState>() };
+    /// use neocogi_com_core::{NcSharedWeakRaw, lifetime::NcBoxedLifetimeState};
+    /// let _ = NcSharedWeakRaw { control: core::ptr::null_mut::<NcBoxedLifetimeState>() };
     /// ```
-    pub unsafe fn from_raw_owned(raw: NcWeakRaw) -> Option<Self> {
+    pub unsafe fn from_raw_owned(raw: NcSharedWeakRaw) -> Option<Self> {
         NonNull::new(raw.control).map(|control| Self { control, marker: PhantomData })
     }
 
@@ -80,7 +82,7 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> WeakComPtr<T, M> {
     /// provider metadata/code and capability M. This validates presence and exact
     /// interface identity; supplying boxed backing violates the ABI producer contract.
     #[doc(hidden)]
-    pub unsafe fn __nc_from_raw_owned_checked(raw: NcWeakRaw) -> Result<Self, NcStatus> {
+    pub unsafe fn __nc_from_raw_owned_checked(raw: NcSharedWeakRaw) -> Result<Self, NcStatus> {
         let control = NonNull::new(raw.control).ok_or(NC_E_POINTER)?;
         // SAFETY: the producer establishes shared backing before this call;
         // exact interface rejection still consumes its one shared weak reference.
@@ -92,11 +94,11 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> WeakComPtr<T, M> {
         Ok(Self { control, marker: PhantomData })
     }
     /// Borrows the control identity without extending or transferring its lifetime.
-    pub fn as_raw(&self) -> NcWeakRaw {
-        NcWeakRaw { control: self.control.as_ptr() }
+    pub fn as_raw(&self) -> NcSharedWeakRaw {
+        NcSharedWeakRaw { control: self.control.as_ptr() }
     }
     /// Transfers this handle's one weak reference to an ABI caller.
-    pub fn into_raw(self) -> NcWeakRaw {
+    pub fn into_raw(self) -> NcSharedWeakRaw {
         let raw = self.as_raw();
         core::mem::forget(self);
         raw
@@ -192,10 +194,10 @@ unsafe impl<T: ComInterface + ?Sized> Sync for WeakComPtr<T, ThreadSafe> {}
 /// # Safety
 /// Source is a matching live object/table pair with the caller's threading capability.
 #[inline(never)]
-pub(crate) unsafe fn downgrade(source: ComRaw<IUnknown>) -> Result<NcWeakRaw, NcStatus> {
+pub(crate) unsafe fn downgrade(source: ComRaw<IUnknown>) -> Result<NcSharedWeakRaw, NcStatus> {
     // SAFETY: caller grants access to the current core ABI's common table prefix.
     let operation = unsafe { (*source.vtable).downgrade }.ok_or(NC_E_NOINTERFACE)?;
-    let mut out = NcWeakRaw::null();
+    let mut out = NcSharedWeakRaw::null();
     // SAFETY: source remains strong-owned for this synchronous operation.
     let status = unsafe { operation(source.object, &mut out) };
     if status.is_err() {

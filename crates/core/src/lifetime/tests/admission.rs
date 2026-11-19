@@ -1,6 +1,6 @@
 //! Raw admission tests own real references and observe allocator-local cleanup.
 use super::*;
-use crate::{ComRaw, ComValue, NcWeakRaw, ValueBudget, WeakComBox, WeakComPtr, NC_E_ABI_VERSION, NC_E_NOINTERFACE};
+use crate::{ComRaw, ComValue, NcSharedWeakRaw, ValueBudget, WeakComBox, WeakComPtr, NC_E_ABI_VERSION, NC_E_NOINTERFACE};
 
 /// This second zero-method table has valid boxed callbacks for the same concrete
 /// storage, but is intentionally omitted from that allocation's canonical list.
@@ -143,7 +143,7 @@ fn shared_identity_rejection_frees_the_final_expired_weak() {
         (*control).weak_retain();
         NcSharedLifetimeState::release(control);
         assert_eq!(
-            WeakComPtr::<crate::INcBytesAbi>::__nc_from_raw_owned_checked(NcWeakRaw { control }).unwrap_err(),
+            WeakComPtr::<crate::INcBytesAbi>::__nc_from_raw_owned_checked(NcSharedWeakRaw { control }).unwrap_err(),
             NC_E_NOINTERFACE
         );
     }

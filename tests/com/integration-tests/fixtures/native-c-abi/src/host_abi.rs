@@ -33,8 +33,8 @@ unsafe extern "C" fn count() -> usize {
 unsafe extern "C" fn destroy_messenger(_handle: u64) {}
 /// No fixture context is ever created.
 unsafe extern "C" fn destroy_context(_context: *mut NcPersistenceContext) {}
-static RUNTIME: NcRuntimeApiV3 = NcRuntimeApiV3 {
-    size: size_of::<NcRuntimeApiV3>(),
+static RUNTIME: NcPluginApiV3 = NcPluginApiV3 {
+    size: size_of::<NcPluginApiV3>(),
     core_abi_version: NC_COM_CORE_ABI_VERSION,
     register_plugin_descriptor: register,
     load_plugin_library_utf8: load,

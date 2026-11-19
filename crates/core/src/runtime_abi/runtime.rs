@@ -11,10 +11,13 @@ use core::ffi::c_void;
 use crate::{IUnknown, NcPluginDescriptor, NcGuid, NcInterfaceId, NcStatus};
 use super::{NcInspectPluginDescriptorCallbackV3, NcPluginInfoV3};
 
-/// Process-global runtime operations for runtime ABI v3.
+/// Plugin operations supplied by the host in runtime ABI v3.
+///
+/// The callbacks register, inspect and acquire plugins in the selected host.
+/// Diagnostics and persistence use sibling tables in the host API.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct NcRuntimeApiV3 {
+pub struct NcPluginApiV3 {
     /// Size of this table in bytes.
     pub size: usize,
     /// Core descriptor/object ABI understood by this runtime.
@@ -81,10 +84,10 @@ mod tests {
     #[test]
     #[cfg(target_pointer_width = "64")]
     fn unified_runtime_table_has_explicit_c_layout() {
-        assert_eq!(core::mem::size_of::<NcRuntimeApiV3>(), 72);
-        assert_eq!(core::mem::offset_of!(NcRuntimeApiV3, plugin_info), 40);
-        assert_eq!(core::mem::offset_of!(NcRuntimeApiV3, plugin_count), 48);
-        assert_eq!(core::mem::offset_of!(NcRuntimeApiV3, plugin_infos), 56);
-        assert_eq!(core::mem::offset_of!(NcRuntimeApiV3, inspect_plugin_library_utf8), 64);
+        assert_eq!(core::mem::size_of::<NcPluginApiV3>(), 72);
+        assert_eq!(core::mem::offset_of!(NcPluginApiV3, plugin_info), 40);
+        assert_eq!(core::mem::offset_of!(NcPluginApiV3, plugin_count), 48);
+        assert_eq!(core::mem::offset_of!(NcPluginApiV3, plugin_infos), 56);
+        assert_eq!(core::mem::offset_of!(NcPluginApiV3, inspect_plugin_library_utf8), 64);
     }
 }

@@ -127,7 +127,7 @@ mod tests {
         let encoded = NcValueRef::new(&facts).unwrap();
         // SAFETY: copy initialized C wire storage while its backing remains alive.
         let mut raw = unsafe { encoded.as_ptr().read() };
-        raw.one = NcWeakRaw::null();
+        raw.one = NcSharedWeakRaw::null();
         // SAFETY: the record and every other field retain valid backing storage.
         assert_eq!(store.capture(unsafe { NcValueRef::from_raw(&raw) }.unwrap()), Err(NC_E_POINTER));
         let unrelated = SharedObject::into_local(SharedObject);
@@ -141,8 +141,8 @@ mod tests {
     #[test]
     fn malformed_successful_weak_result_is_checked() {
         // SAFETY: this fixture supplies the required writable output record.
-        unsafe extern "C" fn null_result(_: *mut core::ffi::c_void, out: *mut NcWeakRaw) -> NcStatus {
-            unsafe { *out = NcWeakRaw::null(); }
+        unsafe extern "C" fn null_result(_: *mut core::ffi::c_void, out: *mut NcSharedWeakRaw) -> NcStatus {
+            unsafe { *out = NcSharedWeakRaw::null(); }
             NC_OK
         }
         let (_local, weak, _) = counter();

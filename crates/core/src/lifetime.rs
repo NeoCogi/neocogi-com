@@ -199,17 +199,17 @@ fn release_weak_count(count: &AtomicUsize) -> bool {
 /// A nonnull object matches the shared prefix and is strongly retained shared
 /// storage. A nonnull output is distinct, aligned and writable for this call.
 #[inline(never)]
-unsafe extern "C" fn nc_shared_downgrade(object: *mut c_void, out: *mut crate::NcWeakRaw) -> NcStatus {
+unsafe extern "C" fn nc_shared_downgrade(object: *mut c_void, out: *mut crate::NcSharedWeakRaw) -> NcStatus {
     if out.is_null() {
         return NC_E_POINTER;
     }
-    unsafe { *out = crate::NcWeakRaw::null() };
+    unsafe { *out = crate::NcSharedWeakRaw::null() };
     let Some(header) = (unsafe { object.cast::<NcSharedLifetimeState>().as_ref() }) else {
         return NC_E_POINTER;
     };
     unsafe {
         header.weak_retain();
-        *out = crate::NcWeakRaw { control: object.cast() };
+        *out = crate::NcSharedWeakRaw { control: object.cast() };
     }
     NC_OK
 }
@@ -311,11 +311,11 @@ unsafe extern "C" fn reject_shared_query(object: *mut c_void, requested: *const 
 /// # Safety
 /// A nonnull output is aligned/writable for one token; object follows the selected
 /// exclusive prefix contract. No ownership or object value is accessed.
-unsafe extern "C" fn reject_shared_downgrade(object: *mut c_void, out: *mut crate::NcWeakRaw) -> NcStatus {
+unsafe extern "C" fn reject_shared_downgrade(object: *mut c_void, out: *mut crate::NcSharedWeakRaw) -> NcStatus {
     if out.is_null() {
         return NC_E_POINTER;
     }
-    unsafe { *out = crate::NcWeakRaw::null() };
+    unsafe { *out = crate::NcSharedWeakRaw::null() };
     if object.is_null() { NC_E_POINTER } else { NC_E_INVALID_ARG }
 }
 
