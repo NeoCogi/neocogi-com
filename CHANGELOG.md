@@ -4,7 +4,27 @@ Development uses provisional **[ABI v3](docs/abi-v3.md#abi-identities-and-versio
 Entries below record development; later entries can supersede older implementation details.
 Historical draft numbers do not define additional supported COM baselines.
 
-## 0.4.0-alpha.2 candidate
+## 0.4.0
+
+The eight SDK packages move together to provisional ABI v3/core generation 21.
+Native plugins use discovery family 3 and export `nc_get_plugin_descriptor_v3`.
+Rebuild the host, providers and generated bindings with matching SDK versions.
+IDL encoding v14 and NCB persistence format v1 retain their version identities.
+
+- Use `neocogi-com-sdk` for Rust callers and providers and `neocogi-com` for
+  low-level ABI types. The SDK reexports those types. Regenerate bindings for
+  the updated imports and the Rust ownership and method-wrapper APIs.
+- Link `neocogi-com-host` into the application. It supplies runtime access to
+  providers, including nested providers, and loads native plugin libraries.
+  Persistence still requires the application to select a serialization provider.
+- ABI v3 separates shared and boxed lifetime state. Declared ownership selects
+  the required backing state, and core generation 21 identifies the four-word
+  provider metadata layout.
+
+See the [provider migration guide](docs/guides/ABI_V3_MIGRATION.md) and the
+[standalone walkthrough](examples/getting-started/README.md).
+
+## 0.4.0-alpha.2
 
 This candidate versions eight SDK packages together. It uses provisional
 ABI v3/core generation 21, plugin discovery family 3, IDL encoding v14

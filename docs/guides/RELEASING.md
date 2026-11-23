@@ -1,6 +1,6 @@
 # Publishing a coordinated SDK release
 
-This is the maintainer procedure. The [released first-use walkthrough](https://github.com/NeoCogi/neocogi-com/blob/v0.3.0/examples/getting-started/README.md)
+This is the maintainer procedure. The [first-use walkthrough](../../examples/getting-started/README.md)
 is the user entry point. Publication, Git pushes/tags and account changes are
 separate release actions; preparation and local dry-runs upload nothing.
 
@@ -24,12 +24,12 @@ before subsequent uploads. Add any additional owners deliberately after the firs
 publication. [Trusted publishing](https://crates.io/docs/trusted-publishing) can
 replace stored CI tokens for later releases.
 
-The compatibility rule is separate from Cargo versions. The current stable
-release is `0.3.0`, using ABI v2: runtime and descriptor family 2, core generation
-19, and `nc_get_plugin_descriptor_v2`. The unreleased development branch uses
-ABI v3: runtime and descriptor family 3, core generation 21, and
+The compatibility rule is separate from Cargo versions. SDK `0.3.0` uses ABI
+v2 with runtime and descriptor family 2, core generation 19, and
+`nc_get_plugin_descriptor_v2`. SDK `0.4.0` uses provisional ABI v3 with runtime
+and descriptor family 3, core generation 21, and
 `nc_get_plugin_descriptor_v3`. Deploy hosts, providers and generated bindings
-from one SDK release. Development hosts reject ABI v1/v2 libraries before
+from one SDK release. ABI v3 hosts reject ABI v1/v2 libraries before
 bootstrap; there is no compatibility export. Interface signatures, IDL encoding
 and NCB persistence format have their own authorities in the
 [development ABI contract](../abi-v3.md).

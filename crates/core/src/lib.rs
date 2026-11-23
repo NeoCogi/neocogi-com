@@ -19,9 +19,9 @@
 //! explicit `neocogi-com-serialization` crate. Wire layouts and application
 //! storage remain separate.
 //!
-//! ABI v3 is WORK IN PROGRESS (WIP) for 0.4.0-alpha.2.
-//! [`NC_COM_CORE_ABI_VERSION`] selects the current candidate generation, 21;
-//! runtime and plugin discovery use family 3. Layouts and callbacks may evolve
+//! SDK 0.4.0 uses ABI v3 while that ABI is WORK IN PROGRESS (WIP).
+//! [`NC_COM_CORE_ABI_VERSION`] selects core generation 21.
+//! Runtime and plugin discovery use family 3. Layouts and callbacks may evolve
 //! before release freeze. Keep generation/admission checks coherent to reject
 //! incompatible binaries, use matching source revisions and require exact signatures.
 

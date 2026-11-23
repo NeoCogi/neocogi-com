@@ -1,16 +1,15 @@
 # COM ABI v3 (WIP)
 
-**WORK IN PROGRESS (WIP) for the 0.4.0-alpha.2 candidate.**
+**SDK 0.4.0 uses ABI v3 while the ABI is WORK IN PROGRESS (WIP).**
 
 Layouts, vtables, callback signatures, ownership contracts and Rust APIs may
 change before the ABI-v3 release freeze. The [versions below](#abi-identities-and-versions)
-identify the current candidate, not a finalized compatibility baseline. Further
-incompatible design changes can remain part of ABI v3 while it is WIP; keep
-core generations and admission checks coherent so incompatible binaries are
-rejected. Rebuild hosts, providers and generated consumers from the same source
-revision. Do not describe this candidate as final or frozen before release freeze.
+identify the compatibility checks used by this SDK. Further incompatible design
+changes can remain part of ABI v3 while it is WIP. Keep core generations and
+admission checks coherent so incompatible binaries are rejected. Rebuild hosts,
+providers and generated consumers from the same source revision.
 
-This is the provisional alpha COM binary contract. It deliberately rejects the published 0.3.0 SDK's ABI v2/core-generation-19
+This provisional COM binary contract rejects the published 0.3.0 SDK's ABI v2/core-generation-19
 contract. The [released ABI v2 specification](https://github.com/NeoCogi/neocogi-com/blob/v0.3.0/docs/abi-v2.md)
 and [ABI v1 specification](https://github.com/NeoCogi/neocogi-com/blob/v0.1.0/docs/abi-v1.md)
 remain available at their release tags. No fallback symbols, aliases or automatic

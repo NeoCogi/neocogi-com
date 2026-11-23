@@ -17,18 +17,16 @@ protocol.
 This is experimental software. Build the host, plugins and generated interfaces
 with the same SDK release. Loaded plugins stay mapped until the process exits.
 
-The current stable release is **[0.3.0](https://crates.io/crates/neocogi-com/0.3.0)**.
-It includes eight packages on crates.io with ABI v2/core generation 19.
-This checkout prepares the **0.4.0-alpha.2** cohort with provisional ABI v3/core
+The **0.4.0** SDK includes eight packages and uses provisional ABI v3/core
 generation 21. See the [current ABI versions](docs/abi-v3.md#abi-identities-and-versions).
 Persistence applications explicitly supply their selected serialization provider;
 see [host persistence](crates/host/PERSISTENCE.md).
 
-Start with the complete [application and calculator plugin walkthrough](https://github.com/NeoCogi/neocogi-com/blob/v0.3.0/examples/getting-started/README.md).
+Start with the complete [application and calculator plugin walkthrough](examples/getting-started/README.md).
 It includes every source file, build script and dependency, plus commands for
 Linux, macOS and Windows. It requires Rust 1.85 or newer and a native linker.
-The [alpha walkthrough](examples/getting-started/README.md) covers archive
-qualification and standalone builds once the alpha packages are available.
+The [0.3.0 walkthrough](https://github.com/NeoCogi/neocogi-com/blob/v0.3.0/examples/getting-started/README.md)
+uses the ABI v2 SDK.
 
 | Package | Purpose |
 | --- | --- |
@@ -44,7 +42,7 @@ qualification and standalone builds once the alpha packages are available.
 The final application links the host rlib and supplies its runtime access to
 every provider. Native providers, including the serialization plugin, can be
 loaded from shared libraries.
-The approved [Rust API renames](docs/COM.md#rust-names-in-040-development) are
+The [Rust API renames](docs/COM.md#rust-names-in-040) are
 recorded with migration names. The lifetime-policy split introduces distinct
 shared and boxed headers and advances the development binary contract to ABI v3.
 See the [provider migration guide](docs/guides/ABI_V3_MIGRATION.md) when adopting it.

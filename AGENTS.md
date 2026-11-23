@@ -1,9 +1,9 @@
 # ABI development status
 
-ABI v3 is **WORK IN PROGRESS (WIP)** for the `0.4.0-alpha.2` candidate. It is
+SDK `0.4.0` uses **ABI v3, WORK IN PROGRESS (WIP)**. The ABI is
 provisional and not frozen. Read [the current ABI specification](docs/abi-v3.md)
-before changing ABI-facing code; its version table and the core constants
-identify the current candidate, not a finalized release contract.
+before changing ABI-facing code. Its version table and the core constants
+identify the contract used by this SDK.
 
 Further incompatible design changes can remain part of ABI v3 while it is WIP;
 do not infer ABI v4 solely because a provisional v3 layout changes. Keep core

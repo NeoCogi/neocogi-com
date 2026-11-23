@@ -5,17 +5,17 @@ through an explicit C-shaped ABI. Rust-like IDL is the source of public contract
 truth; generated COM interfaces carry calls, and plugins expose one typed root
 factory.
 
-This development branch uses **WIP [ABI v3](abi-v3.md)** with the
+SDK 0.4.0 uses **WIP [ABI v3](abi-v3.md)** with the
 [current ABI versions](abi-v3.md#abi-identities-and-versions). Its layouts and
 callbacks are provisional and not frozen. Published 0.3.0 uses ABI v2/core
 generation 19. Rebuild hosts, providers and generated bindings together when
-adopting the development contract.
+adopting ABI v3.
 Follow the [provider migration guide](guides/ABI_V3_MIGRATION.md) for header,
 metadata and discovery changes.
 
-## Rust names in 0.4.0 development
+## Rust names in 0.4.0
 
-The `0.4.0-alpha.2` source uses these names. Update direct Rust imports
+The `0.4.0` source uses these names. Update direct Rust imports
 and regenerate bindings together; the previous names have no compatibility aliases.
 
 | Previous Rust name | Current Rust name |
