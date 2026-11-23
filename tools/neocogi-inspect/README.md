@@ -6,14 +6,14 @@ dependencies, descriptor/core ABI versions, and full factory IID/signature and
 threading capability. There are no contract libraries or module graphs to load.
 Opened libraries remain pinned until the short-lived process exits.
 
-These development sources inspect the [current WIP ABI versions](../../docs/abi-v3.md#abi-identities-and-versions). Build the matching
-CLI from this checkout with `cargo build -p neocogi-inspect` when inspecting
-development providers. The published `0.3.0` inspector expects ABI v2/core
-generation 19 and cannot inspect these incompatible providers. See the
-[provider migration guide](../../docs/guides/ABI_V3_MIGRATION.md).
+Version `0.4.0` inspects providers using
+[provisional ABI v3/core generation 21](https://github.com/NeoCogi/neocogi-com/blob/v0.4.0/docs/abi-v3.md#abi-identities-and-versions).
+Install the matching inspector to follow the
+[standalone walkthrough](https://github.com/NeoCogi/neocogi-com/blob/v0.4.0/examples/getting-started/README.md).
 
-For alpha providers, once the matching SDK is available on crates.io, install
-the inspector pinned by the [standalone walkthrough](https://github.com/NeoCogi/neocogi-com/blob/v0.4.0/examples/getting-started/README.md).
+```sh
+cargo install neocogi-inspect --version '=0.4.0' --locked
+```
 
 For published ABI-v2 providers, install the released `0.3.0` inspector:
 
@@ -42,7 +42,7 @@ compatibility against the [current WIP ABI identities](../../docs/abi-v3.md#abi-
 Saved artifacts record both ABI versions; `diff` compares those recorded values.
 Unknown fields and unsupported schema versions are rejected. The artifact records
 the plugin and its root factory. Source-level method and value definitions belong
-to [local IDL metadata](https://docs.rs/neocogi-com/0.3.0/neocogi_com/idl_metadata/index.html).
+to [local IDL metadata](https://docs.rs/neocogi-com-sdk/0.4.0/neocogi_com_sdk/idl_metadata/index.html).
 
 `plan` rejects duplicate plugin identities, missing hard dependencies, and
 cycles. Successful plans list providers before dependents in deterministic order.

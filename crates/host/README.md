@@ -6,9 +6,8 @@ implementation of caller-owned persistence contexts. It contains
 no contract-module registry, native contract descriptions, or event seeding.
 Applications use `neocogi_com_sdk::RuntimeHandle`.
 
-This development host uses **WIP ABI v3/core generation 21**, not a frozen
-release contract. Published
-0.3.0 uses ABI v2/core generation 19; deploy matching hosts and providers.
+Version `0.4.0` uses **provisional ABI v3/core generation 21**.
+Version `0.3.0` uses ABI v2/core generation 19. Deploy matching hosts and providers.
 
 ## Host implementation and shared SDK
 

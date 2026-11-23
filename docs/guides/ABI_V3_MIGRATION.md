@@ -27,9 +27,8 @@ header/type-information layouts cannot be interpreted as ABI v2.
 Family/core prefixes are admitted before child service tables, full descriptors or acquisition
 callbacks. Old getter symbols are rejected without fallback; a current getter
 with a core-19 descriptor is also rejected. Exact interface IID/digest checks
-still apply after core admission. Build the inspector from the same development
-checkout (`cargo build -p neocogi-inspect`) to inspect these providers; the
-published 0.3.0 inspector expects ABI v2/core generation 19.
+still apply after core admission. Use the 0.4.0 inspector for providers built
+with this SDK. The 0.3.0 inspector expects ABI v2/core generation 19.
 
 Link `neocogi-com-host` and forward its supplied `RuntimeHandle` through nested
 acquisition. Alpha.1 applications using the [optional host shim](https://github.com/NeoCogi/neocogi-com/blob/v0.4.0-alpha.1/docs/guides/COM_NATIVE.md#shared-host-runtime-040-alpha1)
@@ -67,7 +66,7 @@ named `Client` keeps its name and generates `ClientAbi`/`ClientWrapper` normally
 This rename preserves borrowed lookup, threading, lifetime/call admission and
 checked owned-base queries. It changes the Rust API and generated names, not
 C record layouts, method signatures, IID/digest bytes or the current ABI/core
-versions. WIP ABI v3/core21 remains the current candidate.
+versions. SDK 0.4.0 uses provisional ABI v3/core generation 21.
 
 ## Update generated object support names
 

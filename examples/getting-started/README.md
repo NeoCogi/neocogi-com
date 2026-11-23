@@ -51,7 +51,7 @@ and `neocogi-inspect check PATH_TO_LIBRARY` on the same library:
 cargo install neocogi-inspect --version '=0.4.0' --locked
 ```
 
-## Candidate archive qualification
+## SDK archive qualification
 
 From the checkout root, install the [archive gate prerequisites](../../tools/xtask/README.md)
 including Rust 1.85.0 and a native linker. Fetch the locked dependencies for a
