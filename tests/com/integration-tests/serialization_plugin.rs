@@ -82,7 +82,7 @@ fn native_shim_supplies_formats_and_failure_details() {
 fn persistence_round_trip(runtime: &neocogi_com_sdk::RuntimeHandle) {
     use neocogi_com_sdk::persistence::{FactoryRegistry, IPersistableAbi, ObjectRecord, snapshot};
     let value = Persistent::from_value(Persistent);
-    let bytes = snapshot(runtime, value.as_com_ref()).unwrap();
+    let bytes = snapshot(runtime, &value).unwrap();
     let expected = neocogi_com_serialization::ncb::to_vec(&ObjectRecord {
         type_id: PERSISTENT_KIND.to_uuid_bytes(),
         schema_version: 1,
@@ -97,7 +97,7 @@ fn persistence_round_trip(runtime: &neocogi_com_sdk::RuntimeHandle) {
         .unwrap();
     let restored = registry.restore(&bytes).unwrap();
     assert_eq!(restored.query::<IPersistableAbi>().unwrap().schema_version().unwrap(), 1);
-    assert_eq!(snapshot(runtime, restored.as_com_ref()).unwrap(), bytes);
+    assert_eq!(snapshot(runtime, &restored).unwrap(), bytes);
     for end in 0..bytes.len() {
         assert_eq!(registry.restore(&bytes[..end]).unwrap_err(), neocogi_com_sdk::NC_E_INVALID_ARG);
     }

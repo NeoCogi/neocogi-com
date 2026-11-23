@@ -314,6 +314,19 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> ComPtr<T, M> {
         // SAFETY: the preceding AddRef transferred one new owner.
         unsafe { Self::from_raw_owned(raw) }
     }
+    /// Acquires one shared reference from a declared shared-provider loan.
+    ///
+    /// # Safety
+    /// A present pair must remain live and shareable under threading mode M
+    /// through acquisition. Its readable common table owns AddRef; a generated
+    /// shared allocation header is unnecessary.
+    #[doc(hidden)]
+    pub unsafe fn __nc_clone_from_raw_checked(raw: ComRaw<T>) -> Result<Self, NcStatus> {
+        // SAFETY: The lender guarantees readable live matching storage.
+        unsafe { raw::validate_interface(raw) }?;
+        // SAFETY: Exact identity is checked and the caller proves shared backing.
+        unsafe { Self::clone_from_raw(raw) }.ok_or(crate::NC_E_INVALID_ARG)
+    }
     /// Borrows the raw ABI pair without transferring ownership or extending lifetime.
     pub fn as_raw(&self) -> ComRaw<T> {
         self.raw.as_raw()

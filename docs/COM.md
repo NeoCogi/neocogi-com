@@ -5,13 +5,12 @@ through an explicit C-shaped ABI. Rust-like IDL is the source of public contract
 truth; generated COM interfaces carry calls, and plugins expose one typed root
 factory.
 
-SDK 0.4.0 uses **WIP [ABI v3](abi-v3.md)** with the
-[current ABI versions](abi-v3.md#abi-identities-and-versions). Its layouts and
+SDK 0.5.0-wip-alpha.1 uses **WIP [ABI v4](abi-v4.md)** with the
+[current ABI versions](abi-v4.md#abi-identities-and-versions). Its layouts and
 callbacks are provisional and not frozen. Published 0.3.0 uses ABI v2/core
 generation 19. Rebuild hosts, providers and generated bindings together when
-adopting ABI v3.
-Follow the [provider migration guide](guides/ABI_V3_MIGRATION.md) for header,
-metadata and discovery changes.
+adopting ABI v4.
+Follow the [provider migration guide](guides/ABI_V4_MIGRATION.md) for discovery and persistence changes.
 
 ## Rust names in 0.4.0
 
@@ -36,7 +35,7 @@ The core `AbiType` trait and Rust's `std::fmt::Debug` trait retain their names.
 The interface schemas, GUIDs, canonical digest bytes and encoding domains are
 unchanged by these renames; the renames alone are Rust source API changes.
 The separate lifetime-policy split changes C headers and type information,
-requiring ABI v3/core generation 21. Its ownership records are
+introduced in ABI v3/core generation 21. Its ownership records are
 `NcSharedLifetimeState` and `NcBoxedLifetimeState`; there is no fused
 `NcLifetimeState` compatibility alias.
 
@@ -61,7 +60,7 @@ plugin as a shared library and as an rlib statically linked into a monolith.
 
 See [IDL contract modules](contracts/IDL_MODULES.md) for authoring and native
 builds, [component design](architecture/COM_DESIGN.md) for responsibility
-boundaries, and [the current ABI specification](abi-v3.md) for the binary model.
+boundaries, and [the current ABI specification](abi-v4.md) for the binary model.
 
 ## Hosts, callers and providers
 
@@ -268,7 +267,7 @@ fn acquire_root(_runtime: neocogi_com_sdk::RuntimeHandle) -> Result<neocogi_com_
 }
 ```
 
-The plugin exports `nc_get_plugin_descriptor_v3`. Descriptor ABI v3
+The plugin exports `nc_get_plugin_descriptor_v4`. Descriptor ABI v4
 includes plugin identity/version, hard dependencies, the complete factory
 IID/signature, threading, and one bootstrap pointer. Static assemblies call
 `plugin_descriptor()` directly. Both paths borrow the provider-authored
@@ -327,11 +326,11 @@ runtime never discovers or recursively loads their paths. Required live-load
 failure is diagnosed and aborts rather than exposing partial state. Successful
 libraries remain mapped until process exit.
 
-Runtime ABI v3 has one complete plugin-operation table, plus debug and
+Runtime ABI v4 has one complete plugin-operation table, plus debug and
 caller-scoped persistence tables. Lookup and enumeration return the same complete
 plugin description, including its factory contract and dependency GUIDs. Loading returns the plugin GUID; inspection
 reports its first static/dynamic origin. Separate module identities and module
-queries were removed. See [the runtime contract](abi-v3.md#runtime-and-global-registry).
+queries were removed. See [the runtime contract](abi-v4.md#runtime-and-global-registry).
 Acquisition checks the exact factory signature before bootstrap. Unconnected
 contract revisions can coexist; incompatible pointer transfers are rejected.
 `neocogi-inspect` emits schema 9 with plugin/dependency/root-factory metadata,
@@ -422,7 +421,7 @@ objects through a typed factory and reconnects its application-defined observer.
 
 ## Executed compatibility checks
 
-The [compatibility matrix](abi-v3.md#independent-build-compatibility) defines independent host/runtime and
+The [compatibility matrix](abi-v4.md#independent-build-compatibility) defines independent host/runtime and
 provider builds, mixed compiler/profile policies, relocated execution,
 and the separate Miri/sanitizer checks. One unpublished Rust
 [`xtask`](../tools/xtask/README.md) owns these checks on Linux, macOS and Windows;

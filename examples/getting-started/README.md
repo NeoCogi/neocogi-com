@@ -5,18 +5,19 @@ application loads the plugin, calls `add(2, 3)`, and prints `2 + 3 = 5`. It also
 checks that addition overflow returns the documented error.
 
 For ABI v2, use the [0.3.0 walkthrough](https://github.com/NeoCogi/neocogi-com/blob/v0.3.0/examples/getting-started/README.md).
-This directory uses SDK `0.4.0` with the
-[WIP ABI](../../docs/abi-v3.md#abi-identities-and-versions). Each project compiles
+This directory uses development SDK `0.5.0-wip-alpha.1` with the
+[WIP ABI](../../docs/abi-v4.md#abi-identities-and-versions). Each project compiles
 the same IDL into its own Rust bindings. The application selects the static host;
 the plugin receives that host through its bootstrap.
 
 ## Standalone build
 
-This build fetches SDK `0.4.0` from crates.io. Copy this directory from the
-matching source tag to a location outside the checkout. Use Rust 1.85 or newer
-and a native linker.
+For a crates.io build, copy the [0.4.0 walkthrough](https://github.com/NeoCogi/neocogi-com/blob/v0.4.0/examples/getting-started/README.md)
+from its release tag. To build this development candidate from the checkout,
+use the SDK archive qualification below. Both use Rust 1.85 or newer and a
+native linker.
 
-From the copied directory, build the plugin:
+From the directory copied from the release tag, build the plugin:
 
 ```sh
 cargo build --manifest-path plugin/Cargo.toml

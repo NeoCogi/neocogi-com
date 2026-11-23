@@ -75,7 +75,7 @@ mod tests {
     use super::*;
 
     /// Metadata-only fixture: registration must never call the bootstrap.
-    unsafe extern "C" fn acquire_stub(_host: *const neocogi_com::NcHostApiV3, _out: *mut neocogi_com::ComRaw<IUnknown>) -> NcStatus {
+    unsafe extern "C" fn acquire_stub(_host: *const neocogi_com::NcHostApiV4, _out: *mut neocogi_com::ComRaw<IUnknown>) -> NcStatus {
         panic!("registration must not invoke plugin code")
     }
 

@@ -70,10 +70,10 @@ thread-local context and reentrancy rules still apply; this adds no global codec
 state or persistence-context mutation through shared access.
 
 Persistence is implemented in `neocogi-com-host` and called through
-`NcPersistenceApiV3`, supplied in the admitted host API description. Enable the
+`NcPersistenceApiV4`, supplied in the admitted host API description. Enable the
 facade's `runtime` feature for callers. The application links the host rlib and passes
 its access to registry creation and capture.
-WIP ABI v3/core generation 21 identifies the current table layouts and
+WIP ABI v4/core generation 22 identifies the current table layouts and
 calling/ownership contract; these remain provisional until release freeze.
 The explicit codec requirement adds no table field, callback, interface signature or NCB-v1
 wire change. COM `0.2.0` embedded the codec; applications upgrading must now
@@ -160,8 +160,8 @@ registration never require codec availability.
 ## Rust access
 
 Snapshot and restore callers enable `neocogi-com-sdk/runtime`. Construct an owned
-context with `FactoryRegistry::new(&runtime)?`; capture with
-`snapshot(&runtime, object)` or `snapshot_with_limits(&runtime, object, limits)`.
+context with `FactoryRegistry::new(&runtime)?`; capture a shared `ComPtr<IUnknown>` with
+`snapshot(&runtime, &object)` or `snapshot_with_limits(&runtime, &object, limits)`.
 The supplied handle already admits the required runtime/core versions. Contexts
 retain their exact creation table for operations and Drop. Provider interface
 identities, application recipe schemas and NCB-v1 bytes remain independent.

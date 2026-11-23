@@ -174,18 +174,6 @@ impl IPersistenceFactory for Factory {
     }
 }
 
-/// A valid borrowed exclusive object cannot supply shared capture ownership.
-#[neocogi_com_sdk::com_object(IObjectChildren, ownership = exclusive)]
-struct Exclusive;
-impl IObjectChildren for Exclusive {
-    fn count(&self) -> Result<u32, NcStatus> {
-        Ok(0)
-    }
-    fn get(&self, _: u32) -> Result<ComPtr<IUnknown>, NcStatus> {
-        Err(neocogi_com_sdk::NC_E_OUT_OF_RANGE)
-    }
-}
-
 /// Exact NCB-v1 oracle from the existing implementation, used only as a dev fixture.
 fn bytes() -> Vec<u8> {
     neocogi_com_serialization::ncb::to_vec(&ObjectRecord {
@@ -213,7 +201,7 @@ fn missing_provider_preserves_error_precedence() {
     let runtime = crate::initialize_runtime();
     let value = Value::from_value(Value);
     let registry = registry(&runtime);
-    assert_eq!(snapshot(&runtime, value.as_com_ref()), Err(neocogi_com_sdk::NC_E_NOT_FOUND));
+    assert_eq!(snapshot(&runtime, &value), Err(neocogi_com_sdk::NC_E_NOT_FOUND));
     assert_eq!(registry.restore(&bytes()).unwrap_err(), neocogi_com_sdk::NC_E_NOT_FOUND);
     assert_eq!(registry.restore(b"malformed").unwrap_err(), neocogi_com_sdk::NC_E_NOT_FOUND);
     assert_eq!(
@@ -221,13 +209,13 @@ fn missing_provider_preserves_error_precedence() {
         neocogi_com_sdk::NC_E_NOT_FOUND
     );
     assert_eq!(
-        snapshot_with_limits(&runtime, value.as_com_ref(), Limits { objects: 0, ..Limits::default() }),
+        snapshot_with_limits(&runtime, &value, Limits { objects: 0, ..Limits::default() }),
         Err(neocogi_com_sdk::NC_E_OUT_OF_RANGE)
     );
     assert_eq!(
         snapshot_with_limits(
             &runtime,
-            value.as_com_ref(),
+            &value,
             Limits {
                 binary: Limits::default().binary,
                 depth: 0,
@@ -239,15 +227,12 @@ fn missing_provider_preserves_error_precedence() {
     let mut limits = Limits::default();
     limits.binary.bytes = 0;
     assert_eq!(
-        snapshot_with_limits(&runtime, value.as_com_ref(), limits),
+        snapshot_with_limits(&runtime, &value, limits),
         Err(neocogi_com_sdk::NC_E_OUT_OF_RANGE)
     );
     assert_eq!(registry.restore_with_limits(&bytes(), limits).unwrap_err(), neocogi_com_sdk::NC_E_INVALID_ARG);
-    let exclusive = Exclusive::into_box(Exclusive);
-    let borrowed = exclusive.query_weak::<IUnknown>().unwrap();
-    assert_eq!(snapshot(&runtime, borrowed.as_com_ref()), Err(neocogi_com_sdk::NC_E_INVALID_ARG));
     assert_eq!(
-        snapshot(&runtime, Factory::from_value(Factory).as_com_ref()),
+        snapshot(&runtime, &Factory::from_value(Factory)),
         Err(neocogi_com_sdk::NC_E_NOINTERFACE)
     );
     assert_eq!(VALIDATIONS.load(Ordering::Relaxed), 0);
@@ -290,8 +275,8 @@ unsafe extern "C" fn receive_snapshot(data: *mut core::ffi::c_void, bytes: *cons
 /// ABI admission and recipe registration do not require a codec. Supplying one
 /// after failed calls recovers the same context without replacing its recipes.
 #[test]
-fn provider_registration_recovers_existing_context_through_abi_v2() {
-    if isolated("provider_registration_recovers_existing_context_through_abi_v2") {
+fn provider_registration_recovers_existing_context_through_abi_v4() {
+    if isolated("provider_registration_recovers_existing_context_through_abi_v4") {
         return;
     }
     let host = crate::initialize_process();
@@ -386,7 +371,7 @@ fn named_ncb_retains_capabilities_and_ignores_json_default() {
     unsafe { runtime.register_plugin_descriptor(plugin_descriptor()) }.unwrap();
     let value = Value::from_value(Value);
     let registry = registry(&runtime);
-    let saved = snapshot(&runtime, value.as_com_ref()).unwrap();
+    let saved = snapshot(&runtime, &value).unwrap();
     assert_eq!(saved, bytes(), "preserve the complete NCB-v1 envelope");
     let restored = registry.restore(&saved).unwrap();
     assert_eq!(restored.query::<IPersistableAbi>().unwrap().schema_version().unwrap(), 1);
@@ -400,7 +385,7 @@ fn named_ncb_retains_capabilities_and_ignores_json_default() {
     let mut permissive = Limits::default();
     permissive.binary.elements = usize::MAX;
     permissive.binary.depth = usize::MAX;
-    assert_eq!(snapshot_with_limits(&runtime, value.as_com_ref(), permissive).unwrap(), saved);
+    assert_eq!(snapshot_with_limits(&runtime, &value, permissive).unwrap(), saved);
     drop(registry.restore_with_limits(&saved, permissive).unwrap());
     let validations = VALIDATIONS.load(Ordering::Relaxed);
 
@@ -410,7 +395,7 @@ fn named_ncb_retains_capabilities_and_ignores_json_default() {
     let mut short = Limits::default();
     short.binary.bytes = 3;
     assert_eq!(
-        snapshot_with_limits(&runtime, value.as_com_ref(), short),
+        snapshot_with_limits(&runtime, &value, short),
         Err(neocogi_com_sdk::NC_E_INVALID_ARG)
     );
     assert_eq!(SELECTIONS.load(Ordering::Relaxed), selections + 1);
@@ -445,7 +430,7 @@ fn format_selection_errors_have_no_fallback() {
         (3, neocogi_com_sdk::NC_E_OUT_OF_RANGE),
     ] {
         FAILURE.store(mode, Ordering::Relaxed);
-        assert_eq!(snapshot(&runtime, value.as_com_ref()), Err(status));
+        assert_eq!(snapshot(&runtime, &value), Err(status));
         assert_eq!(registry.restore(&bytes()).unwrap_err(), status);
         assert_eq!((ROOTS.load(Ordering::Relaxed), FORMATS.load(Ordering::Relaxed)), (0, 0));
     }

@@ -39,12 +39,12 @@ struct RejectedHostPrefix {
 #[test]
 fn retired_host_prefixes_are_rejected_before_authored_acquisition() {
     use std::sync::atomic::Ordering;
-    use neocogi_com_sdk::{ComRaw, IUnknown, IUnknownVTable, NcHostApiV3, NC_E_CLOSED};
+    use neocogi_com_sdk::{ComRaw, IUnknown, IUnknownVTable, NcHostApiV4, NC_E_CLOSED};
     let acquire = host_admission::plugin_descriptor().acquire.unwrap();
     host_admission::CALLS.store(0, Ordering::SeqCst);
-    for (runtime, core) in [(1, 18), (1, 19), (2, 18), (2, 19), (3, 19), (3, 20)] {
+    for (runtime, core) in [(1, 18), (2, 19), (3, 21), (3, 22), (4, 21)] {
         let prefix = RejectedHostPrefix {
-            size: core::mem::size_of::<NcHostApiV3>(),
+            size: core::mem::size_of::<NcHostApiV4>(),
             runtime,
             core,
         };
@@ -169,7 +169,7 @@ fn retired_bootstrap_is_rejected_before_its_callback() {
     assert_eq!(std::fs::read(marker).unwrap(), b"current", "current callback must actually execute");
 }
 
-/// Family 3 never falls back to an ABI v1 getter, even before reading metadata.
+/// Family 4 never falls back to an ABI v1 getter, even before reading metadata.
 #[test]
 fn abi_v1_discovery_is_rejected_without_bootstrap() {
     let legacy = provider(Some("legacy-symbol"));
@@ -189,14 +189,24 @@ fn abi_v2_discovery_is_rejected_without_bootstrap() {
     assert!(!marker.exists(), "ABI-v2 bootstrap must never execute");
 }
 
-/// Child entry: current control makes real calls; rejected legacy code never runs.
+/// A provider exposing only family 3 cannot enter family 4 discovery.
+#[test]
+fn abi_v3_discovery_is_rejected_without_bootstrap() {
+    let legacy = provider(Some("legacy-v3-symbol"));
+    let marker = legacy.path().join("v3-bootstrap.marker");
+    let inspected = child("v3-symbol", legacy.path(), &marker);
+    assert!(inspected.status.success(), "{}", String::from_utf8_lossy(&inspected.stderr));
+    assert!(!marker.exists(), "the ABI-v3 acquisition callback must remain uncalled");
+}
+
+/// Child entry: the current control makes real calls after admission.
 #[test]
 fn generation_child() {
     let Ok(mode) = std::env::var(MODE) else { return };
     let path = PathBuf::from(std::env::var_os(LIBRARY).expect("provider path"));
-    if mode == "v1-symbol" || mode == "v2-symbol" {
+    if matches!(mode.as_str(), "v1-symbol" | "v2-symbol" | "v3-symbol") {
         // SAFETY: Parent supplies a trusted fixture exposing only the old getter.
-        let error = unsafe { neocogi_com_host::inspect_plugin_library(path) }.expect_err("retired getter must be absent from family 3");
+        let error = unsafe { neocogi_com_host::inspect_plugin_library(path) }.expect_err("retired getter must be absent from family 4");
         assert_eq!(error.kind(), neocogi_com_host::PluginLoadErrorKind::FindSymbol);
         return;
     }

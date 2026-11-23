@@ -1,6 +1,6 @@
 # Typed lifetime contracts
 
-ABI v3 remains WIP. Core generation **21** removes runtime allocation-policy
+ABI v4/core 22 retains the lifetime storage from ABI v3/core 21. Core 21 removed runtime allocation-policy
 discrimination and shrinks `NcObjectTypeInfo` from five to four pointer-width
 words. Core 20 is incompatible and rejected before storage/callback use. The
 three-word lifetime headers, C interface slots, IID/full digests, IDL v14 and
@@ -70,7 +70,7 @@ pair. Canonical caching is the checked ABI-adoption rule; it does not replace th
 unsafe constructor's backing, exact-identity, threading and provider/code proofs.
 Regenerate WIP Rust consumers: `__nc_validate_raw_input` now returns the resolved
 canonical table. No C record/slot, interface digest or core-generation change is
-required; ABI v3/core 21 remains WIP.
+required by canonical table caching.
 
 ## Consuming boxed weak erasure
 

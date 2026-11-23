@@ -684,9 +684,9 @@ unsafe impl<T: crate::ComInterface + 'static, M: crate::ThreadingModel> ComValue
     }
     unsafe fn decode_value(wire: &Self::AbiRepr, budget: &mut ValueBudget) -> Result<Self, NcStatus> {
         budget.value(|_| {
-            // SAFETY: raw callers provide a live common lifecycle pair; this operation
-            // checks identity before acquiring a separately owned reference.
-            unsafe { crate::ComRef::<T, M>::__nc_from_raw_borrowed_checked(*wire) }?.try_add_ref()
+            // SAFETY: the wire borrows a live shared owner. Acquisition checks
+            // its exact interface before taking an independent reference.
+            unsafe { Self::__nc_clone_from_raw_checked(*wire) }
         })
     }
 }

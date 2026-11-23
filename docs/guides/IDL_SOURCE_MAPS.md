@@ -143,7 +143,7 @@ including the checked-in persistence bootstrap.
 
 ## JSON format and lookup
 
-This is NeoCogi's readable range-map schema **2** (a build format, independent of runtime/descriptor ABI v3), not JavaScript Source Map v3.
+This is NeoCogi's readable range-map schema **2** (a build format, independent of runtime/descriptor ABI v4), not JavaScript Source Map v3.
 Each mapping has a `kind`, generated Rust `name`, `generated` range and `original`
 source-file index/range. The top-level `sources` array owns module/path/location
 records once for all ranges. The ranges use one-based lines and one-based **Unicode scalar**

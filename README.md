@@ -1,9 +1,9 @@
 # NeoCogi COM
 
-Development sources use **ABI v3 — WORK IN PROGRESS (WIP)**; see the
-[current ABI versions](docs/abi-v3.md#abi-identities-and-versions). Its layouts,
+Development SDK `0.5.0-wip-alpha.1` uses **ABI v4 (WIP)**. See the
+[current ABI versions](docs/abi-v4.md#abi-identities-and-versions). Its layouts,
 callbacks and ownership contracts are provisional and may change before release;
-ABI v3 is not frozen.
+ABI v4 is not frozen.
 Published 0.3.0 packages retain ABI v2/core generation 19; use their release-tag
 documentation for that contract.
 
@@ -18,12 +18,11 @@ This is experimental software. Build the host, plugins and generated interfaces
 with the same SDK release. Loaded plugins stay mapped until the process exits.
 
 The **0.4.0** SDK includes eight packages and uses provisional ABI v3/core
-generation 21. See the [current ABI versions](docs/abi-v3.md#abi-identities-and-versions).
+generation 21. Follow the [0.4.0 walkthrough](https://github.com/NeoCogi/neocogi-com/blob/v0.4.0/examples/getting-started/README.md) to build with the published packages.
 Persistence applications explicitly supply their selected serialization provider;
 see [host persistence](crates/host/PERSISTENCE.md).
 
-Start with the complete [application and calculator plugin walkthrough](examples/getting-started/README.md).
-It includes every source file, build script and dependency, plus commands for
+The [application and calculator plugin archive example](examples/getting-started/README.md) includes every source file, build script and dependency, plus commands for
 Linux, macOS and Windows. It requires Rust 1.85 or newer and a native linker.
 The [0.3.0 walkthrough](https://github.com/NeoCogi/neocogi-com/blob/v0.3.0/examples/getting-started/README.md)
 uses the ABI v2 SDK.
@@ -44,8 +43,9 @@ every provider. Native providers, including the serialization plugin, can be
 loaded from shared libraries.
 The [Rust API renames](docs/COM.md#rust-names-in-040) are
 recorded with migration names. The lifetime-policy split introduces distinct
-shared and boxed headers and advances the development binary contract to ABI v3.
-See the [provider migration guide](docs/guides/ABI_V3_MIGRATION.md) when adopting it.
+shared and boxed headers in ABI v3. The current ABI v4 candidate uses those
+headers and declares shared ownership explicitly for persistence inputs.
+See the [provider migration guide](docs/guides/ABI_V4_MIGRATION.md) when adopting it.
 
 A **host** is the final application that owns one runtime implementation. An
 **interface caller** calls a COM interface; a **provider** implements one. These
@@ -96,7 +96,7 @@ a downstream consumer using only those extracted packages. Install that compiler
 registry inputs; run `cargo fetch --locked` first on a fresh machine.
 
 Read the [component guide](docs/COM.md),
-[ABI specification](docs/abi-v3.md),
+[ABI specification](docs/abi-v4.md),
 [IDL reference](docs/contracts/IDL_MODULES.md), and
 [dynamic/static example](examples/com-plugin/README.md).
 

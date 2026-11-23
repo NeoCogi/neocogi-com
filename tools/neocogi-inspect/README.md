@@ -1,10 +1,13 @@
 # neocogi-inspect
 
-Reads an actual plugin's `nc_get_plugin_descriptor_v3` export without
+Reads an actual plugin's `nc_get_plugin_descriptor_v4` export without
 registering or activating its factory. It copies plugin identity/version, hard
 dependencies, descriptor/core ABI versions, and full factory IID/signature and
 threading capability. There are no contract libraries or module graphs to load.
 Opened libraries remain pinned until the short-lived process exits.
+
+This checkout inspects WIP ABI v4/core 22. Build it from the same SDK revision
+as the provider with `cargo build -p neocogi-inspect`.
 
 Version `0.4.0` inspects providers using
 [provisional ABI v3/core generation 21](https://github.com/NeoCogi/neocogi-com/blob/v0.4.0/docs/abi-v3.md#abi-identities-and-versions).
@@ -38,7 +41,7 @@ Pass values to `--output` / `-o` and `--format` / `-f` as separate arguments.
 Output files use the exact supplied native path.
 
 Inspection JSON uses strict schema 9. Live inspection checks descriptor and core
-compatibility against the [current WIP ABI identities](../../docs/abi-v3.md#abi-identities-and-versions).
+compatibility against the [current WIP ABI identities](../../docs/abi-v4.md#abi-identities-and-versions).
 Saved artifacts record both ABI versions; `diff` compares those recorded values.
 Unknown fields and unsupported schema versions are rejected. The artifact records
 the plugin and its root factory. Source-level method and value definitions belong
@@ -71,6 +74,6 @@ Later provider loads and delay loads follow the provider's own policy. This is
 executable inspection, not a sandbox or publisher authentication. Successfully
 opened mappings stay pinned until the inspector exits; inspection errors remain
 recoverable. See the
-[native loading contract](../../docs/abi-v3.md#runtime-and-global-registry).
+[native loading contract](../../docs/abi-v4.md#runtime-and-global-registry).
 The [sample plugin](https://github.com/NeoCogi/neocogi-com/blob/v0.4.0/examples/com-plugin/README.md) can be built and
 inspected with ordinary Cargo, without the assembly driver.

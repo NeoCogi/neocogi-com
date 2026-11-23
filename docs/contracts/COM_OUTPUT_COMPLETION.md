@@ -5,7 +5,7 @@ A generated call accepting `ComBox` inputs must finish resource preparation
 all original owners; success consumes them. Generated completion cannot retrieve
 an owner already stored in an arbitrary application field.
 
-[development ABI](../abi-v3.md) retains that transaction boundary and
+[development ABI](../abi-v4.md) retains that transaction boundary and
 replaces the old bidirectional writable buffer with fresh output. IDL and
 IDL method/value plans share one typed backend and checked value codecs.
 Persistence serialization is a separate protocol, not part of these getters.

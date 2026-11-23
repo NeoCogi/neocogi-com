@@ -50,7 +50,7 @@ fn main(runtime: RuntimeHandle) {
     let promoted = weak.upgrade().unwrap().expect("live plugin object");
     assert_eq!(promoted.extent().unwrap(), extent);
     drop(promoted);
-    let saved = snapshot(&runtime, object.query::<IUnknown>().unwrap().as_com_ref()).unwrap();
+    let saved = snapshot(&runtime, &object.query::<IUnknown>().unwrap()).unwrap();
     let mut registry = FactoryRegistry::new(&runtime).unwrap();
     registry
         .register(
@@ -59,7 +59,7 @@ fn main(runtime: RuntimeHandle) {
         )
         .unwrap();
     let restored = registry.restore(&saved).unwrap();
-    assert_eq!(snapshot(&runtime, restored.as_com_ref()).unwrap(), saved);
+    assert_eq!(snapshot(&runtime, &restored).unwrap(), saved);
     restored.query::<ExampleObjectAbi>().unwrap().resize(Extent { width: 45, height: 32 }).unwrap();
     let message = messages.try_recv().unwrap();
     let origin = message.source;

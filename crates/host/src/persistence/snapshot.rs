@@ -1,15 +1,26 @@
 //! Bounded capture of semantic initialization trees, with owned-path cycle checks.
 
-use neocogi_com_sdk::{ComPtr, ComRef, ComBytesExt, IUnknown, NcStatus, NC_E_INVALID_ARG, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE};
+use neocogi_com::raw;
+use neocogi_com_sdk::{ComBytesExt, ComPtr, ComRaw, IUnknown, NcStatus, NC_E_INVALID_ARG, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE};
 use neocogi_com_sdk::persistence::{IPersistableAbi, Limits, ObjectRecord};
 
 /// Exports a shared opt-in tree, detects ownership cycles, and bounds traversal.
-/// A live exclusive root is a valid borrow but cannot be retained along the
-/// capture path; after budget admission it returns `NC_E_INVALID_ARG` before
-/// persistence getters run. Exhausted budgets retain OUT_OF_RANGE precedence.
-pub(crate) fn snapshot_with_limits(object: ComRef<'_, IUnknown>, limits: Limits) -> Result<Vec<u8>, NcStatus> {
+/// The root consumes one traversal budget after exact identity validation and
+/// before any retain, query or provider selection.
+///
+/// # Safety
+/// A present raw pair borrows a live shared root owner for this operation. Its
+/// common table must be readable and provide the matching lifecycle operations.
+pub(crate) unsafe fn snapshot_with_limits(object: ComRaw<IUnknown>, limits: Limits) -> Result<Vec<u8>, NcStatus> {
+    // SAFETY: The raw contract supplies a live shared lender. This checks only
+    // the shape and exact interface before the traversal budget is consumed.
+    unsafe { raw::validate_interface(object) }?;
     let mut capture = Capture::new(limits);
-    let record = capture.object(object)?;
+    capture.admit()?;
+    // SAFETY: The preceding check established exact identity, and the declared
+    // shared owner remains alive while AddRef acquires this root for traversal.
+    let root = unsafe { ComPtr::clone_from_raw(object) }.ok_or(NC_E_INVALID_ARG)?;
+    let record = capture.admitted_object(&root)?;
     // Complete capture first so ownership, cycle and traversal-budget failures
     // preserve their precedence over codec availability and format selection.
     let codec = super::ncb_format(limits.binary)?;
@@ -24,8 +35,8 @@ struct Capture {
     remaining: usize,
     /// Aggregate provider-state byte budget left before final document encoding.
     bytes_left: usize,
-    /// Strong owners retain allocation identity only along the current ancestor path.
-    active: Vec<ComPtr<IUnknown>>,
+    /// Identity along the active path. Each recursive frame borrows a live owner.
+    active: Vec<*mut core::ffi::c_void>,
     /// Capacity requests made by the real traversal in a bounded test.
     #[cfg(test)]
     child_capacity_requests: Vec<usize>,
@@ -44,22 +55,24 @@ impl Capture {
         }
     }
 
-    /// Captures one object while rejecting cycles only on its active ancestor path.
-    fn object(&mut self, object: ComRef<'_, IUnknown>) -> Result<ObjectRecord, NcStatus> {
+    /// Charges one traversal entry before any query or acquisition for that entry.
+    fn admit(&mut self) -> Result<(), NcStatus> {
         // Refuse work before querying providers once any traversal budget is spent.
         if self.remaining == 0 || self.active.len() >= self.limits.depth {
             return Err(NC_E_OUT_OF_RANGE);
         }
         self.remaining -= 1;
-        // A borrow does not promise shared ownership. Reject non-shareable roots
-        // through the Result before querying any persistence provider methods.
-        // Tables identify dispatch views; retained allocation identity detects cycles
-        // through every valid projection without another exact-interface query.
-        let identity = object.try_add_ref()?;
-        if self.active.iter().any(|parent| parent.as_com_ref().same_object(identity.as_com_ref())) {
+        Ok(())
+    }
+
+    /// Captures one already-budgeted object, using the frame's owner to keep its
+    /// address valid across descendants and reject cycles through any projection.
+    fn admitted_object(&mut self, object: &ComPtr<IUnknown>) -> Result<ObjectRecord, NcStatus> {
+        let identity = object.as_raw().object;
+        if self.active.contains(&identity) {
             return Err(NC_E_INVALID_ARG);
         }
-        let value = identity.query::<IPersistableAbi>()?;
+        let value = object.query::<IPersistableAbi>()?;
         self.active.push(identity);
         let count = value.child_count()?;
         if count as usize > self.remaining || count as usize > self.limits.binary.elements {
@@ -73,7 +86,8 @@ impl Capture {
         let mut children = Vec::new();
         for index in 0..count {
             let child = value.child(index)?;
-            let record = self.object(child.as_com_ref())?;
+            self.admit()?;
+            let record = self.admitted_object(&child)?;
             // Grow only for a completed child. Ancestors retain capacity
             // proportional to their acquired children during descent.
             if children.len() == children.capacity() {
@@ -90,8 +104,8 @@ impl Capture {
             state,
             children,
         };
-        // Only successful paths pop: on error the complete Capture is dropped,
-        // releasing every retained ancestor. Repeated noncyclic references remain legal.
+        // An error discards the traversal. On success, remove the ancestor so a
+        // later sibling can reference the same object without creating a cycle.
         self.active.pop();
         Ok(result)
     }
@@ -146,12 +160,14 @@ mod tests {
         let outer = node(3, vec![leaf, inner]);
         let root = node(4, vec![outer]);
         let mut capture = Capture::new(Limits::default());
-        assert_eq!(capture.object(root.as_com_ref()), Err(NC_E_NOT_FOUND));
+        capture.admit().unwrap();
+        assert_eq!(capture.admitted_object(&root), Err(NC_E_NOT_FOUND));
         assert_eq!(capture.child_capacity_requests, [1, 1]);
 
         let full = node(3, (0..3).map(|_| node(0, Vec::new())).collect());
         let mut capture = Capture::new(Limits::default());
-        assert_eq!(capture.object(full.as_com_ref()).unwrap().children.len(), 3);
+        capture.admit().unwrap();
+        assert_eq!(capture.admitted_object(&full).unwrap().children.len(), 3);
         // The allocator may provide extra capacity. Every request still stays
         // within the admitted count, and no leaf requests child slots.
         assert_eq!(capture.child_capacity_requests.first(), Some(&1));

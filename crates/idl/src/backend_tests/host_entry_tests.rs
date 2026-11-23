@@ -48,7 +48,7 @@ fn host_entry_runs_with_normal_printed_and_renamed_dependencies() {
                 let copied = runtime;
                 let admitted = Result::<_, &'static str>::Ok(copied.core_abi_version())?;
                 assert_eq!(admitted, {facade}::NC_COM_CORE_ABI_VERSION);
-                assert_eq!(runtime.runtime_abi_version(), 3);
+                assert_eq!(runtime.runtime_abi_version(), 4);
                 assert_eq!(CALLS.fetch_add(1, ::core::sync::atomic::Ordering::SeqCst), 0);
                 println!("host-entry-completed");
                 Ok(())
@@ -109,16 +109,16 @@ fn host_entry_rejects_safe_modules_returning_unverified_raw_tables() {
             r#"
             #![deny(unsafe_code)]
             mod safe_local_host {{
-                use neocogi_com_sdk::{{NcHostApiV3, NcPluginApiV3}};
-                static HOST: NcHostApiV3 = NcHostApiV3 {{
-                    size: core::mem::size_of::<NcHostApiV3>(),
+                use neocogi_com_sdk::{{NcHostApiV4, NcPluginApiV4}};
+                static HOST: NcHostApiV4 = NcHostApiV4 {{
+                    size: core::mem::size_of::<NcHostApiV4>(),
                     runtime_abi_version: neocogi_com_sdk::NC_COM_RUNTIME_ABI_VERSION,
                     core_abi_version: neocogi_com_sdk::NC_COM_CORE_ABI_VERSION,
-                    runtime: core::ptr::NonNull::<NcPluginApiV3>::dangling().as_ptr(),
+                    runtime: core::ptr::NonNull::<NcPluginApiV4>::dangling().as_ptr(),
                     debug: core::ptr::null(),
                     persistence: core::ptr::null(),
                 }};
-                pub fn {initializer}() -> &'static NcHostApiV3 {{ &HOST }}
+                pub fn {initializer}() -> &'static NcHostApiV4 {{ &HOST }}
             }}
             #[neocogi_com_sdk::com_main(neocogi_com_host = safe_local_host)]
             fn main(_runtime: neocogi_com_sdk::RuntimeHandle) {{}}
@@ -136,7 +136,7 @@ fn host_entry_rejects_safe_modules_returning_unverified_raw_tables() {
             assert!(diagnostic.contains("E0425") && diagnostic.contains("initialize_runtime"), "{diagnostic}");
         } else {
             assert!(
-                diagnostic.contains("E0308") && diagnostic.contains("RuntimeHandle") && diagnostic.contains("NcHostApiV3"),
+                diagnostic.contains("E0308") && diagnostic.contains("RuntimeHandle") && diagnostic.contains("NcHostApiV4"),
                 "{diagnostic}"
             );
         }

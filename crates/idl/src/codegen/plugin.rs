@@ -162,6 +162,8 @@ pub fn expand_plugin(args: PluginArgs, input: ItemFn) -> Result<proc_macro2::Tok
         }
     });
     let acquire = &signature.ident;
+    // The loader and generated provider use the same core discovery symbol.
+    let export = Ident::new(neocogi_com::NC_GET_PLUGIN_DESCRIPTOR_SYMBOL, acquire.span());
     let name = &args.name;
     let version = args
         .version
@@ -216,7 +218,7 @@ pub fn expand_plugin(args: PluginArgs, input: ItemFn) -> Result<proc_macro2::Tok
         /// with concurrent host entrypoints and documented per-context ownership.
         /// `out` must be null or writable for one raw COM pair. The helper clears
         /// usable storage before host admission or provider code and transfers only success.
-        unsafe extern "C" fn #adapter(#host: *const #nc::NcHostApiV3, #output: *mut #nc::ComRaw<#nc::IUnknown>) -> #nc::NcStatus {
+        unsafe extern "C" fn #adapter(#host: *const #nc::NcHostApiV4, #output: *mut #nc::ComRaw<#nc::IUnknown>) -> #nc::NcStatus {
             // SAFETY: forwarded output obligations; the typed function fixes the
             // exact interface and threading used by the descriptor above.
             unsafe {
@@ -242,7 +244,7 @@ pub fn expand_plugin(args: PluginArgs, input: ItemFn) -> Result<proc_macro2::Tok
         /// must retain the library while using any reachable metadata or code.
         #[cfg(feature = "dynamic-plugin")]
         #[unsafe(no_mangle)]
-        pub unsafe extern "C" fn nc_get_plugin_descriptor_v3(#output: *mut *const #nc::NcPluginDescriptor) -> #nc::NcStatus {
+        pub unsafe extern "C" fn #export(#output: *mut *const #nc::NcPluginDescriptor) -> #nc::NcStatus {
             // SAFETY: the descriptor is immutable static data owned by this library.
             unsafe { #nc::return_plugin_descriptor(#output, #accessor()) }
         }

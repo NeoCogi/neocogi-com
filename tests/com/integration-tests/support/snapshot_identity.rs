@@ -3,7 +3,7 @@
 use neocogi_com_serialization::ncb as binary;
 use std::{cell::Cell, rc::Rc};
 use neocogi_com_sdk::{
-    com_object, ComInterface, ComPtr, ComRef, IUnknown, IUnknownVTable, INcBytesAbi, LocalCom, NcBytes, NcGuid, NcStatus, WeakComPtr, NC_E_BUSY,
+    com_object, ComInterface, ComPtr, IUnknown, IUnknownVTable, INcBytesAbi, LocalCom, NcBytes, NcGuid, NcStatus, WeakComPtr, NC_E_BUSY,
     NC_E_INVALID_ARG, NC_E_NOT_FOUND, NC_E_OUT_OF_RANGE,
 };
 use neocogi_com_sdk::persistence::{IPersistable, IPersistableAbi, IPersistableVtblFor, Limits, ObjectRecord};
@@ -14,6 +14,27 @@ static ALTERNATE: IUnknownVTable = IUnknownVTable {
     interface_id: &<IUnknown as ComInterface>::INTERFACE_ID,
     ..neocogi_com_sdk::lifetime::SHARED_UNKNOWN_VTABLE
 };
+
+/// An exact shared vtable that observes retention and forwards it unchanged.
+static COUNTED_ROOT: IUnknownVTable = IUnknownVTable {
+    add_ref: count_root_retain,
+    ..ALTERNATE
+};
+
+thread_local! {
+    /// Number of explicit AddRef calls made through the probe on this thread.
+    static ROOT_RETAINS: Cell<usize> = const { Cell::new(0) };
+}
+
+/// Observes one AddRef without changing the shared allocation's lifecycle.
+///
+/// # Safety
+/// The object must have the live shared backing required by the original slot.
+unsafe extern "C" fn count_root_retain(object: *mut core::ffi::c_void) -> u32 {
+    ROOT_RETAINS.with(|count| count.set(count.get() + 1));
+    // SAFETY: The probe has the exact backing precondition of the original slot.
+    unsafe { (ALTERNATE.add_ref)(object) }
+}
 
 /// Legal alternate exact IUnknown view transfers the same retained allocation.
 fn alternate(owner: ComPtr<IUnknown>) -> ComPtr<IUnknown> {
@@ -243,7 +264,7 @@ fn snapshot_state_uses_the_sdk_bounded_copy_contract() {
             });
             let root = local.query::<IUnknown>().unwrap();
             let before = BYTE_ERRORS.with(Cell::get);
-            let result = which.capture(root.as_com_ref(), limits);
+            let result = which.capture(&root, limits);
             let after = BYTE_ERRORS.with(Cell::get);
             assert_eq!(result.as_ref().err().copied(), expected, "{which:?} {fail:?} state={state_len}");
             assert_eq!([after[0] - before[0], after[1] - before[1]], byte_calls);
@@ -271,7 +292,7 @@ enum Entry {
 }
 impl Entry {
     /// Raw delivery stays untouched on capture failure and matches safe bytes on success.
-    fn capture(self, root: ComRef<'_, IUnknown>, limits: Limits) -> Result<Vec<u8>, NcStatus> {
+    fn capture(self, root: &ComPtr<IUnknown>, limits: Limits) -> Result<Vec<u8>, NcStatus> {
         match self {
             Self::Safe => neocogi_com_sdk::persistence::snapshot_with_limits(&crate::host_runtime(), root, limits),
             Self::Raw => {
@@ -291,6 +312,34 @@ impl Entry {
         }
     }
 }
+
+/// Zero depth or object budget wins before the runtime attempts root acquisition.
+#[test]
+fn snapshot_checks_root_budget_before_retaining() {
+    let local = Node::into_local(Node {
+        edges: vec![],
+        fail: None,
+        state_len: 0,
+        metrics: Rc::new(Metrics::default()),
+        tag: 0,
+        keepalive: Vec::new(),
+    });
+    let mut raw = local.query::<IUnknown>().unwrap().into_raw();
+    raw.vtable = &COUNTED_ROOT;
+    // SAFETY: The shared allocation transfers one live owner and the alternate
+    // table preserves identity and forwards the original lifecycle operations.
+    let root = unsafe { ComPtr::from_raw_owned(raw) }.unwrap();
+    let limits = Limits::default();
+    for entry in [Entry::Safe, Entry::Raw] {
+        ROOT_RETAINS.with(|count| count.set(0));
+        assert_eq!(entry.capture(&root, Limits { objects: 0, ..limits }), Err(NC_E_OUT_OF_RANGE));
+        assert_eq!(entry.capture(&root, Limits { depth: 0, ..limits }), Err(NC_E_OUT_OF_RANGE));
+        assert_eq!(ROOT_RETAINS.with(Cell::get), 0);
+        assert!(entry.capture(&root, limits).is_ok());
+        assert_eq!(ROOT_RETAINS.with(Cell::get), 1);
+    }
+}
+
 /// Caller-owned synchronous byte sink; runtime never retains its address.
 struct Sink {
     /// Owned copy of runtime-published bytes.
@@ -365,7 +414,7 @@ fn run_graph(
             owners[0].clone()
         };
         let before_bytes = BYTE_ERRORS.with(Cell::get);
-        let result = which.capture(root.as_com_ref(), limits);
+        let result = which.capture(&root, limits);
         let after_bytes = BYTE_ERRORS.with(Cell::get);
         if let Some((_, stage)) = fail {
             match stage {
@@ -418,36 +467,6 @@ fn run_graph(
         drop(locals);
         assert!(weak.iter().all(|w| w.upgrade().unwrap().is_none()), "{name} {which:?} leaked strong ownership");
         assert!(metrics.iter().all(|m| m.drops.get() == 1), "{name} {which:?} final destruction");
-    }
-}
-
-/// A genuine exclusive root must reject sharing before any persistence getter.
-#[com_object(interfaces(IPersistable), ownership = exclusive)]
-struct Exclusive {
-    /// External observers outlive this concrete provider.
-    metrics: Rc<Metrics>,
-}
-impl Drop for Exclusive {
-    fn drop(&mut self) {
-        self.metrics.drops.set(self.metrics.drops.get() + 1);
-    }
-}
-impl IPersistable for Exclusive {
-    fn type_id(&self) -> Result<NcGuid, NcStatus> {
-        panic!("exclusive getter reached")
-    }
-    fn schema_version(&self) -> Result<u32, NcStatus> {
-        panic!("exclusive getter reached")
-    }
-    fn save_state(&self) -> Result<ComPtr<INcBytesAbi>, NcStatus> {
-        panic!("exclusive getter reached")
-    }
-    fn child_count(&self) -> Result<u32, NcStatus> {
-        self.metrics.count.set(self.metrics.count.get() + 1);
-        panic!("exclusive getter reached")
-    }
-    fn child(&self, _: u32) -> Result<ComPtr<IUnknown>, NcStatus> {
-        panic!("exclusive getter reached")
     }
 }
 
@@ -614,16 +633,6 @@ fn retained_allocation_identity_through_actual_safe_and_raw_runtime() {
         Some(&[1]),
     );
     for which in [Entry::Safe, Entry::Raw] {
-        let metrics = Rc::new(Metrics::default());
-        let owner = Exclusive::into_box(Exclusive { metrics: metrics.clone() });
-        let weak = owner.query_weak::<IUnknown>().unwrap();
-        assert_eq!(which.capture(weak.as_com_ref(), defaults), Err(NC_E_INVALID_ARG));
-        assert_eq!(which.capture(weak.as_com_ref(), Limits { depth: 0, ..defaults }), Err(NC_E_OUT_OF_RANGE));
-        assert_eq!(metrics.entries(), [0; 5]);
-        assert_eq!(metrics.drops.get(), 0);
-        drop(owner);
-        assert_eq!(metrics.drops.get(), 1);
-        println!("exclusive root {which:?}: rejected, getters=0, destruction=1");
         let local = Node::into_local(Node {
             edges: vec![],
             fail: None,
@@ -634,9 +643,9 @@ fn retained_allocation_identity_through_actual_safe_and_raw_runtime() {
         });
         let root = local.query::<IUnknown>().unwrap();
         let mutable = local.try_borrow_mut().unwrap();
-        assert_eq!(which.capture(root.as_com_ref(), defaults), Err(NC_E_BUSY));
+        assert_eq!(which.capture(&root, defaults), Err(NC_E_BUSY));
         drop(mutable);
-        assert!(which.capture(root.as_com_ref(), defaults).is_ok());
+        assert!(which.capture(&root, defaults).is_ok());
         println!("local borrow {which:?}: BUSY while mutable, success after release");
     }
 }

@@ -7,7 +7,7 @@ use neocogi_com::{
 };
 
 /// This test does not construct an object; successful lookup reaches this code.
-unsafe extern "C" fn acquire(_host: *const neocogi_com::NcHostApiV3, out: *mut ComRaw<IUnknown>) -> NcStatus {
+unsafe extern "C" fn acquire(_host: *const neocogi_com::NcHostApiV4, out: *mut ComRaw<IUnknown>) -> NcStatus {
     if out.is_null() {
         return NC_E_POINTER;
     }
@@ -35,7 +35,7 @@ static DESCRIPTION: NcPluginDescriptor = NcPluginDescriptor {
 /// # Safety
 /// `out` must be null or writable for one descriptor pointer.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn nc_get_plugin_descriptor_v3(out: *mut *const NcPluginDescriptor) -> NcStatus {
+pub unsafe extern "C" fn nc_get_plugin_descriptor_v4(out: *mut *const NcPluginDescriptor) -> NcStatus {
     if out.is_null() {
         return NC_E_POINTER;
     }

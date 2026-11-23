@@ -305,9 +305,9 @@ described above.
 Interfaces have no implementation-role discriminator in their canonical encoding.
 Canonical encoding v14 contains ordinary value and callable-interface contracts;
 IDL has no event-reference slots. Rebuild affected contracts, providers and hosts
-together, including built-in persistence bindings. Nominal IDs, core generation 21,
+together, including built-in persistence bindings. Nominal IDs, core generation 22,
 source-graph schema and the host-owned runtime registry are separate contracts;
-runtime discovery uses ABI v3. Closed generic interfaces work as object
+runtime discovery uses ABI v4. Closed generic interfaces work as object
 contracts and plugin roots; open templates have no callable ABI.
 
 Generic values can nest and recurse through explicit sequences:
@@ -726,8 +726,8 @@ UUID overrides remain errors.
 
 Generated nominal IDs and signatures change: rebuild contracts, providers and
 hosts together. Compiler encoding v14 records the versionless contract; COM
-discovery uses ABI v2 for the 0.3.0 release and ABI v3/core generation 21 on
-this development branch. The lifetime-policy split does not change encoding v14.
+discovery uses ABI v2 for SDK 0.3.0, ABI v3 for SDK 0.4.0, and ABI v4/core
+generation 22 on this development branch. The discovery revision preserves encoding v14.
 
 ### Module names and dependencies
 
@@ -1059,7 +1059,7 @@ parses its own source once to select its `links` owner and dependency records,
 then uses that parsed module in resolution. The raw source record is still
 checked during incoming graph merges. Source graph schema 7
 requires providers with this namespace and rejects older sidecars. Runtime and
-plugin discovery and the core baseline follow the [ABI version table](../abi-v3.md#abi-identities-and-versions); source routes do not change
+plugin discovery and the core baseline follow the [ABI version table](../abi-v4.md#abi-identities-and-versions); source routes do not change
 the [canonical signature encoding](#canonical-signatures).
 
 ### Diagnostics
@@ -1173,9 +1173,9 @@ Ordinary interface methods own parameterized object construction; there are no
 IDL `class` or `factory` roles, constructor registries or erased argument bags.
 
 Hard provider requirements can be listed as `dependencies = [PLUGIN_ID]`.
-There is no `contracts` list. Plugin descriptor ABI v3 contains the full factory
+There is no `contracts` list. Plugin descriptor ABI v4 contains the full factory
 identity, threading capability, bootstrap pointer, plugin metadata, and provider
-IDs. Its native getter is `nc_get_plugin_descriptor_v3`.
+IDs. Its native getter is `nc_get_plugin_descriptor_v4`.
 
 Dynamic loading validates and registers one plugin atomically. Providers must
 already be registered; registration invokes neither factories nor dependency
@@ -1221,7 +1221,7 @@ ordinary interface methods. Use interface `IID`, `INTERFACE_ID` and
 `INTERFACE_DESCRIPTOR`. Low-level
 handwritten `ComInterface` implementations must specify `type Threading`.
 Remove contract registration and `MODULE` imports, and rebuild against runtime
-ABI v3 and the versioned plugin descriptor getter. No legacy adapter retains the
+ABI v4 and the versioned plugin descriptor getter. No legacy adapter retains the
 removed runtime contract mechanism.
 
 ### Generated IDL metadata
@@ -1306,7 +1306,7 @@ budgeting. See [prepared output completion](COM_OUTPUT_COMPLETION.md) for an IDL
 example, enum limits, and real generated-call regressions.
 
 The provider threading guarantee is preserved for all three owner/observer
-wrappers. See the [current core ABI](../abi-v3.md) for lifetime and concurrency rules.
+wrappers. See the [current core ABI](../abi-v4.md) for lifetime and concurrency rules.
 
 ## Interpreting generated names
 
@@ -1320,7 +1320,7 @@ wrappers. See the [current core ABI](../abi-v3.md) for lifetime and concurrency 
 Cargo ownership keys are never native library filenames. Specialization UUIDs
 are never ABI signatures. Generated comments keep the original logical module
 or closed type beside these names. Their spelling and build-sidecar schemas do
-not advance runtime or plugin descriptor discovery: both use family 3. See
+not advance runtime or plugin descriptor discovery: both use family 4. See
 [generic name documentation](IDL_GENERIC_VALUES.md#reading-generated-specialization-names)
 and [source-map lookup](../guides/IDL_SOURCE_MAPS.md).
 

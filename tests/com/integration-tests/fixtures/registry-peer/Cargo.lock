@@ -24,11 +24,11 @@ dependencies = [
 
 [[package]]
 name = "neocogi-com"
-version = "0.4.0"
+version = "0.5.0-wip-alpha.1"
 
 [[package]]
 name = "neocogi-com-macros"
-version = "0.4.0"
+version = "0.5.0-wip-alpha.1"
 dependencies = [
  "neocogi-idl",
  "syn 2.0.119",
@@ -36,7 +36,7 @@ dependencies = [
 
 [[package]]
 name = "neocogi-com-sdk"
-version = "0.4.0"
+version = "0.5.0-wip-alpha.1"
 dependencies = [
  "neocogi-com",
  "neocogi-com-macros",
@@ -44,7 +44,7 @@ dependencies = [
 
 [[package]]
 name = "neocogi-idl"
-version = "0.4.0"
+version = "0.5.0-wip-alpha.1"
 dependencies = [
  "neocogi-com",
  "prettyplease",

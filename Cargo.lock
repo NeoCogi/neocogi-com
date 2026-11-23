@@ -213,14 +213,14 @@ dependencies = [
 
 [[package]]
 name = "neocogi-com"
-version = "0.4.0"
+version = "0.5.0-wip-alpha.1"
 dependencies = [
  "syn 2.0.119",
 ]
 
 [[package]]
 name = "neocogi-com-host"
-version = "0.4.0"
+version = "0.5.0-wip-alpha.1"
 dependencies = [
  "neocogi-com",
  "neocogi-com-sdk",
@@ -229,7 +229,7 @@ dependencies = [
 
 [[package]]
 name = "neocogi-com-macros"
-version = "0.4.0"
+version = "0.5.0-wip-alpha.1"
 dependencies = [
  "neocogi-idl",
  "syn 2.0.119",
@@ -237,7 +237,7 @@ dependencies = [
 
 [[package]]
 name = "neocogi-com-sdk"
-version = "0.4.0"
+version = "0.5.0-wip-alpha.1"
 dependencies = [
  "neocogi-com",
  "neocogi-com-macros",
@@ -245,14 +245,14 @@ dependencies = [
 
 [[package]]
 name = "neocogi-com-serialization"
-version = "0.4.0"
+version = "0.5.0-wip-alpha.1"
 dependencies = [
  "neocogi-com-sdk",
 ]
 
 [[package]]
 name = "neocogi-com-serialization-dylib"
-version = "0.4.0"
+version = "0.5.0-wip-alpha.1"
 dependencies = [
  "neocogi-com-sdk",
  "neocogi-com-serialization",
@@ -260,7 +260,7 @@ dependencies = [
 
 [[package]]
 name = "neocogi-com-tests"
-version = "0.4.0"
+version = "0.5.0-wip-alpha.1"
 dependencies = [
  "cc",
  "libc",
@@ -297,7 +297,7 @@ dependencies = [
 
 [[package]]
 name = "neocogi-idl"
-version = "0.4.0"
+version = "0.5.0-wip-alpha.1"
 dependencies = [
  "libc",
  "neocogi-com",
@@ -312,7 +312,7 @@ dependencies = [
 
 [[package]]
 name = "neocogi-inspect"
-version = "0.4.0"
+version = "0.5.0-wip-alpha.1"
 dependencies = [
  "neocogi-com",
  "neocogi-com-host",
@@ -323,7 +323,7 @@ dependencies = [
 
 [[package]]
 name = "neocogi-tooling-tests"
-version = "0.4.0"
+version = "0.5.0-wip-alpha.1"
 dependencies = [
  "libc",
  "neocogi-com",
@@ -663,7 +663,7 @@ checksum = "23b97319f7b8343df12cc98938e5c3eb436064524c8d2b4e30a1d3a36eecdf81"
 
 [[package]]
 name = "xtask"
-version = "0.4.0"
+version = "0.5.0-wip-alpha.1"
 dependencies = [
  "dunce",
  "flate2",

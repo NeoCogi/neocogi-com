@@ -127,7 +127,7 @@ mod tests;
 pub use neocogi_com::lifetime;
 pub use neocogi_com::{ComBox, WeakComBox};
 pub use neocogi_com::{NcCopyFromBufferOffset, WeakComPtr, NcSharedWeakRaw};
-pub use neocogi_com::{NcHostApiV3, validate_host_api};
+pub use neocogi_com::{NcHostApiV4, validate_host_api};
 #[cfg(feature = "alloc")]
 pub use data::{ComBytesExt, ComStringExt, NC_COM_DEFAULT_OWNED_COPY_MAX_BYTES, NcBytes, NcString};
 #[cfg(feature = "macros")]
@@ -148,10 +148,10 @@ pub use neocogi_com::{
     NC_DEBUG_TYPE_PLUGIN, NC_DEBUG_TYPE_RUNTIME, NC_DEBUG_TYPE_VALIDATION, NC_DESCRIPTOR_QUALIFIED_NAME_MAX_LEN, NC_DESCRIPTOR_VERSION_MAX_LEN,
     NC_E_ABI_VERSION, NC_E_BUSY, NC_E_CLOSED, NC_E_DROPPED, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG, NC_E_INVALID_TAG, NC_E_LOAD_FAILED, NC_E_NOINTERFACE,
     NC_E_NOT_FOUND, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_PLUGIN_DESCRIPTOR_ABI_VERSION, NC_GET_PLUGIN_DESCRIPTOR_SYMBOL, NC_GUID_NIL, NC_OK,
-    NcAbiDigest, NcAbiPassing, NcAbiPassingDescriptor, NcAbiReceiver, NcAbiThreadingMode, NcAbiType, NcAbiTypeDescriptor, NcAcquirePluginFactory, NcDebugApiV3,
-    NcDebugCallbackV3, NcDebugMessageV3, NcDebugMessengerCreateInfoV3, NcPluginDescriptor, NcGetPluginDescriptor, NcGuid, NcInspectPluginDescriptorCallbackV3,
-    NcInterfaceDescriptor, NcInterfaceId, NcMethodDescriptor, NcMethodParamDescriptor, NcPersistenceApiV3, NcPersistenceContext, NcPersistenceLimitsV3,
-    NcPersistenceWriteBytesV3, NcMethodReturnDescriptor, NcPluginDependencyDescriptor, NcFactoryInfoV3, NcPluginInfoV3, NcQualifiedNameError, NcPluginApiV3,
+    NcAbiDigest, NcAbiPassing, NcAbiPassingDescriptor, NcAbiReceiver, NcAbiThreadingMode, NcAbiType, NcAbiTypeDescriptor, NcAcquirePluginFactory, NcDebugApiV4,
+    NcDebugCallbackV4, NcDebugMessageV4, NcDebugMessengerCreateInfoV4, NcPluginDescriptor, NcGetPluginDescriptor, NcGuid, NcInspectPluginDescriptorCallbackV4,
+    NcInterfaceDescriptor, NcInterfaceId, NcMethodDescriptor, NcMethodParamDescriptor, NcPersistenceApiV4, NcPersistenceContext, NcPersistenceLimitsV4,
+    NcPersistenceWriteBytesV4, NcMethodReturnDescriptor, NcPluginDependencyDescriptor, NcFactoryInfoV4, NcPluginInfoV4, NcQualifiedNameError, NcPluginApiV4,
     NcStaticUtf8, NcStatus, NcUtf8View, NcVersionTextError, ParseGuidError, QUALIFIED_NAME_INC_BYTES, QUALIFIED_NAME_INC_STRING, ThreadLocal, ThreadSafe,
     ThreadingModel, write_plugin_root, guid_from_qualified_name, raw, return_plugin_descriptor, validate_plugin_descriptor, validate_qualified_name,
     validate_version_text, validate_rust_path, NcRustPathError, NC_DESCRIPTOR_RUST_PATH_MAX_LEN,

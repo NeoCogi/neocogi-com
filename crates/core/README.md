@@ -3,9 +3,9 @@
 The C-shaped ABI shared by generated contracts, hosts, plugins, and the process
 runtime. Its default configuration is allocation-free; optional `alloc` helpers
 own decoded values and binary documents. Most authors use the `neocogi-com-sdk`
-facade. The [current object ABI](../../docs/abi-v3.md) remains experimental.
+facade. The [current object ABI](../../docs/abi-v4.md) remains experimental.
 
-The `0.4.0` SDK uses **provisional ABI v3/core generation 21**.
+The `0.5.0-wip-alpha.1` SDK uses **provisional ABI v4/core generation 22**.
 Published 0.3.0 uses ABI v2/core generation 19.
 
 Core defines statuses, GUIDs, exact signatures, typed metadata, raw object/table pairs
@@ -30,22 +30,22 @@ required. The IDL build helper hashes the complete transitive graph and derives
 each declaration's final 32 bytes. Core compares those bytes at factory/interface
 boundaries and does not hash or reconstruct an IDL graph.
 
-Plugin descriptor ABI v3 publishes plugin identity/version, hard dependencies,
+Plugin descriptor ABI v4 publishes plugin identity/version, hard dependencies,
 full root-factory IID/signature, threading, and one acquisition bootstrap.
 The safe Rust acquisition function takes the host-supplied `RuntimeHandle`; its raw
 C adapter takes a host API pointer and a caller-owned factory output slot.
 Successful acquisition transfers one factory owner using the host's one global
 registry; providers initialize no separate runtime.
 `NcPluginDescriptor` is the provider-authored registration input, returned by
-`nc_get_plugin_descriptor_v3`. `NcPluginInfoV3` is the runtime's complete
+`nc_get_plugin_descriptor_v4`. `NcPluginInfoV4` is the runtime's complete
 lookup/enumeration output: metadata plus first registration origin, without a
 bootstrap function or live factory reference. These records have different roles
 and do not own the storage behind their pointers.
 
 Runtime discovery supplies three tables: complete plugin operations, debug,
-and persistence. See [runtime ABI v3](../../docs/abi-v3.md#runtime-and-global-registry) for descriptor
+and persistence. See [runtime ABI v4](../../docs/abi-v4.md#runtime-and-global-registry) for descriptor
 lifetimes, inspection and acquisition, and the
-[ABI specification entrypoint](../../docs/abi-v3.md) for object layouts.
+[ABI specification entrypoint](../../docs/abi-v4.md) for object layouts.
 
 ## Interface safety
 

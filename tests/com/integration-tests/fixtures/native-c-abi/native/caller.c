@@ -51,47 +51,47 @@ struct NcInterfaceDescriptor {
 };
 
 typedef struct NcUtf8View { const uint8_t *data; size_t len; } NcUtf8View;
-typedef struct NcFactoryInfoV3 { NcInterfaceId interface; uint32_t threading; } NcFactoryInfoV3;
-typedef struct NcPluginInfoV3 {
+typedef struct NcFactoryInfoV4 { NcInterfaceId interface; uint32_t threading; } NcFactoryInfoV4;
+typedef struct NcPluginInfoV4 {
     NcGuid plugin_id;
     NcUtf8View qualified_name, version, library_path;
-    NcFactoryInfoV3 factory;
+    NcFactoryInfoV4 factory;
     const NcGuid *dependencies;
     size_t dependency_count;
-} NcPluginInfoV3;
+} NcPluginInfoV4;
 
-/* Host plugin operations in runtime family 3. The fixture leaves callbacks
+/* Host plugin operations in runtime family 4. The fixture leaves callbacks
  * opaque where it only compares their slots. */
-typedef struct NcPluginApiV3 {
+typedef struct NcPluginApiV4 {
     size_t size;
     uint32_t core_abi_version;
     int32_t (*register_plugin_descriptor)(const void *);
     void (*load_plugin_library_utf8)(void);
     void (*acquire_factory_plugin)(void);
-    NcStatus (*plugin_info)(NcGuid, NcPluginInfoV3 *);
+    NcStatus (*plugin_info)(NcGuid, NcPluginInfoV4 *);
     size_t (*plugin_count)(void);
-    NcStatus (*plugin_infos)(NcPluginInfoV3 *, size_t, size_t *);
+    NcStatus (*plugin_infos)(NcPluginInfoV4 *, size_t, size_t *);
     void (*inspect_plugin_library_utf8)(void);
-} NcPluginApiV3;
+} NcPluginApiV4;
 
-typedef struct NcDebugApiV3Prefix {
+typedef struct NcDebugApiV4Prefix {
     size_t size;
     void (*create_messenger)(void);
-} NcDebugApiV3Prefix;
+} NcDebugApiV4Prefix;
 
 /* Host access groups immutable tables; it owns no C registry allocation. */
-typedef struct NcPersistenceApiV3 NcPersistenceApiV3;
-typedef struct NcHostApiV3 {
+typedef struct NcPersistenceApiV4 NcPersistenceApiV4;
+typedef struct NcHostApiV4 {
     size_t size;
     uint32_t runtime_abi_version, core_abi_version;
-    const NcPluginApiV3 *runtime;
-    const NcDebugApiV3Prefix *debug;
-    const NcPersistenceApiV3 *persistence;
-} NcHostApiV3;
-/* The output capability is defined below; both parameters are part of ABI-v3. */
-typedef NcStatus (*NcAcquirePluginFactory)(const NcHostApiV3 *, IUnknown *);
-_Static_assert(offsetof(NcHostApiV3, runtime_abi_version) == sizeof(size_t), "host version prefix");
-_Static_assert(sizeof(NcHostApiV3) == (sizeof(void *) == 8 ? 40 : 24), "host C layout");
+    const NcPluginApiV4 *runtime;
+    const NcDebugApiV4Prefix *debug;
+    const NcPersistenceApiV4 *persistence;
+} NcHostApiV4;
+/* The output capability is defined below; both parameters are part of ABI-v4. */
+typedef NcStatus (*NcAcquirePluginFactory)(const NcHostApiV4 *, IUnknown *);
+_Static_assert(offsetof(NcHostApiV4, runtime_abi_version) == sizeof(size_t), "host version prefix");
+_Static_assert(sizeof(NcHostApiV4) == (sizeof(void *) == 8 ? 40 : 24), "host C layout");
 
 /* A raw borrowed/owned capability; ownership follows the enclosing operation. */
 struct IUnknown {
@@ -262,12 +262,12 @@ _Static_assert(offsetof(NativeAggregate, value) == 8,
 _Static_assert(sizeof(NativeAggregate) == 16,
     "NativeAggregate ABI size changed");
 
-_Static_assert(offsetof(NcPluginApiV3, size) == 0,
-    "NcPluginApiV3 must begin with size");
-_Static_assert(offsetof(NcPluginApiV3, core_abi_version) == sizeof(size_t),
-    "NcPluginApiV3.core_abi_version prefix changed");
-_Static_assert(offsetof(NcDebugApiV3Prefix, create_messenger) == sizeof(size_t),
-    "NcDebugApiV3 prefix changed");
+_Static_assert(offsetof(NcPluginApiV4, size) == 0,
+    "NcPluginApiV4 must begin with size");
+_Static_assert(offsetof(NcPluginApiV4, core_abi_version) == sizeof(size_t),
+    "NcPluginApiV4.core_abi_version prefix changed");
+_Static_assert(offsetof(NcDebugApiV4Prefix, create_messenger) == sizeof(size_t),
+    "NcDebugApiV4 prefix changed");
 
 #if UINTPTR_MAX == UINT64_MAX
 _Static_assert(sizeof(NcInterfaceDescriptor) == 80,
@@ -276,8 +276,8 @@ _Static_assert(offsetof(NcInterfaceDescriptor, method_count) == 64,
     "64-bit NcInterfaceDescriptor.method_count ABI offset changed");
 _Static_assert(offsetof(NcInterfaceDescriptor, methods) == 72,
     "64-bit NcInterfaceDescriptor.methods ABI offset changed");
-_Static_assert(offsetof(NcPluginApiV3, register_plugin_descriptor) == 16,
-    "64-bit NcPluginApiV3 registration prefix changed");
+_Static_assert(offsetof(NcPluginApiV4, register_plugin_descriptor) == 16,
+    "64-bit NcPluginApiV4 registration prefix changed");
 #elif UINTPTR_MAX == UINT32_MAX
 _Static_assert(sizeof(NcInterfaceDescriptor) == 56,
     "32-bit NcInterfaceDescriptor ABI size changed");
@@ -285,8 +285,8 @@ _Static_assert(offsetof(NcInterfaceDescriptor, method_count) == 48,
     "32-bit NcInterfaceDescriptor.method_count ABI offset changed");
 _Static_assert(offsetof(NcInterfaceDescriptor, methods) == 52,
     "32-bit NcInterfaceDescriptor.methods ABI offset changed");
-_Static_assert(offsetof(NcPluginApiV3, register_plugin_descriptor) == 8,
-    "32-bit NcPluginApiV3 registration prefix changed");
+_Static_assert(offsetof(NcPluginApiV4, register_plugin_descriptor) == 8,
+    "32-bit NcPluginApiV4 registration prefix changed");
 #else
 #error "native C ABI fixture supports only 32-bit and 64-bit targets"
 #endif
@@ -301,23 +301,23 @@ int32_t nc_c_validate_abi_layouts(const NativeAbiLayouts *layouts) {
         layouts->interface_qualified_name_offset == offsetof(NcInterfaceDescriptor, qualified_name) &&
         layouts->interface_method_count_offset == offsetof(NcInterfaceDescriptor, method_count) &&
         layouts->interface_methods_offset == offsetof(NcInterfaceDescriptor, methods) &&
-        layouts->runtime_core_abi_version_offset == offsetof(NcPluginApiV3, core_abi_version) &&
-        layouts->runtime_plugin_register_offset == offsetof(NcPluginApiV3, register_plugin_descriptor) &&
-        layouts->runtime_plugin_count_offset == offsetof(NcPluginApiV3, plugin_count) &&
-        layouts->runtime_plugin_info_offset == offsetof(NcPluginApiV3, plugin_info) &&
-        layouts->runtime_size == sizeof(NcPluginApiV3) &&
-        layouts->runtime_plugin_infos_offset == offsetof(NcPluginApiV3, plugin_infos) &&
-        layouts->plugin_info_size == sizeof(NcPluginInfoV3) &&
-        layouts->plugin_factory_offset == offsetof(NcPluginInfoV3, factory) &&
-        layouts->plugin_dependencies_offset == offsetof(NcPluginInfoV3, dependencies) &&
-        layouts->plugin_dependency_count_offset == offsetof(NcPluginInfoV3, dependency_count) &&
-        layouts->debug_first_function_offset == offsetof(NcDebugApiV3Prefix, create_messenger) &&
-        layouts->host_size == sizeof(NcHostApiV3) &&
-        layouts->host_runtime_version_offset == offsetof(NcHostApiV3, runtime_abi_version) &&
-        layouts->host_core_version_offset == offsetof(NcHostApiV3, core_abi_version) &&
-        layouts->host_runtime_offset == offsetof(NcHostApiV3, runtime) &&
-        layouts->host_debug_offset == offsetof(NcHostApiV3, debug) &&
-        layouts->host_persistence_offset == offsetof(NcHostApiV3, persistence) &&
+        layouts->runtime_core_abi_version_offset == offsetof(NcPluginApiV4, core_abi_version) &&
+        layouts->runtime_plugin_register_offset == offsetof(NcPluginApiV4, register_plugin_descriptor) &&
+        layouts->runtime_plugin_count_offset == offsetof(NcPluginApiV4, plugin_count) &&
+        layouts->runtime_plugin_info_offset == offsetof(NcPluginApiV4, plugin_info) &&
+        layouts->runtime_size == sizeof(NcPluginApiV4) &&
+        layouts->runtime_plugin_infos_offset == offsetof(NcPluginApiV4, plugin_infos) &&
+        layouts->plugin_info_size == sizeof(NcPluginInfoV4) &&
+        layouts->plugin_factory_offset == offsetof(NcPluginInfoV4, factory) &&
+        layouts->plugin_dependencies_offset == offsetof(NcPluginInfoV4, dependencies) &&
+        layouts->plugin_dependency_count_offset == offsetof(NcPluginInfoV4, dependency_count) &&
+        layouts->debug_first_function_offset == offsetof(NcDebugApiV4Prefix, create_messenger) &&
+        layouts->host_size == sizeof(NcHostApiV4) &&
+        layouts->host_runtime_version_offset == offsetof(NcHostApiV4, runtime_abi_version) &&
+        layouts->host_core_version_offset == offsetof(NcHostApiV4, core_abi_version) &&
+        layouts->host_runtime_offset == offsetof(NcHostApiV4, runtime) &&
+        layouts->host_debug_offset == offsetof(NcHostApiV4, debug) &&
+        layouts->host_persistence_offset == offsetof(NcHostApiV4, persistence) &&
         layouts->aggregate_size == sizeof(NativeAggregate) &&
         layouts->aggregate_align == _Alignof(NativeAggregate) &&
         layouts->aggregate_count_offset == offsetof(NativeAggregate, count) &&
@@ -596,7 +596,7 @@ int32_t nc_c_exercise_choice_output(void *object, NativeChoiceOutput output,
 }
 
 /* This checks a real typed bootstrap call, not merely function-pointer size. */
-int32_t nc_c_exercise_host_bootstrap(const NcHostApiV3 *host, NcAcquirePluginFactory acquire, NcStatus expected) {
+int32_t nc_c_exercise_host_bootstrap(const NcHostApiV4 *host, NcAcquirePluginFactory acquire, NcStatus expected) {
     if (!host || host->size != sizeof(*host) || host->runtime_abi_version != NC_COM_RUNTIME_ABI_VERSION ||
         host->core_abi_version != NC_COM_CORE_ABI_VERSION || !host->runtime || !host->debug || !host->persistence) return 0;
     IUnknown out = {0};

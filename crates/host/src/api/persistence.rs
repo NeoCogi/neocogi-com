@@ -6,14 +6,14 @@
 
 use core::{ffi::c_void, mem, ptr, slice};
 use neocogi_com::{
-    ComRef, IUnknown, NcGuid, NcPersistenceApiV3, NcPersistenceContext, NcPersistenceLimitsV3, NcPersistenceWriteBytesV3, NcStatus, NC_COM_CORE_ABI_VERSION,
+    ComPtr, IUnknown, NcGuid, NcPersistenceApiV4, NcPersistenceContext, NcPersistenceLimitsV4, NcPersistenceWriteBytesV4, NcStatus, NC_COM_CORE_ABI_VERSION,
     NC_E_INVALID_ARG, NC_E_POINTER, NC_OK, persistence::IPersistenceFactoryAbi,
 };
 use crate::persistence::{Registry, snapshot_with_limits};
 
 /// Immutable operation table; a getter lends it for the runtime's entire lifetime.
-pub(super) static PERSISTENCE_API_V3: NcPersistenceApiV3 = NcPersistenceApiV3 {
-    size: mem::size_of::<NcPersistenceApiV3>(),
+pub(super) static PERSISTENCE_API_V4: NcPersistenceApiV4 = NcPersistenceApiV4 {
+    size: mem::size_of::<NcPersistenceApiV4>(),
     core_abi_version: NC_COM_CORE_ABI_VERSION,
     create_context,
     destroy_context,
@@ -51,21 +51,17 @@ unsafe extern "C" fn destroy_context(context: *mut NcPersistenceContext) {
 }
 
 /// Takes an explicit exclusive registry borrow and retains a shared factory.
-/// A live exclusive factory projection is rejected without changing the registry.
 ///
 /// # Safety
-/// Context is exclusively borrowed on its creating thread; factory is a live
-/// common COM projection. Neither may be invalidated by reentrant callbacks.
+/// Context is exclusively borrowed on its creating thread. A present factory
+/// borrows a shared owner for the call. Reentry must preserve both lenders.
 unsafe extern "C" fn register_factory(context: *mut NcPersistenceContext, id: NcGuid, factory: neocogi_com::ComRaw<IPersistenceFactoryAbi>) -> NcStatus {
     if context.is_null() {
         return NC_E_POINTER;
     }
     // SAFETY: Validate the exact ABI before calling any factory-specific methods.
-    let factory = match unsafe { ComRef::<IPersistenceFactoryAbi>::__nc_from_raw_borrowed_checked(factory) } {
-        Ok(factory) => match factory.try_add_ref() {
-            Ok(factory) => factory,
-            Err(status) => return status.normalize_error(),
-        },
+    let factory = match unsafe { ComPtr::<IPersistenceFactoryAbi>::__nc_clone_from_raw_checked(factory) } {
+        Ok(factory) => factory,
         Err(status) => return status,
     };
     // SAFETY: The ABI requires exclusive context access for this operation.
@@ -78,24 +74,20 @@ unsafe extern "C" fn register_factory(context: *mut NcPersistenceContext, id: Nc
 /// Delivers one completed document through a synchronous caller-owned byte sink.
 ///
 /// # Safety
-/// Object is a live common COM projection. The callback and its opaque data
+/// A present object borrows a shared root owner. The callback and its opaque data
 /// satisfy the declared byte-sink contract and must not unwind across the ABI.
 unsafe extern "C" fn snapshot(
     object: neocogi_com::ComRaw<IUnknown>,
-    limits: NcPersistenceLimitsV3,
-    write: Option<NcPersistenceWriteBytesV3>,
+    limits: NcPersistenceLimitsV4,
+    write: Option<NcPersistenceWriteBytesV4>,
     user_data: *mut c_void,
 ) -> NcStatus {
     let write = match write {
         Some(write) => write,
         None => return NC_E_POINTER,
     };
-    // SAFETY: Exact identity validation precedes the algorithm's safe COM calls.
-    let object = match unsafe { ComRef::<IUnknown>::__nc_from_raw_borrowed_checked(object) } {
-        Ok(object) => object,
-        Err(status) => return status,
-    };
-    match snapshot_with_limits(object, limits.into()) {
+    // SAFETY: The provider contract lends the root through snapshot completion.
+    match unsafe { snapshot_with_limits(object, limits.into()) } {
         Ok(bytes) => {
             // SAFETY: The vector remains live for this single synchronous copy;
             // ownership stays in the runtime even if the receiver reports failure.
@@ -114,7 +106,7 @@ unsafe extern "C" fn restore(
     context: *const NcPersistenceContext,
     bytes: *const u8,
     len: usize,
-    limits: NcPersistenceLimitsV3,
+    limits: NcPersistenceLimitsV4,
     out: *mut neocogi_com::ComRaw<IUnknown>,
 ) -> NcStatus {
     if out.is_null() {

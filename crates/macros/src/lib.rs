@@ -76,7 +76,7 @@ pub fn com_object(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// `dependencies = [PLUGIN_ID, ...]` are hard registration dependencies.
 ///
 /// Generates `plugin_descriptor()` for static registration and, under the
-/// provider's `dynamic-plugin` feature, `nc_get_plugin_descriptor_v3` for a DLL.
+/// provider's `dynamic-plugin` feature, `nc_get_plugin_descriptor_v4` for a DLL.
 /// The provider owns initialized storage; acquisition transfers one owner and
 /// may return a retained instance. No singleton or object-construction policy
 /// is imposed on ordinary interface methods.

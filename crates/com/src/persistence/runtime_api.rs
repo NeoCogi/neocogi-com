@@ -6,8 +6,8 @@ use core::{
     slice,
 };
 use std::vec::Vec;
-use neocogi_com::{NcPersistenceApiV3, NcPersistenceContext};
-use crate::{ComPtr, ComRef, IUnknown, NcGuid, NcStatus, RuntimeHandle, NC_E_INVALID_ARG, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_OK};
+use neocogi_com::{NcPersistenceApiV4, NcPersistenceContext};
+use crate::{ComPtr, IUnknown, NcGuid, NcStatus, RuntimeHandle, NC_E_INVALID_ARG, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_OK};
 use super::{IPersistenceFactoryAbi, Limits};
 
 /// An explicitly owned, thread-local set of reconstruction factories.
@@ -21,7 +21,7 @@ pub struct FactoryRegistry {
     /// Unique context owner, never exposed as a dereferenceable Rust value.
     context: NonNull<NcPersistenceContext>,
     /// Checked immutable table retained for the context's complete lifetime.
-    api: &'static NcPersistenceApiV3,
+    api: &'static NcPersistenceApiV4,
 }
 
 impl FactoryRegistry {
@@ -82,26 +82,34 @@ impl Drop for FactoryRegistry {
 }
 
 /// Captures a shared opt-in object tree with the default limits.
-/// A borrowed exclusive root returns `NC_E_INVALID_ARG`; its sole owner is
-/// preserved. Supporting exclusive trees requires a separate observation protocol.
+/// The caller lends an existing shared owner throughout the operation.
 /// Requires an explicitly supplied `nc.serialization` provider offering `ncb`;
 /// provider absence returns `NC_E_NOT_FOUND`, without implicit loading/fallback.
-pub fn snapshot(runtime: &RuntimeHandle, object: ComRef<'_, IUnknown>) -> Result<Vec<u8>, NcStatus> {
+///
+/// A boxed owner has a different lifetime contract than a shared snapshot root.
+///
+/// ```compile_fail
+/// use neocogi_com_sdk::{ComBox, IUnknown, RuntimeHandle, persistence::snapshot};
+///
+/// fn capture(runtime: &RuntimeHandle, root: &ComBox<IUnknown>) {
+///     let _ = snapshot(runtime, root);
+/// }
+/// ```
+pub fn snapshot(runtime: &RuntimeHandle, object: &ComPtr<IUnknown>) -> Result<Vec<u8>, NcStatus> {
     snapshot_with_limits(runtime, object, Limits::default())
 }
 
 /// Returns caller-owned document bytes after one successful shared-tree traversal.
-/// Non-shareable roots fail before persistence getters or byte delivery run.
-/// Ownership/capture-budget checks precede named-NCB selection. Provider
+/// Root and capture-budget checks precede named-NCB selection. Provider
 /// acquisition/selection errors propagate and publish no document bytes.
-pub fn snapshot_with_limits(runtime: &RuntimeHandle, object: ComRef<'_, IUnknown>, limits: Limits) -> Result<Vec<u8>, NcStatus> {
+pub fn snapshot_with_limits(runtime: &RuntimeHandle, object: &ComPtr<IUnknown>, limits: Limits) -> Result<Vec<u8>, NcStatus> {
     let api = runtime.persistence;
     let mut destination = SnapshotDestination {
         maximum: limits.binary.bytes,
         bytes: None,
     };
-    // SAFETY: Object remains borrowed and destination stays at this address for
-    // the whole synchronous operation. The runtime never retains either pointer.
+    // SAFETY: The shared owner retains the root and the destination stays at this
+    // address for the entire synchronous operation.
     let status = unsafe { (api.snapshot)(object.as_raw(), limits.into(), Some(receive_snapshot), ptr::from_mut(&mut destination).cast()) };
     if status.is_err() {
         return Err(status);

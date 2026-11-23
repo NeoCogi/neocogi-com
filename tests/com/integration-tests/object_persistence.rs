@@ -47,7 +47,7 @@ fn restore_checks_declared_child_slots_before_descending() {
     assert_eq!(counts.created.load(Ordering::Relaxed), 0);
 
     let restored = registry.restore_with_limits(&bytes, exact).unwrap();
-    assert_eq!(snapshot(&crate::host_runtime(), restored.as_com_ref()).unwrap(), bytes);
+    assert_eq!(snapshot(&crate::host_runtime(), &restored).unwrap(), bytes);
     assert_eq!(counts.created.load(Ordering::Relaxed), 5);
     // SAFETY: The selected linked host publishes process-lived service tables.
     let api = unsafe { neocogi_com_host::initialize_process().persistence.as_ref() }.unwrap();

@@ -11,138 +11,37 @@ use neocogi_com_sdk::{
 };
 use neocogi_com_sdk::persistence::*;
 
-/// A live exclusive persistence provider is borrowable, but not shareable.
-#[com_object(interfaces(IPersistable), ownership = exclusive)]
-struct ExclusiveObject {
-    /// Persistence getter invocations; rejected capture must not invoke any.
-    calls: Arc<AtomicUsize>,
-    /// Destruction is independent of projection bookkeeping lifetime.
-    drops: Arc<AtomicUsize>,
-}
-impl Drop for ExclusiveObject {
-    fn drop(&mut self) {
-        self.drops.fetch_add(1, Ordering::Relaxed);
-    }
-}
-impl IPersistable for ExclusiveObject {
-    fn type_id(&self) -> Result<NcGuid, NcStatus> {
-        self.calls.fetch_add(1, Ordering::Relaxed);
-        Ok(KIND)
-    }
-    fn schema_version(&self) -> Result<u32, NcStatus> {
-        self.calls.fetch_add(1, Ordering::Relaxed);
-        Ok(1)
-    }
-    fn save_state(&self) -> Result<ComPtr<INcBytesAbi>, NcStatus> {
-        self.calls.fetch_add(1, Ordering::Relaxed);
-        Ok(NcBytes::from_vec(vec![1, 2, 3]))
-    }
-    fn child_count(&self) -> Result<u32, NcStatus> {
-        self.calls.fetch_add(1, Ordering::Relaxed);
-        Ok(0)
-    }
-    fn child(&self, _index: u32) -> Result<ComPtr<IUnknown>, NcStatus> {
-        self.calls.fetch_add(1, Ordering::Relaxed);
-        Err(NC_E_OUT_OF_RANGE)
-    }
-}
-
-/// Both public snapshot paths reject a real exclusive root across the runtime ABI.
+/// A shared but mismatched factory projection fails before retention. The same
+/// context can then retain the intended shared factory until its own release.
 #[test]
-fn exclusive_snapshot_returns_status_before_getters_and_preserves_owner() {
-    let calls = Arc::new(AtomicUsize::new(0));
-    let drops = Arc::new(AtomicUsize::new(0));
-    let owner = ExclusiveObject::into_box(ExclusiveObject {
-        calls: calls.clone(),
-        drops: drops.clone(),
-    })
-    .query::<IPersistableAbi>()
-    .unwrap();
-    let identity = owner.query_weak::<IUnknown>().unwrap();
-    assert_eq!(snapshot(&crate::host_runtime(), identity.as_com_ref()), Err(NC_E_INVALID_ARG));
-    assert_eq!(
-        snapshot_with_limits(&crate::host_runtime(), identity.as_com_ref(), Limits::default()),
-        Err(NC_E_INVALID_ARG)
-    );
-    // SAFETY: The linked runtime table is process-lived. The live owner protects
-    // identity, and the callback receives one exclusive local counter for this call.
-    let api = unsafe { neocogi_com_host::initialize_process().persistence.as_ref() }.unwrap();
-    let mut deliveries = 0usize;
-    let status = unsafe {
-        (api.snapshot)(
-            identity.as_raw(),
-            Limits::default().into(),
-            Some(count_delivery),
-            core::ptr::from_mut(&mut deliveries).cast(),
-        )
-    };
-    assert_eq!(status, NC_E_INVALID_ARG);
-    assert_eq!(deliveries, 0);
-    assert_eq!(calls.load(Ordering::Relaxed), 0);
-    assert_eq!(drops.load(Ordering::Relaxed), 0);
-    assert_eq!(owner.schema_version().unwrap(), 1);
-    drop(owner);
-    assert_eq!(drops.load(Ordering::Relaxed), 1);
-    assert!(!identity.is_alive());
-}
-
-/// Counts attempted delivery; rejected capture must never reach this sink.
-///
-/// # Safety
-/// `data` exclusively points to the live local usize installed by the test.
-unsafe extern "C" fn count_delivery(data: *mut core::ffi::c_void, _bytes: *const u8, _len: usize) -> NcStatus {
-    // SAFETY: The test supplies and retains the exact counter for the synchronous call.
-    unsafe { *data.cast::<usize>() += 1 };
-    neocogi_com_sdk::NC_OK
-}
-
-/// A raw registration caller can lend an exclusive projection without owning a shared handle.
-#[com_object(interfaces(IPersistenceFactory), ownership = exclusive)]
-struct ExclusiveFactory;
-impl IPersistenceFactory for ExclusiveFactory {
-    fn validate(&self, _version: u32, _state: NcCopyFromBufferOffset<'_, u8>, _count: u32) -> Result<(), NcStatus> {
-        Ok(())
-    }
-    fn restore(&self, _version: u32, _state: NcCopyFromBufferOffset<'_, u8>, _children: ComRef<'_, IObjectChildrenAbi>) -> Result<ComPtr<IUnknown>, NcStatus> {
-        Err(NC_E_INVALID_ARG)
-    }
-}
-
-/// Rejection across the raw table leaves the registry empty and usable for shared registration.
-#[test]
-fn raw_factory_registration_rejects_exclusive_projection_without_mutation() {
-    let owner = ExclusiveFactory::into_box(ExclusiveFactory).query::<IPersistenceFactoryAbi>().unwrap();
+fn raw_factory_registration_validates_interface_before_retaining() {
     // SAFETY: The linked runtime lends an immutable table for the process lifetime.
     let api = unsafe { neocogi_com_host::initialize_process().persistence.as_ref() }.unwrap();
     let mut context = core::ptr::null_mut();
-    // SAFETY: Fresh local output; all context operations remain sequential on this thread.
+    // SAFETY: Fresh local output. All context operations stay on this thread.
     assert_eq!(unsafe { (api.create_context)(&mut context) }, neocogi_com_sdk::NC_OK);
-    // SAFETY: Exclusive access to the new context and a valid, live COM projection.
-    assert_eq!(unsafe { (api.register_factory)(context, KIND, owner.as_raw()) }, NC_E_INVALID_ARG);
-    assert!(owner.downgrade().is_alive());
-    owner.validate(1, NcCopyFromBufferOffset::new(0, &[]), 0).unwrap();
     let counts = Arc::new(Counts::default());
-    let factory = Factory::from_value(Factory { counts: counts.clone() })
-        .query::<IPersistenceFactoryAbi>()
-        .unwrap();
-    // SAFETY: Same exclusive context access and a live shared provider; the rejected
-    // registration must not reserve KIND or leave an invalid retained reference.
+    let identity = Factory::from_value(Factory { counts: counts.clone() });
+    let factory = identity.query::<IPersistenceFactoryAbi>().unwrap();
+    // SAFETY: The mismatched pair still lends live shared storage with a
+    // readable common table. The host checks exact identity before retention.
+    let rejected = unsafe { (api.register_factory)(context, KIND, identity.as_raw().cast()) };
+    assert_eq!(rejected, neocogi_com_sdk::NC_E_NOINTERFACE);
+    // SAFETY: This pair lends the exact live shared factory to the exclusive context.
     assert_eq!(unsafe { (api.register_factory)(context, KIND, factory.as_raw()) }, neocogi_com_sdk::NC_OK);
+    drop(identity);
     drop(factory);
     assert_eq!(counts.factories_dropped.load(Ordering::Relaxed), 0);
-    // SAFETY: Return the sole context owner once, with no active table calls.
+    // SAFETY: Return the unique context owner with no active calls.
     unsafe { (api.destroy_context)(context) };
     assert_eq!(counts.factories_dropped.load(Ordering::Relaxed), 1);
-    let weak = owner.downgrade();
-    drop(owner);
-    assert!(!weak.is_alive());
 }
 
 /// Shareable objects without persistence still report ordinary capability absence.
 #[test]
 fn shared_root_without_persistence_returns_nointerface() {
     let owner = Factory::from_value(Factory { counts: Arc::new(Counts::default()) });
-    assert_eq!(snapshot(&crate::host_runtime(), owner.as_com_ref()), Err(neocogi_com_sdk::NC_E_NOINTERFACE));
+    assert_eq!(snapshot(&crate::host_runtime(), &owner), Err(neocogi_com_sdk::NC_E_NOINTERFACE));
 }
 
 /// Explicit recipe identity, unrelated to individual object addresses.
@@ -234,7 +133,7 @@ fn registry_ownership_is_local_and_releases_retained_factories() {
     drop(first);
     assert_eq!(counts.factories_dropped.load(Ordering::Relaxed), 1);
     // Releasing a registry does not invalidate objects it previously created.
-    assert_eq!(snapshot(&crate::host_runtime(), root.as_com_ref()).unwrap(), bytes);
+    assert_eq!(snapshot(&crate::host_runtime(), &root).unwrap(), bytes);
     drop(root);
     assert_eq!(counts.live.load(Ordering::Relaxed), 0);
 }
@@ -340,8 +239,8 @@ fn recursive_objects_round_trip_through_their_factories() {
     let (registry, counts) = registry();
     let root = registry.restore(&bytes).unwrap();
     assert_eq!(counts.live.load(Ordering::Relaxed), 4);
-    assert_eq!(snapshot(&crate::host_runtime(), root.as_com_ref()).unwrap(), bytes);
-    let copy = registry.restore(&snapshot(&crate::host_runtime(), root.as_com_ref()).unwrap()).unwrap();
+    assert_eq!(snapshot(&crate::host_runtime(), &root).unwrap(), bytes);
+    let copy = registry.restore(&snapshot(&crate::host_runtime(), &root).unwrap()).unwrap();
     drop(root);
     drop(copy);
     assert_eq!(counts.live.load(Ordering::Relaxed), 0);
@@ -384,7 +283,7 @@ fn tree_limits_and_duplicate_registration_preserve_existing_state() {
     assert!(registry.restore_with_limits(&bytes, Limits { objects: 1, ..Limits::default() }).is_err());
     assert_eq!(counts.created.load(Ordering::Relaxed), 0);
     let root = registry.restore(&bytes).unwrap();
-    assert!(snapshot_with_limits(&crate::host_runtime(), root.as_com_ref(), Limits { depth: 1, ..Limits::default() }).is_err());
+    assert!(snapshot_with_limits(&crate::host_runtime(), &root, Limits { depth: 1, ..Limits::default() }).is_err());
     drop(root);
     assert_eq!(counts.live.load(Ordering::Relaxed), 0);
 }
@@ -409,7 +308,7 @@ fn binary_limits_agree_across_snapshot_and_factory_restore() {
         objects: 1,
         depth: 1,
     };
-    assert_eq!(snapshot_with_limits(&crate::host_runtime(), root.as_com_ref(), exact).unwrap(), bytes);
+    assert_eq!(snapshot_with_limits(&crate::host_runtime(), &root, exact).unwrap(), bytes);
     let restored = registry.restore_with_limits(&bytes, exact).unwrap();
     drop(restored);
     let created = counts.created.load(Ordering::Relaxed);
@@ -433,7 +332,7 @@ fn binary_limits_agree_across_snapshot_and_factory_restore() {
         },
     ] {
         let insufficient = Limits { binary, ..exact };
-        assert!(snapshot_with_limits(&crate::host_runtime(), root.as_com_ref(), insufficient).is_err());
+        assert!(snapshot_with_limits(&crate::host_runtime(), &root, insufficient).is_err());
         assert!(registry.restore_with_limits(&bytes, insufficient).is_err());
         // A resource rejection must precede factory acquisition, preserving the
         // already-live root and preventing construction of a partial copy.

@@ -24,7 +24,7 @@ pub const NC_DEBUG_SEVERITY_INFO: u32 = 1 << 0;
 pub const NC_DEBUG_SEVERITY_WARNING: u32 = 1 << 1;
 /// Error diagnostic severity bit.
 pub const NC_DEBUG_SEVERITY_ERROR: u32 = 1 << 2;
-/// All diagnostic severity bits defined by runtime ABI v3.
+/// All diagnostic severity bits defined by runtime ABI v4.
 pub const NC_DEBUG_SEVERITY_ALL: u32 = NC_DEBUG_SEVERITY_INFO | NC_DEBUG_SEVERITY_WARNING | NC_DEBUG_SEVERITY_ERROR;
 
 /// General runtime diagnostic type bit.
@@ -33,13 +33,13 @@ pub const NC_DEBUG_TYPE_RUNTIME: u32 = 1 << 0;
 pub const NC_DEBUG_TYPE_PLUGIN: u32 = 1 << 1;
 /// Registry validation diagnostic type bit.
 pub const NC_DEBUG_TYPE_VALIDATION: u32 = 1 << 2;
-/// All diagnostic type bits defined by runtime ABI v3.
+/// All diagnostic type bits defined by runtime ABI v4.
 pub const NC_DEBUG_TYPE_ALL: u32 = NC_DEBUG_TYPE_RUNTIME | NC_DEBUG_TYPE_PLUGIN | NC_DEBUG_TYPE_VALIDATION;
 
-/// One diagnostic delivered to an [`NcDebugCallbackV3`].
+/// One diagnostic delivered to an [`NcDebugCallbackV4`].
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct NcDebugMessageV3 {
+pub struct NcDebugMessageV4 {
     /// Status associated with the diagnostic, or [`NC_OK`] for information.
     pub status: NcStatus,
     /// Human-readable UTF-8 message, valid only for the callback invocation.
@@ -50,7 +50,7 @@ pub struct NcDebugMessageV3 {
     pub interface_id: NcInterfaceId,
 }
 
-impl NcDebugMessageV3 {
+impl NcDebugMessageV4 {
     /// Creates a diagnostic with no related registry identities.
     pub const fn new(status: NcStatus, message: NcUtf8View) -> Self {
         Self {
@@ -67,33 +67,33 @@ impl NcDebugMessageV3 {
     }
 }
 
-/// Runtime debug callback for runtime ABI v3.
+/// Runtime debug callback for runtime ABI v4.
 ///
 /// The runtime supplies a non-null message pointer that remains valid only for
 /// this call. Callbacks may run concurrently on any thread and must not destroy
 /// a debug messenger.
-pub type NcDebugCallbackV3 = unsafe extern "C" fn(severity: u32, value_type: u32, message: *const NcDebugMessageV3, user_data: *mut c_void);
+pub type NcDebugCallbackV4 = unsafe extern "C" fn(severity: u32, value_type: u32, message: *const NcDebugMessageV4, user_data: *mut c_void);
 
 /// Configuration used to create one runtime debug messenger.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct NcDebugMessengerCreateInfoV3 {
-    /// Must be `size_of::<NcDebugMessengerCreateInfoV3>()`.
+pub struct NcDebugMessengerCreateInfoV4 {
+    /// Must be `size_of::<NcDebugMessengerCreateInfoV4>()`.
     pub size: usize,
     /// Bitwise OR of `NC_DEBUG_SEVERITY_*` values.
     pub severity_mask: u32,
     /// Bitwise OR of `NC_DEBUG_TYPE_*` values.
     pub value_type_mask: u32,
     /// Callback invoked for matching diagnostics; null is invalid.
-    pub callback: Option<NcDebugCallbackV3>,
+    pub callback: Option<NcDebugCallbackV4>,
     /// Opaque caller data passed to `callback`.
     pub user_data: *mut c_void,
 }
 
-/// Callback-based runtime diagnostics for runtime ABI v3.
+/// Callback-based runtime diagnostics for runtime ABI v4.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct NcDebugApiV3 {
+pub struct NcDebugApiV4 {
     /// Size of this table in bytes.
     pub size: usize,
     /// Creates a debug messenger and writes its nonzero process-local handle.
@@ -102,7 +102,7 @@ pub struct NcDebugApiV3 {
     /// before create-info validation. Returns `NC_E_OUT_OF_RANGE` when
     /// [`NC_COM_RUNTIME_MAX_ACTIVE_DEBUG_MESSENGERS`] are already registered or
     /// the process-local handle space is permanently exhausted.
-    pub create_messenger: unsafe extern "C" fn(create_info: *const NcDebugMessengerCreateInfoV3, out_handle: *mut u64) -> NcStatus,
+    pub create_messenger: unsafe extern "C" fn(create_info: *const NcDebugMessengerCreateInfoV4, out_handle: *mut u64) -> NcStatus,
     /// Destroys a messenger and waits for its in-flight callbacks to return.
     ///
     /// Zero and unknown handles are ignored. This function must not be called
@@ -112,14 +112,14 @@ pub struct NcDebugApiV3 {
 
 #[cfg(all(test, target_pointer_width = "64"))]
 mod tests {
-    use super::NcDebugMessageV3;
+    use super::NcDebugMessageV4;
 
     /// Diagnostics identify plugins and interfaces with no public module slot.
     #[test]
     fn debug_message_v1_contains_only_supported_identity_fields() {
-        assert_eq!(core::mem::size_of::<NcDebugMessageV3>(), 64);
-        assert_eq!(core::mem::offset_of!(NcDebugMessageV3, message), 8);
-        assert_eq!(core::mem::offset_of!(NcDebugMessageV3, plugin_id), 24);
-        assert_eq!(core::mem::offset_of!(NcDebugMessageV3, interface_id), 40);
+        assert_eq!(core::mem::size_of::<NcDebugMessageV4>(), 64);
+        assert_eq!(core::mem::offset_of!(NcDebugMessageV4, message), 8);
+        assert_eq!(core::mem::offset_of!(NcDebugMessageV4, plugin_id), 24);
+        assert_eq!(core::mem::offset_of!(NcDebugMessageV4, interface_id), 40);
     }
 }

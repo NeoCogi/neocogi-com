@@ -87,7 +87,7 @@ impl INativeChoice for Choice {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use neocogi_com_sdk::{ComInterface, IUnknown, NC_E_POINTER, NC_OK, NcDebugApiV3, NcInterfaceDescriptor, NcInterfaceId, NcPluginApiV3, NcPluginInfoV3};
+    use neocogi_com_sdk::{ComInterface, IUnknown, NC_E_POINTER, NC_OK, NcDebugApiV4, NcInterfaceDescriptor, NcInterfaceId, NcPluginApiV4, NcPluginInfoV4};
 
     #[repr(C)]
     struct NativeCResults {
@@ -331,23 +331,23 @@ mod tests {
             interface_qualified_name_offset: core::mem::offset_of!(NcInterfaceDescriptor, qualified_name),
             interface_method_count_offset: core::mem::offset_of!(NcInterfaceDescriptor, method_count),
             interface_methods_offset: core::mem::offset_of!(NcInterfaceDescriptor, methods),
-            runtime_core_abi_version_offset: core::mem::offset_of!(NcPluginApiV3, core_abi_version),
-            runtime_plugin_register_offset: core::mem::offset_of!(NcPluginApiV3, register_plugin_descriptor),
-            runtime_plugin_count_offset: core::mem::offset_of!(NcPluginApiV3, plugin_count),
-            runtime_plugin_info_offset: core::mem::offset_of!(NcPluginApiV3, plugin_info),
-            runtime_size: core::mem::size_of::<NcPluginApiV3>(),
-            runtime_plugin_infos_offset: core::mem::offset_of!(NcPluginApiV3, plugin_infos),
-            plugin_info_size: core::mem::size_of::<NcPluginInfoV3>(),
-            plugin_factory_offset: core::mem::offset_of!(NcPluginInfoV3, factory),
-            plugin_dependencies_offset: core::mem::offset_of!(NcPluginInfoV3, dependencies),
-            plugin_dependency_count_offset: core::mem::offset_of!(NcPluginInfoV3, dependency_count),
-            debug_first_function_offset: core::mem::offset_of!(NcDebugApiV3, create_messenger),
-            host_size: core::mem::size_of::<neocogi_com_sdk::NcHostApiV3>(),
-            host_runtime_version_offset: core::mem::offset_of!(neocogi_com_sdk::NcHostApiV3, runtime_abi_version),
-            host_core_version_offset: core::mem::offset_of!(neocogi_com_sdk::NcHostApiV3, core_abi_version),
-            host_runtime_offset: core::mem::offset_of!(neocogi_com_sdk::NcHostApiV3, runtime),
-            host_debug_offset: core::mem::offset_of!(neocogi_com_sdk::NcHostApiV3, debug),
-            host_persistence_offset: core::mem::offset_of!(neocogi_com_sdk::NcHostApiV3, persistence),
+            runtime_core_abi_version_offset: core::mem::offset_of!(NcPluginApiV4, core_abi_version),
+            runtime_plugin_register_offset: core::mem::offset_of!(NcPluginApiV4, register_plugin_descriptor),
+            runtime_plugin_count_offset: core::mem::offset_of!(NcPluginApiV4, plugin_count),
+            runtime_plugin_info_offset: core::mem::offset_of!(NcPluginApiV4, plugin_info),
+            runtime_size: core::mem::size_of::<NcPluginApiV4>(),
+            runtime_plugin_infos_offset: core::mem::offset_of!(NcPluginApiV4, plugin_infos),
+            plugin_info_size: core::mem::size_of::<NcPluginInfoV4>(),
+            plugin_factory_offset: core::mem::offset_of!(NcPluginInfoV4, factory),
+            plugin_dependencies_offset: core::mem::offset_of!(NcPluginInfoV4, dependencies),
+            plugin_dependency_count_offset: core::mem::offset_of!(NcPluginInfoV4, dependency_count),
+            debug_first_function_offset: core::mem::offset_of!(NcDebugApiV4, create_messenger),
+            host_size: core::mem::size_of::<neocogi_com_sdk::NcHostApiV4>(),
+            host_runtime_version_offset: core::mem::offset_of!(neocogi_com_sdk::NcHostApiV4, runtime_abi_version),
+            host_core_version_offset: core::mem::offset_of!(neocogi_com_sdk::NcHostApiV4, core_abi_version),
+            host_runtime_offset: core::mem::offset_of!(neocogi_com_sdk::NcHostApiV4, runtime),
+            host_debug_offset: core::mem::offset_of!(neocogi_com_sdk::NcHostApiV4, debug),
+            host_persistence_offset: core::mem::offset_of!(neocogi_com_sdk::NcHostApiV4, persistence),
             aggregate_size: core::mem::size_of::<<NativeAggregate as neocogi_com_sdk::ComValue>::AbiRepr>(),
             aggregate_align: core::mem::align_of::<<NativeAggregate as neocogi_com_sdk::ComValue>::AbiRepr>(),
             aggregate_count_offset: core::mem::offset_of!(<NativeAggregate as neocogi_com_sdk::ComValue>::AbiRepr, count),

@@ -18,7 +18,7 @@ pub struct NcPersistenceContext {
 /// Fixed C representation of the complete persistence resource policy.
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
-pub struct NcPersistenceLimitsV3 {
+pub struct NcPersistenceLimitsV4 {
     /// Maximum encoded document bytes and aggregate captured provider state.
     pub bytes: usize,
     /// Maximum binary elements or fields in an individual container.
@@ -39,11 +39,11 @@ pub struct NcPersistenceLimitsV3 {
 /// it into its own allocator, must not unwind, and returns a failure status if
 /// it cannot accept the document. The runtime calls it exactly once on success
 /// and never retains `user_data`. A failed capture does not call it at all.
-pub type NcPersistenceWriteBytesV3 = unsafe extern "C" fn(user_data: *mut c_void, bytes: *const u8, len: usize) -> NcStatus;
+pub type NcPersistenceWriteBytesV4 = unsafe extern "C" fn(user_data: *mut c_void, bytes: *const u8, len: usize) -> NcStatus;
 
 /// Size-prefixed persistence table admitted through the host API description.
 ///
-/// Table admission establishes ABI v3/core-generation-21 compatibility,
+/// Table admission establishes ABI v4/core-generation-22 compatibility,
 /// not serialization-provider availability. Callers still owe the host API's
 /// backing and lifetime guarantees. The application must explicitly
 /// register or load `nc.serialization` in this host's catalog before snapshot
@@ -61,7 +61,7 @@ pub type NcPersistenceWriteBytesV3 = unsafe extern "C" fn(user_data: *mut c_void
 /// registered plugin descriptor. NCB-v1 bytes and the table layout do
 /// not depend on how the application supplies that provider.
 #[repr(C)]
-pub struct NcPersistenceApiV3 {
+pub struct NcPersistenceApiV4 {
     /// Available table bytes, including this prefix.
     pub size: usize,
     /// Core interface ABI accepted by the operations below.
@@ -73,18 +73,18 @@ pub struct NcPersistenceApiV3 {
     /// Releases every retained factory and frees the context in its own runtime.
     /// Null is accepted; non-null must be exclusively owned with no active calls.
     pub destroy_context: unsafe extern "C" fn(context: *mut NcPersistenceContext),
-    /// Registers a live borrowed factory, retaining one reference on success.
+    /// Borrows a live shared factory and retains one reference on success.
     /// Requires exclusive context access; duplicate IDs leave the map unchanged.
     /// Does not require or register a serialization provider.
     pub register_factory: unsafe extern "C" fn(context: *mut NcPersistenceContext, id: NcGuid, factory: crate::ComRaw<IPersistenceFactoryAbi>) -> NcStatus,
-    /// Captures a live borrowed object and emits one complete document.
+    /// Borrows a live shared root and emits one complete document.
     /// The callback and its data must remain valid until this synchronous call ends.
-    /// Argument, ownership, capability and capture-budget checks precede codec
+    /// Root shape, exact identity and budget precede retention and codec
     /// selection. Provider/selection failure never calls the byte callback.
     pub snapshot: unsafe extern "C" fn(
         object: crate::ComRaw<IUnknown>,
-        limits: NcPersistenceLimitsV3,
-        write: Option<NcPersistenceWriteBytesV3>,
+        limits: NcPersistenceLimitsV4,
+        write: Option<NcPersistenceWriteBytesV4>,
         user_data: *mut c_void,
     ) -> NcStatus,
     /// Restores a complete tree using a shared borrow of a live context.
@@ -99,13 +99,13 @@ pub struct NcPersistenceApiV3 {
         context: *const NcPersistenceContext,
         bytes: *const u8,
         len: usize,
-        limits: NcPersistenceLimitsV3,
+        limits: NcPersistenceLimitsV4,
         out: *mut crate::ComRaw<IUnknown>,
     ) -> NcStatus,
 }
 
 #[cfg(feature = "alloc")]
-impl From<crate::persistence::Limits> for NcPersistenceLimitsV3 {
+impl From<crate::persistence::Limits> for NcPersistenceLimitsV4 {
     /// Lowers every local limit explicitly instead of depending on Rust layout.
     fn from(limits: crate::persistence::Limits) -> Self {
         Self {
@@ -120,9 +120,9 @@ impl From<crate::persistence::Limits> for NcPersistenceLimitsV3 {
 }
 
 #[cfg(feature = "alloc")]
-impl From<NcPersistenceLimitsV3> for crate::persistence::Limits {
+impl From<NcPersistenceLimitsV4> for crate::persistence::Limits {
     /// Reconstructs the local policy without changing any caller-selected budget.
-    fn from(limits: NcPersistenceLimitsV3) -> Self {
+    fn from(limits: NcPersistenceLimitsV4) -> Self {
         Self {
             binary: crate::serialization::Limits {
                 bytes: limits.bytes,
