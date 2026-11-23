@@ -729,6 +729,14 @@ hosts together. Compiler encoding v14 records the versionless contract; COM
 discovery uses ABI v2 for SDK 0.3.0, ABI v3 for SDK 0.4.0, and ABI v4/core
 generation 22 on this development branch. The discovery revision preserves encoding v14.
 
+Generated values and interface markers carry a hidden Rust binding proof. A
+consumer checks the actual selected Rust type, including a type reached through
+a facade reexport. The proof combines the native module fingerprint, the Rust
+method projections in canonical order, and the transitive dependency proofs.
+Closed specializations use the defining template and exact argument proofs, so
+independent using modules can agree. The proof is used only while compiling
+Rust bindings. Native negotiation continues to use the IID and ABI signature.
+
 ### Module names and dependencies
 
 External dependencies and lexical imports are deliberately separate:

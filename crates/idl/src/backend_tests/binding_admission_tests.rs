@@ -225,6 +225,27 @@ fn imported_declaration_identity_rejects_stale_and_nominal_facades() {
     }
 }
 
+/// A selected generated type must prove its Rust projection even when its
+/// native value identity independently matches the resolved module.
+#[test]
+fn imported_declaration_checks_rust_proof_separately_from_native_signature() {
+    let fixture = Fixture::new("binding-rust-proof", CURRENT_VALUES, CURRENT_VALUES);
+    let helper = fixture.consumer.directory.path().join("helper/src/old.rs");
+    let old = fs::read_to_string(helper).unwrap();
+    // Leave the real value, codec, native identity, and module constants intact.
+    // Change only Value's hidden Rust proof in the selected fixture module.
+    let proof = "impl Value {\n    #[doc(hidden)]\n    pub const __NC_RUST_BINDING: [::core::primitive::u8; 32] = [";
+    let (before, generated_digest) = old.split_once(proof).unwrap();
+    let (_, after) = generated_digest.split_once("];").unwrap();
+    fixture.write("helper/src/old.rs", &format!("{before}{proof}0; 32];{after}"));
+    fixture.provider(CURRENT_VALUES, SERVICE, "binding_helper::selected", "");
+    fixture.select("pub use super::old::Value;");
+    fixture.rejected("same native signature, stale Rust projection", "proof.value.Value");
+    fixture.select("");
+    let result = fixture.cargo("check");
+    assert!(result.status.success(), "{}", String::from_utf8_lossy(&result.stderr));
+}
+
 /// Obligations follow actual emission for imports even without calls, qualified
 /// references without use, nested fields, borrowed values and both buffer directions.
 #[test]

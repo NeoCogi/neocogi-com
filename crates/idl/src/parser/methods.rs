@@ -84,6 +84,7 @@ pub(super) fn method(input: ParseStream<'_>, attributes: &[Attribute]) -> syn::R
             receiver,
             parameters,
             output,
+            return_projection: crate::ReturnProjection::Fallible,
         },
         name.span(),
     ))

@@ -229,8 +229,17 @@ pub struct Method {
     pub receiver: Receiver,
     /// Explicit parameters after the receiver.
     pub parameters: Vec<Parameter>,
-    /// Successful value carried by the required `Result<T>` return.
+    /// Successful value carried by the method's return.
     pub output: IdlType,
+    /// How the generated Rust method exposes the status.
+    pub return_projection: ReturnProjection,
+}
+
+/// Rust source projection of the native status and successful payload.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ReturnProjection {
+    /// Both provider and caller express failure through `Result`.
+    Fallible,
 }
 
 /// Receiver capability for one COM method.

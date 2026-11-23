@@ -475,7 +475,7 @@ fn generate_declaration(graph: &mut Generation<'_>, module: &ResolvedModule, dec
         .declarations
         .get(source_index)
         .ok_or_else(|| GenerateError::new("resolved declaration order does not match its source module"))?;
-    match &declaration.kind {
+    let mut output = match &declaration.kind {
         DeclarationKind::Struct(_) => value::generate_aggregate(graph, module, declaration, identity),
         DeclarationKind::Enum(enumeration) if enumeration.has_payload() => value::generate_aggregate(graph, module, declaration, identity),
         DeclarationKind::Enum(_) | DeclarationKind::BitEnum(_) => value::generate_scalar(graph, declaration, identity),
@@ -483,7 +483,19 @@ fn generate_declaration(graph: &mut Generation<'_>, module: &ResolvedModule, dec
             let parts = interface_parts(graph, module, declaration)?;
             let abi = parts.abi;
             let provider = parts.provider;
-            format_rust(quote! { #abi #provider })
+            return format_rust(quote! { #abi #provider });
+        }
+    }?;
+    output.push_str(&format_rust(binding_proof(&rust_ident(&declaration.name)?, identity.rust_binding))?);
+    Ok(output)
+}
+
+/// Emits the build-only proof on the actual generated value or interface marker.
+fn binding_proof(name: &syn::Ident, binding: [u8; 32]) -> TokenStream {
+    quote! {
+        impl #name {
+            #[doc(hidden)]
+            pub const __NC_RUST_BINDING: [::core::primitive::u8; 32] = [#(#binding),*];
         }
     }
 }
@@ -505,7 +517,11 @@ fn interface_parts(
     declaration: &Declaration,
 ) -> Result<crate::codegen::InterfaceExpansion, GenerateError> {
     let plan = interface_plan(graph, module, declaration)?;
-    crate::codegen::expand_interface_parts_with_path(plan, &graph.support).map_err(|error| GenerateError::new(error.to_string()))
+    let marker = rust_ident(&format!("{}{}", declaration.name, NcComInterfaceCompanion::Abi.suffix()))?;
+    let identity = module.declaration(&declaration.name).expect("interface plan checked declaration identity");
+    let mut parts = crate::codegen::expand_interface_parts_with_path(plan, &graph.support).map_err(|error| GenerateError::new(error.to_string()))?;
+    parts.abi.extend(binding_proof(&marker, identity.rust_binding));
+    Ok(parts)
 }
 
 /// Builds the authoritative callable plan before selecting provider storage.

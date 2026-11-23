@@ -2056,6 +2056,14 @@ impl IDeserializerAbi {
         &[&[&Self::INTERFACE_DESCRIPTOR]],
     )] = crate::__nc_interface_chain(&Self::INTERFACE_DESCRIPTOR, &[]);
 }
+impl IDeserializerAbi {
+    #[doc(hidden)]
+    pub const __NC_RUST_BINDING: [::core::primitive::u8; 32] = [
+        24u8, 118u8, 226u8, 143u8, 200u8, 221u8, 169u8, 165u8, 189u8, 122u8, 183u8,
+        151u8, 62u8, 26u8, 70u8, 85u8, 220u8, 195u8, 106u8, 250u8, 15u8, 176u8, 134u8,
+        100u8, 171u8, 139u8, 58u8, 244u8, 214u8, 72u8, 70u8, 146u8,
+    ];
+}
 /// Immutable first-failure details on an owning serializer/deserializer session.
 /// Coordinates are optional: u64::MAX means no byte offset, zero means no line/column.
 /// IDL source: `neocogi/com/serialization/formats.ncidl:141:11` (module `neocogi.com.serialization`).
@@ -2776,6 +2784,14 @@ impl ISerializationDiagnosticsAbi {
         &[&[&Self::INTERFACE_DESCRIPTOR]],
     )] = crate::__nc_interface_chain(&Self::INTERFACE_DESCRIPTOR, &[]);
 }
+impl ISerializationDiagnosticsAbi {
+    #[doc(hidden)]
+    pub const __NC_RUST_BINDING: [::core::primitive::u8; 32] = [
+        160u8, 196u8, 189u8, 191u8, 237u8, 1u8, 180u8, 166u8, 246u8, 94u8, 9u8, 126u8,
+        117u8, 48u8, 51u8, 112u8, 172u8, 246u8, 152u8, 83u8, 185u8, 187u8, 152u8, 158u8,
+        203u8, 252u8, 212u8, 61u8, 176u8, 209u8, 45u8, 161u8,
+    ];
+}
 /// A format plugin's shared root; each document receives its own exclusive session.
 /// IDL source: `neocogi/com/serialization/formats.ncidl:124:11` (module `neocogi.com.serialization`).
 pub trait ISerializationFormat {
@@ -3218,6 +3234,14 @@ impl ISerializationFormatAbi {
         &[&[&Self::INTERFACE_DESCRIPTOR]],
     )] = crate::__nc_interface_chain(&Self::INTERFACE_DESCRIPTOR, &[]);
 }
+impl ISerializationFormatAbi {
+    #[doc(hidden)]
+    pub const __NC_RUST_BINDING: [::core::primitive::u8; 32] = [
+        209u8, 192u8, 175u8, 237u8, 207u8, 173u8, 95u8, 72u8, 125u8, 164u8, 230u8, 7u8,
+        8u8, 62u8, 162u8, 68u8, 181u8, 96u8, 37u8, 36u8, 203u8, 92u8, 177u8, 26u8, 213u8,
+        56u8, 142u8, 125u8, 65u8, 237u8, 103u8, 31u8,
+    ];
+}
 /// Byte output of a completed serializer, independent of its document format.
 /// IDL source: `neocogi/com/serialization/formats.ncidl:116:11` (module `neocogi.com.serialization`).
 pub trait ISerializationOutput {
@@ -3488,6 +3512,14 @@ impl ISerializationOutputAbi {
     pub const INTERFACE_CHAIN: [&'static crate::NcInterfaceDescriptor; crate::__nc_object_interface_count(
         &[&[&Self::INTERFACE_DESCRIPTOR]],
     )] = crate::__nc_interface_chain(&Self::INTERFACE_DESCRIPTOR, &[]);
+}
+impl ISerializationOutputAbi {
+    #[doc(hidden)]
+    pub const __NC_RUST_BINDING: [::core::primitive::u8; 32] = [
+        94u8, 46u8, 112u8, 114u8, 6u8, 9u8, 141u8, 60u8, 49u8, 166u8, 208u8, 143u8, 43u8,
+        57u8, 151u8, 179u8, 9u8, 148u8, 189u8, 86u8, 14u8, 86u8, 51u8, 61u8, 45u8, 6u8,
+        218u8, 184u8, 168u8, 15u8, 231u8, 116u8,
+    ];
 }
 /// One serialization plugin bundles its enabled codecs, with NCB always available.
 /// IDL source: `neocogi/com/serialization/formats.ncidl:132:11` (module `neocogi.com.serialization`).
@@ -3767,6 +3799,14 @@ impl ISerializationPluginAbi {
     pub const INTERFACE_CHAIN: [&'static crate::NcInterfaceDescriptor; crate::__nc_object_interface_count(
         &[&[&Self::INTERFACE_DESCRIPTOR]],
     )] = crate::__nc_interface_chain(&Self::INTERFACE_DESCRIPTOR, &[]);
+}
+impl ISerializationPluginAbi {
+    #[doc(hidden)]
+    pub const __NC_RUST_BINDING: [::core::primitive::u8; 32] = [
+        212u8, 105u8, 79u8, 177u8, 60u8, 220u8, 227u8, 134u8, 34u8, 167u8, 184u8, 7u8,
+        100u8, 202u8, 205u8, 235u8, 147u8, 100u8, 142u8, 220u8, 7u8, 203u8, 152u8, 199u8,
+        12u8, 25u8, 131u8, 185u8, 24u8, 189u8, 200u8, 214u8,
+    ];
 }
 /// A mutable format session. Failures poison it; finish commits one complete document.
 /// IDL source: `neocogi/com/serialization/formats.ncidl:2:11` (module `neocogi.com.serialization`).
@@ -5831,4 +5871,12 @@ impl ISerializerAbi {
     pub const INTERFACE_CHAIN: [&'static crate::NcInterfaceDescriptor; crate::__nc_object_interface_count(
         &[&[&Self::INTERFACE_DESCRIPTOR]],
     )] = crate::__nc_interface_chain(&Self::INTERFACE_DESCRIPTOR, &[]);
+}
+impl ISerializerAbi {
+    #[doc(hidden)]
+    pub const __NC_RUST_BINDING: [::core::primitive::u8; 32] = [
+        198u8, 76u8, 81u8, 180u8, 89u8, 197u8, 149u8, 237u8, 10u8, 117u8, 50u8, 1u8,
+        117u8, 208u8, 122u8, 63u8, 78u8, 207u8, 253u8, 5u8, 6u8, 249u8, 154u8, 35u8,
+        155u8, 211u8, 57u8, 63u8, 82u8, 84u8, 210u8, 104u8,
+    ];
 }

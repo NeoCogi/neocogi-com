@@ -330,6 +330,7 @@ impl Budget {
                     receiver: _,
                     parameters,
                     output,
+                    return_projection: _,
                 } in methods
                 {
                     self.enter(at, span)?;

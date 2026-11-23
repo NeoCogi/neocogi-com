@@ -7,6 +7,7 @@
 
 use std::collections::HashMap;
 use crate::binding::{Binding, DeclarationKey, SemanticOrigin, semantic_origin_named};
+use crate::resolve::ContractDigests;
 
 pub(crate) mod budget;
 mod height;
@@ -492,13 +493,21 @@ fn failure(span: &SourceSpan, message: impl Into<String>) -> ResolutionError {
 /// Computes a closed contract signature from its template and exact argument revisions.
 /// The using module is deliberately absent, allowing independently built consumers
 /// to negotiate the same specialization without sharing generated Rust definitions.
-pub(crate) fn signature(graph: &crate::ResolvedModules, specialization: &Specialization) -> Result<[u8; 32], ResolutionError> {
+pub(crate) fn signature(graph: &crate::ResolvedModules, specialization: &Specialization) -> Result<ContractDigests, ResolutionError> {
     named_signature(graph, &specialization.template, &specialization.arguments)
 }
 
-/// Recursively fingerprints the concrete ABI arguments and their declaring modules.
-fn type_signature(graph: &crate::ResolvedModules, ty: &IdlType) -> Result<[u8; 32], ResolutionError> {
-    let mut bytes = Vec::from(b"neocogi-idl:specialized-abi:v1\0".as_slice());
+/// Begins parallel preimages with independent domains for native and Rust proofs.
+fn specialization_preimages() -> (Vec<u8>, Vec<u8>) {
+    (
+        b"neocogi-idl:specialized-abi:v1\0".to_vec(),
+        b"neocogi-idl:specialized-rust-binding:v1\0".to_vec(),
+    )
+}
+
+/// Recursively fingerprints concrete arguments and their declaring modules.
+fn type_signature(graph: &crate::ResolvedModules, ty: &IdlType) -> Result<ContractDigests, ResolutionError> {
+    let (mut native, mut rust) = specialization_preimages();
     match ty {
         IdlType::Named(name) => return named_signature(graph, name, &name.arguments),
         IdlType::ComPtr(value)
@@ -511,7 +520,7 @@ fn type_signature(graph: &crate::ResolvedModules, ty: &IdlType) -> Result<[u8; 3
         | IdlType::Slice(value)
         | IdlType::OutputSlice(value)
         | IdlType::Array { element: value, .. } => {
-            bytes.extend_from_slice(match ty {
+            let tag: &[u8] = match ty {
                 IdlType::ComPtr(_) => b"com_ptr",
                 IdlType::WeakComPtr(_) => b"weak_com_ptr",
                 IdlType::ComBox(_) => b"com_box",
@@ -522,28 +531,38 @@ fn type_signature(graph: &crate::ResolvedModules, ty: &IdlType) -> Result<[u8; 3
                 IdlType::Slice(_) => b"slice",
                 IdlType::OutputSlice(_) => b"output",
                 _ => b"array",
-            });
+            };
+            native.extend_from_slice(tag);
+            rust.extend_from_slice(tag);
             if let IdlType::Array { len, .. } = ty {
-                bytes.extend_from_slice(&len.to_be_bytes());
+                native.extend_from_slice(&len.to_be_bytes());
+                rust.extend_from_slice(&len.to_be_bytes());
             }
-            bytes.extend_from_slice(&type_signature(graph, value)?);
+            let child = type_signature(graph, value)?;
+            native.extend_from_slice(&child.native);
+            rust.extend_from_slice(&child.rust);
         }
-        _ => bytes.extend_from_slice(ty.source_name().as_bytes()),
+        _ => {
+            let name = ty.source_name();
+            native.extend_from_slice(name.as_bytes());
+            rust.extend_from_slice(name.as_bytes());
+        }
     }
-    Ok(crate::sha256::digest(&bytes))
+    Ok(ContractDigests { native: crate::sha256::digest(&native), rust: crate::sha256::digest(&rust) })
 }
 
-/// Legacy signature bytes from borrowed bound arguments; no temporary AST.
-fn named_signature(graph: &crate::ResolvedModules, name: &NamedType, arguments: &[IdlType]) -> Result<[u8; 32], ResolutionError> {
-    let mut bytes = Vec::from(b"neocogi-idl:specialized-abi:v1\0".as_slice());
+/// Derives exact template and argument proofs without materializing a second AST.
+fn named_signature(graph: &crate::ResolvedModules, name: &NamedType, arguments: &[IdlType]) -> Result<ContractDigests, ResolutionError> {
     if let Some(identity) = crate::resolve::builtin_object(name) {
         // SAFETY: built-in interface signatures refer to permanent core constants.
-        return Ok(crate::sha256::digest(unsafe {
+        let digest = crate::sha256::digest(unsafe {
             identity.abi_signature.as_digest().expect("static core signature")
-        }));
+        });
+        return Ok(ContractDigests { native: digest, rust: digest });
     }
     if name.is_str() {
-        return Ok(crate::sha256::digest(b"neocogi.idl.str"));
+        let digest = crate::sha256::digest(b"neocogi.idl.str");
+        return Ok(ContractDigests { native: digest, rust: digest });
     }
     let key = name.binding.declaration().ok_or_else(|| failure(&name.span, "generic argument is not bound"))?;
     let module = &graph.modules()[key.module];
@@ -551,7 +570,7 @@ fn named_signature(graph: &crate::ResolvedModules, name: &NamedType, arguments: 
     if arguments.is_empty() {
         return module
             .declaration(local)
-            .map(|identity| identity.abi_signature)
+            .map(|identity| ContractDigests { native: identity.abi_signature, rust: identity.rust_binding })
             .ok_or_else(|| failure(&name.span, "generic argument declaration is absent"));
     }
     let template = module
@@ -563,10 +582,15 @@ fn named_signature(graph: &crate::ResolvedModules, name: &NamedType, arguments: 
     let id = template
         .explicit_id
         .unwrap_or_else(|| crate::resolve::derive_declaration_id(&module.source.name.qualify(local)));
-    bytes.extend_from_slice(&module.abi_fingerprint);
-    bytes.extend_from_slice(&id.to_uuid_bytes());
+    let (mut native, mut rust) = specialization_preimages();
+    native.extend_from_slice(&module.abi_fingerprint);
+    rust.extend_from_slice(&module.rust_fingerprint);
+    native.extend_from_slice(&id.to_uuid_bytes());
+    rust.extend_from_slice(&id.to_uuid_bytes());
     for argument in arguments {
-        bytes.extend_from_slice(&type_signature(graph, argument)?);
+        let proof = type_signature(graph, argument)?;
+        native.extend_from_slice(&proof.native);
+        rust.extend_from_slice(&proof.rust);
     }
-    Ok(crate::sha256::digest(&bytes))
+    Ok(ContractDigests { native: crate::sha256::digest(&native), rust: crate::sha256::digest(&rust) })
 }

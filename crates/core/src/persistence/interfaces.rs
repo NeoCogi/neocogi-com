@@ -271,6 +271,14 @@ impl IObjectChildrenAbi {
         &[&[&Self::INTERFACE_DESCRIPTOR]],
     )] = crate::__nc_interface_chain(&Self::INTERFACE_DESCRIPTOR, &[]);
 }
+impl IObjectChildrenAbi {
+    #[doc(hidden)]
+    pub const __NC_RUST_BINDING: [::core::primitive::u8; 32] = [
+        105u8, 59u8, 61u8, 72u8, 200u8, 235u8, 149u8, 109u8, 121u8, 193u8, 44u8, 132u8,
+        249u8, 142u8, 137u8, 247u8, 232u8, 3u8, 79u8, 81u8, 155u8, 144u8, 72u8, 102u8,
+        214u8, 172u8, 167u8, 74u8, 238u8, 74u8, 233u8, 100u8,
+    ];
+}
 /// Optional snapshot capability for an owned construction tree.
 /// IDL source: `neocogi/com/persistence/objects.ncidl:10:11` (module `neocogi.com.persistence`).
 pub trait IPersistable {
@@ -732,6 +740,14 @@ impl IPersistableAbi {
         &[&[&Self::INTERFACE_DESCRIPTOR]],
     )] = crate::__nc_interface_chain(&Self::INTERFACE_DESCRIPTOR, &[]);
 }
+impl IPersistableAbi {
+    #[doc(hidden)]
+    pub const __NC_RUST_BINDING: [::core::primitive::u8; 32] = [
+        230u8, 97u8, 178u8, 118u8, 159u8, 243u8, 222u8, 65u8, 255u8, 18u8, 108u8, 209u8,
+        254u8, 186u8, 223u8, 16u8, 38u8, 96u8, 198u8, 64u8, 178u8, 50u8, 176u8, 28u8,
+        110u8, 14u8, 70u8, 239u8, 255u8, 12u8, 228u8, 194u8,
+    ];
+}
 /// A provider bound to the runtime services required by its construction recipe.
 /// IDL source: `neocogi/com/persistence/objects.ncidl:24:11` (module `neocogi.com.persistence`).
 pub trait IPersistenceFactory {
@@ -1101,4 +1117,12 @@ impl IPersistenceFactoryAbi {
     pub const INTERFACE_CHAIN: [&'static crate::NcInterfaceDescriptor; crate::__nc_object_interface_count(
         &[&[&Self::INTERFACE_DESCRIPTOR]],
     )] = crate::__nc_interface_chain(&Self::INTERFACE_DESCRIPTOR, &[]);
+}
+impl IPersistenceFactoryAbi {
+    #[doc(hidden)]
+    pub const __NC_RUST_BINDING: [::core::primitive::u8; 32] = [
+        115u8, 55u8, 243u8, 192u8, 11u8, 114u8, 8u8, 246u8, 140u8, 179u8, 225u8, 228u8,
+        63u8, 248u8, 145u8, 213u8, 251u8, 16u8, 91u8, 68u8, 217u8, 55u8, 81u8, 51u8,
+        63u8, 165u8, 235u8, 88u8, 108u8, 180u8, 125u8, 255u8,
+    ];
 }

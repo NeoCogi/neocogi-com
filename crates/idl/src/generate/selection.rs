@@ -31,6 +31,7 @@ impl ExternalBindings<'_> {
         let assertions = self.selected.iter().map(|((qualified, path), binding)| {
             let ty = &binding.rust_type;
             let signature = signature_literal(binding.declaration.identity.abi_signature);
+            let rust_binding = binding.declaration.identity.rust_binding;
             let message = Literal::string(&format!("IDL binding mismatch: {qualified} at {path}"));
             let actual = match binding.declaration.declaration.kind {
                 DeclarationKind::Interface(_) => quote! {
@@ -53,6 +54,7 @@ impl ExternalBindings<'_> {
                 const _: () = {
                     #iid
                     ::core::assert!(#actual.__const_eq(#nc::NcAbiDigest::from_static(#signature)), #message);
+                    ::core::assert!(::core::matches!(#ty::__NC_RUST_BINDING, [#(#rust_binding),*]), #message);
                 };
             }
         });

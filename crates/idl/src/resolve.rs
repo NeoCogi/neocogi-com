@@ -31,6 +31,17 @@ pub struct DeclarationIdentity {
     /// while the declaration ID keeps distinct value types distinguishable in
     /// generated method and field descriptors.
     pub abi_signature: [u8; 32],
+    /// Build-only proof of the actual generated Rust type and method projections.
+    pub(crate) rust_binding: [u8; 32],
+}
+
+/// Corresponding native and Rust-only proofs, computed in one dependency walk.
+#[derive(Clone, Copy, Default)]
+pub(crate) struct ContractDigests {
+    /// Exact native ABI digest, excluding all Rust-only projections.
+    pub(crate) native: [u8; 32],
+    /// Exact generated Rust projection, including transitive Rust bindings.
+    pub(crate) rust: [u8; 32],
 }
 
 /// One exact module dependency after its ABI fingerprint has been resolved.
@@ -53,6 +64,8 @@ pub struct ResolvedModule {
     pub module_id: NcGuid,
     /// SHA-256 of the canonical ABI model and exact dependencies.
     pub abi_fingerprint: [u8; 32],
+    /// Build-only companion to the public native fingerprint.
+    pub(crate) rust_fingerprint: [u8; 32],
     /// Direct dependencies in canonical module-name order.
     pub dependencies: Vec<ResolvedDependency>,
     /// Declaration identities in canonical top-level name order.
@@ -343,7 +356,7 @@ fn resolve_ordered_modules(modules: Vec<Module>, limits: crate::specialize::budg
                     ResolvedDependency {
                         module_name: name.clone(),
                         module_id: *module_id,
-                        abi_fingerprint: *fingerprint,
+                        abi_fingerprint: fingerprint.native,
                     }
                 })
                 .collect();
@@ -351,14 +364,16 @@ fn resolve_ordered_modules(modules: Vec<Module>, limits: crate::specialize::budg
                 .declaration_identities
                 .into_iter()
                 .map(|mut declaration| {
-                    declaration.abi_signature = derive_declaration_signature(module_fingerprint, declaration.id);
+                    declaration.abi_signature = derive_declaration_signature(module_fingerprint.native, declaration.id);
+                    declaration.rust_binding = derive_declaration_signature(module_fingerprint.rust, declaration.id);
                     declaration
                 })
                 .collect();
             ResolvedModule {
                 source: entry.module,
                 module_id: entry.module_id,
-                abi_fingerprint: module_fingerprint,
+                abi_fingerprint: module_fingerprint.native,
+                rust_fingerprint: module_fingerprint.rust,
                 dependencies,
                 declarations,
             }
@@ -374,7 +389,9 @@ fn resolve_ordered_modules(modules: Vec<Module>, limits: crate::specialize::budg
         }
     }
     for (module, declaration, signature) in signatures {
-        graph.modules[module].declarations[declaration].abi_signature = signature;
+        let identity = &mut graph.modules[module].declarations[declaration];
+        identity.abi_signature = signature.native;
+        identity.rust_binding = signature.rust;
     }
     // Library adapters add constraints to their ordinary closed interfaces.
     // Report unsupported instantiations at the IDL type argument, not generation.
@@ -601,6 +618,7 @@ fn build_entries(modules: Vec<Module>) -> Result<Vec<ModuleEntry>, ResolutionErr
                 // The final value depends on the transitive module fingerprint,
                 // which is available only after the complete graph is resolved.
                 abi_signature: [0; 32],
+                rust_binding: [0; 32],
             });
         }
         entries.push(ModuleEntry {
@@ -1698,9 +1716,9 @@ struct FingerprintFrame {
 /// Completes a module DAG with an explicit postorder walk. Only Complete slots
 /// may supply a digest, and each slot is written before its state becomes
 /// Complete. Canonical dependency order and encoding remain unchanged.
-fn fingerprint_modules(entries: &[ModuleEntry]) -> Result<Vec<[u8; 32]>, ResolutionError> {
+fn fingerprint_modules(entries: &[ModuleEntry]) -> Result<Vec<ContractDigests>, ResolutionError> {
     let mut states = vec![VisitState::Unvisited; entries.len()];
-    let mut fingerprints = vec![[0; 32]; entries.len()];
+    let mut fingerprints = vec![ContractDigests::default(); entries.len()];
     let mut stack: Vec<FingerprintFrame> = Vec::new();
     for index in 0..entries.len() {
         match states[index] {
@@ -1758,10 +1776,11 @@ fn fingerprint_modules(entries: &[ModuleEntry]) -> Result<Vec<[u8; 32]>, Resolut
 /// Revision 14 removes authored declaration versions from every contract.
 pub const MODULE_ABI_ENCODING_DOMAIN: &[u8] = b"neocogi-idl:module-abi:v14\0";
 
-/// Encodes one module into canonical bytes and hashes the result.
-fn encode_module(index: usize, entries: &[ModuleEntry], dependencies: &[(usize, [u8; 32])]) -> Result<[u8; 32], ResolutionError> {
+/// Encodes the native contract and its Rust-only projection in canonical order.
+fn encode_module(index: usize, entries: &[ModuleEntry], dependencies: &[(usize, ContractDigests)]) -> Result<ContractDigests, ResolutionError> {
     let entry = &entries[index];
     let mut encoder = CanonicalEncoder::new();
+    let mut projections = Vec::new();
     // Templates and concrete declarations share this v14 encoding, including
     // ordinary type dependencies and authored policies. Build/debug locations are absent.
     encoder.bytes(MODULE_ABI_ENCODING_DOMAIN);
@@ -1774,12 +1793,13 @@ fn encode_module(index: usize, entries: &[ModuleEntry], dependencies: &[(usize, 
             .explicit_id
             .unwrap_or_else(|| derive_declaration_id(&entry.module.name.qualify(&template.name)));
         encode_declaration(index, template, id, entries, &mut encoder)?;
+        encode_rust_projections(template, &mut projections);
     }
 
     encoder.u32(u32_len(dependencies.len(), &entry.name, "dependency count")?);
     for (dependency, fingerprint) in dependencies {
         encoder.guid(entries[*dependency].module_id);
-        encoder.bytes(fingerprint);
+        encoder.bytes(&fingerprint.native);
     }
 
     // Top-level declaration order is presentation-only. Sorting by exact name
@@ -1789,8 +1809,28 @@ fn encode_module(index: usize, entries: &[ModuleEntry], dependencies: &[(usize, 
     encoder.u32(u32_len(declarations.len(), &entry.name, "declaration count")?);
     for (source_index, declaration) in declarations {
         encode_declaration(index, declaration, entry.declaration_identities[source_index].id, entries, &mut encoder)?;
+        encode_rust_projections(declaration, &mut projections);
     }
-    Ok(digest(&encoder.bytes))
+    let native = digest(&encoder.bytes);
+    let mut binding = CanonicalEncoder::new();
+    binding.bytes(b"neocogi-idl:module-rust-binding:v1\0");
+    binding.bytes(&native);
+    binding.u32(u32_len(dependencies.len(), &entry.name, "dependency count")?);
+    for (_, dependency) in dependencies {
+        binding.bytes(&dependency.rust);
+    }
+    binding.bytes(&projections);
+    Ok(ContractDigests { native, rust: digest(&binding.bytes) })
+}
+
+/// The native digest provides the declaration and method framing. Record only
+/// the Rust-only choice in the corresponding canonical method order.
+fn encode_rust_projections(declaration: &Declaration, tags: &mut Vec<u8>) {
+    if let DeclarationKind::Interface(interface) = &declaration.kind {
+        tags.extend(interface.methods.iter().map(|method| match method.return_projection {
+            crate::ReturnProjection::Fallible => 0,
+        }));
+    }
 }
 
 /// Lexical context shared by concrete declarations and open template encoding.

@@ -62,7 +62,7 @@ This release does not promise Rust dependency compatibility with the published
 `0.2.0` SDK. Move downstream UI and platform compositions to the new COM cohort
 together; do not combine COM Rust types from different package versions. ABI
 family 2, core generation 19, IDL encoding v14 and NCB-v1 bytes retain their
-independent authorities in that published release. The ABI v4 persistence inputs
+independent authorities in that published release. The ABI v4 persistence input contract
 uses the [current discovery and core versions](../abi-v4.md#abi-identities-and-versions)
 without changing IDL v14 or NCB-v1.
 
