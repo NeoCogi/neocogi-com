@@ -116,7 +116,7 @@ impl Budget {
                 let child = self.shape(child, arguments, at.child(), span)?;
                 Shape::new(1 + child.height, Form::UnsizedSlice, span)
             }
-            IdlType::Borrowed(child) => {
+            IdlType::Borrowed(child) | IdlType::BorrowedMut(child) => {
                 let child = self.shape(child, arguments, at.child(), span)?;
                 let height = if arguments.is_some() && matches!(child.form, Form::UnsizedSlice) {
                     child.height

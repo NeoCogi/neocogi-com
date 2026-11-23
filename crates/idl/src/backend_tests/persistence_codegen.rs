@@ -75,7 +75,7 @@ fn serialization_bindings_match_idl() {
     check_generated(&consumer.core.join("src/serialization/scoped.rs"), &format!("use super::*; {scoped}"));
 }
 
-/// Ordinary IDL users can borrow the built-in format interface through generated ABI calls.
+/// Ordinary IDL users can lend mutable access to the built-in format interface.
 #[test]
 fn idl_methods_accept_builtin_serializers_from_the_shared_source_contract() {
     let consumer = super::test_consumer::Consumer::new("serialization-interface-consumer").with_serialization();
@@ -93,7 +93,7 @@ fn idl_methods_accept_builtin_serializers_from_the_shared_source_contract() {
         r#"
         extern neocogi.com.serialization;
         use neocogi.com.serialization::ISerializer;
-        interface Emitter { fn emit(&self, output: &ISerializer) -> Result<()>; }
+        interface Emitter { fn emit(&self, output: &mut ISerializer) -> Result<()>; }
     "#,
     )
     .unwrap();
@@ -106,7 +106,7 @@ fn idl_methods_accept_builtin_serializers_from_the_shared_source_contract() {
         {bindings}
         #[neocogi_com_sdk::com_object(Emitter)] struct Object;
         impl Emitter for Object {{
-            fn emit(&self,output:neocogi_com_sdk::ComRef<'_,ISerializerAbi>)->Result<(),neocogi_com_sdk::NcStatus>{{
+            fn emit(&self,output:neocogi_com_sdk::ComMut<'_,ISerializerAbi>)->Result<(),neocogi_com_sdk::NcStatus>{{
                 neocogi_com_sdk::serialization::Serializer::new(output).serialize(&42u32)
             }}
         }}
@@ -114,8 +114,8 @@ fn idl_methods_accept_builtin_serializers_from_the_shared_source_contract() {
             use neocogi_com_serialization::ncb::NcbSerializer;
             use neocogi_com_sdk::serialization::{{ISerializationOutputAbi,Limits}};
             let object=Object::from_value(Object).query::<EmitterAbi>().unwrap();
-            let writer=NcbSerializer::create(Limits::default()).unwrap();
-            object.emit(writer.as_com_ref()).unwrap();
+            let mut writer=NcbSerializer::create(Limits::default()).unwrap();
+            object.emit(writer.as_com_mut()).unwrap();
             let output=writer.query_ref::<ISerializationOutputAbi>().unwrap();
             let mut bytes=neocogi_com_sdk::NcOutputBuffer::new();
             output.copy_to(bytes.output(0,output.byte_len().unwrap() as usize)).unwrap();

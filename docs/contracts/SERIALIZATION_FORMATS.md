@@ -128,11 +128,11 @@ operations allocation-free.
 
 `neocogi_com_serialization::ncb::{to_vec,to_slice,from_slice}` and measurement are NCB conveniences
 using the same COM protocol. Borrowed input and fixed output use nonretainable
-scoped COM objects: AddRef, owning QueryInterface and weak references are rejected.
-A required `UnsafeCell` and busy flag admit one mutable foreign call at a time;
-no reference to the provider survives releasing that gate. These capabilities
-are valid only while their enclosing Rust scope is retained. They cannot be
-returned or retained as ordinary owning format objects.
+scoped COM objects. The enclosing Rust scope lends a mutable `ComMut` to
+the serializer or deserializer facade. A required `UnsafeCell` and busy flag
+admit one mutable foreign call at a time. The state reborrow ends before
+the gate releases. The lender keeps the value live for the loan and grants
+no owning QueryInterface, AddRef or weak reference.
 
 NCB conveniences preserve detailed local byte-offset errors. COM format methods
 return `NcStatus`; no Rust error representation crosses an artifact boundary.

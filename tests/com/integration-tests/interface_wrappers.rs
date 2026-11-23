@@ -214,7 +214,7 @@ fn method_view_reborrows_have_no_lifecycle_traffic() {
     let raw = owner.into_raw();
     // SAFETY: this table has the exact generated identity, method thunks and
     // allocation type. It consumes the original owner token without retaining.
-    let owner = unsafe {
+    let mut owner = unsafe {
         ComPtr::<IDerivedAbi>::from_raw_owned(neocogi_com_sdk::ComRaw {
             object: raw.object,
             vtable: &COUNTED_TABLE,
@@ -234,7 +234,7 @@ fn method_view_reborrows_have_no_lifecycle_traffic() {
     let named: &IDerivedWrapper = wrapper;
     assert_eq!(named.value(), Ok(42));
     {
-        let mut borrowed = owner.as_com_ref();
+        let mut borrowed = owner.as_com_mut();
         let base: &mut IValueWrapper = &mut borrowed;
         assert_eq!(base.value(), Ok(42));
         base.close().unwrap();
@@ -273,16 +273,20 @@ fn mutable_inherited_views_preserve_identity_and_lifecycle() {
     {
         let held = local.try_borrow().unwrap();
         assert_eq!(owner.close(), Err(NC_E_BUSY));
+        assert_eq!(owner.as_com_mut().close(), Err(NC_E_BUSY));
         drop(held);
         let held = local.try_borrow_mut().unwrap();
         assert_eq!(owner.value(), Err(NC_E_BUSY));
         drop(held);
     }
-    let mut borrowed = owner.as_com_ref();
-    borrowed.close().unwrap();
-    assert_eq!(borrowed.value(), Err(NC_E_CLOSED));
+    {
+        let mut borrowed = owner.as_com_mut();
+        borrowed.close().unwrap();
+        assert_eq!(borrowed.as_com_ref().value(), Err(NC_E_CLOSED));
+        assert_eq!(borrowed.as_raw(), original);
+        assert_eq!(std::mem::size_of_val(&borrowed), 2 * std::mem::size_of::<usize>());
+    }
     assert_eq!(owner.as_raw(), original);
-    assert_eq!(borrowed.as_raw(), original);
     assert_eq!(std::mem::size_of_val(&*owner), 2 * std::mem::size_of::<usize>());
     assert_eq!(std::mem::align_of_val(&*owner), std::mem::align_of::<usize>());
     assert_eq!(std::mem::size_of::<Option<ComPtr<IDerivedAbi>>>(), std::mem::size_of_val(&owner));

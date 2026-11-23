@@ -2,7 +2,7 @@
 use quote::{quote, ToTokens};
 use syn::spanned::Spanned;
 use syn::Ident;
-use crate::codegen::model::{AbiMethod, AbiArg, AbiArgKind, AbiReturn, AbiReturnKind, InterfaceOwnership};
+use crate::codegen::model::{AbiMethod, AbiArg, AbiArgKind, AbiReturn, AbiReturnKind, InterfaceBorrow, InterfaceOwnership};
 
 /// Backend-created prose is evaluated here; consumers receive only literal text.
 /// Authored documentation/provenance attributes are retained separately by callers.
@@ -16,6 +16,9 @@ pub(crate) fn raw_vtable_method_docs(trait_ident: &Ident, method: &AbiMethod) ->
     let method_ident = &method.ident;
     let arg_docs = method.args.iter().flat_map(raw_vtable_arg_docs);
     let status_doc = match &method.ok.kind {
+        AbiReturnKind::ScopedLoan { .. } => quote! {
+            #[doc = "Success delivers one loan or canonical absence to the void continuation. Failure before delivery returns a negative status."]
+        },
         AbiReturnKind::Void => quote! {
             #[doc = "Returns `NcStatus`; success is represented by the returned status and there is no `out` pointer."]
         },
@@ -24,11 +27,14 @@ pub(crate) fn raw_vtable_method_docs(trait_ident: &Ident, method: &AbiMethod) ->
         },
     };
     let safety_doc = match &method.ok.kind {
+        AbiReturnKind::ScopedLoan { .. } => quote! {
+            #[doc = "The receiver must be live and match this table. The callback must be non-null and accept the caller's context. Delivery is synchronous on the calling thread. The callback must not unwind or use the loan after it returns."]
+        },
         AbiReturnKind::Void => quote! {
-            #[doc = "`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null."]
+            #[doc = "`this` must be the live allocation address paired with this table."]
         },
         AbiReturnKind::Plain | AbiReturnKind::ComPtr { .. } => quote! {
-            #[doc = "`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null."]
+            #[doc = "`this` must be the live allocation address paired with this table; `out` must be valid writable storage."]
         },
     };
     let return_docs = raw_vtable_return_docs(&method.ok);
@@ -62,9 +68,11 @@ fn raw_vtable_arg_docs(arg: &AbiArg) -> Vec<proc_macro2::TokenStream> {
         }
         AbiArgKind::BorrowedValue { .. } => "The pointed-to checked representation is borrowed; the receiver acquires owned fields before retaining data.",
         AbiArgKind::Plain => "Passed by value.",
-        AbiArgKind::ComRef { .. } => {
-            "This object/table pair is borrowed for the call. Both fields must be non-null. To retain this pair, call `add_ref` during the borrow. A nonzero result grants one reference, which the callee releases when finished."
-        }
+        AbiArgKind::ComRef { access, .. } => match access {
+            InterfaceBorrow::Shared => "The non-null object/table pair lends live shared access through the call.",
+            InterfaceBorrow::OptionalShared => "Both-null denotes absence. A present pair lends live shared access through the call.",
+            InterfaceBorrow::Mutable => "The non-null pair grants live mutable access through the call.",
+        },
         AbiArgKind::CopyFromBufferOffset { .. } => "The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.",
         AbiArgKind::OutputBuffer { .. } => {
             "The writable buffer pointer is accompanied by `offset: u64`, `capacity: u64`, and a separate `written: *mut u64`. Old contents are not input. Only the successfully reported initialized prefix may be read; count and element storage must not alias."
@@ -90,6 +98,9 @@ fn returned_ownership(ownership: InterfaceOwnership) -> &'static str {
 /// Generates output-slot documentation for one lowered return value.
 fn raw_vtable_return_docs(ok: &AbiReturn) -> Vec<proc_macro2::TokenStream> {
     match &ok.kind {
+        AbiReturnKind::ScopedLoan { .. } => vec![quote! {
+            #[doc = "A present pair is borrowed for the full callback under the receiver's shared guard. Both-null is successful absence."]
+        }],
         AbiReturnKind::Void => {
             vec![quote! {
                 #[doc = "On success, no output value is written."]
@@ -102,10 +113,14 @@ fn raw_vtable_return_docs(ok: &AbiReturn) -> Vec<proc_macro2::TokenStream> {
                 ok.rust_ty.span(),
             )]
         }
-        AbiReturnKind::ComPtr { ownership, .. } => {
+        AbiReturnKind::ComPtr { ownership, optional, .. } => {
             let physical = ok.abi_ty.to_token_stream();
             let native = ok.rust_ty.to_token_stream();
-            let contract = returned_ownership(*ownership);
+            let contract = if *optional {
+                "A present pair transfers one shared owner. Both-null denotes absence."
+            } else {
+                returned_ownership(*ownership)
+            };
             vec![literal_doc(
                 format!("On success, `out` receives `{physical}` for `{native}`. {contract}"),
                 ok.rust_ty.span(),
@@ -119,14 +134,26 @@ pub(crate) fn safe_method_docs(trait_ident: &Ident, method: &AbiMethod, nc: &syn
     let method_ident = &method.ident;
     let arg_docs = method.args.iter().flat_map(|arg| safe_arg_docs(arg, nc));
     let wrapper_doc = match &method.ok.kind {
+        AbiReturnKind::ScopedLoan { .. } => unreachable!("scoped marker helpers have their own docs"),
         AbiReturnKind::Void => quote! {
-            #[doc = "This safe wrapper invokes the raw vtable function and maps a successful status to `Ok(())`."]
+            #[doc = "This safe wrapper invokes the status-only raw vtable function."]
         },
         AbiReturnKind::Plain | AbiReturnKind::ComPtr { .. } => quote! {
             #[doc = "This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful."]
         },
     };
     let return_docs = safe_return_docs(&method.ok);
+    let projection = match method.projection {
+        crate::ReturnProjection::Fallible => quote! {
+            #[doc = "Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`."]
+        },
+        crate::ReturnProjection::Direct if matches!(method.ok.kind, AbiReturnKind::Void) => quote! {
+            #[doc = "This method returns unit and discards the checked call status."]
+        },
+        crate::ReturnProjection::Direct => quote! {
+            #[doc = "Call failure and successful absence both produce `None`."]
+        },
+    };
 
     let leading_doc = literal_doc(
         format!("Calls [`{trait_ident}::{method_ident}`] through the generated COM ABI vtable."),
@@ -138,7 +165,7 @@ pub(crate) fn safe_method_docs(trait_ident: &Ident, method: &AbiMethod, nc: &syn
         #leading_doc
         #[doc = ""]
         #wrapper_doc
-        #[doc = "Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`."]
+        #projection
         #(#arg_docs)*
         #[doc = ""]
         #(#return_docs)*
@@ -166,11 +193,16 @@ fn safe_arg_docs(arg: &AbiArg, nc: &syn::Path) -> Vec<proc_macro2::TokenStream> 
                 ident.span(),
             )]
         }
-        AbiArgKind::ComRef { interface_ty, .. } => {
+        AbiArgKind::ComRef { interface_ty, access, .. } => {
             let interface_ty = interface_ty.as_ref();
+            let loan = match access {
+                InterfaceBorrow::Shared => "required shared loan",
+                InterfaceBorrow::OptionalShared => "optional shared loan",
+                InterfaceBorrow::Mutable => "required mutable loan",
+            };
             vec![literal_doc(
                 format!(
-                    "- `{ident}` borrows a required `{interface_ty}` interface for the call. To keep the interface afterward, the callee stores the `ComPtr` returned by a successful `try_add_ref()`.",
+                    "- `{ident}` is a {loan} of the `{interface_ty}` interface for the call.",
                     interface_ty = interface_ty.to_token_stream()
                 ),
                 ident.span(),
@@ -203,6 +235,7 @@ fn safe_arg_docs(arg: &AbiArg, nc: &syn::Path) -> Vec<proc_macro2::TokenStream> 
 /// Describes status-only, copied, or transferred successful return values.
 fn safe_return_docs(ok: &AbiReturn) -> Vec<proc_macro2::TokenStream> {
     match &ok.kind {
+        AbiReturnKind::ScopedLoan { .. } => unreachable!("scoped marker helpers have their own docs"),
         AbiReturnKind::Void => {
             vec![quote! {
                 #[doc = "On success, returns `()`."]
@@ -215,9 +248,13 @@ fn safe_return_docs(ok: &AbiReturn) -> Vec<proc_macro2::TokenStream> {
                 ok.rust_ty.span(),
             )]
         }
-        AbiReturnKind::ComPtr { ownership, .. } => {
+        AbiReturnKind::ComPtr { ownership, optional, .. } => {
             let rust_ty = &ok.rust_ty;
-            let contract = returned_ownership(*ownership);
+            let contract = if *optional {
+                "A present result carries one shared owner."
+            } else {
+                returned_ownership(*ownership)
+            };
             vec![literal_doc(
                 format!("On success, returns `{rust_ty}`. {contract}", rust_ty = rust_ty.to_token_stream()),
                 ok.rust_ty.span(),

@@ -182,8 +182,8 @@ fn failures_report_their_message_and_location() {
             "json" => b"{\n \"count\": ]\n}",
             _ => unreachable!(),
         };
-        let source = format.deserializer(broken).unwrap();
-        assert!(Deserializer::new(source.as_com_ref()).deserialize::<Defaults>().is_err());
+        let mut source = format.deserializer(broken).unwrap();
+        assert!(Deserializer::new(source.as_com_mut()).deserialize::<Defaults>().is_err());
         let details = source.query_ref::<ISerializationDiagnosticsAbi>().unwrap();
         let status = details.failure_status().unwrap();
         assert!(status.is_err());
@@ -201,8 +201,8 @@ fn failures_report_their_message_and_location() {
             assert!(error.column.is_some());
         }
         assert_eq!(details.failure_status().unwrap(), status);
-        assert!(source.as_com_ref().finish().is_err());
-        assert_eq!(details.failure_status().unwrap(), status);
+        assert!(source.finish().is_err());
+        assert_eq!(source.query_ref::<ISerializationDiagnosticsAbi>().unwrap().failure_status().unwrap(), status);
     }
 }
 /// Schema failures identify the actual nested field/index without formatting or

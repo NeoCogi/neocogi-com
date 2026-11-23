@@ -226,15 +226,9 @@ fn missing_provider_preserves_error_precedence() {
     );
     let mut limits = Limits::default();
     limits.binary.bytes = 0;
-    assert_eq!(
-        snapshot_with_limits(&runtime, &value, limits),
-        Err(neocogi_com_sdk::NC_E_OUT_OF_RANGE)
-    );
+    assert_eq!(snapshot_with_limits(&runtime, &value, limits), Err(neocogi_com_sdk::NC_E_OUT_OF_RANGE));
     assert_eq!(registry.restore_with_limits(&bytes(), limits).unwrap_err(), neocogi_com_sdk::NC_E_INVALID_ARG);
-    assert_eq!(
-        snapshot(&runtime, &Factory::from_value(Factory)),
-        Err(neocogi_com_sdk::NC_E_NOINTERFACE)
-    );
+    assert_eq!(snapshot(&runtime, &Factory::from_value(Factory)), Err(neocogi_com_sdk::NC_E_NOINTERFACE));
     assert_eq!(VALIDATIONS.load(Ordering::Relaxed), 0);
     assert!(runtime.plugins().unwrap().is_empty(), "persistence must never seed the catalog");
 }
@@ -394,10 +388,7 @@ fn named_ncb_retains_capabilities_and_ignores_json_default() {
     let selections = SELECTIONS.load(Ordering::Relaxed);
     let mut short = Limits::default();
     short.binary.bytes = 3;
-    assert_eq!(
-        snapshot_with_limits(&runtime, &value, short),
-        Err(neocogi_com_sdk::NC_E_INVALID_ARG)
-    );
+    assert_eq!(snapshot_with_limits(&runtime, &value, short), Err(neocogi_com_sdk::NC_E_INVALID_ARG));
     assert_eq!(SELECTIONS.load(Ordering::Relaxed), selections + 1);
     assert_eq!((ROOTS.load(Ordering::Relaxed), FORMATS.load(Ordering::Relaxed)), (0, 0));
 

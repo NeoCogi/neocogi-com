@@ -64,7 +64,7 @@ together; do not combine COM Rust types from different package versions. ABI
 family 2, core generation 19, IDL encoding v14 and NCB-v1 bytes retain their
 independent authorities in that published release. The ABI v4 persistence input contract
 uses the [current discovery and core versions](../abi-v4.md#abi-identities-and-versions)
-without changing IDL v14 or NCB-v1.
+alongside IDL v15 callable slot signatures and the existing NCB-v1 format.
 
 Merge the candidate to master and push for native CI before publication. Publish
 only after every required job for that exact commit passes. Historical prototype

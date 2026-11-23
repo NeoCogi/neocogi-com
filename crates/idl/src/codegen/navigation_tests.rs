@@ -36,6 +36,7 @@ fn typed_interface_and_value_names_keep_their_supplied_identifier_spans() {
         doc_attrs: Vec::new(),
         receiver: AbiReceiver::Shared,
         args: Vec::new(),
+        projection: crate::ReturnProjection::Fallible,
         ok: AbiReturn {
             rust_ty: syn::parse_quote!(u32),
             abi_ty: syn::parse_quote!(<u32 as ::neocogi_com_sdk::ComValue>::AbiRepr),

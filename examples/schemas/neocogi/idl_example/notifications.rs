@@ -1,16 +1,6 @@
 //! Domain-specific construction-bound observation, without a generic event system.
 use super::{ExampleObjectAbi, Extent, ExtentBinding, ExtentNotification, IExtentObserverAbi};
-use neocogi_com_sdk::{ComPtr, ComRef, NcStatus, NcValueRef, WeakComPtr};
-
-impl ExtentBinding {
-    /// Retains the selected shared observer; exclusive borrows cannot grant shared ownership.
-    pub fn from_observer(observer: Option<ComRef<'_, IExtentObserverAbi>>) -> Result<Self, NcStatus> {
-        Ok(match observer {
-            None => Self::Unobserved,
-            Some(observer) => Self::Observed(observer.try_add_ref()?),
-        })
-    }
-}
+use neocogi_com_sdk::{ComPtr, NcStatus, NcValueRef, WeakComPtr};
 
 /// One factory-selected observer and its matching weak producer identity.
 pub enum ExtentDelivery {

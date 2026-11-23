@@ -1,7 +1,10 @@
 //! Typed method plans selected from resolved IDL ownership, never reparsed Rust types.
 use super::*;
-use crate::Parameter;
-use crate::codegen::model::{AbiArg, AbiArgKind, AbiMethod, AbiReceiver, AbiReturn, AbiReturnKind, InterfaceOwnership};
+use crate::{
+    Parameter,
+    model::{ParameterPassing, ReturnPassing},
+};
+use crate::codegen::model::{AbiArg, AbiArgKind, AbiMethod, AbiReceiver, AbiReturn, AbiReturnKind, InterfaceBorrow, InterfaceOwnership};
 use syn::parse::Parser;
 
 /// Lowers source methods once; traits, wrappers, thunks and metadata share this plan.
@@ -24,7 +27,8 @@ pub(super) fn methods(graph: &mut Generation<'_>, module: &ResolvedModule, metho
                     .iter()
                     .map(|parameter| argument(graph, module, parameter))
                     .collect::<Result<_, _>>()?,
-                ok: result(graph, module, &method.output)?,
+                ok: result(graph, module, method)?,
+                projection: method.return_projection,
             })
         })
         .collect()
@@ -79,51 +83,54 @@ fn buffer(element_ty: syn::Type, output: bool, nc: &syn::Path) -> (syn::Type, sy
 
 /// Ownership alternatives are exhaustive over the validated IDL input grammar.
 fn argument(graph: &mut Generation<'_>, module: &ResolvedModule, parameter: &Parameter) -> Result<AbiArg, GenerateError> {
-    let (rust_ty, abi_ty, kind) = match &parameter.ty {
-        IdlType::Scalar(_) | IdlType::Named(_) | IdlType::Array { .. } => {
-            let ty = rust_type(value_type(graph, module, &parameter.ty)?)?;
+    let ty = parameter.payload();
+    let (rust_ty, abi_ty, kind) = match parameter.passing {
+        ParameterPassing::Copied => {
+            let ty = rust_type(value_type(graph, module, ty)?)?;
             let nc = &graph.support;
             (ty.clone(), syn::parse_quote!(<#ty as #nc::ComValue>::AbiRepr), AbiArgKind::Plain)
         }
-        IdlType::Slice(element) => buffer(rust_type(value_type(graph, module, element)?)?, false, &graph.support),
-        IdlType::OutputSlice(element) => buffer(rust_type(value_type(graph, module, element)?)?, true, &graph.support),
-        IdlType::Borrowed(target) => {
-            let IdlType::Named(name) = target.as_ref() else {
-                return Err(GenerateError::new("resolved borrow is neither value nor interface"));
-            };
-            if name.is_str() {
-                // String wire bytes belong to the compiler, not application aliases.
-                buffer(syn::parse_quote!(::core::primitive::u8), false, &graph.support)
-            } else if builtin_object_type(&graph.support, name).is_some()
-                || matches!(resolve(graph, module, name)?.declaration.kind, DeclarationKind::Interface(_))
-            {
-                let (interface, mode_ty) = object(graph, module, target)?;
-                let nc = &graph.support;
-                let mode = mode_ty.as_ref().map(|mode| quote! { , #mode });
-                (
-                    syn::parse2(quote! { #nc::ComRef<'_, #interface #mode> }).map_err(syntax_error)?,
-                    syn::parse_quote!(#nc::ComRaw<#interface>),
-                    AbiArgKind::ComRef {
-                        interface_ty: Box::new(interface),
-                        mode_ty,
-                    },
-                )
-            } else {
-                let value_ty = rust_type(named_rust_type(graph, module, resolve(graph, module, name)?, false)?)?;
-                let nc = &graph.support;
-                (
-                    syn::parse_quote!(#nc::NcValueRef<'_, #value_ty>),
-                    syn::parse_quote!(*const <#value_ty as #nc::ComValue>::AbiRepr),
-                    AbiArgKind::BorrowedValue { value_ty: Box::new(value_ty) },
-                )
-            }
+        ParameterPassing::InputBuffer => buffer(rust_type(value_type(graph, module, ty)?)?, false, &graph.support),
+        ParameterPassing::OutputBuffer => buffer(rust_type(value_type(graph, module, ty)?)?, true, &graph.support),
+        ParameterPassing::BorrowedText => buffer(syn::parse_quote!(::core::primitive::u8), false, &graph.support),
+        ParameterPassing::BorrowedValue => {
+            let value_ty = rust_type(value_type(graph, module, ty)?)?;
+            let nc = &graph.support;
+            (
+                syn::parse_quote!(#nc::NcValueRef<'_, #value_ty>),
+                syn::parse_quote!(*const <#value_ty as #nc::ComValue>::AbiRepr),
+                AbiArgKind::BorrowedValue { value_ty: Box::new(value_ty) },
+            )
         }
-        IdlType::ComBox(target) => {
-            let (interface, mode_ty) = object(graph, module, target)?;
+        ParameterPassing::SharedLoan { .. } | ParameterPassing::MutableLoan => {
+            let (interface, mode_ty) = object(graph, module, ty)?;
+            let nc = &graph.support;
+            let mode = mode_ty.as_ref().map(|mode| quote! { , #mode });
+            let (access, rust_ty) = match parameter.passing {
+                ParameterPassing::SharedLoan { optional: false } => (InterfaceBorrow::Shared, quote! { #nc::ComRef<'_, #interface #mode> }),
+                ParameterPassing::SharedLoan { optional: true } => (
+                    InterfaceBorrow::OptionalShared,
+                    quote! { ::core::option::Option<#nc::ComRef<'_, #interface #mode>> },
+                ),
+                ParameterPassing::MutableLoan => (InterfaceBorrow::Mutable, quote! { #nc::ComMut<'_, #interface #mode> }),
+                _ => unreachable!("filtered interface loans"),
+            };
+            (
+                rust_type(rust_ty)?,
+                syn::parse_quote!(#nc::ComRaw<#interface>),
+                AbiArgKind::ComRef {
+                    interface_ty: Box::new(interface),
+                    mode_ty,
+                    access,
+                },
+            )
+        }
+        ParameterPassing::ConsumingBox => {
+            let (interface, mode_ty) = object(graph, module, ty)?;
             let nc = &graph.support;
             let mode = mode_ty.as_ref().map(|mode| quote! { , #mode });
             (
-                syn::parse2(quote! { #nc::ComBox<#interface #mode> }).map_err(syntax_error)?,
+                rust_type(quote! { #nc::ComBox<#interface #mode> })?,
                 syn::parse_quote!(*mut #nc::ComRaw<#interface>),
                 AbiArgKind::ComBox {
                     interface_ty: Box::new(interface),
@@ -131,15 +138,7 @@ fn argument(graph: &mut Generation<'_>, module: &ResolvedModule, parameter: &Par
                 },
             )
         }
-        IdlType::ComPtr(_)
-        | IdlType::WeakComPtr(_)
-        | IdlType::WeakComBox(_)
-        | IdlType::Unit
-        | IdlType::String
-        | IdlType::Vector(_)
-        | IdlType::UnsizedSlice(_) => {
-            return Err(GenerateError::new("invalid input survived IDL validation"));
-        }
+        ParameterPassing::Unresolved | ParameterPassing::Invalid => return Err(GenerateError::new("input slot lacks its resolved passing rule")),
     };
     let ident = rust_ident(&parameter.name)?;
     // The backend assigns collision-free positional bindings before emission.
@@ -152,44 +151,66 @@ fn argument(graph: &mut Generation<'_>, module: &ResolvedModule, parameter: &Par
     })
 }
 
-/// Return ownership is explicit in the source graph, including both weak families.
-fn result(graph: &mut Generation<'_>, module: &ResolvedModule, output: &IdlType) -> Result<AbiReturn, GenerateError> {
-    if matches!(output, IdlType::Unit) {
-        return Ok(AbiReturn {
-            rust_ty: syn::parse_quote!(()),
-            abi_ty: syn::parse_quote!(()),
-            kind: AbiReturnKind::Void,
-        });
-    }
-    let ownership = match output {
-        IdlType::ComPtr(target) => Some((target, InterfaceOwnership::Shared)),
-        IdlType::ComBox(target) => Some((target, InterfaceOwnership::Exclusive)),
-        IdlType::WeakComBox(target) => Some((target, InterfaceOwnership::WeakExclusive)),
-        IdlType::WeakComPtr(target) => Some((target, InterfaceOwnership::WeakShared)),
-        _ => None,
+/// Uses the bound return slot to emit exactly one transfer or loan contract.
+fn result(graph: &mut Generation<'_>, module: &ResolvedModule, method: &Method) -> Result<AbiReturn, GenerateError> {
+    let ty = method.return_payload();
+    let (ownership, wrapper, optional) = match method.return_passing {
+        ReturnPassing::Unit => {
+            return Ok(AbiReturn {
+                rust_ty: syn::parse_quote!(()),
+                abi_ty: syn::parse_quote!(()),
+                kind: AbiReturnKind::Void,
+            });
+        }
+        ReturnPassing::Copied => {
+            let ty = rust_type(value_type(graph, module, ty)?)?;
+            let nc = &graph.support;
+            return Ok(AbiReturn {
+                rust_ty: ty.clone(),
+                abi_ty: syn::parse_quote!(<#ty as #nc::ComValue>::AbiRepr),
+                kind: AbiReturnKind::Plain,
+            });
+        }
+        ReturnPassing::SharedOwner { optional } => (InterfaceOwnership::Shared, quote! { ComPtr }, optional),
+        ReturnPassing::BoxOwner => (InterfaceOwnership::Exclusive, quote! { ComBox }, false),
+        ReturnPassing::BoxObserver => (InterfaceOwnership::WeakExclusive, quote! { WeakComBox }, false),
+        ReturnPassing::SharedObserver => (InterfaceOwnership::WeakShared, quote! { WeakComPtr }, false),
+        ReturnPassing::ScopedLoan => {
+            let (interface_ty, mode_ty) = object(graph, module, ty)?;
+            let nc = &graph.support;
+            let mode = mode_ty.as_ref().map(|mode| quote! { , #mode });
+            return Ok(AbiReturn {
+                rust_ty: rust_type(quote! { ::core::option::Option<#nc::ComRef<'_, #interface_ty #mode>> })?,
+                abi_ty: syn::parse_quote!(#nc::ComRaw<#interface_ty>),
+                kind: AbiReturnKind::ScopedLoan {
+                    interface_ty: Box::new(interface_ty),
+                    mode_ty,
+                },
+            });
+        }
+        ReturnPassing::Unresolved | ReturnPassing::Invalid => return Err(GenerateError::new("result slot lacks its resolved passing rule")),
     };
-    if let Some((target, ownership)) = ownership {
-        let (interface, mode_ty) = object(graph, module, target)?;
-        let nc = &graph.support;
-        let abi_ty = match ownership {
-            InterfaceOwnership::WeakShared => syn::parse_quote!(#nc::NcSharedWeakRaw),
-            _ => syn::parse_quote!(#nc::ComRaw<#interface>),
-        };
-        return Ok(AbiReturn {
-            rust_ty: rust_type(owned_object_type(graph, module, output)?)?,
-            abi_ty,
-            kind: AbiReturnKind::ComPtr {
-                ownership,
-                interface_ty: Box::new(interface),
-                mode_ty,
-            },
-        });
-    }
-    let ty = rust_type(value_type(graph, module, output)?)?;
+    let (interface, mode_ty) = object(graph, module, ty)?;
     let nc = &graph.support;
+    let mode = mode_ty.as_ref().map(|mode| quote! { , #mode });
+    let owner = quote! { #nc::#wrapper<#interface #mode> };
+    let rust_ty = if optional {
+        quote! { ::core::option::Option<#owner> }
+    } else {
+        owner
+    };
+    let abi_ty = match ownership {
+        InterfaceOwnership::WeakShared => syn::parse_quote!(#nc::NcSharedWeakRaw),
+        _ => syn::parse_quote!(#nc::ComRaw<#interface>),
+    };
     Ok(AbiReturn {
-        rust_ty: ty.clone(),
-        abi_ty: syn::parse_quote!(<#ty as #nc::ComValue>::AbiRepr),
-        kind: AbiReturnKind::Plain,
+        rust_ty: rust_type(rust_ty)?,
+        abi_ty,
+        kind: AbiReturnKind::ComPtr {
+            optional,
+            ownership,
+            interface_ty: Box::new(interface),
+            mode_ty,
+        },
     })
 }

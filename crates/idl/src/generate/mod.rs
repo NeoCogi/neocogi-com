@@ -411,7 +411,7 @@ fn value_type_metadata(graph: &Generation<'_>, module: &ResolvedModule, ty: &Idl
             let len = Literal::u32_unsuffixed(*len);
             Ok(quote! { #nc::idl_metadata::ValueType::Array(&#element, #len) })
         }
-        IdlType::Borrowed(_) | IdlType::UnsizedSlice(_) | IdlType::Slice(_) | IdlType::OutputSlice(_) => {
+        IdlType::Borrowed(_) | IdlType::BorrowedMut(_) | IdlType::UnsizedSlice(_) | IdlType::Slice(_) | IdlType::OutputSlice(_) => {
             Err(GenerateError::new("call-only type requires explicit method ownership metadata"))
         }
     }

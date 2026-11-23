@@ -11,6 +11,10 @@ Historical draft numbers do not define additional supported COM baselines.
 - Declare shared ownership for persistence factories and snapshot roots. The
   Rust snapshot API takes `&ComPtr<IUnknown>`. Existing NCB-v1 documents retain
   their encoding.
+- Separate live shared `ComRef` loans from move-only `ComMut` access.
+- Add optional shared transfers, optional shared inputs and scoped borrowed
+  getters. NCIDL v15 fingerprints distinguish the native passing contracts,
+  while actual Rust type checks distinguish direct and fallible projections.
 
 ## 0.4.0
 
@@ -29,15 +33,15 @@ IDL encoding v14 and NCB persistence format v1 retain their version identities.
   the required backing state, and core generation 21 identifies the four-word
   provider metadata layout.
 
-See the [provider migration guide](docs/guides/ABI_V3_MIGRATION.md) and the
-[standalone walkthrough](examples/getting-started/README.md).
+See the [provider migration guide](https://github.com/NeoCogi/neocogi-com/blob/v0.4.0/docs/guides/ABI_V3_MIGRATION.md) and the
+[standalone walkthrough](https://github.com/NeoCogi/neocogi-com/blob/v0.4.0/examples/getting-started/README.md).
 
 ## 0.4.0-alpha.2
 
 This candidate versions eight SDK packages together. It uses provisional
 ABI v3/core generation 21, plugin discovery family 3, IDL encoding v14
 and NCB v1. Rebuild the host, providers and generated bindings together.
-The [migration guide](docs/guides/ABI_V3_MIGRATION.md#update-the-sdk-packages-together)
+The [migration guide](https://github.com/NeoCogi/neocogi-com/blob/v0.4.0-alpha.2/docs/guides/ABI_V3_MIGRATION.md#update-the-sdk-packages-together)
 describes the package-name changes.
 
 - Rename the ABI and pointer package to `neocogi-com` and the Rust SDK to

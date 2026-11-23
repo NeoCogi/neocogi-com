@@ -726,3 +726,85 @@ int nc_c_exercise_split_lifetimes(
     boxed_release(&boxed->lifetime);
     return boxed_counts.freed == 1 && shared_counts.destroyed == 1 && boxed_counts.destroyed == 1;
 }
+
+/* Represent each v4 result/loan slot independently of generated Rust types. */
+typedef void (*NativeValueVisit)(void *context, INativeValueAbi loan);
+typedef struct NativeCapability NativeCapability;
+typedef struct NativeCapabilityTable {
+    IUnknownVTable unknown;
+    NcStatus (*find)(void *, uint32_t, INativeValueAbi *);
+    NcStatus (*load)(void *, uint32_t, INativeValueAbi *);
+    NcStatus (*observed)(void *, uint32_t, void *, NativeValueVisit);
+    NcStatus (*read)(void *, INativeValueAbi, int32_t *);
+    NcStatus (*invalidate)(void *);
+    NcStatus (*invalidate_borrowed)(void *, NativeCapability);
+} NativeCapabilityTable;
+struct NativeCapability {
+    void *object;
+    const NativeCapabilityTable *vtable;
+};
+typedef struct NativeVisitState { unsigned calls; int32_t value; } NativeVisitState;
+
+/* Delivery never retains the loan. Both null words are observable as absence. */
+static void visit_native_value(void *context, INativeValueAbi loan) {
+    NativeVisitState *state = context;
+    state->calls++;
+    state->value = -1;
+    if (loan.object != NULL && loan.vtable != NULL) {
+        if (loan.vtable->value(loan.object, &state->value) != 0) {
+            state->value = -2;
+        }
+    }
+}
+
+int32_t nc_c_exercise_v4_callable_slots(NativeCapability receiver, NcStatus pointer, NcStatus dropped) {
+    const NativeCapabilityTable *table = receiver.vtable;
+    void *object = receiver.object;
+    INativeValueAbi output = {0};
+    INativeValueAbi absent = {0};
+    INativeValueAbi half = {object, NULL};
+    NativeVisitState visitor = {0};
+    int32_t value;
+    if (table->load(object, 0, &output) != 0 || !output.object || !output.vtable) return 1;
+    INativeValueAbi other = output;
+    if (table->find(object, 1, &other) != 0 || other.object || other.vtable) return 2;
+    other = output;
+    if (table->load(object, 2, &other) != dropped ||
+        other.object != output.object || other.vtable != output.vtable) return 3;
+    if (table->read(object, absent, &value) != 0 || value != -1) return 4;
+    if (table->read(object, half, &value) != pointer) return 5;
+    if (table->read(object, output, &value) != 0 || value != 42) return 6;
+    if (table->observed(object, 0, &visitor, visit_native_value) != 0 ||
+        visitor.calls != 1 || visitor.value != 42) return 7;
+    if (table->observed(object, 1, &visitor, visit_native_value) != 0 ||
+        visitor.calls != 2 || visitor.value != -1) return 8;
+    if (table->observed(object, 2, &visitor, visit_native_value) != dropped || visitor.calls != 2) return 9;
+    if (table->observed(object, 0, NULL, NULL) != pointer) return 10;
+    if (table->invalidate(object) != 0) return 11;
+    if (output.vtable->value(output.object, &value) != 0 || value != 42) return 12;
+    output.vtable->unknown.release(output.object);
+    return 0;
+}
+
+/* Replace only the result slot in a real shared receiver's exact vtable. The
+ * modes distinguish absent, malformed and failed calls from a C provider. */
+NcStatus nc_c_adverse_optional_result(void *object, uint32_t mode, INativeValueAbi *out) {
+    if (mode == 2) return -14; /* NC_E_DROPPED, without touching output. */
+    INativeValueAbi result = {mode == 1 ? object : NULL, NULL};
+    *out = result;
+    return 0;
+}
+
+/* Fails missing or duplicate delivery and rejects a half-null delivered pair. */
+NcStatus nc_c_adverse_scoped_result(void *object, uint32_t mode, void *context, NativeValueVisit visit) {
+    INativeValueAbi absent = {0};
+    INativeValueAbi half = {object, NULL};
+    switch (mode) {
+        case 1: visit(context, half); return 0;
+        case 2: return -14;
+        case 3: visit(context, absent); visit(context, absent); return 0;
+        case 4: visit(context, absent); return -14;
+        case 5: return 0;
+        default: visit(context, absent); return 0;
+    }
+}

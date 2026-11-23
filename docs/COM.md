@@ -340,9 +340,10 @@ without constructing objects. IDL tools retain build-time source inventories.
 
 - Interface calls are `extern "C"` vtable functions returning `NcStatus`.
 - Compatibility requires both generated interface ID and exact ABI signature.
-- `ComPtr<T>` owns one reference; `ComRef<'a, T>` borrows a live interface for
-  `'a`. Generated interface parameters restrict that borrow to the ABI call.
-- Both handle kinds lend the same generated Rust method wrapper; derived
+- `ComPtr<T>` owns one reference. `ComRef<'a, T>` borrows shared method access
+  to a live interface for `'a`. `ComMut<'a, T>` borrows mutable method access
+  and can lend a shared reborrow. Interface parameters restrict a loan to one call.
+- Owners and loans use the same generated Rust method wrapper. Derived
   wrappers provide inherited lookup without generating another calling trait.
   These views are unsized, with private core storage: mutable lookup permits
   declared mutable calls but cannot replace the lender's object/table pair.

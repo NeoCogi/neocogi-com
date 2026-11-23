@@ -116,12 +116,19 @@ fn write_return(out: &mut String, returns: &NcMethodReturnDescriptor) -> Result<
             write_type(out, &returns.ty)?;
             out.push('>');
         }
-        NC_ABI_PASSING_COM_PTR_OUT | crate::NC_ABI_PASSING_COM_BOX_OUT | crate::NC_ABI_PASSING_WEAK_COM_BOX_OUT | crate::NC_ABI_PASSING_WEAK_COM_PTR_OUT => {
+        NC_ABI_PASSING_COM_PTR_OUT
+        | crate::NC_ABI_PASSING_COM_BOX_OUT
+        | crate::NC_ABI_PASSING_WEAK_COM_BOX_OUT
+        | crate::NC_ABI_PASSING_WEAK_COM_PTR_OUT
+        | crate::NC_ABI_PASSING_OPTIONAL_COM_PTR_OUT
+        | crate::NC_ABI_PASSING_SCOPED_COM_REF_OUT => {
             validate_interface_type(&returns.ty)?;
             out.push_str(match returns.passing.tag {
                 crate::NC_ABI_PASSING_COM_BOX_OUT => "com_box_out<",
                 crate::NC_ABI_PASSING_WEAK_COM_BOX_OUT => "weak_com_box_out<",
                 crate::NC_ABI_PASSING_WEAK_COM_PTR_OUT => "weak_com_ptr_out<",
+                crate::NC_ABI_PASSING_OPTIONAL_COM_PTR_OUT => "optional_com_ptr_out<",
+                crate::NC_ABI_PASSING_SCOPED_COM_REF_OUT => "scoped_com_ref_out<",
                 _ => "com_ptr_out<",
             });
             write_threading(out, returns.passing.threading)?;
@@ -174,11 +181,12 @@ fn write_passing_type(out: &mut String, passing: NcAbiPassingDescriptor, ty: &Nc
             write_type(out, ty)?;
             out.push('>');
         }
-        NC_ABI_PASSING_COM_REF | crate::NC_ABI_PASSING_OPTIONAL_COM_REF | crate::NC_ABI_PASSING_COM_BOX_IN => {
+        NC_ABI_PASSING_COM_REF | crate::NC_ABI_PASSING_OPTIONAL_COM_REF | crate::NC_ABI_PASSING_COM_BOX_IN | crate::NC_ABI_PASSING_COM_MUT => {
             validate_interface_type(ty)?;
             out.push_str(match passing.tag {
                 NC_ABI_PASSING_COM_REF => "com_ref<",
                 crate::NC_ABI_PASSING_COM_BOX_IN => "com_box_in<",
+                crate::NC_ABI_PASSING_COM_MUT => "com_mut<",
                 _ => "optional_com_ref<",
             });
             write_threading(out, passing.threading)?;

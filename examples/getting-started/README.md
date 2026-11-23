@@ -2,7 +2,8 @@
 
 This example builds an application and a calculator plugin separately. The
 application loads the plugin, calls `add(2, 3)`, and prints `2 + 3 = 5`. It also
-checks that addition overflow returns the documented error.
+checks addition overflow, direct and fallible optional interface returns,
+and a unit method that invalidates the optional value.
 
 For ABI v2, use the [0.3.0 walkthrough](https://github.com/NeoCogi/neocogi-com/blob/v0.3.0/examples/getting-started/README.md).
 This directory uses development SDK `0.5.0-wip-alpha.1` with the
@@ -66,7 +67,9 @@ cargo xtask packages
 The gate copies these inputs into a temporary directory and resolves both
 projects against the extracted SDK archives. It verifies the selected package
 origins, builds both projects with the resolved locks, runs the calculator, and
-checks that addition overflow returns the documented status. The calculator
+checks the calculator
+results, including using the returned interface owners after dropping the
+calculator. The calculator
 prints `2 + 3 = 5`. The extracted inspector also runs `dump` and `check` against
 the built plugin. The SDK dependency versions in the manifests select the
 matching archives during this check.

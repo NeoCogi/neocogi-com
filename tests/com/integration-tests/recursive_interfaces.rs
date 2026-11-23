@@ -5,7 +5,7 @@
 mod test_contracts {
     include!(concat!(env!("OUT_DIR"), "/test_contracts.rs"));
 }
-use neocogi_com_sdk::{ComPtr, ComRef, IUnknown, NcStatus, NC_E_ABI_VERSION, NC_E_NOT_FOUND, com_object};
+use neocogi_com_sdk::{ComPtr, ComRef, IUnknown, NcStatus, NcValueRef, NC_E_ABI_VERSION, NC_E_NOT_FOUND, com_object};
 use std::{cell::Cell, rc::Rc};
 
 /// First revision as understood by the consumer binary.
@@ -122,9 +122,9 @@ test_contracts::recursive_producer!();
 pub struct Node;
 
 impl INode for Node {
-    /// The explicit AddRef creates exactly the reference transferred back.
-    fn echo(&self, node: ComRef<'_, INodeAbi>) -> Result<ComPtr<INodeAbi>, NcStatus> {
-        node.try_add_ref()
+    /// Transfers the shared owner acquired when decoding the input value.
+    fn echo(&self, input: NcValueRef<'_, NodeInput>) -> Result<ComPtr<INodeAbi>, NcStatus> {
+        Ok(input.to_owned()?.node)
     }
 }
 
@@ -149,7 +149,8 @@ impl IRight for Pair {
 #[test]
 fn self_and_mutual_references_compile_and_preserve_identity() {
     let node: ComPtr<INodeAbi> = Node::from_value(Node).query().unwrap();
-    let echoed = node.echo(node.as_com_ref()).unwrap();
+    let input = NodeInput { node: node.clone() };
+    let echoed = node.echo(NcValueRef::new(&input).unwrap()).unwrap();
     assert_eq!(node.query::<IUnknown>().unwrap().as_raw(), echoed.query::<IUnknown>().unwrap().as_raw());
     let pair = Pair::from_value(Pair);
     assert_eq!(pair.query::<ILeftAbi>().unwrap().right().unwrap_err(), NC_E_NOT_FOUND);

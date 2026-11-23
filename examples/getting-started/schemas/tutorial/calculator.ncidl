@@ -2,4 +2,10 @@
 interface Calculator {
     /// Adds two numbers, reporting an out-of-range result without overflowing.
     fn add(&self, left: i32, right: i32) -> Result<i32>;
+    /// Looks up an optional label.
+    fn find_label(&self, found: bool) -> Option<ComPtr<INcString>>;
+    /// Reports invalid keys independently of an absent label.
+    fn load_label(&self, key: i32) -> Result<Option<ComPtr<INcString>>>;
+    /// Clears the label from the calculator.
+    fn invalidate(&mut self);
 }

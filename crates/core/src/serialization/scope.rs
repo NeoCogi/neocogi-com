@@ -9,7 +9,7 @@ use core::{
     ffi::c_void,
     ops::{Deref, DerefMut},
 };
-use crate::{ComInterface, ComRaw, ComRef, IUnknown, NcInterfaceId, NcStatus, NC_E_BUSY, NC_E_INVALID_ARG, NC_E_POINTER};
+use crate::{ComInterface, ComRaw, ComMut, IUnknown, NcInterfaceId, NcStatus, NC_E_BUSY, NC_E_INVALID_ARG, NC_E_POINTER};
 
 /// Owns one scoped provider while lending nonretainable COM references.
 /// Provider storage stays local; every borrowed capability is bounded by this
@@ -34,17 +34,17 @@ impl<T> ScopedComProvider<T> {
     pub fn into_inner(self) -> T {
         self.value.into_inner()
     }
-    /// Lends a correctly typed capability without acquiring an ownership token.
+    /// Lends mutable method access to this scope's interface.
     ///
     /// # Safety
     /// The table's thunks must use this exact ScopedComProvider<T> storage, reject retained
     /// ownership, and guard all provider access with borrow_mut. I's metadata must
     /// describe that table. The Rust borrow keeps both the scope and T alive.
-    pub unsafe fn interface<I: ComInterface>(&self, table: &'static I::VTable) -> ComRef<'_, I> {
+    pub unsafe fn interface<I: ComInterface>(&mut self, table: &'static I::VTable) -> ComMut<'_, I> {
         // SAFETY: the caller proves the typed table; this borrow retains storage.
         unsafe {
-            ComRef::from_raw_borrowed(ComRaw {
-                object: (self as *const Self).cast_mut().cast(),
+            ComMut::from_raw_borrowed(ComRaw {
+                object: core::ptr::from_mut(self).cast(),
                 vtable: table,
             })
             .unwrap()

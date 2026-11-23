@@ -36,3 +36,19 @@ interface INativeChoice {
     /// Produces two values without reading old output bytes; returns required total.
     fn output(&self, output: &mut [NativeChoice]) -> Result<u32>;
 }
+
+/// Independent C code exercises optional ownership and scoped borrowing of one value.
+interface INativeCapability {
+    fn find(&self, mode: u32) -> Option<ComPtr<INativeValue>>;
+    fn load(&self, mode: u32) -> Result<Option<ComPtr<INativeValue>>>;
+    fn observed(&self, mode: u32) -> Result<Option<&INativeValue>>;
+    fn read(&self, loan: Option<&INativeValue>) -> Result<i32>;
+    fn invalidate(&mut self);
+    fn invalidate_borrowed(&self, target: &mut INativeCapability);
+}
+
+/// Status visibility on a boxed receiver whose weak dispatch can expire.
+interface INativeBoxedActions {
+    fn find(&self) -> Option<ComPtr<INativeValue>>;
+    fn invalidate(&mut self);
+}

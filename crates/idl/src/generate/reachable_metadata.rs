@@ -84,6 +84,7 @@ pub(super) fn definitions<'a>(graph: &Generation<'a>, requested: ResolvedDeclara
                     | IdlType::ComBox(value)
                     | IdlType::WeakComBox(value)
                     | IdlType::Borrowed(value)
+                    | IdlType::BorrowedMut(value)
                     | IdlType::Vector(value)
                     | IdlType::UnsizedSlice(value)
                     | IdlType::Slice(value)

@@ -10,9 +10,9 @@ pub const MODULE_ID: crate::NcGuid = crate::NcGuid::from_fields(
 );
 /// Transitive canonical ABI fingerprint of this generated module.
 pub const ABI_FINGERPRINT: [::core::primitive::u8; 32] = [
-    36u8, 144u8, 119u8, 154u8, 50u8, 93u8, 13u8, 144u8, 21u8, 120u8, 69u8, 64u8, 220u8,
-    16u8, 34u8, 138u8, 24u8, 122u8, 4u8, 194u8, 199u8, 178u8, 103u8, 40u8, 133u8, 246u8,
-    118u8, 240u8, 238u8, 40u8, 55u8, 79u8,
+    63u8, 92u8, 248u8, 3u8, 103u8, 175u8, 80u8, 64u8, 18u8, 43u8, 76u8, 95u8, 116u8,
+    78u8, 127u8, 153u8, 18u8, 50u8, 206u8, 176u8, 21u8, 233u8, 81u8, 222u8, 235u8, 243u8,
+    184u8, 237u8, 188u8, 237u8, 197u8, 192u8,
 ];
 /// Exact dotted module name derived from the normalized IDL path.
 pub const MODULE_NAME: &::core::primitive::str = "neocogi.com.persistence";
@@ -44,7 +44,7 @@ pub struct IObjectChildrenVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
     ///
     ///On success, `out` receives `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr`.
     #[allow(
@@ -63,7 +63,7 @@ pub struct IObjectChildrenVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
     ///- `index` uses ABI storage `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
     ///
     ///On success, `out` receives `crate :: ComRaw < crate :: IUnknown >` for `crate :: ComPtr < crate :: IUnknown >`. The caller receives one shared owner and releases it when finished.
@@ -136,6 +136,7 @@ const _: () = {
         identity as __nc_arg_0_written, identity as __nc_this, identity as __nc_status,
         identity as __nc_value, identity as __nc_raw, identity as __nc_result,
         identity as __nc_values, identity as __nc_writer, identity as __nc_out,
+        identity as __nc_scoped_context, identity as __nc_scoped_callback,
         identity as __nc_identity, identity as __nc_this_0, identity as __nc_status_0,
         identity as __nc_result_0, identity as __nc_prepared, identity as __nc_out_0,
         identity as __nc_this_1, identity as __nc_status_1, identity as __nc_result_1,
@@ -148,7 +149,7 @@ const _: () = {
         ///Calls [`IObjectChildren::count`] through the generated COM ABI vtable.
         ///
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///
         ///On success, returns `:: core :: primitive :: u32` from the ABI out slot.
         pub fn count(
@@ -178,7 +179,7 @@ const _: () = {
         ///Calls [`IObjectChildren::get`] through the generated COM ABI vtable.
         ///
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///- `index` is passed by value as `:: core :: primitive :: u32`.
         ///
         ///On success, returns `crate :: ComPtr < crate :: IUnknown >`. The caller receives one shared owner and releases it when finished.
@@ -210,7 +211,7 @@ const _: () = {
 impl IObjectChildrenAbi {
     ///Canonical validation form of this interface's typed ABI contract.
     pub const ABI_SIGNATURE: crate::NcAbiDigest = crate::NcAbiDigest::from_static(
-        b")\x06\xFE\xB4\xE2\xA1\xE5\xCE:\xE0Tv\xCCu\x81]\xBC\x80\x90g\x1B\x940\x8A\xD3B\xF1\x83\x1B H\xD9",
+        b"\xB0HY_r\xA6\x86\t\xD5q\x82\xE6\x17\x18\x0C\x81\xB0%\xB7\x92Ia\xD6\x95\xFBQ\x86j\xD1\xA3\xA2\xEF",
     );
     ///Static descriptors for this interface's ABI methods.
     pub const METHOD_DESCRIPTORS: [crate::NcMethodDescriptor; 2usize] = [
@@ -274,9 +275,9 @@ impl IObjectChildrenAbi {
 impl IObjectChildrenAbi {
     #[doc(hidden)]
     pub const __NC_RUST_BINDING: [::core::primitive::u8; 32] = [
-        105u8, 59u8, 61u8, 72u8, 200u8, 235u8, 149u8, 109u8, 121u8, 193u8, 44u8, 132u8,
-        249u8, 142u8, 137u8, 247u8, 232u8, 3u8, 79u8, 81u8, 155u8, 144u8, 72u8, 102u8,
-        214u8, 172u8, 167u8, 74u8, 238u8, 74u8, 233u8, 100u8,
+        88u8, 108u8, 235u8, 200u8, 101u8, 70u8, 211u8, 68u8, 94u8, 119u8, 141u8, 106u8,
+        75u8, 151u8, 29u8, 87u8, 116u8, 65u8, 88u8, 202u8, 84u8, 21u8, 193u8, 132u8,
+        105u8, 180u8, 17u8, 164u8, 206u8, 80u8, 9u8, 125u8,
     ];
 }
 /// Optional snapshot capability for an owned construction tree.
@@ -322,7 +323,7 @@ pub struct IPersistableVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
     ///
     ///On success, `out` receives `< crate :: NcGuid as crate :: ComValue > :: AbiRepr`.
     #[allow(
@@ -341,7 +342,7 @@ pub struct IPersistableVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
     ///
     ///On success, `out` receives `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr`.
     #[allow(
@@ -360,7 +361,7 @@ pub struct IPersistableVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
     ///
     ///On success, `out` receives `crate :: ComRaw < crate :: INcBytesAbi >` for `crate :: ComPtr < crate :: INcBytesAbi >`. The caller receives one shared owner and releases it when finished.
     #[allow(
@@ -379,7 +380,7 @@ pub struct IPersistableVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
     ///
     ///On success, `out` receives `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr`.
     #[allow(
@@ -398,7 +399,7 @@ pub struct IPersistableVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
     ///- `index` uses ABI storage `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
     ///
     ///On success, `out` receives `crate :: ComRaw < crate :: IUnknown >` for `crate :: ComPtr < crate :: IUnknown >`. The caller receives one shared owner and releases it when finished.
@@ -471,6 +472,7 @@ const _: () = {
         identity as __nc_arg_0_written, identity as __nc_this, identity as __nc_status,
         identity as __nc_value, identity as __nc_raw, identity as __nc_result,
         identity as __nc_values, identity as __nc_writer, identity as __nc_out,
+        identity as __nc_scoped_context, identity as __nc_scoped_callback,
         identity as __nc_identity, identity as __nc_this_0, identity as __nc_status_0,
         identity as __nc_result_0, identity as __nc_prepared, identity as __nc_out_0,
         identity as __nc_this_1, identity as __nc_status_1, identity as __nc_result_1,
@@ -489,7 +491,7 @@ const _: () = {
         ///Calls [`IPersistable::type_id`] through the generated COM ABI vtable.
         ///
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///
         ///On success, returns `crate :: NcGuid` from the ABI out slot.
         pub fn type_id(&self) -> ::core::result::Result<crate::NcGuid, crate::NcStatus> {
@@ -515,7 +517,7 @@ const _: () = {
         ///Calls [`IPersistable::schema_version`] through the generated COM ABI vtable.
         ///
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///
         ///On success, returns `:: core :: primitive :: u32` from the ABI out slot.
         pub fn schema_version(
@@ -545,7 +547,7 @@ const _: () = {
         ///Calls [`IPersistable::save_state`] through the generated COM ABI vtable.
         ///
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///
         ///On success, returns `crate :: ComPtr < crate :: INcBytesAbi >`. The caller receives one shared owner and releases it when finished.
         pub fn save_state(
@@ -575,7 +577,7 @@ const _: () = {
         ///Calls [`IPersistable::child_count`] through the generated COM ABI vtable.
         ///
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///
         ///On success, returns `:: core :: primitive :: u32` from the ABI out slot.
         pub fn child_count(
@@ -605,7 +607,7 @@ const _: () = {
         ///Calls [`IPersistable::child`] through the generated COM ABI vtable.
         ///
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///- `index` is passed by value as `:: core :: primitive :: u32`.
         ///
         ///On success, returns `crate :: ComPtr < crate :: IUnknown >`. The caller receives one shared owner and releases it when finished.
@@ -637,7 +639,7 @@ const _: () = {
 impl IPersistableAbi {
     ///Canonical validation form of this interface's typed ABI contract.
     pub const ABI_SIGNATURE: crate::NcAbiDigest = crate::NcAbiDigest::from_static(
-        b"\xEBB[\xCA/\xB5\x98K@G\x1D$\x13\x18U39\n\x15d\xEE7\xAFt\xB4~\xCF\xF5p%\x1A\x9C",
+        b"`\xEE\xD86`i\x9A\xAA\xB9-Y\x9C\xB1\xBA\x12s\xD4d0xN\x8Bc\xCB\xC9\xA4j\x8F\xFD!\xF4E",
     );
     ///Static descriptors for this interface's ABI methods.
     pub const METHOD_DESCRIPTORS: [crate::NcMethodDescriptor; 5usize] = [
@@ -743,9 +745,9 @@ impl IPersistableAbi {
 impl IPersistableAbi {
     #[doc(hidden)]
     pub const __NC_RUST_BINDING: [::core::primitive::u8; 32] = [
-        230u8, 97u8, 178u8, 118u8, 159u8, 243u8, 222u8, 65u8, 255u8, 18u8, 108u8, 209u8,
-        254u8, 186u8, 223u8, 16u8, 38u8, 96u8, 198u8, 64u8, 178u8, 50u8, 176u8, 28u8,
-        110u8, 14u8, 70u8, 239u8, 255u8, 12u8, 228u8, 194u8,
+        11u8, 231u8, 55u8, 21u8, 117u8, 37u8, 133u8, 32u8, 191u8, 51u8, 109u8, 60u8,
+        121u8, 128u8, 121u8, 175u8, 189u8, 188u8, 182u8, 73u8, 111u8, 66u8, 93u8, 74u8,
+        198u8, 82u8, 174u8, 139u8, 251u8, 28u8, 243u8, 253u8,
     ];
 }
 /// A provider bound to the runtime services required by its construction recipe.
@@ -784,7 +786,7 @@ pub struct IPersistenceFactoryVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table.
     ///- `version` uses ABI storage `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
     ///- `state` uses ABI storage `* const < :: core :: primitive :: u8 as crate :: ComValue > :: AbiRepr` for `crate :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
     ///- `child_count` uses ABI storage `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
@@ -811,10 +813,10 @@ pub struct IPersistenceFactoryVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
     ///- `version` uses ABI storage `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
     ///- `state` uses ABI storage `* const < :: core :: primitive :: u8 as crate :: ComValue > :: AbiRepr` for `crate :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
-    ///- `children` uses ABI storage `crate :: ComRaw < self :: IObjectChildrenAbi >` for `crate :: ComRef < '_ , self :: IObjectChildrenAbi >`. This object/table pair is borrowed for the call. Both fields must be non-null. To retain this pair, call `add_ref` during the borrow. A nonzero result grants one reference, which the callee releases when finished.
+    ///- `children` uses ABI storage `crate :: ComRaw < self :: IObjectChildrenAbi >` for `crate :: ComRef < '_ , self :: IObjectChildrenAbi >`. The non-null object/table pair lends live shared access through the call.
     ///
     ///On success, `out` receives `crate :: ComRaw < crate :: IUnknown >` for `crate :: ComPtr < crate :: IUnknown >`. The caller receives one shared owner and releases it when finished.
     #[allow(
@@ -912,7 +914,8 @@ const _: () = {
         identity as __nc_arg_2_0_values, identity as __nc_arg_2_0_written,
         identity as __nc_this, identity as __nc_status, identity as __nc_value,
         identity as __nc_raw, identity as __nc_result, identity as __nc_values,
-        identity as __nc_writer, identity as __nc_out, identity as __nc_identity,
+        identity as __nc_writer, identity as __nc_out, identity as __nc_scoped_context,
+        identity as __nc_scoped_callback, identity as __nc_identity,
         identity as __nc_this_0, identity as __nc_status_0, identity as __nc_result_0,
         identity as __nc_prepared, identity as __nc_out_0, identity as __nc_this_1,
         identity as __nc_status_1, identity as __nc_result_1,
@@ -926,8 +929,8 @@ const _: () = {
         ///
         ///Calls [`IPersistenceFactory::validate`] through the generated COM ABI vtable.
         ///
-        ///This safe wrapper invokes the raw vtable function and maps a successful status to `Ok(())`.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///This safe wrapper invokes the status-only raw vtable function.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///- `version` is passed by value as `:: core :: primitive :: u32`.
         ///- `state` is passed as a safe readable `:: core :: primitive :: u8` buffer plus offset.
         ///- `child_count` is passed by value as `:: core :: primitive :: u32`.
@@ -967,10 +970,10 @@ const _: () = {
         ///Calls [`IPersistenceFactory::restore`] through the generated COM ABI vtable.
         ///
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///- `version` is passed by value as `:: core :: primitive :: u32`.
         ///- `state` is passed as a safe readable `:: core :: primitive :: u8` buffer plus offset.
-        ///- `children` borrows a required `self :: IObjectChildrenAbi` interface for the call. To keep the interface afterward, the callee stores the `ComPtr` returned by a successful `try_add_ref()`.
+        ///- `children` is a required shared loan of the `self :: IObjectChildrenAbi` interface for the call.
         ///
         ///On success, returns `crate :: ComPtr < crate :: IUnknown >`. The caller receives one shared owner and releases it when finished.
         pub fn restore(
@@ -1012,7 +1015,7 @@ const _: () = {
 impl IPersistenceFactoryAbi {
     ///Canonical validation form of this interface's typed ABI contract.
     pub const ABI_SIGNATURE: crate::NcAbiDigest = crate::NcAbiDigest::from_static(
-        b"\xF9P\xB5\xD8B\r\xFBy67~7\x8C\x7F\n\xFD\x1D\x83w\x88T\xD1=k\"\x98r6\xEB\xF2\xA0\0",
+        b"\xC0\xA9\xE0\xCD\x15a$O\x17\xA7\xD6\x11\x10\x7F\x92>\n\xCD0\x85\n{>\xDD\x10\xD8\xC1\x12\xFF\xE6\xA1\xCC",
     );
     ///Static descriptors for this interface's ABI methods.
     pub const METHOD_DESCRIPTORS: [crate::NcMethodDescriptor; 2usize] = [
@@ -1121,8 +1124,8 @@ impl IPersistenceFactoryAbi {
 impl IPersistenceFactoryAbi {
     #[doc(hidden)]
     pub const __NC_RUST_BINDING: [::core::primitive::u8; 32] = [
-        115u8, 55u8, 243u8, 192u8, 11u8, 114u8, 8u8, 246u8, 140u8, 179u8, 225u8, 228u8,
-        63u8, 248u8, 145u8, 213u8, 251u8, 16u8, 91u8, 68u8, 217u8, 55u8, 81u8, 51u8,
-        63u8, 165u8, 235u8, 88u8, 108u8, 180u8, 125u8, 255u8,
+        106u8, 149u8, 77u8, 226u8, 122u8, 48u8, 171u8, 62u8, 4u8, 209u8, 206u8, 190u8,
+        232u8, 102u8, 219u8, 143u8, 56u8, 38u8, 135u8, 234u8, 44u8, 87u8, 254u8, 105u8,
+        133u8, 195u8, 203u8, 74u8, 233u8, 186u8, 54u8, 138u8,
     ];
 }

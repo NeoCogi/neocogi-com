@@ -1,8 +1,13 @@
 #[id("b983100a-a932-51b7-afa4-f894c64ae1c8")]
 /// A natural self-reference previously failed constant evaluation.
 interface INode {
-    /// Retains and returns the borrowed node without interpreting its state.
-    fn echo(&self, node: &INode) -> Result<ComPtr<INode>>;
+    /// Returns the explicit shared owner carried by the input value.
+    fn echo(&self, input: &NodeInput) -> Result<ComPtr<INode>>;
+}
+
+/// Recursive owner-bearing input to the node's echo method.
+struct NodeInput {
+    node: ComPtr<INode>,
 }
 
 #[id("25fa4db1-7869-50d6-96a2-cd30c5280360")]

@@ -100,7 +100,7 @@ pub struct IUnknownVTable {
 
     /// The optional callback acquires shared weak ownership.
     ///
-    /// When the callback is absent, [`crate::ComRef::downgrade`] reports
+    /// When the callback is absent, [`crate::ComPtr::downgrade`] reports
     /// `NC_E_NOINTERFACE`. Boxed prefixes supply a callback that rejects
     /// shared downgrade with `NC_E_INVALID_ARG` on valid arguments.
     /// Success transfers one shared [`crate::NcSharedWeakRaw`]

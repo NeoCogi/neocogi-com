@@ -59,16 +59,18 @@ pub(super) fn method(input: ParseStream<'_>, attributes: &[Attribute]) -> syn::R
             span: SourceSpan::from_parser(ident.span()),
             name,
             ty,
+            passing: crate::model::ParameterPassing::Unresolved,
         });
         if !body.is_empty() {
             body.parse::<Token![,]>()?;
         }
     }
-    if !input.peek(Token![->]) {
-        return Err(syn::Error::new(name.span(), "IDL methods must return `Result<T>`"));
-    }
-    input.parse::<Token![->]>()?;
-    let output = types::result(input)?;
+    let (output, return_projection) = if input.peek(Token![->]) {
+        input.parse::<Token![->]>()?;
+        types::method_output(input)?
+    } else {
+        (IdlType::Unit, crate::ReturnProjection::Direct)
+    };
     if input.peek(syn::token::Brace) {
         return Err(input.error("IDL methods have no bodies"));
     }
@@ -84,7 +86,8 @@ pub(super) fn method(input: ParseStream<'_>, attributes: &[Attribute]) -> syn::R
             receiver,
             parameters,
             output,
-            return_projection: crate::ReturnProjection::Fallible,
+            return_projection,
+            return_passing: crate::model::ReturnPassing::Unresolved,
         },
         name.span(),
     ))

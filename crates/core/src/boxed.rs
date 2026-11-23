@@ -12,7 +12,7 @@ use core::{
     marker::PhantomData,
     ops::{Deref, DerefMut},
 };
-use crate::{ComInterface, ComRustInterface, ComRaw, ComRef, NcStatus, ThreadLocal, ThreadSafe, ThreadingModel, NC_E_POINTER};
+use crate::{ComInterface, ComMut, ComRustInterface, ComRaw, ComRef, NcStatus, ThreadLocal, ThreadSafe, ThreadingModel, NC_E_POINTER};
 use crate::ptr::NonNullComRaw;
 use crate::lifetime::{try_box_cast, NcBoxedLifetimeState};
 
@@ -160,11 +160,16 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> ComBox<T, M> {
         self.raw.as_raw()
     }
 
-    /// Borrows an interface for a synchronous call. Retaining this borrow as a
-    /// shared owner is rejected by the provider's lifetime protocol.
+    /// Lends shared method access while this owner keeps the value live.
     pub fn as_com_ref(&self) -> ComRef<'_, T, M> {
         // SAFETY: this owner keeps the initialized value alive throughout the borrow.
         unsafe { ComRef::from_raw_borrowed(self.as_raw()) }.expect("present exclusive owner")
+    }
+
+    /// Lends mutable method access while this owner keeps the value live.
+    pub fn as_com_mut(&mut self) -> ComMut<'_, T, M> {
+        // SAFETY: The owner is mutably borrowed and retains the initialized value.
+        unsafe { ComMut::from_raw_borrowed(self.as_raw()) }.expect("present exclusive owner")
     }
 
     /// Selects an interface by moving, rather than duplicating, the sole owner.
@@ -297,17 +302,6 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> WeakComBox<T, M> {
         let raw = core::mem::ManuallyDrop::new(self).raw.as_raw();
         // SAFETY: only the threading permission is restricted; ownership is transferred.
         unsafe { WeakComBox::from_raw_owned(raw) }.expect("existing observer is present")
-    }
-
-    /// Lends interface storage for a synchronous ABI argument, without pinning T.
-    /// The recipient's generated methods acquire their own checked borrows and
-    /// return `NC_E_DROPPED` after owner destruction. An admitted live method can
-    /// return its own error, including `NC_E_CLOSED`. Holding this view cannot
-    /// delay owner destruction.
-    pub fn as_com_ref(&self) -> ComRef<'_, T, M> {
-        // SAFETY: the weak handle retains the object header and immutable table;
-        // every exclusive provider entry validates lifetime before accessing T.
-        unsafe { ComRef::from_raw_borrowed(self.as_raw()) }.expect("present weak interface")
     }
 
     /// Compares stable control identities, including after value destruction.

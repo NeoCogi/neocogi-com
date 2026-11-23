@@ -95,8 +95,8 @@ impl ObjectRecord {
     /// and refusal of a local child-storage reservation reports out of memory.
     /// The latter discards the source without requesting a provider diagnostic.
     #[doc(hidden)]
-    pub fn decode_for_restore(source: ComBox<serialization::IDeserializerAbi>, limits: Limits) -> Result<Self, NcStatus> {
-        let mut reader = serialization::Deserializer::for_restore(source.as_com_ref(), limits.binary);
+    pub fn decode_for_restore(mut source: ComBox<serialization::IDeserializerAbi>, limits: Limits) -> Result<Self, NcStatus> {
+        let mut reader = serialization::Deserializer::for_restore(source.as_com_mut(), limits.binary);
         let mut budget = RestoreBudget {
             remaining: limits.objects,
             depth: limits.depth,

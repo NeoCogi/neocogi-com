@@ -19,6 +19,11 @@ pub fn is_bundled_module(name: &str) -> bool {
     name == LANGUAGE_MODULE
 }
 
+/// Recognizes the declaration already selected by lexical binding.
+pub(crate) fn is_optional_declaration(module: &crate::ModuleName, name: &str) -> bool {
+    name == "Option" && module.segments().iter().map(String::as_str).eq(LANGUAGE_MODULE.split('.'))
+}
+
 /// Creates the one diagnostic for an authored claim on the bundled module.
 pub(crate) fn reserved_owner_diagnostic() -> crate::Diagnostic {
     crate::Diagnostic::new("EIDL067", "neocogi.lang is reserved for the bundled IDL library")
@@ -102,6 +107,7 @@ fn references(ty: &IdlType, name: &str, shadowed: bool, prelude: &mut Option<Sou
         | IdlType::ComBox(value)
         | IdlType::WeakComBox(value)
         | IdlType::Borrowed(value)
+        | IdlType::BorrowedMut(value)
         | IdlType::Vector(value)
         | IdlType::UnsizedSlice(value)
         | IdlType::Slice(value)

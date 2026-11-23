@@ -1,6 +1,8 @@
 #[allow(unused_imports, unused_macros)]
-mod test_contracts { include!(env!("NC_COM_TEST_CONTRACTS")); }
-use neocogi_com_sdk::{ComPtr, ComRef, NcStatus};
+mod test_contracts {
+    include!(env!("NC_COM_TEST_CONTRACTS"));
+}
+use neocogi_com_sdk::{ComMut, ComPtr, ComRef, NcStatus};
 
 extern crate self as fixture_ui_interface_inherited_lookup;
 test_contracts::ui_interface_inherited_lookup!();
@@ -8,7 +10,7 @@ test_contracts::ui_interface_inherited_lookup!();
 /// Type-checks every canonical call shape without importing an extension trait.
 fn call_owned_and_borrowed(
     mut owned: ComPtr<IDerivedLookupAbi>,
-    mut borrowed: ComRef<'_, IDerivedLookupAbi>,
+    mut borrowed: ComMut<'_, IDerivedLookupAbi>,
     source: ComRef<'_, IBaseLookupAbi>,
 ) -> Result<ComPtr<IBaseLookupAbi>, NcStatus> {
     // `ComPtr` lends the derived wrapper, whose Deref chain supplies the base
@@ -16,9 +18,8 @@ fn call_owned_and_borrowed(
     let owned_value = owned.value()?;
     owned.set_value(owned_value)?;
 
-    // `ComRef` lends the same wrapper hierarchy without acquiring ownership or
-    // requiring a second generated calling trait.
-    let borrowed_value = borrowed.value()?;
+    // Both loans use the same wrapper hierarchy and handle method lookup.
+    let borrowed_value = borrowed.as_com_ref().value()?;
     borrowed.set_value(borrowed_value)?;
     // The final call covers checked borrowed arguments and owned COM returns.
     borrowed.echo(source)

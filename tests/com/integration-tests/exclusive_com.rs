@@ -139,7 +139,7 @@ fn container_owner_destruction_expires_all_cached_interfaces() {
     assert_eq!(drops.load(Ordering::SeqCst), 1);
     assert_eq!(weak.value(), Err(NC_E_DROPPED));
     assert_eq!(weak.set(10), Err(NC_E_DROPPED));
-    assert_eq!(weak.as_com_ref().value(), Err(NC_E_DROPPED));
+    assert_eq!(weak.value(), Err(NC_E_DROPPED));
     assert!(identity.same_object(&weak.clone()));
     drop((weak, identity));
     assert_eq!(drops.load(Ordering::SeqCst), 1);
@@ -200,9 +200,7 @@ fn weak_erasure_reprojects_live_and_expired_generated_interfaces() {
 fn borrowed_arguments_and_raw_queries_cannot_create_shared_owners() {
     let owner = Value::into_box(value()).query::<IValueAbi>().unwrap();
     let borrow = owner.as_com_ref();
-    assert!(matches!(borrow.try_add_ref(), Err(NC_E_INVALID_ARG)));
-    assert!(matches!(borrow.downgrade(), Err(NC_E_INVALID_ARG)));
-    let raw = owner.as_raw();
+    let raw = borrow.as_raw();
     let mut out = neocogi_com_sdk::ComRaw::null();
     // SAFETY: exact live common prefix and distinct writable output; the call
     // attempts a prohibited ownership acquisition, never malformed storage.
@@ -211,8 +209,10 @@ fn borrowed_arguments_and_raw_queries_cannot_create_shared_owners() {
         assert_eq!((table.add_ref)(raw.object), 0);
         assert_eq!((table.query_interface)(raw.object, &IValueAbi::INTERFACE_ID, &mut out), NC_E_INVALID_ARG);
         assert!(!out.is_present());
+        let mut weak = neocogi_com_sdk::NcSharedWeakRaw::null();
+        assert_eq!((table.downgrade.unwrap())(raw.object, &mut weak), NC_E_INVALID_ARG);
     }
-    assert_eq!(owner.value(), Ok(42));
+    assert_eq!(borrow.value(), Ok(42));
 }
 
 /// Drop stops new calls, waits for an admitted reader/writer, and destroys the
@@ -255,19 +255,17 @@ fn thread_safe_owner_drop_waits_for_admitted_readers_and_writers() {
     }
 }
 
-/// An ABI argument view retains bookkeeping, not the implementation. Keeping
-/// one across Drop cannot reproduce the old BoxBorrow execution pin.
+/// A cached weak handle keeps bookkeeping alive across synchronous owner Drop.
 #[test]
 fn weak_interface_views_do_not_delay_synchronous_destruction() {
     let state = value();
     let drops = state.drops.clone();
     let owner = Value::into_box(state).query::<IValueAbi>().unwrap();
     let weak = owner.downgrade();
-    let view = weak.as_com_ref();
-    assert_eq!(view.value(), Ok(42));
+    assert_eq!(weak.value(), Ok(42));
     drop(owner);
     assert_eq!(drops.load(Ordering::SeqCst), 1);
-    assert_eq!(view.value(), Err(NC_E_DROPPED));
+    assert_eq!(weak.value(), Err(NC_E_DROPPED));
 }
 
 /// The cached fast path preserves the exclusive method gate across threads.
@@ -700,15 +698,15 @@ fn generic_exclusive_storage_preserves_alignment_and_weak_expiration() {
 fn borrowed_interface_queries_preserve_identity_errors_and_the_call_gate() {
     let local = Value::into_local_box(value());
     let observer = local.downgrade();
-    let owner = local.into_interface::<IValueAbi>().unwrap();
+    let mut owner = local.into_interface::<IValueAbi>().unwrap();
+    let projection = owner.query_ref::<IValueAbi>().unwrap();
+    assert_eq!(projection.as_raw(), owner.as_raw());
+    assert_eq!(projection.value(), Ok(42));
     {
-        let mut projection = owner.query_ref::<IValueAbi>().unwrap();
-        assert_eq!(projection.as_raw(), owner.as_raw());
-        assert_eq!(projection.value(), Ok(42));
-        assert_eq!(projection.set(53), Ok(()));
-        assert_eq!(owner.value(), Ok(53));
-        observer.with(|_| assert_eq!(projection.set(71), Err(NC_E_BUSY))).unwrap();
-        assert!(matches!(projection.try_add_ref(), Err(NC_E_INVALID_ARG)));
+        let mut edit = owner.as_com_mut();
+        assert_eq!(edit.set(53), Ok(()));
+        observer.with(|_| assert_eq!(edit.set(71), Err(NC_E_BUSY))).unwrap();
+        let projection = edit.as_com_ref();
         std::thread::scope(|scope| {
             scope.spawn(|| assert_eq!(projection.value(), Ok(53))).join().unwrap();
         });

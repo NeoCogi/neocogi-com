@@ -1,8 +1,11 @@
 //! Cross-module name resolution, ABI validation, and canonical identities.
 
 mod bind;
+#[cfg(test)]
+mod call_slots_tests;
 use crate::ParseError;
 use crate::binding::{Binding, DeclarationKey, Intrinsic};
+use crate::model::{ParameterPassing, ReturnPassing, ReturnProjection};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     fmt,
@@ -447,6 +450,7 @@ fn validate_closed_argument(graph: &ResolvedModules, ty: &IdlType, span: &Source
             Ok(())
         }
         IdlType::Borrowed(value)
+        | IdlType::BorrowedMut(value)
         | IdlType::Vector(value)
         | IdlType::UnsizedSlice(value)
         | IdlType::Slice(value)
@@ -997,6 +1001,7 @@ fn collect_type_references<'a>(ty: &'a IdlType, output: &mut Vec<&'a NamedType>)
         | IdlType::ComBox(_)
         | IdlType::WeakComBox(_)
         | IdlType::Borrowed(_)
+        | IdlType::BorrowedMut(_)
         | IdlType::Vector(_)
         | IdlType::UnsizedSlice(_)
         | IdlType::Slice(_)
@@ -1243,19 +1248,36 @@ fn validate_methods(interface: &crate::Interface, entries: &[ModuleEntry], value
         for parameter in &method.parameters {
             collect_diagnostics(
                 &mut diagnostics,
-                validate_parameter_type(
-                    &parameter.ty,
-                    entries,
-                    values,
-                    &format!("{owner}::{} parameter {}", method.name, parameter.name),
-                    &parameter.span,
-                ),
+                validate_parameter(parameter, entries, values, &format!("{owner}::{} parameter {}", method.name, parameter.name)),
             );
         }
-        collect_diagnostics(
-            &mut diagnostics,
-            validate_output_type(&method.output, entries, values, &format!("{owner}::{} result", method.name), &method.span),
-        );
+        let context = format!("{owner}::{} result", method.name);
+        collect_diagnostics(&mut diagnostics, validate_result(method, entries, values, &context));
+        let consumes_owner = method.parameters.iter().any(|parameter| parameter.passing == ParameterPassing::ConsumingBox);
+        if method.return_passing == ReturnPassing::ScopedLoan {
+            let writes_output = method.parameters.iter().any(|parameter| parameter.passing == ParameterPassing::OutputBuffer);
+            if method.receiver != crate::Receiver::Shared || consumes_owner || writes_output {
+                collect_diagnostics(
+                    &mut diagnostics,
+                    Err(source_error(
+                        "EIDL062",
+                        &method.span,
+                        format!("{context}: a scoped result requires &self without consuming inputs or writable buffers"),
+                        "unsupported scoped call",
+                    )),
+                );
+            }
+        } else if method.return_projection == ReturnProjection::Direct && consumes_owner {
+            collect_diagnostics(
+                &mut diagnostics,
+                Err(source_error(
+                    "EIDL062",
+                    &method.span,
+                    format!("{context}: a consuming input requires an explicit Result"),
+                    "Result returns the original owner if transport or application rejects the call",
+                )),
+            );
+        }
     }
     if diagnostics.is_empty() {
         Ok(())
@@ -1343,7 +1365,7 @@ fn validate_field_form(ty: &IdlType, context: &str, span: &SourceSpan) -> Result
             format!("{context}: exclusive owners are method transfers, not repeatable fields"),
             "use an explicit owning object contract instead of a repeatable value codec",
         )),
-        IdlType::Borrowed(_) | IdlType::Slice(_) | IdlType::UnsizedSlice(_) | IdlType::OutputSlice(_) => Err(source_error(
+        IdlType::Borrowed(_) | IdlType::BorrowedMut(_) | IdlType::Slice(_) | IdlType::UnsizedSlice(_) | IdlType::OutputSlice(_) => Err(source_error(
             "EIDL060",
             span,
             format!("{context} requires an owned field"),
@@ -1383,17 +1405,19 @@ fn validate_field_type(ty: &IdlType, entries: &[ModuleEntry], context: &str, spa
             }
         }
         IdlType::Array { element, .. } | IdlType::Vector(element) => validate_field_type(element, entries, context, span),
-        IdlType::Borrowed(_) | IdlType::Slice(_) | IdlType::UnsizedSlice(_) | IdlType::OutputSlice(_) => unreachable!("field form already rejected"),
+        IdlType::Borrowed(_) | IdlType::BorrowedMut(_) | IdlType::Slice(_) | IdlType::UnsizedSlice(_) | IdlType::OutputSlice(_) => {
+            unreachable!("field form already rejected")
+        }
     }
 }
 
-/// Checks the referent kind of an explicit owner without treating it as stored data.
+/// Checks an explicit owner or loan target without treating it as stored data.
 fn validate_object_target(ty: &IdlType, entries: &[ModuleEntry], context: &str, span: &SourceSpan) -> Result<(), ResolutionError> {
     if let IdlType::Named(name) = ty {
         if builtin_object(name).is_some() {
             return Ok(());
         }
-        if resolve_named(name, entries)?.kind == SymbolKind::Interface {
+        if !name.is_str() && resolve_named(name, entries)?.kind == SymbolKind::Interface {
             return Ok(());
         }
     }
@@ -1401,7 +1425,7 @@ fn validate_object_target(ty: &IdlType, entries: &[ModuleEntry], context: &str, 
         "EIDL060",
         span,
         format!("{context}: COM references require a closed interface contract"),
-        "invalid owned-reference target",
+        "invalid interface target",
     ))
 }
 
@@ -1521,7 +1545,7 @@ fn resolve_value_graph(entries: &[ModuleEntry], admitted: &HashMap<String, Canon
             }
             IdlType::Vector(value) => V::Sequence(Box::new(field(value, entries)?)),
             IdlType::Array { element, len } => V::Array(Box::new(field(element, entries)?), *len),
-            IdlType::Borrowed(_) | IdlType::Slice(_) | IdlType::OutputSlice(_) | IdlType::UnsizedSlice(_) => V::Unit,
+            IdlType::Borrowed(_) | IdlType::BorrowedMut(_) | IdlType::Slice(_) | IdlType::OutputSlice(_) | IdlType::UnsizedSlice(_) => V::Unit,
         })
     }
     let mut graph = crate::ValueGraph::default();
@@ -1583,93 +1607,92 @@ fn validate_value_type(ty: &IdlType, entries: &[ModuleEntry], values: &crate::Va
     }
 }
 
-/// Validates an input without allowing implicit COM ownership transfer.
-fn validate_parameter_type(ty: &IdlType, entries: &[ModuleEntry], values: &crate::ValueGraph, context: &str, span: &SourceSpan) -> Result<(), ResolutionError> {
-    let span = type_span(ty).unwrap_or(span);
-    if let IdlType::Borrowed(referent) = ty {
-        if let IdlType::Named(name) = referent.as_ref() {
-            if builtin_object(name).is_some() {
-                return Ok(());
-            }
+/// Validates the payload using its already selected directional passing contract.
+fn validate_parameter(parameter: &crate::Parameter, entries: &[ModuleEntry], values: &crate::ValueGraph, context: &str) -> Result<(), ResolutionError> {
+    let ty = &parameter.ty;
+    let payload = parameter.payload();
+    let span = type_span(ty).unwrap_or(&parameter.span);
+    match parameter.passing {
+        ParameterPassing::SharedLoan { optional: true } | ParameterPassing::MutableLoan | ParameterPassing::ConsumingBox => {
+            validate_object_target(payload, entries, context, span)
         }
-    }
-    match ty {
-        IdlType::ComBox(value) => validate_object_target(value, entries, context, span),
-        IdlType::WeakComBox(_) => Err(source_error(
-            "EIDL061",
-            span,
-            format!("{context}: weak box inputs must use a live interface borrow"),
-            "unsupported ownership transfer",
-        )),
-        IdlType::WeakComPtr(_) | IdlType::ComPtr(_) | IdlType::Unit | IdlType::String | IdlType::Vector(_) | IdlType::UnsizedSlice(_) => Err(source_error(
-            "EIDL061",
-            span,
-            format!("{context} has no valid input ownership"),
-            "invalid parameter type",
-        )),
-        IdlType::Scalar(_) => Ok(()),
-        IdlType::Named(name) => match resolve_named_or_str(name, entries)? {
-            ResolvedName::Symbol(symbol) if symbol.kind == SymbolKind::Value => validate_value_type(ty, entries, values, context, span),
-            ResolvedName::Symbol(symbol) => Err(kind_mismatch_error(
-                symbol,
-                entries,
-                span,
-                format!("{context} must borrow interface values with &"),
-                format!("{} values require an explicit borrow", symbol.kind.description()),
-                "borrow the object type with `&`",
-            )),
-            ResolvedName::Str => Err(source_error(
-                "EIDL061",
-                span,
-                format!("{context} must borrow str as &str"),
-                "unsized string parameter",
-            )),
-        },
-        IdlType::Borrowed(referent) => match referent.as_ref() {
+        ParameterPassing::SharedLoan { optional: false } | ParameterPassing::BorrowedText | ParameterPassing::BorrowedValue => Ok(()),
+        ParameterPassing::InputBuffer | ParameterPassing::OutputBuffer => validate_value_type(payload, entries, values, context, span),
+        ParameterPassing::Copied => match ty {
             IdlType::Named(name) => match resolve_named_or_str(name, entries)? {
-                ResolvedName::Str => Ok(()),
-                ResolvedName::Symbol(symbol) if symbol.kind != SymbolKind::Value => Ok(()),
-                ResolvedName::Symbol(_) => Ok(()),
+                ResolvedName::Symbol(symbol) if symbol.kind == SymbolKind::Value => validate_value_type(ty, entries, values, context, span),
+                ResolvedName::Symbol(symbol) => Err(kind_mismatch_error(
+                    symbol,
+                    entries,
+                    span,
+                    format!("{context} must borrow interface values with &"),
+                    format!("{} values require an explicit borrow", symbol.kind.description()),
+                    "borrow the object type with `&`",
+                )),
+                ResolvedName::Str => Err(source_error(
+                    "EIDL061",
+                    span,
+                    format!("{context} must borrow str as &str"),
+                    "unsized string parameter",
+                )),
             },
-            _ => Err(source_error(
-                "EIDL061",
-                span,
-                format!("{context} has an unsupported borrowed type"),
-                "unsupported borrow",
-            )),
+            _ => validate_value_type(ty, entries, values, context, span),
         },
-        IdlType::Slice(element) | IdlType::OutputSlice(element) => validate_value_type(element, entries, values, context, span),
-        IdlType::Array { .. } => validate_value_type(ty, entries, values, context, span),
+        ParameterPassing::Invalid => {
+            let (message, label) = match ty {
+                IdlType::WeakComBox(_) => (
+                    format!("{context}: weak box inputs must use a live interface borrow"),
+                    "unsupported ownership transfer",
+                ),
+                IdlType::Borrowed(_) => (format!("{context} has an unsupported borrowed type"), "unsupported borrow"),
+                _ => (format!("{context} has no valid input ownership"), "invalid parameter type"),
+            };
+            Err(source_error("EIDL061", span, message, label))
+        }
+        ParameterPassing::Unresolved => unreachable!("closed parameters have a passing classification"),
     }
 }
 
-/// Validates outputs with explicit object ownership and copied-value semantics.
-fn validate_output_type(ty: &IdlType, entries: &[ModuleEntry], values: &crate::ValueGraph, context: &str, span: &SourceSpan) -> Result<(), ResolutionError> {
-    let span = type_span(ty).unwrap_or(span);
-    match ty {
-        IdlType::Unit | IdlType::Scalar(_) => Ok(()),
-        IdlType::ComPtr(value) | IdlType::WeakComPtr(value) | IdlType::ComBox(value) | IdlType::WeakComBox(value) => {
-            validate_object_target(value, entries, context, span)
+/// Validates result payload and the initial direct Rust projection forms.
+fn validate_result(method: &Method, entries: &[ModuleEntry], values: &crate::ValueGraph, context: &str) -> Result<(), ResolutionError> {
+    let ty = &method.output;
+    let span = type_span(ty).unwrap_or(&method.span);
+    if method.return_projection == ReturnProjection::Direct
+        && !matches!(
+            method.return_passing,
+            ReturnPassing::Unit | ReturnPassing::SharedOwner { optional: true } | ReturnPassing::ScopedLoan
+        )
+    {
+        return Err(source_error(
+            "EIDL062",
+            span,
+            format!("{context}: a direct return must be unit, Option<ComPtr<I>>, or Option<&I>"),
+            "wrap other supported results in Result",
+        ));
+    }
+    match method.return_passing {
+        ReturnPassing::Unit => Ok(()),
+        ReturnPassing::Copied => validate_value_type(ty, entries, values, context, span),
+        ReturnPassing::SharedOwner { .. }
+        | ReturnPassing::BoxOwner
+        | ReturnPassing::BoxObserver
+        | ReturnPassing::SharedObserver
+        | ReturnPassing::ScopedLoan => validate_object_target(method.return_payload(), entries, context, span),
+        ReturnPassing::Invalid => {
+            let (message, label) = match ty {
+                IdlType::String => (
+                    format!("{context}: return ComPtr<INcString> for an owned COM string"),
+                    "owned String values cannot escape a call-scoped wire guard",
+                ),
+                IdlType::Vector(_) => (
+                    format!("{context} cannot transfer an owned collection through a call-scoped wire guard"),
+                    "use an explicit COM collection contract or a caller-owned output buffer",
+                ),
+                _ => (format!("{context} cannot return a borrowed value"), "borrowed return type"),
+            };
+            Err(source_error("EIDL062", span, message, label))
         }
-        IdlType::Named(_) | IdlType::Array { .. } => validate_value_type(ty, entries, values, context, span),
-        IdlType::String => Err(source_error(
-            "EIDL062",
-            span,
-            format!("{context}: return ComPtr<INcString> for an owned COM string"),
-            "owned String values cannot escape a call-scoped wire guard",
-        )),
-        IdlType::Vector(_) => Err(source_error(
-            "EIDL062",
-            span,
-            format!("{context} cannot transfer an owned collection through a call-scoped wire guard"),
-            "use an explicit COM collection contract or a caller-owned output buffer",
-        )),
-        IdlType::Borrowed(_) | IdlType::Slice(_) | IdlType::OutputSlice(_) | IdlType::UnsizedSlice(_) => Err(source_error(
-            "EIDL062",
-            span,
-            format!("{context} cannot return a borrowed value"),
-            "borrowed return type",
-        )),
+        ReturnPassing::Unresolved => unreachable!("closed results have a passing classification"),
     }
 }
 
@@ -1773,15 +1796,15 @@ fn fingerprint_modules(entries: &[ModuleEntry]) -> Result<Vec<ContractDigests>, 
 /// This compiler/build-time encoding revision is independent of runtime and
 /// plugin descriptor discovery ABI v4. Documentation checks use this same prefix;
 /// changing source provenance or Cargo name mangling must not change its bytes.
-/// Revision 14 removes authored declaration versions from every contract.
-pub const MODULE_ABI_ENCODING_DOMAIN: &[u8] = b"neocogi-idl:module-abi:v14\0";
+/// Revision 15 distinguishes callable interface loans and optional owner or scoped results.
+pub const MODULE_ABI_ENCODING_DOMAIN: &[u8] = b"neocogi-idl:module-abi:v15\0";
 
 /// Encodes the native contract and its Rust-only projection in canonical order.
 fn encode_module(index: usize, entries: &[ModuleEntry], dependencies: &[(usize, ContractDigests)]) -> Result<ContractDigests, ResolutionError> {
     let entry = &entries[index];
     let mut encoder = CanonicalEncoder::new();
     let mut projections = Vec::new();
-    // Templates and concrete declarations share this v14 encoding, including
+    // Templates and concrete declarations share this encoding, including
     // ordinary type dependencies and authored policies. Build/debug locations are absent.
     encoder.bytes(MODULE_ABI_ENCODING_DOMAIN);
     encoder.guid(entry.module_id);
@@ -1828,7 +1851,8 @@ fn encode_module(index: usize, entries: &[ModuleEntry], dependencies: &[(usize, 
 fn encode_rust_projections(declaration: &Declaration, tags: &mut Vec<u8>) {
     if let DeclarationKind::Interface(interface) = &declaration.kind {
         tags.extend(interface.methods.iter().map(|method| match method.return_projection {
-            crate::ReturnProjection::Fallible => 0,
+            ReturnProjection::Fallible => 0,
+            ReturnProjection::Direct => 1,
         }));
     }
 }
@@ -2004,9 +2028,30 @@ fn encode_methods(
         encoder.u32(u32_len(method.parameters.len(), &entries[scope.module].name, "parameter count")?);
         for parameter in &method.parameters {
             encoder.text(&parameter.name, &entries[scope.module].name)?;
-            encode_type(scope, &parameter.ty, entries, encoder)?;
+            let passing = match parameter.passing {
+                ParameterPassing::SharedLoan { optional: false } => Some(TypeTag::SharedLoan),
+                ParameterPassing::SharedLoan { optional: true } => Some(TypeTag::OptionalSharedLoan),
+                ParameterPassing::MutableLoan => Some(TypeTag::MutableLoan),
+                _ => None,
+            };
+            if let Some(passing) = passing {
+                encoder.type_tag(passing);
+                encode_type(scope, parameter.payload(), entries, encoder)?;
+            } else {
+                encode_type(scope, &parameter.ty, entries, encoder)?;
+            }
         }
-        encode_type(scope, &method.output, entries, encoder)?;
+        let passing = match method.return_passing {
+            ReturnPassing::SharedOwner { optional: true } => Some(TypeTag::OptionalSharedOwner),
+            ReturnPassing::ScopedLoan => Some(TypeTag::ScopedLoan),
+            _ => None,
+        };
+        if let Some(passing) = passing {
+            encoder.type_tag(passing);
+            encode_type(scope, method.return_payload(), entries, encoder)?;
+        } else {
+            encode_type(scope, &method.output, entries, encoder)?;
+        }
     }
     Ok(())
 }
@@ -2046,8 +2091,20 @@ enum TypeTag {
     OutputSlice = 14,
     /// Shared weak control token.
     WeakComPtr = 15,
-    /// Bound template parameter followed by its u32 ordinal; never an output type.
+    /// Bound template parameter followed by its u32 ordinal.
     Parameter = 16,
+    /// An unresolved mutable borrow in an open type expression.
+    BorrowedMut = 17,
+    /// A required, shared-only interface input.
+    SharedLoan = 18,
+    /// A nullable, shared-only interface input.
+    OptionalSharedLoan = 19,
+    /// A required, mutable interface input.
+    MutableLoan = 20,
+    /// A nullable shared-owner out-pair.
+    OptionalSharedOwner = 21,
+    /// A nullable shared loan delivered by synchronous continuation.
+    ScopedLoan = 22,
 }
 
 /// Encodes one recursively structured ABI type.
@@ -2082,6 +2139,10 @@ fn encode_type(scope: EncodingScope<'_>, ty: &IdlType, entries: &[ModuleEntry], 
         },
         IdlType::Borrowed(referent) => {
             encoder.type_tag(TypeTag::Borrowed);
+            encode_type(scope, referent, entries, encoder)?;
+        }
+        IdlType::BorrowedMut(referent) => {
+            encoder.type_tag(TypeTag::BorrowedMut);
             encode_type(scope, referent, entries, encoder)?;
         }
         IdlType::Slice(element) => {
@@ -2337,6 +2398,7 @@ fn type_span(ty: &IdlType) -> Option<&SourceSpan> {
         | IdlType::ComBox(value)
         | IdlType::WeakComBox(value)
         | IdlType::Borrowed(value)
+        | IdlType::BorrowedMut(value)
         | IdlType::Vector(value)
         | IdlType::UnsizedSlice(value)
         | IdlType::Slice(value)
@@ -2491,6 +2553,7 @@ mod reference_encoding_tests {
             (IdlType::OutputSlice(unit()), 14),
             (IdlType::WeakComPtr(unit()), 15),
             (named(Binding::Parameter { position: 0 }), 16),
+            (IdlType::BorrowedMut(unit()), 17),
         ];
         let mut prefixes = std::collections::BTreeSet::new();
         for (ty, expected) in alternatives {

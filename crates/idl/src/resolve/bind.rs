@@ -39,6 +39,7 @@ fn bind_type(index: usize, parameters: &[String], ty: &mut IdlType, entries: &[M
         | IdlType::ComBox(value)
         | IdlType::WeakComBox(value)
         | IdlType::Borrowed(value)
+        | IdlType::BorrowedMut(value)
         | IdlType::Vector(value)
         | IdlType::UnsizedSlice(value)
         | IdlType::Slice(value)

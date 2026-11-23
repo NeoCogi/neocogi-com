@@ -212,8 +212,8 @@ fn logical_paths_quote_ambiguous_literal_field_names() {
         for present in [false, true] {
             let limits = Limits { depth: 1, ..Limits::default() };
             let bounded = Format::new(neocogi_com_serialization::json::factory(), limits);
-            let source = bounded.deserializer(if present { document.as_bytes() } else { b"{}" }).unwrap();
-            let mut view = source.as_com_ref();
+            let mut source = bounded.deserializer(if present { document.as_bytes() } else { b"{}" }).unwrap();
+            let mut view = source.as_com_mut();
             view.enter_value().unwrap();
             assert_eq!(view.begin_record(1), Ok(u32::from(present)));
             assert_eq!(view.field(key), Ok(present));
@@ -225,7 +225,7 @@ fn logical_paths_quote_ambiguous_literal_field_names() {
             assert_eq!(error, if present { neocogi_com_sdk::NC_E_OUT_OF_RANGE } else { NC_E_INVALID_ARG });
             let first = Error::capture(error, &source);
             assert_eq!(first.path, path);
-            assert_eq!(view.finish(), Err(error));
+            assert_eq!(source.finish(), Err(error));
             assert_eq!(Error::capture(error, &source), first);
         }
     }

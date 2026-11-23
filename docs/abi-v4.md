@@ -36,14 +36,14 @@ Opening an image may still execute its initializers and descriptor getter.
 | Runtime ABI | NC_COM_RUNTIME_ABI_VERSION == 4; supplied immutable host-service family |
 | Plugin descriptor ABI | NC_PLUGIN_DESCRIPTOR_ABI_VERSION == 4; nc_get_plugin_descriptor_v4 and its prefix |
 | Interface contract | IID plus exact 32-byte ABI signature; checked independently of core admission |
-| IDL fingerprint encoding | MODULE_ABI_ENCODING_DOMAIN; canonical encoding v14 remains unchanged |
+| IDL fingerprint encoding | MODULE_ABI_ENCODING_DOMAIN; canonical encoding v15 with directional callable slots |
 | NCB format | Version 1; independent of live object ownership and lifetime layout |
 
 Live method/vtable dispatch, shared-query ownership transfer, checked recursive
 value wires, caller-owned persistence contexts and the separate service tables
-retain their existing roles. IDL schemas, interface GUIDs/digest bytes, NCB-v1
-documents and explicit serialization-provider selection are unchanged by this
-discovery and persistence revision. No Rust trait object, container layout, application value
+retain their existing roles. Interface GUIDs remain nominal. V15 updates exact
+interface signatures to cover the native passing contracts. NCB-v1 documents
+and explicit serialization-provider selection keep their contracts. No Rust trait object, container layout, application value
 or unwinding crosses a C boundary. The application links one host owner and
 supplies its tables through nested plugins.
 
@@ -93,6 +93,39 @@ Safe owners, borrows, and their optional forms occupy two pointer words.
 The implementation's private `NonNullComRaw<T>` checks only presence of the pair;
 its name grants no live-value, ownership, interface-identity or threading proof.
 Those obligations remain with handle construction and provider call admission.
+
+### Directional interface slots
+
+A successful required shared-owner result transfers one reference in the
+caller's out-pair. An optional shared-owner result uses the same layout and
+transfers a reference only when both words are present. The all-null pair
+denotes successful absence. The caller validates shape and identity before
+adopting the transfer. A negative status leaves the out slot unread and
+transfers no reference. A present but mismatched shared transfer releases its
+reference using the supplied common table.
+
+A required shared input lends a live object/table pair for the call. Optional
+shared input also accepts the all-null pair. A mutable input requires a live
+mutable lender and permits mutable receiver dispatch. These are distinct
+passing modes even though each uses the same by-value layout.
+
+A scoped result replaces the out slot with a caller context and function
+pointer equivalent to `void (*visit)(void *context, NcRawInterface loan)`.
+A null function is rejected before entering the provider. A successful method
+calls the continuation exactly once, synchronously on the calling thread,
+including when the pair is all-null. A failed method calls it zero times.
+A present loan remains valid under the provider's shared receiver guard through
+the callback. The provider uses the continuation and context only before it
+returns. The callback uses a present pair only during its delivery.
+The Rust helper validates the pair and runs the user visitor only for a valid
+present loan. Missing or repeated delivery, or a failure after delivery, is a
+protocol error. The helper's higher-ranked callback prevents the interface loan
+from escaping. Delivery preserves the usual reentrant read/write admission.
+
+Unit returns use the status-only slot. Direct and `Result` Rust projections for
+the same native slot have the same ABI signature. A direct optional caller
+projects checked failure to `None`; a direct unit caller discards checked status.
+`Result` callers retain exact call errors, including `NC_E_DROPPED`.
 
 Tables have the common prefix above. A derived table can embed its first base's
 full method table at offset zero. All nested prefixes advertise the actual
@@ -162,11 +195,14 @@ describes their scope.
 `QueryInterface` matches both GUID and ABI signature. A GUID collision or a
 stale binding therefore cannot silently produce a typed pointer. A successful
 query returns one owned reference. `ComPtr` calls `AddRef` on clone and
-`Release` on drop; `ComRef` is borrowed and changes no count.
+`Release` on drop. A live lender supplies `ComRef` for shared methods or
+`ComMut` from a mutable lender borrow. Both loans leave reference counts
+unchanged. A mutable loan can be moved and may lend a shared reborrow.
 
-`Result<(), NcStatus>` lowers to a status-only call. Other successful results
-use an output pointer that remains unwritten on failure. Expected failures must
-be negative `NcStatus` values. Panics must not cross an `extern "C"` boundary.
+A unit method uses a status-only slot. A scoped getter uses a synchronous
+continuation. Other successful results use an output pointer. Expected failures
+return negative `NcStatus` values and leave any output pointer unwritten.
+Panics must not cross an `extern "C"` boundary.
 
 Mutable IDL methods lower from `&mut self`. Generated object storage enforces an
 exclusive call gate and reports conflicting/reentrant access as `NC_E_BUSY`.
@@ -226,7 +262,7 @@ let _ = NcAbiDigest::from_static(&WRONG_WIDTH);
 ## Weak lifetime references
 
 The callback in `IUnknownVTable.downgrade` is optional. When it is absent,
-`ComRef::downgrade` reports `NC_E_NOINTERFACE`. A successful callback transfers
+`ComPtr::downgrade` reports `NC_E_NOINTERFACE`. A successful callback transfers
 one retained shared weak token at the canonical allocation address. A failed
 callback clears its output. Handwritten providers opting in implement
 the common header and lifetime protocol, not an opaque Rust Weak token.
@@ -369,10 +405,9 @@ not change the C ABI, interface signatures, storage layout or borrowing behavior
 
 Exclusive objects have one `ComBox` owner and cached `WeakComBox` observers.
 Their shared `AddRef` slot returns zero without retaining; shared query and
-shared weak downgrade reject with `NC_E_INVALID_ARG`. Borrowed references cannot
-silently grant another owner: use fallible `ComRef::try_add_ref` when ownership
-policy is not already proven shared. Consuming exclusive queries preserve the
-one owner; borrowed `query_ref` and weak observation do not duplicate it.
+shared weak downgrade reject with `NC_E_INVALID_ARG`. Shared and mutable loans
+grant method access. Consuming exclusive queries preserve the one owner, and
+`query_ref` lends shared access for the owner's borrow.
 Consuming `WeakComBox::into_unknown` selects canonical IUnknown and moves the
 existing weak token without a retain/release pair. It works live or expired and
 at the weak counter limit; borrowed weak queries still retain a new observer.
@@ -416,12 +451,11 @@ T drops a weak-to-self field. The last external weak reference frees allocation
 storage through the original provider and never drops T again. Provider code and
 metadata must remain loaded until that final weak release.
 
-An exclusive weak handle's `as_com_ref` borrows retained interface storage,
-not T. Each method still acquires its own checked access, so keeping an ABI
-argument view cannot prolong the value's lifetime. Liveness and idle observations
-are snapshots, never access permission. Cached interface queries can inspect
-retained class metadata after value destruction. No weak reference upgrades to
-an exclusive owner. Shared weak handles instead use `upgrade()` to acquire a
+An exclusive weak handle retains interface storage. Each method acquires
+checked access to the value and reports expiration when the owner is gone.
+The live owner can lend a `ComRef` or `ComMut`. Liveness and idle observations
+are snapshots. Cached interface queries can inspect retained class metadata
+after value destruction. Shared weak handles use `upgrade()` to acquire a
 shared strong reference.
 
 An executing method must not destroy its own owner, directly or by removing an
@@ -512,9 +546,8 @@ The ABI exposes thread-local and thread-safe object capabilities. The raw
 pointer representation is identical; the typed pointer marker retains the
 producer's promise after the concrete implementation type is erased.
 
-- `ComPtr<T, ThreadLocal>` and `ComRef<T, ThreadLocal>` are neither `Send` nor
-  `Sync`.
-- `ComPtr<T, ThreadSafe>` and `ComRef<T, ThreadSafe>` are `Send + Sync`.
+- `ComPtr`, `ComRef` and `ComMut` with `ThreadLocal` are thread-affine.
+- The same handles with `ThreadSafe` are `Send + Sync`.
 - weakening thread-safe to thread-local is safe; upgrading is not.
 
 Generated thread-safe implementations require their private Rust value to be
@@ -1141,9 +1174,8 @@ Supplying a provider later permits retry using the same live context.
 The explicit application dependency introduced in COM `0.3.0` changed deployment
 requirements from `0.2.0`, whose host embedded NCB. That provider-selection change
 retained ABI v2/core generation 19. The shared persistence input contract uses
-ABI v4/core generation 22;
-provider selection, interface signatures, IDL encoding v14 and NCB-v1 bytes remain
-unchanged. An incompatible change to a frozen layout, callback or guaranteed
+ABI v4/core generation 22. Provider selection and NCB-v1 bytes keep their
+existing contracts. An incompatible change to a frozen layout, callback or guaranteed
 calling/ownership behavior must advance its applicable compatibility authority
 before old callers can invoke it.
 

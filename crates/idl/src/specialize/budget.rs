@@ -233,6 +233,7 @@ impl Budget {
             | IdlType::ComBox(child)
             | IdlType::WeakComBox(child)
             | IdlType::Borrowed(child)
+            | IdlType::BorrowedMut(child)
             | IdlType::Vector(child)
             | IdlType::UnsizedSlice(child)
             | IdlType::Slice(child)
@@ -331,12 +332,13 @@ impl Budget {
                     parameters,
                     output,
                     return_projection: _,
+                    return_passing: _,
                 } in methods
                 {
                     self.enter(at, span)?;
                     self.metadata(source, docs, name, span)?;
                     self.elements::<crate::Parameter>(parameters.len(), span)?;
-                    for crate::Parameter { span: source, name, ty } in parameters {
+                    for crate::Parameter { span: source, name, ty, passing: _ } in parameters {
                         self.span(source, span)?;
                         self.allocate(name.len(), span)?;
                         self.ty(ty, at.child(), span, true)?;

@@ -48,7 +48,7 @@ struct Output {
 
 /// Calls a real scoped COM vtable, then recovers its observations after borrowing.
 fn decode<T: ComDeserialize>(bytes: Vec<u8>, stage: Stage) -> (Result<T, NcStatus>, FaultSource) {
-    let scoped = ScopedComProvider::new(FaultSource::new(bytes, stage));
+    let mut scoped = ScopedComProvider::new(FaultSource::new(bytes, stage));
     let result = {
         // SAFETY: the generated scoped table matches this exact provider type.
         let interface = unsafe { scoped.interface(&ScopedDeserializer::<FaultSource>::VTABLE) };
@@ -187,13 +187,13 @@ fn defaulted_record_completion_reports_the_enclosing_json_path() {
         Settings { enabled: false, count: 7 }
     );
 
-    let source = format.deserializer(br#"{"rogue":true}"#).unwrap();
-    let status = Deserializer::new(source.as_com_ref()).deserialize::<Settings>().unwrap_err();
+    let mut source = format.deserializer(br#"{"rogue":true}"#).unwrap();
+    let status = Deserializer::new(source.as_com_mut()).deserialize::<Settings>().unwrap_err();
     let error = Error::capture(status, &source);
     assert_eq!(error.status, NC_E_INVALID_ARG);
     assert!(error.message.starts_with("unknown or unconsumed record fields"), "{}", error.message);
     assert_eq!(error.path, "$");
-    assert_eq!(source.as_com_ref().finish(), Err(status));
+    assert_eq!(source.as_com_mut().finish(), Err(status));
     assert_eq!(Error::capture(status, &source), error);
 
     let nested = format.deserialize::<Nested>(br#"{"outer":[{"rogue":true}]}"#).unwrap_err();
@@ -243,21 +243,21 @@ fn json_container_errors_keep_real_paths_and_child_entry_keeps_attempted_index()
     let duplicate = format.deserialize::<BTreeMap<u32, u32>>(br#"{"$map":[[1,2],[1,3]]}"#).unwrap_err();
     assert_eq!(duplicate.message, "duplicate map key");
     assert_eq!(duplicate.path, "$");
-    let source = format.deserializer(b"[]").unwrap();
-    source.as_com_ref().enter_value().unwrap();
-    assert_eq!(source.as_com_ref().begin_sequence().unwrap(), 0);
-    let status = source.as_com_ref().enter_value().unwrap_err();
+    let mut source = format.deserializer(b"[]").unwrap();
+    source.as_com_mut().enter_value().unwrap();
+    assert_eq!(source.as_com_mut().begin_sequence().unwrap(), 0);
+    let status = source.as_com_mut().enter_value().unwrap_err();
     let error = Error::capture(status, &source);
     assert_eq!(error.path, "$[0]");
-    assert_eq!(source.as_com_ref().finish(), Err(status));
+    assert_eq!(source.as_com_mut().finish(), Err(status));
     assert_eq!(Error::capture(status, &source), error);
     // Schema failure after field selection keeps that field's real name.
-    let source = format.deserializer(br#"{"items":[]}"#).unwrap();
-    source.as_com_ref().enter_value().unwrap();
-    assert_eq!(source.as_com_ref().begin_record(1).unwrap(), 1);
-    assert!(source.as_com_ref().field(neocogi_com_sdk::NcCopyFromBufferOffset::new(0, b"items")).unwrap());
+    let mut source = format.deserializer(br#"{"items":[]}"#).unwrap();
+    source.as_com_mut().enter_value().unwrap();
+    assert_eq!(source.as_com_mut().begin_record(1).unwrap(), 1);
+    assert!(source.as_com_mut().field(neocogi_com_sdk::NcCopyFromBufferOffset::new(0, b"items")).unwrap());
     let status = source
-        .as_com_ref()
+        .as_com_mut()
         .fail(neocogi_com_sdk::NcCopyFromBufferOffset::new(0, b"invalid selected field"))
         .unwrap_err();
     assert_eq!(Error::capture(status, &source).path, "$.items");

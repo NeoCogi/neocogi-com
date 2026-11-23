@@ -59,7 +59,7 @@ fn weak_tokens_do_not_retain_values_and_all_projections_share_identity() {
     assert!(!derived.as_com_ref().same_object(unrelated.as_com_ref()));
     drop(unrelated);
     let weak_root = owner.downgrade().unwrap();
-    let weak_derived = derived.as_com_ref().downgrade().unwrap();
+    let weak_derived = derived.downgrade().unwrap();
     let weak_base = base.downgrade().unwrap();
     assert!(weak_root.same_object(&weak_derived));
     assert!(weak_base.same_object(&weak_derived));

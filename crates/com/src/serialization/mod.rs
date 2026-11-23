@@ -52,10 +52,9 @@ impl Format {
     }
     /// Writes a complete typed document and copies its committed bytes locally.
     pub fn serialize<T: crate::ComSerialize + ?Sized>(&self, value: &T) -> Result<crate::__alloc::vec::Vec<u8>, Error> {
-        let writer = self.serializer()?;
-        Serializer::new(writer.as_com_ref())
-            .serialize(value)
-            .map_err(|status| Error::capture(status, &writer))?;
+        let mut writer = self.serializer()?;
+        let result = Serializer::new(writer.as_com_mut()).serialize(value);
+        result.map_err(|status| Error::capture(status, &writer))?;
         let output = writer.query_ref::<ISerializationOutputAbi>()?;
         let len = usize::try_from(output.byte_len()?).map_err(|_| crate::NC_E_OUT_OF_RANGE)?;
         if len > self.limits.bytes {
@@ -70,9 +69,8 @@ impl Format {
     }
     /// Constructs a typed value and rejects trailing input before returning it.
     pub fn deserialize<T: crate::ComDeserialize>(&self, bytes: &[u8]) -> Result<T, Error> {
-        let reader = self.deserializer(bytes)?;
-        Deserializer::with_limits(reader.as_com_ref(), self.limits)
-            .deserialize()
-            .map_err(|status| Error::capture(status, &reader))
+        let mut reader = self.deserializer(bytes)?;
+        let result = Deserializer::with_limits(reader.as_com_mut(), self.limits).deserialize();
+        result.map_err(|status| Error::capture(status, &reader))
     }
 }

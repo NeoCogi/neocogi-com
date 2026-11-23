@@ -682,8 +682,8 @@ mod tests {
     use neocogi_com_sdk::serialization::{scope::ScopedComProvider, ISerializerAbi, ScopedSerializer};
 
     /// Calls the generated scoped deserializer and recovers the private cursor.
-    fn decode_scoped<'a>(bytes: &'a [u8], call: impl FnOnce(neocogi_com_sdk::ComRef<'_, neocogi_com_sdk::serialization::IDeserializerAbi>)) -> Decoder<'a> {
-        let scope = ScopedComProvider::new(Decoder::borrowed(bytes, Limits::default()).unwrap());
+    fn decode_scoped<'a>(bytes: &'a [u8], call: impl FnOnce(neocogi_com_sdk::ComMut<'_, neocogi_com_sdk::serialization::IDeserializerAbi>)) -> Decoder<'a> {
+        let mut scope = ScopedComProvider::new(Decoder::borrowed(bytes, Limits::default()).unwrap());
         // SAFETY: the generated table matches this exact retained decoder scope.
         let view = unsafe { scope.interface(&neocogi_com_sdk::serialization::ScopedDeserializer::<Decoder<'_>>::VTABLE) };
         call(view);
@@ -693,7 +693,7 @@ mod tests {
     /// The real scoped prefix rejects out-of-phase byte reads before cursor movement.
     #[test]
     fn wrong_phase_byte_operations_preserve_the_cursor_and_first_failure() {
-        type Call = fn(&mut neocogi_com_sdk::ComRef<'_, neocogi_com_sdk::serialization::IDeserializerAbi>) -> Result<(), NcStatus>;
+        type Call = fn(&mut neocogi_com_sdk::ComMut<'_, neocogi_com_sdk::serialization::IDeserializerAbi>) -> Result<(), NcStatus>;
         let calls: [Call; 7] = [
             |view| view.deserialize_u8().map(|_| ()),
             |view| view.option_present().map(|_| ()),
@@ -840,12 +840,14 @@ mod tests {
     /// Borrowed scopes cannot acquire ownership or weak references and obey their ABI gate.
     #[test]
     fn scoped_capabilities_reject_retention_and_reentrant_mutation() {
-        let scope = ScopedComProvider::new(writer());
+        let mut scope = ScopedComProvider::new(writer());
         // SAFETY: generated adapters use exactly this ScopedComProvider<Encoder> type.
-        let mut interface: neocogi_com_sdk::ComRef<'_, ISerializerAbi> = unsafe { scope.interface(&ScopedSerializer::<Encoder<'_>>::VTABLE) };
-        assert_eq!(interface.try_add_ref().unwrap_err(), neocogi_com_sdk::NC_E_INVALID_ARG);
-        assert_eq!(interface.downgrade().unwrap_err(), neocogi_com_sdk::NC_E_NOINTERFACE);
+        let mut interface: neocogi_com_sdk::ComMut<'_, ISerializerAbi> = unsafe { scope.interface(&ScopedSerializer::<Encoder<'_>>::VTABLE) };
         let raw = interface.as_raw();
+        // SAFETY: This is the scope's exact table and the loan retains its storage.
+        let prefix = unsafe { &(*raw.vtable).unknown };
+        assert_eq!(unsafe { (prefix.add_ref)(raw.object) }, 0);
+        assert!(prefix.downgrade.is_none());
         let mut output = raw.cast::<neocogi_com_sdk::IUnknown>();
         // SAFETY: the live capability and a real writable output slot meet the raw contract.
         let status = unsafe { ((*raw.vtable).unknown.query_interface)(raw.object, &neocogi_com_sdk::IUnknown::INTERFACE_ID, &mut output) };
@@ -862,9 +864,9 @@ mod tests {
     /// ABI validation rejects malformed readable values before entering or poisoning the format.
     #[test]
     fn malformed_bool_wire_is_rejected_before_provider_state_changes() {
-        let scope = ScopedComProvider::new(writer());
+        let mut scope = ScopedComProvider::new(writer());
         // SAFETY: the exact generated table lends this retained scope's state.
-        let mut interface: neocogi_com_sdk::ComRef<'_, ISerializerAbi> = unsafe { scope.interface(&ScopedSerializer::<Encoder<'_>>::VTABLE) };
+        let mut interface: neocogi_com_sdk::ComMut<'_, ISerializerAbi> = unsafe { scope.interface(&ScopedSerializer::<Encoder<'_>>::VTABLE) };
         let raw = interface.as_raw();
         // SAFETY: only the scalar wire is malformed; the object/table pair is real and live.
         assert_eq!(unsafe { ((*raw.vtable).serialize_bool)(raw.object, 2) }, neocogi_com_sdk::NC_E_INVALID_ARG);

@@ -9,7 +9,7 @@ The `0.5.0-wip-alpha.1` SDK uses **provisional ABI v4/core generation 22**.
 Published 0.3.0 uses ABI v2/core generation 19.
 
 Core defines statuses, GUIDs, exact signatures, typed metadata, raw object/table pairs
-and vtables, `IUnknown`, `ComPtr`, and `ComRef`. `ComInterface` owns identity and
+and vtables, `IUnknown`, `ComPtr`, `ComRef` and `ComMut`. `ComInterface` owns identity and
 the minimum threading promise. Any closed interface can be a plugin root. The
 provider's typed Rust acquisition function supplies its exact contract and
 initializes private object state without separate bootstrap or role traits.
@@ -74,6 +74,8 @@ selects the common table prefix without acquiring that interface's own table.
 | `ComPtr<T, ThreadSafe>` | Yes | Yes |
 | `ComRef<'a, T, ThreadLocal>` | No | No |
 | `ComRef<'a, T, ThreadSafe>` | No | Yes |
+| `ComMut<'a, T, ThreadLocal>` | No | No |
+| `ComMut<'a, T, ThreadSafe>` | No | Yes |
 
 The interface states a minimum promise; a particular implementation may support
 a stronger capability. Pointer markers preserve that implementation guarantee.

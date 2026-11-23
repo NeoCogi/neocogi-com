@@ -19,6 +19,8 @@ pub struct AbiMethod {
     pub args: Vec<AbiArg>,
     /// Successful payload; failure is always represented by `NcStatus`.
     pub ok: AbiReturn,
+    /// Rust projection of the raw call status, independent of the C slot.
+    pub projection: crate::ReturnProjection,
 }
 
 /// Borrowing mode declared by one COM method receiver.
@@ -74,8 +76,10 @@ pub enum AbiArgKind {
         /// Application element converted into each fresh output slot.
         element_ty: Box<Type>,
     },
-    /// Required call-scoped interface lowered to its raw object/table pair.
+    /// Call-scoped interface lowered to its raw object/table pair.
     ComRef {
+        /// Access and presence promised by this borrowed input.
+        access: InterfaceBorrow,
         /// Generated ABI interface type borrowed by the parameter.
         interface_ty: Box<Type>,
         /// Optional explicit `ThreadLocal` or `ThreadSafe` marker.
@@ -83,9 +87,20 @@ pub enum AbiArgKind {
     },
 }
 
+/// The live interface loan permitted by an input slot.
+#[derive(Clone, Copy)]
+pub enum InterfaceBorrow {
+    /// Required shared access.
+    Shared,
+    /// Shared access or canonical absence.
+    OptionalShared,
+    /// Required exclusive access, supplied by a live mutable lender.
+    Mutable,
+}
+
 /// Successful method return and its ABI lowering.
 pub struct AbiReturn {
-    /// Success type appearing in the source-level `Result`.
+    /// Success type exposed directly or through the authored `Result`.
     pub rust_ty: Type,
     /// Raw output-pointee type, or unit for a status-only method.
     pub abi_ty: Type,
@@ -95,12 +110,21 @@ pub struct AbiReturn {
 
 /// Ownership/passing rule selected for a successful return.
 pub enum AbiReturnKind {
-    /// Status-only `Result<(), NcStatus>` with no output pointer.
+    /// Status-only completion with no output pointer.
     Void,
     /// ABI-safe value returned through an output pointer.
     Plain,
+    /// Optional shared interface loan delivered under the receiver's read guard.
+    ScopedLoan {
+        /// Exact generated interface marker lent to the scoped visitor.
+        interface_ty: Box<Type>,
+        /// Threading guarantee of the declared result.
+        mode_ty: Option<Box<Type>>,
+    },
     /// Owned interface reference transferred through an output pointer.
     ComPtr {
+        /// A both-null pair represents successful absence for an optional shared owner.
+        optional: bool,
         /// Distinguishes shared owners, unique owners, and weak control tokens.
         ownership: InterfaceOwnership,
         /// Generated ABI interface type transferred to the caller.

@@ -49,7 +49,8 @@
 //! gate. Interface projections share its object address and use static tables.
 //!
 //! [`ComPtr`] owns a shared reference; [`ComBox`] owns the sole exclusive token.
-//! [`ComRef`] lends a call-scoped interface. [`WeakComPtr`] promotes to shared
+//! [`ComRef`] lends shared method access, and [`ComMut`] lends mutable method access.
+//! [`WeakComPtr`] promotes to shared
 //! ownership, whereas [`WeakComBox`] observes an exclusive object's liveness
 //! and enters its checked call gate without making another owner. `&mut self`
 //! methods require exclusive call admission; conflicts report [`NC_E_BUSY`].
@@ -135,9 +136,10 @@ pub use neocogi_com_macros::{ComDeserialize, ComSerialize, com_object, com_main,
 #[cfg(feature = "alloc")]
 pub use neocogi_com::{format_abi_signature, format_method_signature};
 pub use neocogi_com::{
-    __nc_abi_plain_type, __nc_abi_type, AbiPlainValue, AbiType, ComRustInterface, ComDeserialize, ComSerialize, ComInterface, ComPtr, ComRaw, ComRef,
+    __nc_abi_plain_type, __nc_abi_type, AbiPlainValue, AbiType, ComRustInterface, ComDeserialize, ComSerialize, ComInterface, ComMut, ComPtr, ComRaw, ComRef,
     ComInterfacePointer, IID_INC_BYTES, IID_INC_STRING, IID_IUNKNOWN, INcBytesAbi, INcBytesVTable, INcStringAbi, INcStringVTable, IUNKNOWN_INTERFACE_ID,
     IUNKNOWN_QUALIFIED_NAME, IUnknown, IUnknownVTable, NC_ABI_PASSING_COM_PTR_OUT, NC_ABI_PASSING_COM_BOX_IN, NC_ABI_PASSING_COM_BOX_OUT,
+    NC_ABI_PASSING_COM_MUT, NC_ABI_PASSING_OPTIONAL_COM_PTR_OUT, NC_ABI_PASSING_OPTIONAL_COM_REF, NC_ABI_PASSING_SCOPED_COM_REF_OUT,
     NC_ABI_PASSING_WEAK_COM_BOX_OUT, NC_ABI_PASSING_WEAK_COM_PTR_OUT, NC_ABI_PASSING_COM_REF, NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET,
     NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET, NC_ABI_PASSING_OUTPUT_BUFFER, NC_ABI_PASSING_OUT, NC_ABI_PASSING_BORROWED_VALUE, NC_ABI_PASSING_VALUE,
     NC_ABI_PASSING_VOID, NC_ABI_RECEIVER_MUTABLE, NC_ABI_RECEIVER_SHARED, NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE, NC_ABI_TYPE_AGGREGATE,
@@ -195,3 +197,6 @@ pub use neocogi_com::{EncodedInput, DecodedInput};
 pub use neocogi_com::{NcOutput, NcOutputWriter, PreparedOutput};
 #[cfg(feature = "alloc")]
 pub use neocogi_com::NcOutputBuffer;
+
+#[doc(hidden)]
+pub use neocogi_com::{NcScopedResultCallback, __nc_with_scoped_result};

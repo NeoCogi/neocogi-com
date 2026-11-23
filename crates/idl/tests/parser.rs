@@ -738,15 +738,18 @@ fn enforces_rust_identifier_conventions() {
     }
 }
 
-/// Confirms mutable borrows cannot imply mutable access to foreign objects.
+/// Mutable interface parameters use the ordinary bounded type grammar.
 #[test]
-fn rejects_mutable_object_borrows() {
-    let error = parse_module(
+fn parses_mutable_object_borrows() {
+    let module = parse_module(
         Path::new("neocogi/ui.ncidl"),
         "interface IWidget {} interface Factory { fn edit(&self, value: &mut IWidget) -> Result<()>; }",
     )
-    .unwrap_err();
-    assert!(error.to_string().contains("must use `&mut [T]`"));
+    .unwrap();
+    let DeclarationKind::Interface(factory) = &module.declaration("Factory").unwrap().kind else {
+        panic!("interface");
+    };
+    assert!(matches!(factory.methods[0].parameters[0].ty, IdlType::BorrowedMut(_)));
 }
 
 /// Confirms visibility syntax cannot enter a contract accidentally.

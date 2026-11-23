@@ -89,8 +89,9 @@ drop(owner);
 assert!(!observed.is_alive());
 ```
 
-Generated `ComPtr<IFooAbi>` and `ComRef<'_, IFooAbi>` lend one `IFooWrapper` method
-view, so calls use `pointer.method()` without an interface-specific trait import.
+Owners and loans use one generated `IFooWrapper` method view. A live owner's
+`as_com_ref()` lends shared methods, and `as_com_mut()` lends mutable methods.
+Both use `pointer.method()` without an interface-specific trait import.
 Derived wrappers lend their physical base wrapper for inherited lookup. Owned
 base projections require checked `QueryInterface`.
 
@@ -105,7 +106,7 @@ construct. Handwritten helpers such as `ComStringExt::to_string` remain
 separate because they add bounded copying, allocation, and UTF-8 validation
 rather than duplicate a generated interface method.
 These shared objects contain state, lifetime counters, and one call-borrow guard;
-interfaces add no fields to each allocation. `ComPtr` and `ComRef` carry
+interfaces add no fields to each allocation. Owners and live loans carry
 `{object, interface_vtable}` (16 bytes on 64-bit targets), while raw calls use
 `ComRaw<T>`. Query changes the table and preserves the object address. Methods
 receive that address directly: there are no embedded headers or owner offsets.
@@ -177,8 +178,8 @@ These values remain usable independently of subsequent catalog lookups.
 - Methods return `Result<T, NcStatus>`; `Result<()>` is the status-only form.
 - Mutable operations use `&mut self` and the generated exclusive call gate.
 - Use fixed-width ABI values and generated records/enums.
-- Use `ComRef<'_, IFooAbi>` for borrowed interface parameters and
-  `ComPtr<IFooAbi>` for owned interface returns.
+- Use `ComRef<'_, IFooAbi>` for shared loans, `ComMut<'_, IFooAbi>` for mutable
+  loans, and `ComPtr<IFooAbi>` for shared-owner returns.
 - Use bounded copy views for call-scoped buffers and COM objects such as
   `INcStringAbi` or `INcBytesAbi` for owned variable-size data.
 - Never expose Rust trait objects, `String`, `Vec<T>`, slices, arbitrary

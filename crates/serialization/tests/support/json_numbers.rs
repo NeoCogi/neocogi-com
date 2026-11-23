@@ -68,26 +68,25 @@ pub fn assert_json_numbers(format: &Format) {
 
     // No raw caller input is retained: mutate and drop it before acquiring values.
     let mut input = br#"{"values":[1.0000000596046448,-0],"wide":1e100}"#.to_vec();
-    let source = format.deserializer(&input).unwrap();
+    let mut source = format.deserializer(&input).unwrap();
     input.fill(b'x');
     drop(input);
-    let value = Deserializer::new(source.as_com_ref()).deserialize::<Numbers>().unwrap();
+    let value = Deserializer::new(source.as_com_mut()).deserialize::<Numbers>().unwrap();
     assert_eq!(value.values.iter().map(|v| v.to_bits()).collect::<Vec<_>>(), [0x3f800001, 0x80000000]);
     assert_eq!(value.wide, 1e100);
 
     // f32 overflow is admitted syntax. Its first typed failure stays immutable
     // across closing/reentry attempts and read-only diagnostic projections.
-    let source = format.deserializer(br#"{"values":[1e100],"wide":1}"#).unwrap();
-    let details = source.query_ref::<ISerializationDiagnosticsAbi>().unwrap();
-    assert!(details.failure_status().is_err());
-    let status = Deserializer::new(source.as_com_ref()).deserialize::<Numbers>().unwrap_err();
+    let mut source = format.deserializer(br#"{"values":[1e100],"wide":1}"#).unwrap();
+    assert!(source.query_ref::<ISerializationDiagnosticsAbi>().unwrap().failure_status().is_err());
+    let status = Deserializer::new(source.as_com_mut()).deserialize::<Numbers>().unwrap_err();
     assert_eq!(status, NC_E_OUT_OF_RANGE);
     let first = Error::capture(status, &source);
     assert_eq!(first.path, "$.values[0]");
     assert!(first.message.contains("f32"));
-    assert_eq!(source.as_com_ref().finish(), Err(status));
-    assert_eq!(source.as_com_ref().enter_value(), Err(status));
-    assert_eq!(details.failure_status().unwrap(), status);
+    assert_eq!(source.as_com_mut().finish(), Err(status));
+    assert_eq!(source.as_com_mut().enter_value(), Err(status));
+    assert_eq!(source.query_ref::<ISerializationDiagnosticsAbi>().unwrap().failure_status().unwrap(), status);
     assert_eq!(Error::capture(status, &source), first);
 
     for text in [b"1e9999".as_slice(), b"18446744073709551616", b"-9223372036854775809"] {

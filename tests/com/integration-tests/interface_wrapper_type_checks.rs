@@ -40,7 +40,7 @@ fn interface_wrappers_cannot_replace_pointer_pair() {
             format!(
                 r#"
             #![allow(dead_code)]
-            use neocogi_com_sdk::{{ComPtr,ComRef,ComBox,WeakComBox,ThreadSafe}};
+            use neocogi_com_sdk::{{ComPtr,ComRef,ComMut,ComBox,WeakComBox,ThreadSafe}};
             mod abi {{ include!(concat!(env!("OUT_DIR"),"/bindings.rs")); {body} }}
         "#
             ),
@@ -58,7 +58,13 @@ fn interface_wrappers_cannot_replace_pointer_pair() {
     };
     let positive = check(
         r#"
-        fn calls(owner: &mut super::ComPtr<IDerivedAbi>) { let _=owner.value(); let _=owner.close(); }
+        fn calls(owner: &mut super::ComPtr<IDerivedAbi>) {
+            let _ = owner.value();
+            let _ = owner.close();
+            let mut loan = owner.as_com_mut();
+            let _ = loan.as_com_ref().value();
+            let _ = loan.close();
+        }
         fn valid_swap(a: &mut super::ComPtr<IDerivedAbi>, b: &mut super::ComPtr<IDerivedAbi>) { std::mem::swap(a,b); }
         fn shared<T: ?Sized+Send+Sync>() {}
         fn reference_proof() { shared::<ISharedWrapper<super::ThreadSafe>>(); }
@@ -68,11 +74,11 @@ fn interface_wrappers_cannot_replace_pointer_pair() {
     for (label, body) in [
         (
             "owner/borrow",
-            "fn swap(a:&mut super::ComPtr<IDerivedAbi>,b:&mut super::ComRef<'_,IDerivedAbi>){std::mem::swap(&mut **a,&mut **b);}",
+            "fn swap(a:&mut super::ComPtr<IDerivedAbi>,b:&mut super::ComMut<'_,IDerivedAbi>){std::mem::swap(&mut **a,&mut **b);}",
         ),
         (
             "independent lenders",
-            "fn swap<'a,'b>(a:&mut super::ComRef<'a,IDerivedAbi>,b:&mut super::ComRef<'b,IDerivedAbi>){std::mem::swap(&mut **a,&mut **b);}",
+            "fn swap<'a,'b>(a:&mut super::ComMut<'a,IDerivedAbi>,b:&mut super::ComMut<'b,IDerivedAbi>){std::mem::swap(&mut **a,&mut **b);}",
         ),
         (
             "exclusive/observer",
@@ -91,6 +97,42 @@ fn interface_wrappers_cannot_replace_pointer_pair() {
         let error = String::from_utf8_lossy(&output.stderr);
         assert!(!output.status.success(), "{label} replaced a borrowed capability");
         assert!(error.contains("error[E0277]") && error.contains("[()]"), "{label}: {error}");
+    }
+    for (label, body, diagnostic) in [
+        (
+            "inherited write through shared loan",
+            "fn write(owner: &super::ComPtr<IDerivedAbi>) { let mut loan = owner.as_com_ref(); let _ = loan.close(); }",
+            "E0596",
+        ),
+        (
+            "generic retain through shared loan",
+            "fn retain(loan: super::ComRef<'_, IDerivedAbi>) { let _ = loan.try_add_ref(); }",
+            "E0599",
+        ),
+        (
+            "generic downgrade through shared loan",
+            "fn observe(loan: super::ComRef<'_, IDerivedAbi>) { let _ = loan.downgrade(); }",
+            "E0599",
+        ),
+        (
+            "weak-to-live conversion",
+            "fn lend(weak: &super::WeakComBox<IDerivedAbi>) { let _ = weak.as_com_ref(); }",
+            "E0599",
+        ),
+        (
+            "copy of mutable loan",
+            "fn copy(loan: super::ComMut<'_, IDerivedAbi>) { let first = loan; let second = loan; let _ = (first,second); }",
+            "E0382",
+        ),
+        (
+            "a second mutable loan from the same lender",
+            "fn lend(owner: &mut super::ComPtr<IDerivedAbi>) { let a = owner.as_com_mut(); let b = owner.as_com_mut(); let _ = (a,b); }",
+            "E0499",
+        ),
+    ] {
+        let output = check(body);
+        let error = String::from_utf8_lossy(&output.stderr);
+        assert!(!output.status.success() && error.contains(diagnostic), "{label}: {error}");
     }
     let output = check("fn send<T:?Sized+Send>(){} fn sync<T:?Sized+Sync>(){} fn local(){send::<IDerivedWrapper>();sync::<IDerivedWrapper>();}");
     let errors = String::from_utf8_lossy(&output.stderr);

@@ -65,7 +65,8 @@ let status = ((*handle.vtable).set_text)(handle.object, text_wire);
 ```
 
 `ComPtr<T, M>` owns one reference; cloning acquires one and dropping releases one.
-`ComRef<'a, T, M>` borrows the same pair, with no implicit retain/release. The
+`ComRef<'a, T, M>` lends shared methods and `ComMut<'a, T, M>` lends mutable
+methods from a live lender. Both use the same pair without retain or release. The
 reference count stays once in the allocation, never inside either handle.
 Threading markers retain their previous meaning. There is no `Any` downcast,
 Rust trait object, or runtime lookup of the concrete Rust type.

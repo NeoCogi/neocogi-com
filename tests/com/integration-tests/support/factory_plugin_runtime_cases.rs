@@ -7,7 +7,7 @@ pub mod example { include!(env!("IDL_EXAMPLE_BINDINGS")); include!(concat!(env!(
 extern crate self as fixture_factory_plugin_runtime;
 test_contracts::factory_plugin_runtime!();
 
-use neocogi_com_sdk::{ComPtr, NcStatus, com_object, guid_from_qualified_name};
+use neocogi_com_sdk::{ComPtr, ComRef, ComStringExt, INcStringAbi, NcString, NcStatus, com_object, guid_from_qualified_name};
 use crate::example::{ExampleFactory, ExampleFactoryAbi, ExampleObject, ExampleObjectAbi, Extent, IMeasured};
 
 /// Private mutable implementation of the constructor-free IDL class.
@@ -17,6 +17,8 @@ struct ExampleObjectImplementation {
     extent: Extent,
     /// The constructor supplies the sole receiver, retained as private producer state.
     events: example::notifications::ExtentDelivery,
+    /// Caption owned by the provider, excluded from persistent dimensions.
+    caption: Option<ComPtr<INcStringAbi>>,
 }
 
 impl IMeasured for ExampleObjectImplementation {
@@ -35,6 +37,17 @@ impl IMeasured for ExampleObjectImplementation {
 }
 
 impl ExampleObject for ExampleObjectImplementation {
+    /// Lends the optional provider-owned text under the receiver's read guard.
+    fn caption(&self) -> Option<ComRef<'_, INcStringAbi>> {
+        self.caption.as_ref().map(ComPtr::as_com_ref)
+    }
+
+    /// Copies a caption through the read-only interface into private storage.
+    fn set_caption(&mut self, caption: Option<ComRef<'_, INcStringAbi>>) -> Result<(), NcStatus> {
+        self.caption = caption.map(|text| text.to_string()).transpose()?.map(|text| NcString::from_utf8_str(&text));
+        Ok(())
+    }
+
     /// Replaces dimensions through the generated exclusive `&mut self` call.
     fn resize(&mut self, extent: Extent) -> Result<(), NcStatus> {
         self.extent = extent;
@@ -57,6 +70,7 @@ impl ExampleFactory for ExampleFactoryImplementation {
         let local = ExampleObjectImplementation::into_local(ExampleObjectImplementation {
             extent,
             events: example::notifications::ExtentDelivery::Unobserved,
+            caption: None,
         });
         let origin = local.query::<ExampleObjectAbi>()?.downgrade()?;
         local.try_borrow_mut()?.events = example::notifications::ExtentDelivery::new(binding, origin);

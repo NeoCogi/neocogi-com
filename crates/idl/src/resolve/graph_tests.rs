@@ -57,11 +57,11 @@ fn assert_same_identities(first: &ResolvedModules, second: &ResolvedModules) {
     }
 }
 
-/// Frozen with the recursive resolver before this traversal change. A diamond,
-/// an unused external edge and a disconnected component retain exact digest bytes,
+/// Canonical v15 digests for a diamond, an unused external edge and a
+/// disconnected component,
 /// including canonical ordering when source dependency/input order differs.
 #[test]
-fn authored_graph_fingerprints_match_the_previous_encoding() {
+fn authored_graph_fingerprints_match_the_current_encoding() {
     let mut modules = [
         ("proof/leaf.ncidl", "struct Value { value: u32 }"),
         ("proof/left.ncidl", "extern proof.leaf; struct Left { value: u8 }"),
@@ -77,11 +77,11 @@ fn authored_graph_fingerprints_match_the_previous_encoding() {
     let reversed = resolve_modules(modules).unwrap();
     assert_same_identities(&first, &reversed);
     for (name, expected) in [
-        ("proof.idle", "386a227802b7203725e79d6d746bba833e15ab04ff2f5a8490067166a63bd8ef"),
-        ("proof.leaf", "969818735a138aeef7196e447a25c57348622ed4d2e3e3711e35bcafa533bfd2"),
-        ("proof.left", "a9f47eed602f2d8c17171c8236b6c619d0b080d8b2f667ee62a3dd01f463561a"),
-        ("proof.right", "855e7fc0041fc199852d48c4e87d461a60657157131daa207b4a26c45463d2f2"),
-        ("proof.root", "04eec737b7d22c873617f4149541bdbcbe749ab15771845b34feec7314ea084e"),
+        ("proof.idle", "dcaacc3398fb144fcaf70aa1b986053538edb201688d3e9e1f11af92502c55d5"),
+        ("proof.leaf", "e19dcbb12e21022c273f7ce1cbfef28c3c0d24cf797e99fbbed138d6a98c2681"),
+        ("proof.left", "4295302027c6e7c17466f177ec3a67cc11539a0cea11fab8f4be46b4dfd8c9b5"),
+        ("proof.right", "86fef0f479c7db6497778569c19db41779e39a74e0f43bd9dad4f5eb0ddacfe9"),
+        ("proof.root", "955e0163c7fdc01fcaae0687109cf6ac8afb40328b301827caad244a7d2ebce3"),
     ] {
         assert_eq!(first.module(name).unwrap().fingerprint_hex(), expected, "{name}");
     }

@@ -89,6 +89,7 @@ fn ty(text: &mut Text, value: &IdlType, graph: Option<&ResolvedModules>) -> fmt:
         IdlType::ComBox(child) => ("ComBox<", child, ">"),
         IdlType::WeakComBox(child) => ("WeakComBox<", child, ">"),
         IdlType::Borrowed(child) => ("&", child, ""),
+        IdlType::BorrowedMut(child) => ("&mut ", child, ""),
         IdlType::Vector(child) => ("Vec<", child, ">"),
         IdlType::UnsizedSlice(child) | IdlType::Slice(child) => ("&[", child, "]"),
         IdlType::OutputSlice(child) => ("&mut [", child, "]"),

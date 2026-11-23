@@ -7,7 +7,7 @@
 
 /// Names occupied by supported method-bearing COM handles and their helper traits.
 ///
-/// This is the union for `ComPtr`, `ComRef`, `ComBox` and `WeakComBox`, plus native
+/// This is the union for `ComPtr`, `ComRef`, `ComMut`, `ComBox` and `WeakComBox`, plus native
 /// lifecycle slots. It includes default `Clone::clone_from`; associated functions
 /// without a receiver do not shadow wrapper method lookup. New public receiver
 /// helpers must extend this inventory. Standard-prelude blanket methods are part
@@ -29,6 +29,7 @@ pub const NC_COM_HANDLE_METHOD_NAMES: &[&str] = &[
     "as_raw",
     "into_raw",
     "as_com_ref",
+    "as_com_mut",
     "query",
     "query_ref",
     "query_weak",
@@ -38,7 +39,6 @@ pub const NC_COM_HANDLE_METHOD_NAMES: &[&str] = &[
     "is_idle",
     "is_alive",
     "same_object",
-    "try_add_ref",
     "into_unknown",
     "into_thread_local",
     "as_thread_local_ref",
@@ -77,7 +77,7 @@ mod tests {
                 let syn::Item::Impl(item) = item else { continue };
                 let syn::Type::Path(ty) = &*item.self_ty else { continue };
                 let name = ty.path.segments.last().unwrap().ident.to_string();
-                if !matches!(name.as_str(), "ComPtr" | "ComRef" | "ComBox" | "WeakComBox") {
+                if !matches!(name.as_str(), "ComPtr" | "ComRef" | "ComMut" | "ComBox" | "WeakComBox") {
                     continue;
                 }
                 for member in item.items {

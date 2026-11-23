@@ -48,7 +48,7 @@ fn option_is_an_ordinary_shadowable_library_enum() {
 fn ordinary_optional_payload_rules_apply_at_every_use_site() {
     for source in [
         "struct Invalid { value: Option<&IUnknown> }",
-        "interface Invalid { fn use_it(&self, value: Option<&IUnknown>) -> Result<()>; }",
+        "interface Invalid { fn use_it(&self, value: Option<&mut IUnknown>) -> Result<()>; }",
         "interface Invalid { fn text(&self) -> Result<Option<String>>; }",
         "struct Invalid { child: Option<Invalid> }",
         "struct Invalid { value: Option<Slice<u8>> }",

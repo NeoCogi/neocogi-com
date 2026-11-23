@@ -47,8 +47,8 @@ fn owning_ncb_probes_one_live_variant_frame() {
     }
     let format = binary::format(Limits::default());
     let bytes = format.serialize(&Value::Second(23)).unwrap();
-    let source = format.deserializer(&bytes).unwrap();
-    let mut view = source.as_com_ref();
+    let mut source = format.deserializer(&bytes).unwrap();
+    let mut view = source.as_com_mut();
     view.enter_value().unwrap();
     assert_eq!(view.variant_is(0, NcCopyFromBufferOffset::new(0, b"First")), Ok(false));
     assert_eq!(view.variant_is(1, NcCopyFromBufferOffset::new(0, b"Second")), Ok(true));
@@ -58,37 +58,37 @@ fn owning_ncb_probes_one_live_variant_frame() {
     view.leave_value().unwrap();
     view.finish().unwrap();
 
-    let source = format.deserializer(&format.serialize(&Value::First).unwrap()).unwrap();
+    let mut source = format.deserializer(&format.serialize(&Value::First).unwrap()).unwrap();
     assert_eq!(
-        source.as_com_ref().variant_is(0, NcCopyFromBufferOffset::new(0, b"First")),
+        source.as_com_mut().variant_is(0, NcCopyFromBufferOffset::new(0, b"First")),
         Err(NC_E_INVALID_ARG)
     );
     let failure = Error::capture(NC_E_INVALID_ARG, &source);
     assert_eq!(failure.byte_offset, Some(4));
     assert_eq!(failure.message, "no active value");
-    assert_eq!(source.as_com_ref().enter_value(), Err(NC_E_INVALID_ARG));
+    assert_eq!(source.as_com_mut().enter_value(), Err(NC_E_INVALID_ARG));
     assert_eq!(Error::capture(NC_E_INVALID_ARG, &source), failure);
 }
 
 /// Complete output remains readable after a rejected short-copy operation.
 #[test]
 fn output_is_committed_once_and_session_failures_are_terminal() {
-    let writer = NcbSerializer::create(Limits::default()).unwrap();
-    let output = writer.query_ref::<ISerializationOutputAbi>().unwrap();
-    assert!(output.byte_len().is_err());
-    let mut capability = writer.as_com_ref();
+    let mut writer = NcbSerializer::create(Limits::default()).unwrap();
+    assert!(writer.query_ref::<ISerializationOutputAbi>().unwrap().byte_len().is_err());
+    let mut capability = writer.as_com_mut();
     capability.serialize_u32(7).unwrap();
     capability.finish().unwrap();
     assert_eq!(capability.finish(), Err(NC_E_INVALID_ARG));
     assert_eq!(capability.serialize_u8(3), Err(NC_E_INVALID_ARG));
+    let output = writer.query_ref::<ISerializationOutputAbi>().unwrap();
     let mut short = neocogi_com_sdk::NcOutputBuffer::<u8>::new();
     assert!(output.copy_to(short.output(0, 1)).is_err());
     assert!(short.is_empty());
     let mut full = neocogi_com_sdk::NcOutputBuffer::<u8>::new();
     output.copy_to(full.output(0, output.byte_len().unwrap() as usize)).unwrap();
     assert_eq!(full.as_slice(), binary::to_vec(&7u32).unwrap());
-    let poisoned = NcbSerializer::create(Limits::default()).unwrap();
-    let mut capability = poisoned.as_com_ref();
+    let mut poisoned = NcbSerializer::create(Limits::default()).unwrap();
+    let mut capability = poisoned.as_com_mut();
     capability.begin_sequence(0).unwrap();
     assert_eq!(capability.end_map(), Err(NC_E_INVALID_ARG));
     assert_eq!(capability.end_sequence(), Err(NC_E_INVALID_ARG));
@@ -100,14 +100,14 @@ fn output_is_committed_once_and_session_failures_are_terminal() {
 fn source_owns_input_and_checks_raw_outputs_and_terminal_errors() {
     let format = binary::format(Limits::default());
     let mut bytes = binary::to_vec(&false).unwrap();
-    let source = format.deserializer(&bytes).unwrap();
+    let mut source = format.deserializer(&bytes).unwrap();
     bytes.fill(0xff);
-    assert!(!Deserializer::new(source.as_com_ref()).deserialize::<bool>().unwrap());
-    let mut capability = source.as_com_ref();
+    assert!(!Deserializer::new(source.as_com_mut()).deserialize::<bool>().unwrap());
+    let mut capability = source.as_com_mut();
     assert_eq!(capability.enter_value(), Err(NC_E_INVALID_ARG));
     let invalid = binary::to_vec(&2u8).unwrap();
-    let source = format.deserializer(&invalid).unwrap();
-    let mut capability = source.as_com_ref();
+    let mut source = format.deserializer(&invalid).unwrap();
+    let mut capability = source.as_com_mut();
     capability.enter_value().unwrap();
     let raw = capability.as_raw();
     let mut output = 0xabu8;
@@ -125,8 +125,8 @@ fn source_containers_require_matching_end_calls() {
     let bytes = binary::to_vec(&Vec::<u8>::new()).unwrap();
     for shape in ["record", "sequence", "map"] {
         for close in [false, true] {
-            let source = NcbDeserializer::create(bytes.clone(), Limits::default()).unwrap();
-            let mut capability = source.as_com_ref();
+            let mut source = NcbDeserializer::create(bytes.clone(), Limits::default()).unwrap();
+            let mut capability = source.as_com_mut();
             capability.enter_value().unwrap();
             match shape {
                 "record" => {
@@ -729,17 +729,17 @@ impl ComDeserialize for RejectRead {
 /// Both callback failures preserve the caller's status and make the provider terminal.
 #[test]
 fn value_callback_failures_abort_the_com_session() {
-    let writer = NcbSerializer::create(Limits::default()).unwrap();
-    assert_eq!(Serializer::new(writer.as_com_ref()).serialize(&RejectWrite), Err(neocogi_com_sdk::NC_E_CLOSED));
-    assert_eq!(writer.as_com_ref().finish(), Err(NC_E_INVALID_ARG));
+    let mut writer = NcbSerializer::create(Limits::default()).unwrap();
+    assert_eq!(Serializer::new(writer.as_com_mut()).serialize(&RejectWrite), Err(neocogi_com_sdk::NC_E_CLOSED));
+    assert_eq!(writer.as_com_mut().finish(), Err(NC_E_INVALID_ARG));
     assert!(writer.query_ref::<ISerializationOutputAbi>().unwrap().byte_len().is_err());
-    let reader = NcbDeserializer::create(binary::to_vec(&7u8).unwrap(), Limits::default()).unwrap();
+    let mut reader = NcbDeserializer::create(binary::to_vec(&7u8).unwrap(), Limits::default()).unwrap();
     assert!(matches!(
-        Deserializer::new(reader.as_com_ref()).deserialize::<RejectRead>(),
+        Deserializer::new(reader.as_com_mut()).deserialize::<RejectRead>(),
         Err(neocogi_com_sdk::NC_E_CLOSED)
     ));
-    assert_eq!(reader.as_com_ref().leave_value(), Err(NC_E_INVALID_ARG));
-    assert_eq!(reader.as_com_ref().finish(), Err(NC_E_INVALID_ARG));
+    assert_eq!(reader.as_com_mut().leave_value(), Err(NC_E_INVALID_ARG));
+    assert_eq!(reader.as_com_mut().finish(), Err(NC_E_INVALID_ARG));
 }
 
 /// Per-document limits apply to both owning implementations and their typed frontends.

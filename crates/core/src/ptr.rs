@@ -1,7 +1,7 @@
 //! Owning and borrowed smart pointers for reference-counted COM interfaces.
 //!
 //! [`ComPtr`] models one owned reference and performs `AddRef`/`Release` on
-//! clone/drop, while [`ComRef`] represents a call-scoped borrowed pointer.
+//! clone/drop. [`ComRef`] lends shared method access and [`ComMut`] lends mutable method access.
 //! Threading marker types make the capability carried by each pointer visible
 //! to Rust without changing the underlying C object/table representation.
 //!
@@ -13,10 +13,10 @@
 //! | `ComPtr<T, ThreadSafe>` | Owns one reference; clone calls `AddRef`, drop calls `Release` | Yes | Yes | `into_thread_local` or `as_thread_local_ref` |
 //! | `ComRef<'a, T, ThreadLocal>` | Borrows a reference; copy and drop do not touch the count | No | No | None |
 //! | `ComRef<'a, T, ThreadSafe>` | Borrows a reference; copy and drop do not touch the count | Yes | Yes | `into_thread_local` |
+//! | `ComMut<'a, T, ThreadLocal>` | Mutably borrows a lender; moving and dropping the loan leave the count unchanged | No | No | None |
+//! | `ComMut<'a, T, ThreadSafe>` | Mutably borrows a lender; moving and dropping the loan leave the count unchanged | Yes | Yes | `into_thread_local` |
 //!
-//! [`ComRef::try_add_ref`] is the explicit exception for a borrowed handle: it
-//! calls `AddRef` fallibly and returns an owning [`ComPtr`] with the same threading
-//! marker. [`ComPtr::query`] likewise preserves the source marker because
+//! [`ComPtr::query`] preserves the source marker because
 //! `QueryInterface` selects another interface on the same object; it cannot
 //! strengthen that object's threading guarantee.
 //!
@@ -43,7 +43,7 @@
 //!
 //! - `Send` permits moving an owner to another thread. For [`ComPtr`], this also
 //!   permits the final `Release` and object destruction to happen there.
-//! - `Sync` permits sharing `&ComPtr` or `&ComRef` between threads, so calls may
+//! - `Sync` permits sharing `&ComPtr`, `&ComRef`, or `&ComMut` between threads, so calls may
 //!   occur concurrently through aliases.
 //! - `ThreadLocal` deliberately grants neither permission. Atomic reference
 //!   counting protects only the counter; it does not make methods, contained
@@ -150,9 +150,8 @@ impl<T: ComInterface + ?Sized> NonNullComRaw<T> {
 /// Owning, typed `{ object, interface_vtable }` COM handle.
 ///
 /// Clone acquires one reference and Drop releases one. The count and mutable-call
-/// guard live once in the object, never in each handle. ComRef uses the same pair
-/// with a borrowed lifetime; neither representation uses std::any::Any or a Rust
-/// trait-object vtable. The interface marker and threading mode remain static.
+/// guard live once in the object. Borrowed handles use the same pair with a
+/// lender's lifetime. The interface marker and threading mode remain static.
 ///
 /// # Why two pointers are intentional
 ///
@@ -201,14 +200,11 @@ unsafe impl<T: ComInterface + ?Sized> Send for ComPtr<T, ThreadSafe> {}
 // SAFETY: the same guarantee permits simultaneous calls through shared handles.
 unsafe impl<T: ComInterface + ?Sized> Sync for ComPtr<T, ThreadSafe> {}
 
-/// Borrowed typed object/table pair; copying it neither retains nor releases.
+/// Shared method access to a live COM interface for the lender's lifetime.
 ///
-/// The lifetime ties synchronous calls to retained interface storage. For shared
-/// objects the lender keeps the value alive too; for exclusive objects every
-/// provider entry checks expiration and acquires its own implementation borrow.
-/// A weak lender does not prevent destruction. `try_add_ref` is shared-only.
-/// Exclusive weak identities come from `ComBox` or an existing `WeakComBox`,
-/// whose types establish the ownership model. See ComPtr for the layout.
+/// Copying the view leaves ownership unchanged. Shared owners, boxed owners
+/// and call-scoped providers can all supply a live loan. Calls use the
+/// provider's shared admission to access its implementation.
 ///
 /// ```compile_fail
 /// use neocogi_com::{ComPtr, ComRef, IUnknown};
@@ -236,6 +232,25 @@ unsafe impl<T: ComInterface + ?Sized> Send for ComRef<'_, T, ThreadSafe> {}
 // SAFETY: concurrent access follows that same producer guarantee.
 unsafe impl<T: ComInterface + ?Sized> Sync for ComRef<'_, T, ThreadSafe> {}
 
+/// Mutable method access borrowed from a live COM lender.
+///
+/// This loan can move between calls while it borrows its lender. Aliases can
+/// still have their own handles. The provider's admission gate grants a writer
+/// access to the underlying implementation for each mutable call.
+pub struct ComMut<'a, T: ComInterface + ?Sized, M: ThreadingModel = ThreadLocal> {
+    /// Present pair borrowed for the declared lifetime.
+    raw: NonNullComRaw<T>,
+    /// Binds the loan to the lender's mutable borrow.
+    _interface: PhantomData<&'a mut T>,
+    /// Preserves the lender's threading capability.
+    _mode: PhantomData<M>,
+}
+
+// SAFETY: Construction establishes cross-thread permission for the loan's life.
+unsafe impl<T: ComInterface + ?Sized> Send for ComMut<'_, T, ThreadSafe> {}
+// SAFETY: Shared access to the loan grants only shared method lookup.
+unsafe impl<T: ComInterface + ?Sized> Sync for ComMut<'_, T, ThreadSafe> {}
+
 impl<T: crate::ComRustInterface, M: ThreadingModel> core::ops::Deref for ComPtr<T, M> {
     type Target = T::Wrapper<M>;
     /// Lends a transparent method view over this pair without allocating or retaining.
@@ -259,8 +274,16 @@ impl<T: crate::ComRustInterface, M: ThreadingModel> core::ops::Deref for ComRef<
         T::__nc_wrapper_ref(unsafe { crate::ComInterfacePointer::borrow_pair(&self.raw) })
     }
 }
-impl<T: crate::ComRustInterface, M: ThreadingModel> core::ops::DerefMut for ComRef<'_, T, M> {
-    /// Lends mutable lookup without asserting unique ownership of the COM object.
+impl<T: crate::ComRustInterface, M: ThreadingModel> core::ops::Deref for ComMut<'_, T, M> {
+    type Target = T::Wrapper<M>;
+    /// Lends shared method access while the mutable loan is shared-borrowed.
+    fn deref(&self) -> &Self::Target {
+        // SAFETY: The lender keeps the matching object and table alive.
+        T::__nc_wrapper_ref(unsafe { crate::ComInterfacePointer::borrow_pair(&self.raw) })
+    }
+}
+impl<T: crate::ComRustInterface, M: ThreadingModel> core::ops::DerefMut for ComMut<'_, T, M> {
+    /// Lends mutable lookup while the provider arbitrates aliased calls.
     fn deref_mut(&mut self) -> &mut Self::Target {
         // SAFETY: mutable lookup cannot replace the opaque unsized pair storage.
         T::__nc_wrapper_mut(unsafe { crate::ComInterfacePointer::borrow_pair_mut(&mut self.raw) })
@@ -299,6 +322,20 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> ComPtr<T, M> {
         // SAFETY: validation proved T and the input transfers ownership unchanged.
         unsafe { Self::from_raw_owned(raw) }.ok_or(NC_E_POINTER)
     }
+    /// Checks a nullable shared-owner transfer from a successful ABI call.
+    ///
+    /// # Safety
+    /// A present pair transfers one shared owner under mode M and is releasable
+    /// through its common table even if the interface identity is wrong.
+    #[doc(hidden)]
+    pub unsafe fn __nc_from_raw_optional_owned_checked(raw: ComRaw<T>) -> Result<Option<Self>, NcStatus> {
+        if raw.is_null() {
+            return Ok(None);
+        }
+        // SAFETY: The supplied transfer meets the checked owned result's contract.
+        unsafe { Self::__nc_from_raw_owned_checked(raw) }.map(Some)
+    }
+
     /// Retains a raw borrowed reference and returns a new owning handle.
     ///
     /// # Safety
@@ -343,6 +380,14 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> ComPtr<T, M> {
     /// Borrows a typed view without changing the count.
     pub fn as_com_ref(&self) -> ComRef<'_, T, M> {
         ComRef {
+            raw: self.raw,
+            _interface: PhantomData,
+            _mode: PhantomData,
+        }
+    }
+    /// Mutably borrows this owner for method calls without changing the count.
+    pub fn as_com_mut(&mut self) -> ComMut<'_, T, M> {
+        ComMut {
             raw: self.raw,
             _interface: PhantomData,
             _mode: PhantomData,
@@ -414,7 +459,8 @@ impl<'a, T: ComInterface + ?Sized, M: ThreadingModel> ComRef<'a, T, M> {
     /// Validates an incoming borrowed contract before exposing typed methods.
     ///
     /// # Safety
-    /// Present pairs must have a live common prefix, stay live for 'a, and satisfy M.
+    /// A present pair has a readable common prefix. Its lender keeps the
+    /// implementation value, storage and code live for 'a with threading mode M.
     #[doc(hidden)]
     pub unsafe fn __nc_from_raw_borrowed_checked(raw: ComRaw<T>) -> Result<Self, NcStatus> {
         // SAFETY: the caller supplies readable common storage for the borrow.
@@ -422,13 +468,25 @@ impl<'a, T: ComInterface + ?Sized, M: ThreadingModel> ComRef<'a, T, M> {
         // SAFETY: the validated pair has the exact contract and unchanged lifetime.
         unsafe { Self::from_raw_borrowed(raw) }.ok_or(NC_E_POINTER)
     }
+    /// Checks a nullable shared-method loan from a declared ABI argument.
+    ///
+    /// # Safety
+    /// For a present pair, the caller grants a readable common prefix and
+    /// retains the value, allocation, table and provider code for 'a under M.
+    #[doc(hidden)]
+    pub unsafe fn __nc_from_raw_optional_borrowed_checked(raw: ComRaw<T>) -> Result<Option<Self>, NcStatus> {
+        if raw.is_null() {
+            return Ok(None);
+        }
+        // SAFETY: The caller retains the live lender and matching threading mode.
+        unsafe { Self::__nc_from_raw_borrowed_checked(raw) }.map(Some)
+    }
+
     /// Wraps a borrowed pair without retaining it.
     ///
     /// # Safety
-    /// Present pairs must implement T and retain their header, allocation and
-    /// provider code for 'a while satisfying M. Shared objects require a live
-    /// strong owner; exclusive providers must check their header before every
-    /// implementation access, including calls on expired weak-backed views.
+    /// A present pair must implement T. Its lender keeps the implementation
+    /// value, allocation, table and provider code live for 'a with threading mode M.
     pub unsafe fn from_raw_borrowed(raw: ComRaw<T>) -> Option<Self> {
         Some(Self {
             raw: NonNullComRaw::new(raw)?,
@@ -442,39 +500,9 @@ impl<'a, T: ComInterface + ?Sized, M: ThreadingModel> ComRef<'a, T, M> {
     }
     /// Compares two live capabilities without querying or borrowing object state.
     /// The object/table ABI guarantees one canonical object address across all
-    /// projections. Their lenders retain allocation storage, preventing address reuse
-    /// even when an exclusive value has already been destroyed.
+    /// projections. Both lenders prevent their allocations from being reused.
     pub fn same_object<U: ComInterface + ?Sized, N: ThreadingModel>(&self, other: ComRef<'_, U, N>) -> bool {
         self.raw.object == other.raw.object
-    }
-
-    /// Creates a weak lifetime reference without retaining the object's value.
-    /// Providers without the optional lifetime capability return NC_E_NOINTERFACE.
-    pub fn downgrade(&self) -> Result<crate::WeakComPtr<T, M>, NcStatus> {
-        // SAFETY: self retains/borrows the live source and preserves its capability.
-        let raw = unsafe { crate::weak::downgrade(self.as_raw().cast()) }?;
-        // SAFETY: successful downgrade transfers a token for this exact source.
-        unsafe { crate::WeakComPtr::from_raw_owned(raw) }.ok_or(NC_E_POINTER)
-    }
-
-    /// Acquires shared ownership only when the provider permits it. Exclusive
-    /// objects return NC_E_INVALID_ARG instead of manufacturing another owner.
-    /// A caller already holding ComPtr should clone that proven shared owner.
-    ///
-    /// ```compile_fail
-    /// use neocogi_com::{ComRef, IUnknown};
-    /// fn retain(borrow: ComRef<'_, IUnknown>) { let _owner = borrow.add_ref(); }
-    /// ```
-    pub fn try_add_ref(&self) -> Result<ComPtr<T, M>, NcStatus> {
-        // SAFETY: the borrow keeps the matching pair live through AddRef.
-        if unsafe { raw::add_ref(self.as_raw()) } == 0 {
-            return Err(crate::NC_E_INVALID_ARG);
-        }
-        Ok(ComPtr {
-            raw: self.raw,
-            _interface: PhantomData,
-            _mode: PhantomData,
-        })
     }
 }
 impl<'a, T: ComInterface + ?Sized> ComRef<'a, T, ThreadSafe> {
@@ -493,6 +521,61 @@ impl<'a, T: ComInterface + ?Sized, M: ThreadingModel> From<&'a ComPtr<T, M>> for
         value.as_com_ref()
     }
 }
+impl<'a, T: ComInterface + ?Sized, M: ThreadingModel> ComMut<'a, T, M> {
+    /// Validates a raw mutable loan before exposing typed methods.
+    ///
+    /// # Safety
+    /// A present pair has a readable common prefix. The caller lends the live
+    /// interface with mutable dispatch permission and threading mode M for 'a.
+    #[doc(hidden)]
+    pub unsafe fn __nc_from_raw_borrowed_checked(raw: ComRaw<T>) -> Result<Self, NcStatus> {
+        // SAFETY: The raw caller supplies the readable live common prefix.
+        unsafe { raw::validate_interface(raw) }?;
+        // SAFETY: Validation established the exact interface. The caller
+        // supplies the lifetime and mutable dispatch permission.
+        unsafe { Self::from_raw_borrowed(raw) }.ok_or(NC_E_POINTER)
+    }
+
+    /// Wraps one mutable loan from a live lender.
+    ///
+    /// # Safety
+    /// A present pair implements T. Its lender keeps the implementation value,
+    /// allocation, table and code live for 'a and supplies mutable dispatch
+    /// permission with threading mode M for the duration of the loan.
+    pub(crate) unsafe fn from_raw_borrowed(raw: ComRaw<T>) -> Option<Self> {
+        Some(Self {
+            raw: NonNullComRaw::new(raw)?,
+            _interface: PhantomData,
+            _mode: PhantomData,
+        })
+    }
+
+    /// Lends shared method access for the duration of this shared reborrow.
+    pub fn as_com_ref(&self) -> ComRef<'_, T, M> {
+        ComRef {
+            raw: self.raw,
+            _interface: PhantomData,
+            _mode: PhantomData,
+        }
+    }
+
+    /// Borrows the raw pair without transferring ownership.
+    pub fn as_raw(&self) -> ComRaw<T> {
+        self.raw.as_raw()
+    }
+}
+
+impl<'a, T: ComInterface + ?Sized> ComMut<'a, T, ThreadSafe> {
+    /// Weakens threading permission for the remainder of the mutable loan.
+    pub fn into_thread_local(self) -> ComMut<'a, T, ThreadLocal> {
+        ComMut {
+            raw: self.raw,
+            _interface: PhantomData,
+            _mode: PhantomData,
+        }
+    }
+}
+
 impl<T: ComInterface + ?Sized, M: ThreadingModel> Clone for ComPtr<T, M> {
     /// Acquires one additional allocation-wide reference.
     fn clone(&self) -> Self {
@@ -729,6 +812,59 @@ mod tests {
         assert_eq!(owner.supports_interface_id(&IProbe::INTERFACE_ID), Err(NC_E_INVALID_ARG));
         assert_eq!(destination.references.load(Ordering::Relaxed), 0);
         drop(owner);
+        assert_eq!(source.references.load(Ordering::Relaxed), 0);
+    }
+
+    /// Only canonical absence succeeds without a loan or acquired owner.
+    #[test]
+    fn nullable_loan_and_owner_slots_check_shape() {
+        let mut source = Probe {
+            references: AtomicU32::new(1),
+            destination: core::ptr::null_mut(),
+        };
+        let present = ComRaw::<IUnknown> {
+            object: core::ptr::from_mut(&mut source).cast(),
+            vtable: &TABLE,
+        };
+        let absent = ComRaw::null();
+        // SAFETY: Canonical absence has no backing or ownership obligation.
+        assert!(
+            unsafe { ComRef::<IUnknown>::__nc_from_raw_optional_borrowed_checked(absent) }
+                .unwrap()
+                .is_none()
+        );
+        assert!(unsafe { ComPtr::<IUnknown>::__nc_from_raw_optional_owned_checked(absent) }.unwrap().is_none());
+
+        for half_null in [
+            ComRaw {
+                object: present.object,
+                vtable: core::ptr::null(),
+            },
+            ComRaw {
+                object: core::ptr::null_mut(),
+                vtable: present.vtable,
+            },
+        ] {
+            // SAFETY: Neither checked helper reads pointers from half-null inputs.
+            assert_eq!(
+                unsafe { ComRef::<IUnknown>::__nc_from_raw_optional_borrowed_checked(half_null) }.unwrap_err(),
+                NC_E_POINTER
+            );
+            assert_eq!(
+                unsafe { ComPtr::<IUnknown>::__nc_from_raw_optional_owned_checked(half_null) }.unwrap_err(),
+                NC_E_POINTER
+            );
+        }
+        // SAFETY: The exact stack fixture keeps its value, lifecycle and table live.
+        let borrowed = unsafe { ComRef::<IUnknown>::__nc_from_raw_optional_borrowed_checked(present) }
+            .unwrap()
+            .unwrap();
+        assert_eq!(borrowed.as_raw(), present);
+        assert_eq!(source.references.load(Ordering::Relaxed), 1);
+        // SAFETY: The present pair transfers the fixture's one shared owner.
+        let owned = unsafe { ComPtr::<IUnknown>::__nc_from_raw_optional_owned_checked(present) }.unwrap().unwrap();
+        assert_eq!(owned.as_raw(), present);
+        drop(owned);
         assert_eq!(source.references.load(Ordering::Relaxed), 0);
     }
 

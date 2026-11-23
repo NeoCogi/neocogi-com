@@ -139,8 +139,8 @@ fn fixed_paths_charge_depth_without_refunding_values() {
 fn owning_ncb_admits_exact_protocol_ceiling_and_rejects_the_next_frame() {
     use neocogi_com_sdk::{NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE};
     let format = binary::format(Limits { depth: 200, ..Limits::default() });
-    let writer = format.serializer().unwrap();
-    let mut sink = writer.as_com_ref();
+    let mut writer = format.serializer().unwrap();
+    let mut sink = writer.as_com_mut();
     for _ in 0..127 {
         sink.begin_option(true).unwrap();
     }
@@ -150,8 +150,8 @@ fn owning_ncb_admits_exact_protocol_ceiling_and_rejects_the_next_frame() {
     }
     sink.finish().unwrap();
 
-    let writer = format.serializer().unwrap();
-    let mut sink = writer.as_com_ref();
+    let mut writer = format.serializer().unwrap();
+    let mut sink = writer.as_com_mut();
     for _ in 0..128 {
         sink.begin_option(true).unwrap();
     }
@@ -161,8 +161,8 @@ fn owning_ncb_admits_exact_protocol_ceiling_and_rejects_the_next_frame() {
     let mut document = [1; 4 + 128];
     document[..4].copy_from_slice(b"NCB\x01");
     for present in [127_usize, 128] {
-        let source = format.deserializer(&document[..4 + present]).unwrap();
-        let mut view = source.as_com_ref();
+        let mut source = format.deserializer(&document[..4 + present]).unwrap();
+        let mut view = source.as_com_mut();
         for _ in 0..present {
             view.enter_value().unwrap();
             assert_eq!(view.option_present(), Ok(true));
@@ -182,13 +182,13 @@ fn owning_ncb_admits_exact_protocol_ceiling_and_rejects_the_next_frame() {
 
     for (values, expected) in [(1, NC_E_OUT_OF_RANGE), (2, NC_E_INVALID_ARG)] {
         let bounded = binary::format(Limits { values, ..Limits::default() });
-        let writer = bounded.serializer().unwrap();
-        let mut sink = writer.as_com_ref();
+        let mut writer = bounded.serializer().unwrap();
+        let mut sink = writer.as_com_mut();
         sink.serialize_unit().unwrap();
         assert_eq!(sink.serialize_unit(), Err(expected));
 
-        let source = bounded.deserializer(b"NCB\x01").unwrap();
-        let mut view = source.as_com_ref();
+        let mut source = bounded.deserializer(b"NCB\x01").unwrap();
+        let mut view = source.as_com_mut();
         view.enter_value().unwrap();
         view.deserialize_unit().unwrap();
         view.leave_value().unwrap();

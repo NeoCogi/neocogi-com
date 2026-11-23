@@ -10,6 +10,10 @@ interface IMeasured {
 interface ExampleObject: IMeasured {
     /// Replaces the dimensions using an exclusive implementation borrow.
     fn resize(&mut self, extent: Extent) -> Result<()>;
+    /// Lends the optional transient caption while the receiver is shared-borrowed.
+    fn caption(&self) -> Option<&INcString>;
+    /// Copies a new transient caption, or clears it when no value was supplied.
+    fn set_caption(&mut self, caption: Option<&INcString>) -> Result<()>;
 }
 
 /// Typed construction surface for the example object.

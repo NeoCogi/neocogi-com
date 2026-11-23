@@ -4,7 +4,10 @@ use neocogi_com_serialization::ncb as binary;
 extern crate self as neocogi_example_com_plugin;
 /// Independently generated bindings from the common example IDL.
 pub mod contracts;
-use neocogi_com_sdk::{ComPtr, NcValueRef, IUnknown, NcBytes, INcBytesAbi, NcGuid, NcStatus, NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE, com_object};
+use neocogi_com_sdk::{
+    ComPtr, ComRef, ComStringExt, INcStringAbi, NcString, NcValueRef, IUnknown, NcBytes, INcBytesAbi, NcGuid, NcStatus, NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE,
+    com_object,
+};
 #[path = "../../com-host/support/extent_state.rs"]
 mod extent_state;
 use extent_state::{ExtentState, PERSISTENT_KIND};
@@ -18,6 +21,8 @@ struct DynamicExampleObject {
     extent: Extent,
     /// Optional concrete destination, excluded from the persistent state.
     changed: crate::contracts::notifications::ExtentDelivery,
+    /// Caption owned by the provider, excluded from persistent dimensions.
+    caption: Option<ComPtr<INcStringAbi>>,
 }
 
 impl IMeasured for DynamicExampleObject {
@@ -35,6 +40,17 @@ impl IMeasured for DynamicExampleObject {
 }
 
 impl ExampleObject for DynamicExampleObject {
+    /// Lends the optional provider-owned text under the receiver's read guard.
+    fn caption(&self) -> Option<ComRef<'_, INcStringAbi>> {
+        self.caption.as_ref().map(ComPtr::as_com_ref)
+    }
+
+    /// Copies a caption through the read-only interface into private storage.
+    fn set_caption(&mut self, caption: Option<ComRef<'_, INcStringAbi>>) -> Result<(), NcStatus> {
+        self.caption = caption.map(|text| text.to_string()).transpose()?.map(|text| NcString::from_utf8_str(&text));
+        Ok(())
+    }
+
     /// Replaces dimensions through the exclusive generated call gate.
     fn resize(&mut self, extent: Extent) -> Result<(), NcStatus> {
         self.extent = extent;
@@ -53,6 +69,7 @@ impl ExampleFactory for DynamicExampleFactory {
         let local = DynamicExampleObject::into_local(DynamicExampleObject {
             extent,
             changed: crate::contracts::notifications::ExtentDelivery::Unobserved,
+            caption: None,
         });
         // Obtain identity from initialized storage and connect delivery before
         // returning the first application-facing object capability.

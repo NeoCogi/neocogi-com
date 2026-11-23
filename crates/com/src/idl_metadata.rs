@@ -104,6 +104,14 @@ pub enum MethodType {
     ExclusiveObject(&'static str),
     /// Call-scoped view of data or an interface, without escaping ownership.
     Borrowed(ValueType),
+    /// Optional read-only interface loan in an input slot.
+    OptionalBorrowedInterface(ValueType),
+    /// Live interface loan permitting mutable dispatch in an input slot.
+    MutableBorrowedInterface(ValueType),
+    /// Nullable transfer of one shared owner in an output slot.
+    OptionalOwnedInterface(ValueType),
+    /// Optional read-only interface loan delivered through a synchronous visitor.
+    ScopedBorrowedInterface(ValueType),
     /// Read-only caller-provided element sequence.
     InputBuffer(ValueType),
     /// Caller-provided storage initialized through checked output completion.
@@ -119,6 +127,15 @@ pub struct ParameterMetadata {
     pub ty: MethodType,
 }
 
+/// Whether a generated Rust return exposes the native call status.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ReturnProjection {
+    /// The Rust method returns its success value or the checked error.
+    Fallible,
+    /// The Rust method projects directly to the declared unit or optional value.
+    Direct,
+}
+
 /// Ordinary method introspection, including inherited methods once per interface identity.
 /// This describes callable contracts without assigning application event semantics.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -131,6 +148,8 @@ pub struct MethodMetadata {
     pub parameters: &'static [ParameterMetadata],
     /// Successful return shape; failures use the ordinary COM status protocol.
     pub returns: MethodType,
+    /// Authored Rust return shape, independent of native passing.
+    pub return_projection: ReturnProjection,
 }
 
 /// Exact local interface identity with required, immutable static signature bytes.

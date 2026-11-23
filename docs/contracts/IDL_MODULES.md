@@ -272,6 +272,49 @@ nil UUID with `EIDL074` and the canonical `IUnknown` UUID with `EIDL075`.
 Every owned COM object supplies the canonical `IUnknown` contract. Nominal
 value IDs follow a separate policy and may still explicitly use nil.
 
+### Interface loans and return projections
+
+```rust,ignore
+interface Catalog {
+    fn find(&self, id: u64) -> Option<ComPtr<IItem>>;
+    fn load(&self, id: u64) -> Result<Option<ComPtr<IItem>>>;
+    fn tooltip(&self) -> Option<&INcString>;
+    fn use_item(&self, item: Option<&IItem>) -> Result<()>;
+    fn edit(&self, item: &mut IItem) -> Result<()>;
+    fn invalidate(&mut self);
+}
+```
+
+An interface name identifies the contract. A live shared input `&I` uses
+`ComRef`; `&mut I` uses move-only `ComMut`. A lender supplies these views via an
+appropriate borrow. Optional shared input has the same native pair and admits
+both-null. Pair shape and exact IID/signature are checked before the provider
+receives a Rust view.
+
+A required `ComPtr<I>` result transfers one shared owner. Optional
+`Option<ComPtr<I>>` transfers an owner for a present pair. It uses both-null for
+successful absence. Plain `Option` methods return `None` on either call failure or
+absence. Explicit `Result<Option<ComPtr<I>>>` preserves that distinction. Omitting
+the return or writing `-> ()` projects a checked status-only call to unit. Write
+`Result<()>` to observe failure. Consuming `ComBox` parameters require `Result`
+so the caller can recover the original owners on rejection.
+
+A scoped getter accepts a shared receiver and nonconsuming inputs. It borrows
+an optional value from that receiver. The generated provider's `tooltip` has
+return type `Option<ComRef<'_, INcStringAbi>>`. The caller uses
+`CatalogAbi::with_tooltip(live_source, |loan| ...)` while the provider holds its
+shared guard. The visitor can return owned application data; its loan cannot
+escape. An explicit `Result<Option<&I>>` projects the same native continuation as
+`Result<Option<R>, NcStatus>` at the caller. Write-only buffer parameters and
+mutable receivers are excluded from the initial scoped result contract.
+
+Recognition of slot nullability matches the resolved bundled `neocogi.lang::Option`
+at the method root after generic substitution. Local enums named `Option`,
+ordinary `Option<T>` values and nested or stored enums continue to use ordinary
+enum encoding. The ABI signature records the resolved passing direction,
+access, ownership and presence. Native-equivalent Rust projections differ in
+their generated Rust binding proof.
+
 ### Canonical signatures
 
 Unit fields and payloads are checked copied data, including through fixed arrays
@@ -280,7 +323,7 @@ slot, and bare unit inputs remain excluded. The
 [recursive value contract](RECURSIVE_VALUE_CONTRACT.md) defines conversion and budgets.
 
 Templates and concrete declarations share the explicit binary declaration
-encoder under `neocogi-idl:module-abi:v14`. The former separate template string
+encoder under `neocogi-idl:module-abi:v15`. The former separate template string
 encoding and its Debug-formatted policy values are removed. Both paths encode
 parameter positions, resolved free identities, member order, authored enum
 assignment presence, and declaration policies. Regenerate bindings and rebuild
@@ -303,7 +346,7 @@ followed by its element type. Base slots retain the explicit bound/free grammar
 described above.
 
 Interfaces have no implementation-role discriminator in their canonical encoding.
-Canonical encoding v14 contains ordinary value and callable-interface contracts;
+Canonical encoding v15 contains ordinary value and callable-interface contracts;
 IDL has no event-reference slots. Rebuild affected contracts, providers and hosts
 together, including built-in persistence bindings. Nominal IDs, core generation 22,
 source-graph schema and the host-owned runtime registry are separate contracts;
@@ -725,9 +768,9 @@ enter generated contract data. Malformed attribute syntax and duplicate explicit
 UUID overrides remain errors.
 
 Generated nominal IDs and signatures change: rebuild contracts, providers and
-hosts together. Compiler encoding v14 records the versionless contract; COM
+hosts together. Compiler encoding v15 records the versionless contract; COM
 discovery uses ABI v2 for SDK 0.3.0, ABI v3 for SDK 0.4.0, and ABI v4/core
-generation 22 on this development branch. The discovery revision preserves encoding v14.
+generation 22 on this development branch. V15 adds callable passing modes after binding and specialization.
 
 Generated values and interface markers carry a hidden Rust binding proof. A
 consumer checks the actual selected Rust type, including a type reached through
@@ -825,7 +868,8 @@ Changing an ABI-significant member sequence still changes the fingerprint.
 - A bare record or enum parameter is copied only when its complete recursive
   shape has self-contained wires. Owning named values use `&Value`; providers
   receive `NcValueRef` and explicitly acquire data to retain it.
-- `&Interface` is a borrowed COM reference valid only for the call.
+- `&Interface` and `&mut Interface` lend shared or mutable call access,
+  respectively. `Option<&Interface>` permits absence.
 - Owned object results require an explicit ownership wrapper such as
   `ComPtr<Interface>` or `ComBox<Interface>`; a bare interface is not a value.
 - `&str` lowers to a readable byte view for text. Providers validate UTF-8 when
@@ -838,10 +882,12 @@ Changing an ABI-significant member sequence still changes the fingerprint.
   transformation takes explicit readable input plus separate output. This does
   not grant mutable access to an object or retained collection. See
   [directional copied output](COM_OUTPUT_BUFFERS.md).
-- `Result<T>` lowers to an `NcStatus` return plus an initialized output slot on
-  success. `Result<()>` has no output slot.
-- `Option<T>` is an ordinary enum in the bundled `neocogi.lang` library, with
-  the same tag, payload, metadata, and capability rules as authored enums.
+- Every call returns `NcStatus` at the ABI. Direct and fallible unit calls have
+  no output slot. Scoped borrowed results deliver through a continuation.
+  Other results initialize an output slot on success.
+- The bundled `neocogi.lang` `Option<T>` follows ordinary enum rules in value
+  positions. At method roots it can declare optional COM slots, as described
+  in [interface loans and return projections](#interface-loans-and-return-projections).
 - `usize`, `isize`, arbitrary Rust references and layouts are not IDL wire types.
   `Vec`, `Slice`, `Array`, and `ComPtr` are explicit IDL constructors with checked
   lowering; Rust container layouts never become their foreign representation.

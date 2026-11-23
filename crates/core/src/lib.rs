@@ -59,6 +59,7 @@ pub mod lifetime;
 #[path = "raw.rs"]
 mod raw_handle;
 mod ref_count;
+mod scoped_result;
 mod weak;
 pub use weak::{WeakComPtr, NcSharedWeakRaw};
 mod output;
@@ -95,7 +96,8 @@ pub use signature::NcAbiDigest;
 pub use metadata::{format_abi_signature, format_method_signature};
 pub use metadata::{
     NC_ABI_PASSING_COM_PTR_OUT, NC_ABI_PASSING_COM_BOX_IN, NC_ABI_PASSING_COM_BOX_OUT, NC_ABI_PASSING_WEAK_COM_BOX_OUT, NC_ABI_PASSING_WEAK_COM_PTR_OUT,
-    NC_ABI_PASSING_COM_REF, NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET, NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET, NC_ABI_PASSING_OUTPUT_BUFFER, NC_ABI_PASSING_OUT,
+    NC_ABI_PASSING_COM_MUT, NC_ABI_PASSING_OPTIONAL_COM_PTR_OUT, NC_ABI_PASSING_SCOPED_COM_REF_OUT, NC_ABI_PASSING_COM_REF,
+    NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET, NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET, NC_ABI_PASSING_OUTPUT_BUFFER, NC_ABI_PASSING_OUT,
     NC_ABI_PASSING_BORROWED_VALUE, NC_ABI_PASSING_OPTIONAL_COM_REF, NC_ABI_PASSING_VALUE, NC_ABI_PASSING_VOID, NC_ABI_RECEIVER_MUTABLE, NC_ABI_RECEIVER_SHARED,
     NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE, NC_ABI_TYPE_AGGREGATE, NC_ABI_TYPE_BOOL, NC_ABI_TYPE_F32, NC_ABI_TYPE_F64, NC_ABI_TYPE_I8,
     NC_ABI_TYPE_I16, NC_ABI_TYPE_I32, NC_ABI_TYPE_I64, NC_ABI_TYPE_INTERFACE, NC_ABI_TYPE_ISIZE, NC_ABI_TYPE_NC_GUID, NC_ABI_TYPE_NC_STATUS, NC_ABI_TYPE_U8,
@@ -109,7 +111,7 @@ pub use object::{
     __nc_find_interface, __ComSupportsInterfaceThreading, ComInterface, IID_IUNKNOWN, IUNKNOWN_INTERFACE_ID, IUNKNOWN_QUALIFIED_NAME, IUnknown, IUnknownVTable,
 };
 pub use raw_handle::ComRaw;
-pub use ptr::{ComPtr, ComRef, ThreadLocal, ThreadSafe, ThreadingModel, raw};
+pub use ptr::{ComMut, ComPtr, ComRef, ThreadLocal, ThreadSafe, ThreadingModel, raw};
 pub use runtime_abi::{
     NcPersistenceApiV4, NcPersistenceContext, NcPersistenceLimitsV4, NcPersistenceWriteBytesV4, NC_COM_RUNTIME_ABI_VERSION,
     NC_COM_RUNTIME_MAX_ACTIVE_DEBUG_MESSENGERS, NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS, NC_DEBUG_SEVERITY_ALL, NC_DEBUG_SEVERITY_ERROR, NC_DEBUG_SEVERITY_INFO,
@@ -130,3 +132,6 @@ pub use plugin_descriptor::{
 };
 
 pub use value_buffer::{EncodedInput, DecodedInput};
+
+#[doc(hidden)]
+pub use scoped_result::{NcScopedResultCallback, __nc_with_scoped_result};

@@ -99,24 +99,23 @@ fn template_free_names_use_resolved_identity() {
     assert_eq!(fingerprint(before), fingerprint(after));
 }
 
-/// Pins canonical encoding v14, including versionless declarations and generic payloads.
+/// Pins canonical encoding v15, including versionless declarations and generic payloads.
 #[test]
 fn canonical_module_encoding_has_stable_golden_digest() {
     let source = "enum State: u8 { Empty = 0, Ready = 7 } enum Data<T> { Empty, Value(T) } struct Snapshot { state: State, value: Data<bool> }";
     assert_eq!(
         fingerprint(source),
         [
-            126, 201, 84, 113, 186, 13, 216, 40, 168, 192, 34, 217, 239, 11, 211, 16, 205, 172, 127, 52, 81, 132, 132, 71, 60, 249, 250, 232, 221, 158, 154,
-            113
+            10, 77, 28, 226, 51, 40, 133, 92, 251, 58, 138, 154, 123, 186, 58, 191, 205, 35, 109, 242, 147, 109, 177, 128, 133, 115, 157, 229, 47, 233, 12, 121
         ]
     );
 }
 
 /// Rust method-wrapper companion names do not enter canonical interface identities.
-/// These pre-rename goldens include a generic imported base, mutable derived method,
+/// These goldens include a generic imported base, mutable derived method,
 /// and the legitimate authored interface named Client.
 #[test]
-fn canonical_interfaces_keep_pre_wrapper_rename_identity() {
+fn canonical_interfaces_keep_exact_identities() {
     let sources = [
         (
             "proof/base.ncidl",
@@ -137,13 +136,13 @@ fn canonical_interfaces_keep_pre_wrapper_rename_identity() {
     assert_eq!(
         graph.module("proof.base").unwrap().abi_fingerprint,
         [
-            142, 14, 235, 13, 245, 26, 79, 200, 77, 118, 136, 67, 174, 97, 146, 88, 170, 173, 197, 198, 69, 151, 169, 68, 212, 77, 254, 11, 54, 214, 160, 70
+            218, 43, 127, 45, 75, 189, 101, 126, 23, 148, 193, 254, 146, 65, 60, 138, 131, 183, 112, 193, 195, 69, 211, 93, 68, 236, 76, 67, 116, 206, 193, 77
         ]
     );
     assert_eq!(
         graph.module("proof.derived").unwrap().abi_fingerprint,
         [
-            122, 58, 230, 147, 66, 224, 36, 247, 67, 167, 107, 54, 213, 4, 178, 184, 178, 230, 218, 82, 19, 107, 127, 226, 0, 156, 191, 124, 33, 91, 230, 34
+            91, 165, 94, 57, 226, 48, 246, 231, 245, 58, 64, 131, 236, 14, 98, 27, 75, 167, 185, 141, 189, 110, 55, 95, 149, 106, 215, 145, 242, 189, 54, 99
         ]
     );
     let declaration = graph
@@ -157,7 +156,7 @@ fn canonical_interfaces_keep_pre_wrapper_rename_identity() {
     assert_eq!(
         declaration.abi_signature,
         [
-            28, 250, 113, 65, 251, 68, 154, 208, 83, 98, 45, 66, 248, 237, 154, 23, 252, 81, 178, 197, 131, 221, 67, 105, 253, 5, 63, 40, 239, 20, 36, 250
+            2, 171, 107, 211, 195, 73, 28, 118, 111, 104, 50, 194, 58, 25, 162, 180, 136, 1, 204, 160, 166, 33, 96, 86, 6, 142, 4, 187, 237, 161, 123, 32
         ]
     );
     let declaration = graph
@@ -171,7 +170,7 @@ fn canonical_interfaces_keep_pre_wrapper_rename_identity() {
     assert_eq!(
         declaration.abi_signature,
         [
-            50, 254, 148, 1, 189, 75, 183, 186, 160, 218, 220, 12, 41, 73, 206, 76, 9, 19, 60, 159, 139, 19, 79, 220, 82, 62, 60, 36, 249, 229, 117, 205
+            43, 106, 133, 9, 58, 143, 126, 247, 42, 230, 209, 54, 97, 73, 180, 68, 58, 97, 235, 146, 6, 249, 187, 118, 80, 97, 172, 215, 73, 123, 78, 209
         ]
     );
     let declaration = graph
@@ -185,7 +184,7 @@ fn canonical_interfaces_keep_pre_wrapper_rename_identity() {
     assert_eq!(
         declaration.abi_signature,
         [
-            113, 69, 231, 30, 5, 134, 11, 251, 32, 62, 65, 80, 61, 190, 209, 135, 74, 72, 187, 31, 247, 225, 202, 247, 141, 251, 113, 75, 47, 218, 75, 215
+            180, 180, 164, 129, 185, 107, 44, 187, 131, 26, 60, 61, 83, 101, 56, 85, 213, 50, 135, 97, 218, 183, 125, 68, 79, 228, 11, 86, 231, 233, 125, 206
         ]
     );
     let declaration = graph
@@ -199,8 +198,8 @@ fn canonical_interfaces_keep_pre_wrapper_rename_identity() {
     assert_eq!(
         declaration.abi_signature,
         [
-            17, 83, 249, 232, 75, 206, 126, 213, 148, 106, 210, 60, 118, 179, 231, 91, 136, 187, 209, 194, 218, 201, 50, 115, 196, 159, 126, 146, 18, 145, 92,
-            58
+            207, 111, 140, 148, 53, 59, 215, 98, 135, 104, 183, 41, 30, 208, 139, 194, 250, 179, 54, 208, 159, 217, 73, 159, 128, 130, 221, 220, 90, 9, 210,
+            107
         ]
     );
 }

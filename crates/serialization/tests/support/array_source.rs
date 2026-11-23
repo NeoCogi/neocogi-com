@@ -86,7 +86,7 @@ impl IDeserializer for FaultSource {
     /// Delegates to the real NCB session after failure admission.
     fn enter_value(&mut self) -> Result<(), NcStatus> {
         self.admit()?;
-        self.inner.as_com_ref().enter_value()?;
+        self.inner.enter_value()?;
         self.depth += 1;
         Ok(())
     }
@@ -99,91 +99,91 @@ impl IDeserializer for FaultSource {
         if self.depth == 1 {
             self.inject(Stage::Leave)?;
         }
-        self.inner.as_com_ref().leave_value()?;
+        self.inner.leave_value()?;
         self.depth -= 1;
         Ok(())
     }
     /// Delegates to the real NCB session after failure admission.
     fn deserialize_unit(&mut self) -> Result<(), NcStatus> {
         self.admit()?;
-        self.inner.as_com_ref().deserialize_unit()?;
+        self.inner.deserialize_unit()?;
         self.units += 1;
         Ok(())
     }
     /// Delegates to the real NCB session after failure admission.
     fn deserialize_bool(&mut self) -> Result<bool, NcStatus> {
         self.admit()?;
-        self.inner.as_com_ref().deserialize_bool()
+        self.inner.deserialize_bool()
     }
     /// Delegates to the real NCB session after failure admission.
     fn deserialize_u8(&mut self) -> Result<u8, NcStatus> {
         self.admit()?;
-        self.inner.as_com_ref().deserialize_u8()
+        self.inner.deserialize_u8()
     }
     /// Delegates to the real NCB session after failure admission.
     fn deserialize_u16(&mut self) -> Result<u16, NcStatus> {
         self.admit()?;
-        self.inner.as_com_ref().deserialize_u16()
+        self.inner.deserialize_u16()
     }
     /// Delegates to the real NCB session after failure admission.
     fn deserialize_u32(&mut self) -> Result<u32, NcStatus> {
         self.admit()?;
-        self.inner.as_com_ref().deserialize_u32()
+        self.inner.deserialize_u32()
     }
     /// Delegates to the real NCB session after failure admission.
     fn deserialize_u64(&mut self) -> Result<u64, NcStatus> {
         self.admit()?;
-        self.inner.as_com_ref().deserialize_u64()
+        self.inner.deserialize_u64()
     }
     /// Delegates to the real NCB session after failure admission.
     fn deserialize_i8(&mut self) -> Result<i8, NcStatus> {
         self.admit()?;
-        self.inner.as_com_ref().deserialize_i8()
+        self.inner.deserialize_i8()
     }
     /// Delegates to the real NCB session after failure admission.
     fn deserialize_i16(&mut self) -> Result<i16, NcStatus> {
         self.admit()?;
-        self.inner.as_com_ref().deserialize_i16()
+        self.inner.deserialize_i16()
     }
     /// Delegates to the real NCB session after failure admission.
     fn deserialize_i32(&mut self) -> Result<i32, NcStatus> {
         self.admit()?;
-        self.inner.as_com_ref().deserialize_i32()
+        self.inner.deserialize_i32()
     }
     /// Delegates to the real NCB session after failure admission.
     fn deserialize_i64(&mut self) -> Result<i64, NcStatus> {
         self.admit()?;
-        self.inner.as_com_ref().deserialize_i64()
+        self.inner.deserialize_i64()
     }
     /// Delegates to the real NCB session after failure admission.
     fn deserialize_f32(&mut self) -> Result<f32, NcStatus> {
         self.admit()?;
-        self.inner.as_com_ref().deserialize_f32()
+        self.inner.deserialize_f32()
     }
     /// Delegates to the real NCB session after failure admission.
     fn deserialize_f64(&mut self) -> Result<f64, NcStatus> {
         self.admit()?;
-        self.inner.as_com_ref().deserialize_f64()
+        self.inner.deserialize_f64()
     }
     /// Delegates to the real NCB session after failure admission.
     fn string_len(&mut self) -> Result<u32, NcStatus> {
         self.admit()?;
-        self.inner.as_com_ref().string_len()
+        self.inner.string_len()
     }
     /// Delegates to the real NCB session after failure admission.
     fn copy_string(&mut self, output: NcOutputWriter<'_, u8>) -> Result<u32, NcStatus> {
         self.admit()?;
-        self.inner.as_com_ref().copy_string(output.forward()?)
+        self.inner.copy_string(output.forward()?)
     }
     /// Delegates to the real NCB session after failure admission.
     fn option_present(&mut self) -> Result<bool, NcStatus> {
         self.admit()?;
-        self.inner.as_com_ref().option_present()
+        self.inner.option_present()
     }
     /// Delegates to the real NCB session after failure admission.
     fn begin_record(&mut self, maximum: u32) -> Result<u32, NcStatus> {
         self.admit()?;
-        let count = self.inner.as_com_ref().begin_record(maximum)?;
+        let count = self.inner.begin_record(maximum)?;
         if self.wrong_record_count() {
             assert_eq!(count, 0);
             return Ok(1);
@@ -193,12 +193,12 @@ impl IDeserializer for FaultSource {
     /// Delegates to the real NCB session after failure admission.
     fn field(&mut self, name: NcCopyFromBufferOffset<'_, u8>) -> Result<bool, NcStatus> {
         self.admit()?;
-        self.inner.as_com_ref().field(name)
+        self.inner.field(name)
     }
     /// Delegates to the real NCB session after failure admission.
     fn end_record(&mut self) -> Result<(), NcStatus> {
         self.admit()?;
-        self.inner.as_com_ref().end_record()?;
+        self.inner.end_record()?;
         if self.wrong_record_count() {
             self.record_calls.push("end_record");
         }
@@ -207,27 +207,27 @@ impl IDeserializer for FaultSource {
     /// Delegates to the real NCB session after failure admission.
     fn begin_sequence(&mut self) -> Result<u32, NcStatus> {
         self.inject(Stage::Begin)?;
-        self.inner.as_com_ref().begin_sequence()
+        self.inner.begin_sequence()
     }
     /// Delegates to the real NCB session after failure admission.
     fn end_sequence(&mut self) -> Result<(), NcStatus> {
         self.inject(Stage::End)?;
-        self.inner.as_com_ref().end_sequence()
+        self.inner.end_sequence()
     }
     /// Delegates to the real NCB session after failure admission.
     fn begin_map(&mut self) -> Result<u32, NcStatus> {
         self.admit()?;
-        self.inner.as_com_ref().begin_map()
+        self.inner.begin_map()
     }
     /// Delegates to the real NCB session after failure admission.
     fn end_map(&mut self) -> Result<(), NcStatus> {
         self.admit()?;
-        self.inner.as_com_ref().end_map()
+        self.inner.end_map()
     }
     /// Delegates to the real NCB session after failure admission.
     fn variant_is(&mut self, index: u32, name: NcCopyFromBufferOffset<'_, u8>) -> Result<bool, NcStatus> {
         self.admit()?;
-        self.inner.as_com_ref().variant_is(index, name)
+        self.inner.variant_is(index, name)
     }
     /// Delegates to the real NCB session after failure admission.
     fn fail(&mut self, message: NcCopyFromBufferOffset<'_, u8>) -> Result<(), NcStatus> {
@@ -245,7 +245,7 @@ impl IDeserializer for FaultSource {
         if let Some(status) = self.failed {
             return Err(status);
         }
-        let status = self.inner.as_com_ref().fail(message).err().unwrap_or(NC_E_INVALID_ARG);
+        let status = self.inner.fail(message).err().unwrap_or(NC_E_INVALID_ARG);
         self.failed = Some(status);
         Err(status)
     }
@@ -255,6 +255,6 @@ impl IDeserializer for FaultSource {
             self.record_calls.push("finish");
         }
         self.inject(Stage::Finish)?;
-        self.inner.as_com_ref().finish()
+        self.inner.finish()
     }
 }

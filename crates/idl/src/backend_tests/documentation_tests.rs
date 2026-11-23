@@ -226,8 +226,8 @@ fn raw_documentation_matches_physical_slots_and_returned_ownership() {
         .iter()
         .find(|field| field.ident.as_ref().is_some_and(|ident| ident == "borrow"))
         .unwrap();
-    assert!(definition_docs(&raw_borrow.attrs).contains("A nonzero result grants one reference"));
-    assert!(generated.contains("the `ComPtr` returned by a successful `try_add_ref()`"));
+    assert!(definition_docs(&raw_borrow.attrs).contains("lends live shared access through the call"));
+    assert!(generated.contains("is a required shared loan"));
     for (method, parameters) in [
         ("actions", vec![3, 6]),
         ("modes", vec![3]),

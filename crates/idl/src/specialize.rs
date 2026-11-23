@@ -7,6 +7,7 @@
 
 use std::collections::HashMap;
 use crate::binding::{Binding, DeclarationKey, SemanticOrigin, semantic_origin_named};
+use crate::model::{ParameterPassing, ReturnPassing};
 use crate::resolve::ContractDigests;
 
 pub(crate) mod budget;
@@ -127,6 +128,7 @@ impl Expansion {
                 | IdlType::ComBox(child)
                 | IdlType::WeakComBox(child)
                 | IdlType::Borrowed(child)
+                | IdlType::BorrowedMut(child)
                 | IdlType::Vector(child)
                 | IdlType::UnsizedSlice(child)
                 | IdlType::Slice(child)
@@ -143,9 +145,87 @@ impl Expansion {
     /// Lowers substituted roots. Authored nongeneric normalization is outside the quota.
     fn lower_declaration(&mut self, target: usize, declaration: &mut Declaration, depth: usize, at: Descent, generated: bool) -> Result<(), ResolutionError> {
         let span = std::mem::replace(&mut declaration.span, SourceSpan::placeholder());
-        let result = visit_types(declaration, &mut |ty| self.lower_type(target, ty, depth, at, generated, &span));
+        let result = self
+            .classify_methods(declaration)
+            .and_then(|()| visit_types(declaration, &mut |ty| self.lower_type(target, ty, depth, at, generated, &span)));
         declaration.span = span;
         result
+    }
+
+    /// Normalizes closed callable roots after substitution and before ordinary
+    /// enum instantiation. Storage, arguments to templates, and open expressions
+    /// continue through the regular value-specialization path.
+    fn classify_methods(&self, declaration: &mut Declaration) -> Result<(), ResolutionError> {
+        let DeclarationKind::Interface(interface) = &mut declaration.kind else {
+            return Ok(());
+        };
+        for method in &mut interface.methods {
+            for parameter in &mut method.parameters {
+                parameter.passing = if self.strip_standard_option(&mut parameter.ty, |ty| matches!(ty, IdlType::Borrowed(_))) {
+                    ParameterPassing::SharedLoan { optional: true }
+                } else {
+                    self.parameter_passing(&parameter.ty)?
+                };
+            }
+            let optional = self.strip_standard_option(&mut method.output, |ty| matches!(ty, IdlType::Borrowed(_) | IdlType::ComPtr(_)));
+            method.return_passing = match &method.output {
+                IdlType::Unit => ReturnPassing::Unit,
+                IdlType::Scalar(_) | IdlType::Named(_) | IdlType::Array { .. } => ReturnPassing::Copied,
+                IdlType::ComPtr(_) => ReturnPassing::SharedOwner { optional },
+                IdlType::ComBox(_) => ReturnPassing::BoxOwner,
+                IdlType::WeakComBox(_) => ReturnPassing::BoxObserver,
+                IdlType::WeakComPtr(_) => ReturnPassing::SharedObserver,
+                IdlType::Borrowed(_) if optional => ReturnPassing::ScopedLoan,
+                _ => ReturnPassing::Invalid,
+            };
+        }
+        Ok(())
+    }
+
+    /// Moves the admitted standard Option payload without cloning any subtree.
+    /// A similarly named application owned by a different module stays ordinary.
+    fn strip_standard_option(&self, ty: &mut IdlType, accepts: impl FnOnce(&IdlType) -> bool) -> bool {
+        let IdlType::Named(named) = ty else {
+            return false;
+        };
+        let Binding::Application { template, .. } = &named.binding else {
+            return false;
+        };
+        if !crate::standard::is_optional_declaration(&self.originals[template.module].name, &template.name) {
+            return false;
+        }
+        let [payload] = named.arguments.as_slice() else {
+            unreachable!("binding checked standard Option arity");
+        };
+        if !accepts(payload) {
+            return false;
+        }
+        *ty = named.arguments.pop().expect("a verified standard Option payload");
+        true
+    }
+
+    /// Selects the semantic input once from its already-bound source owner.
+    fn parameter_passing(&self, ty: &IdlType) -> Result<ParameterPassing, ResolutionError> {
+        let passing = match ty {
+            IdlType::Scalar(_) | IdlType::Named(_) | IdlType::Array { .. } => ParameterPassing::Copied,
+            IdlType::Slice(_) => ParameterPassing::InputBuffer,
+            IdlType::OutputSlice(_) => ParameterPassing::OutputBuffer,
+            IdlType::Borrowed(target) => match target.as_ref() {
+                IdlType::Named(name) if name.is_str() => ParameterPassing::BorrowedText,
+                IdlType::Named(name) => {
+                    if crate::resolve::builtin_object(name).is_some() || matches!(self.declaration(name)?.1.kind, DeclarationKind::Interface(_)) {
+                        ParameterPassing::SharedLoan { optional: false }
+                    } else {
+                        ParameterPassing::BorrowedValue
+                    }
+                }
+                _ => ParameterPassing::Invalid,
+            },
+            IdlType::BorrowedMut(_) => ParameterPassing::MutableLoan,
+            IdlType::ComBox(_) => ParameterPassing::ConsumingBox,
+            _ => ParameterPassing::Invalid,
+        };
+        Ok(passing)
     }
 
     /// Charges only newly introduced generated dependency metadata.
@@ -275,6 +355,7 @@ impl Expansion {
             | IdlType::ComBox(value)
             | IdlType::WeakComBox(value)
             | IdlType::Borrowed(value)
+            | IdlType::BorrowedMut(value)
             | IdlType::Vector(value)
             | IdlType::UnsizedSlice(value)
             | IdlType::Slice(value)
@@ -295,23 +376,26 @@ impl Expansion {
             | IdlType::ComBox(value)
             | IdlType::WeakComBox(value)
             | IdlType::Borrowed(value)
+            | IdlType::BorrowedMut(value)
             | IdlType::Vector(value)
             | IdlType::UnsizedSlice(value)
             | IdlType::Slice(value)
             | IdlType::OutputSlice(value)
             | IdlType::Array { element: value, .. } => {
-                bytes.extend_from_slice(match ty {
+                let tag: &[u8] = match ty {
                     IdlType::ComPtr(_) => b"com_ptr",
                     IdlType::WeakComPtr(_) => b"weak_com_ptr",
                     IdlType::ComBox(_) => b"com_box",
                     IdlType::WeakComBox(_) => b"weak_com_box",
                     IdlType::Borrowed(_) => b"borrow",
+                    IdlType::BorrowedMut(_) => b"borrow_mut",
                     IdlType::Vector(_) => b"vector",
                     IdlType::UnsizedSlice(_) => b"unsized_slice",
                     IdlType::Slice(_) => b"slice",
                     IdlType::OutputSlice(_) => b"output",
                     _ => b"array",
-                });
+                };
+                bytes.extend_from_slice(tag);
                 if let IdlType::Array { len, .. } = ty {
                     bytes.extend_from_slice(&len.to_be_bytes());
                 }
@@ -392,6 +476,7 @@ fn substitute_type(
         | IdlType::ComBox(child)
         | IdlType::WeakComBox(child)
         | IdlType::Borrowed(child)
+        | IdlType::BorrowedMut(child)
         | IdlType::Vector(child)
         | IdlType::UnsizedSlice(child)
         | IdlType::Slice(child)
@@ -399,13 +484,21 @@ fn substitute_type(
         | IdlType::Array { element: child, .. } => substitute_type(child, substitutions, budget, at.child(), span)?,
         IdlType::Unit | IdlType::Scalar(_) | IdlType::String => {}
     }
-    // Move the existing child: normalization does not need a second owned copy.
-    if matches!(ty, IdlType::Borrowed(child) if matches!(child.as_ref(), IdlType::UnsizedSlice(_))) {
-        let IdlType::Borrowed(child) = std::mem::replace(ty, IdlType::Unit) else {
-            unreachable!()
+    // Move the existing child. Borrowing a substituted unsized slice keeps
+    // the established readable/writable buffer meaning of the authored borrow.
+    let mutable = match ty {
+        IdlType::Borrowed(child) if matches!(child.as_ref(), IdlType::UnsizedSlice(_)) => Some(false),
+        IdlType::BorrowedMut(child) if matches!(child.as_ref(), IdlType::UnsizedSlice(_)) => Some(true),
+        _ => None,
+    };
+    if let Some(mutable) = mutable {
+        let (IdlType::Borrowed(child) | IdlType::BorrowedMut(child)) = std::mem::replace(ty, IdlType::Unit) else {
+            unreachable!("matched borrow")
         };
-        let IdlType::UnsizedSlice(element) = *child else { unreachable!() };
-        *ty = IdlType::Slice(element);
+        let IdlType::UnsizedSlice(element) = *child else {
+            unreachable!("matched slice")
+        };
+        *ty = if mutable { IdlType::OutputSlice(element) } else { IdlType::Slice(element) };
     }
     Ok(())
 }
@@ -515,6 +608,7 @@ fn type_signature(graph: &crate::ResolvedModules, ty: &IdlType) -> Result<Contra
         | IdlType::ComBox(value)
         | IdlType::WeakComBox(value)
         | IdlType::Borrowed(value)
+        | IdlType::BorrowedMut(value)
         | IdlType::Vector(value)
         | IdlType::UnsizedSlice(value)
         | IdlType::Slice(value)
@@ -526,6 +620,7 @@ fn type_signature(graph: &crate::ResolvedModules, ty: &IdlType) -> Result<Contra
                 IdlType::ComBox(_) => b"com_box",
                 IdlType::WeakComBox(_) => b"weak_com_box",
                 IdlType::Borrowed(_) => b"borrow",
+                IdlType::BorrowedMut(_) => b"borrow_mut",
                 IdlType::Vector(_) => b"vector",
                 IdlType::UnsizedSlice(_) => b"unsized_slice",
                 IdlType::Slice(_) => b"slice",
@@ -548,16 +643,17 @@ fn type_signature(graph: &crate::ResolvedModules, ty: &IdlType) -> Result<Contra
             rust.extend_from_slice(name.as_bytes());
         }
     }
-    Ok(ContractDigests { native: crate::sha256::digest(&native), rust: crate::sha256::digest(&rust) })
+    Ok(ContractDigests {
+        native: crate::sha256::digest(&native),
+        rust: crate::sha256::digest(&rust),
+    })
 }
 
 /// Derives exact template and argument proofs without materializing a second AST.
 fn named_signature(graph: &crate::ResolvedModules, name: &NamedType, arguments: &[IdlType]) -> Result<ContractDigests, ResolutionError> {
     if let Some(identity) = crate::resolve::builtin_object(name) {
         // SAFETY: built-in interface signatures refer to permanent core constants.
-        let digest = crate::sha256::digest(unsafe {
-            identity.abi_signature.as_digest().expect("static core signature")
-        });
+        let digest = crate::sha256::digest(unsafe { identity.abi_signature.as_digest().expect("static core signature") });
         return Ok(ContractDigests { native: digest, rust: digest });
     }
     if name.is_str() {
@@ -570,7 +666,10 @@ fn named_signature(graph: &crate::ResolvedModules, name: &NamedType, arguments: 
     if arguments.is_empty() {
         return module
             .declaration(local)
-            .map(|identity| ContractDigests { native: identity.abi_signature, rust: identity.rust_binding })
+            .map(|identity| ContractDigests {
+                native: identity.abi_signature,
+                rust: identity.rust_binding,
+            })
             .ok_or_else(|| failure(&name.span, "generic argument declaration is absent"));
     }
     let template = module
@@ -592,5 +691,8 @@ fn named_signature(graph: &crate::ResolvedModules, name: &NamedType, arguments: 
         native.extend_from_slice(&proof.native);
         rust.extend_from_slice(&proof.rust);
     }
-    Ok(ContractDigests { native: crate::sha256::digest(&native), rust: crate::sha256::digest(&rust) })
+    Ok(ContractDigests {
+        native: crate::sha256::digest(&native),
+        rust: crate::sha256::digest(&rust),
+    })
 }

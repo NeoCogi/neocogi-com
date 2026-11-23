@@ -246,6 +246,148 @@ fn imported_declaration_checks_rust_proof_separately_from_native_signature() {
     assert!(result.status.success(), "{}", String::from_utf8_lossy(&result.stderr));
 }
 
+/// Native peers agree on status-only calls. A stale Rust binding with a different
+/// return projection must still fail when selected through a facade.
+#[test]
+fn native_compatible_result_projections_require_current_rust_bindings() {
+    let old = "interface Base { fn ready(&self) -> Result<()>; }";
+    let direct = "interface Base { fn ready(&self); }";
+    let first = graph(old, None);
+    let second = graph(direct, None);
+    let first = first.module("proof.value").unwrap().declaration("Base").unwrap();
+    let second = second.module("proof.value").unwrap().declaration("Base").unwrap();
+    assert_eq!(first.abi_signature, second.abi_signature);
+    assert_ne!(first.rust_binding, second.rust_binding);
+
+    let fixture = Fixture::new("binding-return-projection", old, direct);
+    fixture.provider(
+        direct,
+        "extern proof.value; use proof.value::Base; interface Service: Base {}",
+        "binding_helper::selected",
+        "",
+    );
+    fixture.select("pub use super::old::BaseAbi;");
+    fixture.rejected("fallible marker selected when direct was expected", "proof.value.Base");
+    fixture.select("");
+    let result = fixture.cargo("check");
+    assert!(result.status.success(), "{}", String::from_utf8_lossy(&result.stderr));
+}
+
+/// A native-equivalent leaf change invalidates transitive Rust declarations
+/// exposed through a copied method boundary and a closed generic aggregate.
+#[test]
+fn native_compatible_projection_changes_reach_transitive_rust_imports() {
+    let old = "interface Base { fn ready(&self) -> Result<()>; }";
+    let direct = "interface Base { fn ready(&self); }";
+    let fixture = Fixture::new("binding-transitive-return-projection", old, direct);
+    let carrier = "
+        extern proof.value;
+        use proof.value::Base;
+        struct Bundle<T> { item: T }
+        struct Ticket { item: Bundle<ComPtr<Base>> }
+        interface Bridge {
+            fn forward(&self, source: &Base) -> Result<ComPtr<Base>>;
+            fn receive(&self, ticket: &Ticket) -> Result<()>;
+        }
+    ";
+    let service = "
+        extern proof.carrier;
+        struct Parcel { ticket: proof::carrier::Ticket }
+        interface Service {
+            fn relay(&self, bridge: &proof::carrier::Bridge, parcel: &Parcel) -> Result<()>;
+        }
+    ";
+    for (version, leaf) in [("old", old), ("current", direct)] {
+        let modules = [("proof/value.ncidl", leaf), ("proof/carrier.ncidl", carrier), ("proof/service.ncidl", service)]
+            .map(|(path, input)| crate::parse_module(Path::new(path), input).unwrap())
+            .to_vec();
+        let graph = crate::resolve_modules(modules).unwrap();
+        let mut paths = RustModulePaths::default();
+        paths.insert("proof.value", &format!("binding_helper::{version}")).unwrap();
+        paths.insert("proof.carrier", "binding_helper::selected").unwrap();
+        fixture.write(
+            &format!("helper/src/{version}_carrier.rs"),
+            &generate_rust_with_paths(&graph, "proof.carrier", &paths).unwrap(),
+        );
+        if version == "current" {
+            fixture.write("provider/src/lib.rs", &generate_rust_with_paths(&graph, "proof.service", &paths).unwrap());
+        }
+    }
+    for (override_export, expected) in [
+        ("pub use super::old_carrier::Ticket;", "proof.carrier.Ticket"),
+        ("pub use super::old_carrier::BridgeAbi;", "proof.carrier.Bridge"),
+        ("", ""),
+    ] {
+        fixture.write(
+            "helper/src/lib.rs",
+            &format!(
+                "extern crate self as binding_helper;
+                 pub mod old; pub mod current;
+                 pub mod old_carrier; pub mod current_carrier;
+                 pub mod selected {{ pub use super::current_carrier::*; {override_export} }}"
+            ),
+        );
+        if expected.is_empty() {
+            let result = fixture.cargo("check");
+            assert!(result.status.success(), "{}", String::from_utf8_lossy(&result.stderr));
+        } else {
+            fixture.rejected("stale projection reached through a dependency", expected);
+        }
+    }
+}
+
+/// A generated scoped helper requires an exact live lender and cannot yield
+/// the loan to its caller. A boxed provider can lend its exact base safely.
+#[test]
+fn scoped_marker_requires_an_exact_live_lender_and_a_scoped_visitor() {
+    let contract = "
+        interface Loan {}
+        interface Base { fn tooltip(&self) -> Option<&Loan>; }
+        interface Derived: Base {}
+    ";
+    let fixture = Fixture::new("binding-scoped-live-source", contract, contract);
+    fixture.select("");
+    fixture.provider(
+        contract,
+        "interface Service {}",
+        "binding_helper::selected",
+        "pub use binding_helper::selected::*;",
+    );
+    let imports = "
+        use binding_provider::{BaseAbi, DerivedAbi, LoanAbi};
+        use neocogi_com_sdk::{ComBox, ComRef, WeakComBox};
+    ";
+    fixture.write(
+        "src/lib.rs",
+        &format!(
+            "{imports}
+            pub fn accepts(owner: &ComBox<DerivedAbi>) -> Option<()> {{
+                BaseAbi::with_tooltip(owner.query_ref::<BaseAbi>().unwrap(), |_| ())
+            }}"
+        ),
+    );
+    let result = fixture.cargo("check");
+    assert!(result.status.success(), "{}", String::from_utf8_lossy(&result.stderr));
+    for (declaration, error) in [
+        (
+            "pub fn reject(source: ComRef<'_, DerivedAbi>) { BaseAbi::with_tooltip(source, |_| ()); }",
+            "E0308",
+        ),
+        ("pub fn reject(source: WeakComBox<BaseAbi>) { BaseAbi::with_tooltip(source, |_| ()); }", "E0308"),
+        (
+            "pub fn escape(source: ComRef<'_, BaseAbi>) -> Option<ComRef<'static, LoanAbi>> {
+             BaseAbi::with_tooltip(source, |loan| loan)
+         }",
+            "lifetime may not live long enough",
+        ),
+    ] {
+        fixture.write("src/lib.rs", &format!("{imports}{declaration}"));
+        let result = fixture.cargo("check");
+        let stderr = String::from_utf8_lossy(&result.stderr);
+        assert!(!result.status.success() && stderr.contains(error), "{stderr}");
+    }
+}
+
 /// Obligations follow actual emission for imports even without calls, qualified
 /// references without use, nested fields, borrowed values and both buffer directions.
 #[test]

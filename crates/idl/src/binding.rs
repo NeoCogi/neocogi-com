@@ -105,6 +105,8 @@ pub(crate) enum Constructor {
     WeakComBox,
     /// Synchronous borrow.
     Borrowed,
+    /// Synchronous mutable borrow.
+    BorrowedMut,
     /// Owned sequence.
     Vector,
     /// Unsized sequence referent.
@@ -132,6 +134,7 @@ pub(crate) fn semantic_origin(ty: &crate::IdlType) -> Result<SemanticOrigin, cra
         T::ComBox(child) => constructor(Constructor::ComBox, None, child),
         T::WeakComBox(child) => constructor(Constructor::WeakComBox, None, child),
         T::Borrowed(child) => constructor(Constructor::Borrowed, None, child),
+        T::BorrowedMut(child) => constructor(Constructor::BorrowedMut, None, child),
         T::Vector(child) => constructor(Constructor::Vector, None, child),
         T::UnsizedSlice(child) => constructor(Constructor::UnsizedSlice, None, child),
         T::Slice(child) => constructor(Constructor::Slice, None, child),

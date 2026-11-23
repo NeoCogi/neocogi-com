@@ -3,7 +3,10 @@
 use neocogi_com_serialization::ncb as binary;
 #[path = "../support/notification_channel.rs"]
 mod notification_channel;
-use neocogi_com_sdk::{RuntimeHandle, ComPtr, ComRef, IUnknown, NcCopyFromBufferOffset, NcStatus, NC_E_ABI_VERSION, NC_E_INVALID_ARG, guid_from_qualified_name};
+use neocogi_com_sdk::{
+    RuntimeHandle, ComPtr, ComRef, ComStringExt, NcString, IUnknown, NcCopyFromBufferOffset, NcStatus, NC_E_ABI_VERSION, NC_E_BUSY, NC_E_INVALID_ARG,
+    guid_from_qualified_name,
+};
 use neocogi_com_sdk::persistence::{FactoryRegistry, snapshot};
 use neocogi_com_sdk::NcValueRef;
 
@@ -26,10 +29,27 @@ fn main(runtime: RuntimeHandle) {
         .acquire_plugin_root::<ExampleFactoryAbi>(guid_from_qualified_name("nc.examples.factory_plugin_component"))
         .expect("compatible example factory");
     let (queue, messages) = notification_channel::channel();
-    let binding = neocogi_example_com_host::contracts::ExtentBinding::from_observer(Some(queue.as_com_ref())).expect("shared application receiver");
+    let binding = neocogi_example_com_host::contracts::ExtentBinding::Observed(queue.clone());
     let mut object = factory
         .create(Extent { width: 20, height: 10 }, NcValueRef::new(&binding).unwrap())
         .expect("typed object construction");
+    assert_eq!(ExampleObjectAbi::with_caption(object.as_com_ref(), |_| ()), None);
+    let first = NcString::from_utf8_str("initial caption");
+    let second = NcString::from_utf8_str("replacement caption");
+    object.set_caption(Some(first.as_com_ref())).unwrap();
+    let mut alias = object.clone();
+    let caption = ExampleObjectAbi::with_caption(object.as_com_ref(), |caption| {
+        // The provider's read guard covers the user's visitor, including a
+        // mutable dispatch attempted through a distinct shared owner.
+        assert_eq!(alias.set_caption(Some(second.as_com_ref())), Err(NC_E_BUSY));
+        caption.to_string().unwrap()
+    });
+    assert_eq!(caption.as_deref(), Some("initial caption"));
+    alias.set_caption(Some(second.as_com_ref())).unwrap();
+    let caption = ExampleObjectAbi::with_caption(object.as_com_ref(), |caption| caption.to_string().unwrap());
+    assert_eq!(caption.as_deref(), Some("replacement caption"));
+    drop(alias);
+
     object.resize(Extent { width: 44, height: 31 }).expect("exclusive object mutation");
     let extent = object.extent().expect("inherited interface call");
     assert_eq!(extent, Extent { width: 44, height: 31 });
@@ -169,7 +189,7 @@ impl neocogi_com_sdk::persistence::IPersistenceFactory for PersistenceAdapter {
         children: ComRef<'_, neocogi_com_sdk::persistence::IObjectChildrenAbi>,
     ) -> Result<ComPtr<IUnknown>, NcStatus> {
         let state = decode(version, state, children.count()?)?;
-        let binding = neocogi_example_com_host::contracts::ExtentBinding::from_observer(Some(self.queue.as_com_ref()))?;
+        let binding = neocogi_example_com_host::contracts::ExtentBinding::Observed(self.queue.clone());
         self.factory
             .create(Extent { width: state.width, height: state.height }, NcValueRef::new(&binding)?)?
             .query()

@@ -2,6 +2,7 @@
 
 use super::*;
 use std::collections::HashSet;
+use crate::model::{ParameterPassing, ReturnPassing};
 
 /// Collects methods in base-first DFS completion order, with IID entry dedup.
 /// Each borrowed frame retains its supplying declaration and next base index;
@@ -42,14 +43,19 @@ pub(super) fn descriptions(graph: &Generation<'_>, module: &ResolvedModule, decl
                 .iter()
                 .map(|parameter| {
                     let name = Literal::string(&parameter.name);
-                    let ty = call_type(graph, value.module, &parameter.ty)?;
+                    let ty = parameter_type(graph, value.module, parameter)?;
                     Ok(quote! { #nc::idl_metadata::ParameterMetadata { name: #name, ty: #ty } })
                 })
                 .collect::<Result<Vec<_>, GenerateError>>()?;
-            let returns = call_type(graph, value.module, &method.output)?;
+            let returns = return_type(graph, value.module, method)?;
+            let projection = match method.return_projection {
+                crate::ReturnProjection::Fallible => quote! { #nc::idl_metadata::ReturnProjection::Fallible },
+                crate::ReturnProjection::Direct => quote! { #nc::idl_metadata::ReturnProjection::Direct },
+            };
             methods.push(quote! {
                 #nc::idl_metadata::MethodMetadata {
-                    name: #name, receiver: #receiver, parameters: &[#(#parameters),*], returns: #returns,
+                    name: #name, receiver: #receiver, parameters: &[#(#parameters),*],
+                    returns: #returns, return_projection: #projection,
                 }
             });
         }
@@ -57,27 +63,60 @@ pub(super) fn descriptions(graph: &Generation<'_>, module: &ResolvedModule, decl
     Ok(methods)
 }
 
-/// Retains call-only ownership instead of presenting borrowed/transferred values as data.
-fn call_type(graph: &Generation<'_>, module: &ResolvedModule, ty: &IdlType) -> Result<TokenStream, GenerateError> {
-    let nc = &graph.support;
-    let (kind, value) = match ty {
-        IdlType::ComBox(target) => {
-            let IdlType::Named(name) = target.as_ref() else {
-                return Err(GenerateError::new("exclusive method target is not an interface"));
-            };
-            let name = match builtin_object_type(nc, name) {
-                Some(_) => name.segments.join("."),
-                None => resolve(graph, module, name)?.identity.qualified_name.clone(),
-            };
-            let name = Literal::string(&name);
-            return Ok(quote! { #nc::idl_metadata::MethodType::ExclusiveObject(#name) });
-        }
-        IdlType::Borrowed(value) => ("Borrowed", value.as_ref()),
-        IdlType::Slice(value) | IdlType::UnsizedSlice(value) => ("InputBuffer", value.as_ref()),
-        IdlType::OutputSlice(value) => ("OutputBuffer", value.as_ref()),
-        _ => ("Value", ty),
+/// Describes each input using its resolved direction and payload.
+fn parameter_type(graph: &Generation<'_>, module: &ResolvedModule, parameter: &crate::Parameter) -> Result<TokenStream, GenerateError> {
+    let ty = parameter.payload();
+    let kind = match parameter.passing {
+        ParameterPassing::Copied => "Value",
+        ParameterPassing::BorrowedValue | ParameterPassing::BorrowedText | ParameterPassing::SharedLoan { optional: false } => "Borrowed",
+        ParameterPassing::SharedLoan { optional: true } => "OptionalBorrowedInterface",
+        ParameterPassing::MutableLoan => "MutableBorrowedInterface",
+        ParameterPassing::InputBuffer => "InputBuffer",
+        ParameterPassing::OutputBuffer => "OutputBuffer",
+        ParameterPassing::ConsumingBox => return exclusive_type(graph, module, ty),
+        ParameterPassing::Unresolved | ParameterPassing::Invalid => return Err(GenerateError::new("input slot lacks its resolved passing rule")),
     };
+    method_type(graph, module, kind, ty)
+}
+
+/// Describes output ownership from the same slot that selects the wire.
+fn return_type(graph: &Generation<'_>, module: &ResolvedModule, method: &Method) -> Result<TokenStream, GenerateError> {
+    let kind = match method.return_passing {
+        ReturnPassing::Unit
+        | ReturnPassing::Copied
+        | ReturnPassing::SharedOwner { optional: false }
+        | ReturnPassing::BoxObserver
+        | ReturnPassing::SharedObserver => "Value",
+        ReturnPassing::SharedOwner { optional: true } => "OptionalOwnedInterface",
+        ReturnPassing::ScopedLoan => "ScopedBorrowedInterface",
+        ReturnPassing::BoxOwner => return exclusive_type(graph, module, method.return_payload()),
+        ReturnPassing::Unresolved | ReturnPassing::Invalid => return Err(GenerateError::new("result slot lacks its resolved passing rule")),
+    };
+    let ty = match method.return_passing {
+        ReturnPassing::BoxObserver | ReturnPassing::SharedObserver => &method.output,
+        _ => method.return_payload(),
+    };
+    method_type(graph, module, kind, ty)
+}
+
+/// Packages structural payload metadata with the selected call-only passing rule.
+fn method_type(graph: &Generation<'_>, module: &ResolvedModule, kind: &str, ty: &IdlType) -> Result<TokenStream, GenerateError> {
+    let nc = &graph.support;
     let kind = rust_ident(kind)?;
-    let value = value_type_metadata(graph, module, value)?;
+    let value = value_type_metadata(graph, module, ty)?;
     Ok(quote! { #nc::idl_metadata::MethodType::#kind(#value) })
+}
+
+/// Records the declared interface of a consumed or produced exclusive owner.
+fn exclusive_type(graph: &Generation<'_>, module: &ResolvedModule, target: &IdlType) -> Result<TokenStream, GenerateError> {
+    let nc = &graph.support;
+    let IdlType::Named(name) = target else {
+        return Err(GenerateError::new("exclusive method target is not an interface"));
+    };
+    let name = match builtin_object_type(nc, name) {
+        Some(_) => name.segments.join("."),
+        None => resolve(graph, module, name)?.identity.qualified_name.clone(),
+    };
+    let name = Literal::string(&name);
+    Ok(quote! { #nc::idl_metadata::MethodType::ExclusiveObject(#name) })
 }

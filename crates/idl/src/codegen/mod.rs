@@ -66,7 +66,11 @@ fn method_declaration_with_path(method: &model::AbiMethod, nc: &syn::Path) -> pr
     } else {
         quote! { (#nc::NcStatus, #(#owners),*) }
     };
-    quote! { #(#docs)* fn #name(#receiver, #(#parameters),*) -> ::core::result::Result<#output, #error>; }
+    let returns = match method.projection {
+        crate::ReturnProjection::Fallible => quote! { ::core::result::Result<#output, #error> },
+        crate::ReturnProjection::Direct => quote! { #output },
+    };
+    quote! { #(#docs)* fn #name(#receiver, #(#parameters),*) -> #returns; }
 }
 
 /// Emits a checked codec from compiler-bound IDL value alternatives.

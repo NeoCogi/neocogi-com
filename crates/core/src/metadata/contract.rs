@@ -153,6 +153,21 @@ pub enum NcAbiPassing {
         /// Threading capability of a present borrowed pointer.
         mode: NcAbiThreadingMode,
     },
+    /// Required live interface loan allowing mutable receiver calls.
+    ComMut {
+        /// Threading capability of the mutable lender.
+        mode: NcAbiThreadingMode,
+    },
+    /// Shared ownership transfer or canonical absence in the same out pair.
+    OptionalComPtrOut {
+        /// Threading capability of a transferred owner.
+        mode: NcAbiThreadingMode,
+    },
+    /// Optional live shared loan delivered to a synchronous continuation.
+    ScopedComRefOut {
+        /// Threading capability of a present loan during delivery.
+        mode: NcAbiThreadingMode,
+    },
     /// Pointer to one recursively lowered raw value record, borrowed for this call.
     BorrowedValue,
     /// No success value is carried.
@@ -309,6 +324,12 @@ pub const NC_ABI_PASSING_WEAK_COM_BOX_OUT: u32 = 0x0b;
 pub const NC_ABI_PASSING_WEAK_COM_PTR_OUT: u32 = 0x0d;
 /// One-way copied result capacity with a separate initialized-prefix count.
 pub const NC_ABI_PASSING_OUTPUT_BUFFER: u32 = 0x0c;
+/// Required mutable live interface loan for the duration of the call.
+pub const NC_ABI_PASSING_COM_MUT: u32 = 0x0e;
+/// Nullable transfer of one shared owner through an out slot.
+pub const NC_ABI_PASSING_OPTIONAL_COM_PTR_OUT: u32 = 0x0f;
+/// Nullable shared loan delivered once, synchronously, through a continuation.
+pub const NC_ABI_PASSING_SCOPED_COM_REF_OUT: u32 = 0x10;
 
 /// C-stable threading value requiring calls and final release on one thread.
 pub const NC_ABI_THREADING_THREAD_LOCAL: u32 = 0x00;
@@ -433,6 +454,18 @@ impl NcAbiPassingDescriptor {
             },
             NcAbiPassing::OptionalComRef { mode } => Self {
                 tag: NC_ABI_PASSING_OPTIONAL_COM_REF,
+                threading: threading_descriptor(mode),
+            },
+            NcAbiPassing::ComMut { mode } => Self {
+                tag: NC_ABI_PASSING_COM_MUT,
+                threading: threading_descriptor(mode),
+            },
+            NcAbiPassing::OptionalComPtrOut { mode } => Self {
+                tag: NC_ABI_PASSING_OPTIONAL_COM_PTR_OUT,
+                threading: threading_descriptor(mode),
+            },
+            NcAbiPassing::ScopedComRefOut { mode } => Self {
+                tag: NC_ABI_PASSING_SCOPED_COM_REF_OUT,
                 threading: threading_descriptor(mode),
             },
             NcAbiPassing::BorrowedValue => Self {

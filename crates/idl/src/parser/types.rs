@@ -89,7 +89,7 @@ fn value(input: ParseStream<'_>, descent: usize) -> syn::Result<Value> {
             (false, IdlType::UnsizedSlice(element)) => Value::new(IdlType::Slice(element), height, span),
             (true, IdlType::UnsizedSlice(element)) => Value::new(IdlType::OutputSlice(element), height, span),
             (false, ty) => Value { ty, height }.wrap(span, IdlType::Borrowed),
-            (true, _) => Err(syn::Error::new(span, "IDL mutable borrows must use `&mut [T]` or `&mut Slice<T>`")),
+            (true, ty) => Value { ty, height }.wrap(span, IdlType::BorrowedMut),
         };
     }
     if input.peek(syn::token::Paren) {
@@ -221,11 +221,14 @@ pub(super) fn base(input: ParseStream<'_>) -> syn::Result<NamedType> {
     };
     Ok(value)
 }
-/// The Result wrapper is fixed method framing, separate from its successful type.
-pub(super) fn result(input: ParseStream<'_>) -> syn::Result<IdlType> {
+/// Separates method-only Result framing from the bounded successful type.
+pub(super) fn method_output(input: ParseStream<'_>) -> syn::Result<(IdlType, crate::ReturnProjection)> {
+    if !input.peek(Ident) || input.fork().parse::<Ident>()? != "Result" {
+        return Ok((abi(input)?, crate::ReturnProjection::Direct));
+    }
     let path = head(input)?;
     if path.segments != ["Result"] {
-        return Err(syn::Error::new(path.span, "IDL methods must return `Result<T>`"));
+        return Err(syn::Error::new(path.span, "IDL method Result is unqualified"));
     }
     input.parse::<Token![<]>()?;
     let output = abi(input)?;
@@ -233,5 +236,5 @@ pub(super) fn result(input: ParseStream<'_>) -> syn::Result<IdlType> {
         input.parse::<Token![,]>()?;
     }
     input.parse::<Token![>]>()?;
-    Ok(output)
+    Ok((output, crate::ReturnProjection::Fallible))
 }

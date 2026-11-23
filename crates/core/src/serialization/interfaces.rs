@@ -10,9 +10,9 @@ pub const MODULE_ID: crate::NcGuid = crate::NcGuid::from_fields(
 );
 /// Transitive canonical ABI fingerprint of this generated module.
 pub const ABI_FINGERPRINT: [::core::primitive::u8; 32] = [
-    52u8, 178u8, 151u8, 181u8, 67u8, 79u8, 205u8, 215u8, 57u8, 48u8, 191u8, 186u8, 78u8,
-    133u8, 210u8, 219u8, 209u8, 129u8, 152u8, 237u8, 51u8, 63u8, 197u8, 134u8, 189u8,
-    120u8, 200u8, 90u8, 217u8, 161u8, 136u8, 213u8,
+    244u8, 156u8, 133u8, 187u8, 193u8, 218u8, 58u8, 183u8, 243u8, 51u8, 252u8, 130u8,
+    76u8, 159u8, 57u8, 89u8, 145u8, 242u8, 254u8, 252u8, 191u8, 250u8, 115u8, 54u8, 75u8,
+    165u8, 173u8, 163u8, 167u8, 143u8, 108u8, 42u8,
 ];
 /// Exact dotted module name derived from the normalized IDL path.
 pub const MODULE_NAME: &::core::primitive::str = "neocogi.com.serialization";
@@ -162,7 +162,7 @@ pub struct IDeserializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -180,7 +180,7 @@ pub struct IDeserializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -198,7 +198,7 @@ pub struct IDeserializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -216,7 +216,7 @@ pub struct IDeserializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
     ///
     ///On success, `out` receives `< :: core :: primitive :: bool as crate :: ComValue > :: AbiRepr`.
     #[allow(
@@ -235,7 +235,7 @@ pub struct IDeserializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
     ///
     ///On success, `out` receives `< :: core :: primitive :: u8 as crate :: ComValue > :: AbiRepr`.
     #[allow(
@@ -254,7 +254,7 @@ pub struct IDeserializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
     ///
     ///On success, `out` receives `< :: core :: primitive :: u16 as crate :: ComValue > :: AbiRepr`.
     #[allow(
@@ -273,7 +273,7 @@ pub struct IDeserializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
     ///
     ///On success, `out` receives `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr`.
     #[allow(
@@ -292,7 +292,7 @@ pub struct IDeserializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
     ///
     ///On success, `out` receives `< :: core :: primitive :: u64 as crate :: ComValue > :: AbiRepr`.
     #[allow(
@@ -311,7 +311,7 @@ pub struct IDeserializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
     ///
     ///On success, `out` receives `< :: core :: primitive :: i8 as crate :: ComValue > :: AbiRepr`.
     #[allow(
@@ -330,7 +330,7 @@ pub struct IDeserializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
     ///
     ///On success, `out` receives `< :: core :: primitive :: i16 as crate :: ComValue > :: AbiRepr`.
     #[allow(
@@ -349,7 +349,7 @@ pub struct IDeserializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
     ///
     ///On success, `out` receives `< :: core :: primitive :: i32 as crate :: ComValue > :: AbiRepr`.
     #[allow(
@@ -368,7 +368,7 @@ pub struct IDeserializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
     ///
     ///On success, `out` receives `< :: core :: primitive :: i64 as crate :: ComValue > :: AbiRepr`.
     #[allow(
@@ -387,7 +387,7 @@ pub struct IDeserializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
     ///
     ///On success, `out` receives `< :: core :: primitive :: f32 as crate :: ComValue > :: AbiRepr`.
     #[allow(
@@ -406,7 +406,7 @@ pub struct IDeserializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
     ///
     ///On success, `out` receives `< :: core :: primitive :: f64 as crate :: ComValue > :: AbiRepr`.
     #[allow(
@@ -425,7 +425,7 @@ pub struct IDeserializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
     ///
     ///On success, `out` receives `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr`.
     #[allow(
@@ -444,7 +444,7 @@ pub struct IDeserializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
     ///- `output` uses ABI storage `* mut < :: core :: primitive :: u8 as crate :: ComValue > :: AbiRepr` for `crate :: NcOutputWriter < '_ , :: core :: primitive :: u8 >`. The writable buffer pointer is accompanied by `offset: u64`, `capacity: u64`, and a separate `written: *mut u64`. Old contents are not input. Only the successfully reported initialized prefix may be read; count and element storage must not alias.
     ///
     ///On success, `out` receives `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr`.
@@ -468,7 +468,7 @@ pub struct IDeserializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
     ///
     ///On success, `out` receives `< :: core :: primitive :: bool as crate :: ComValue > :: AbiRepr`.
     #[allow(
@@ -487,7 +487,7 @@ pub struct IDeserializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
     ///- `maximum` uses ABI storage `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
     ///
     ///On success, `out` receives `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr`.
@@ -508,7 +508,7 @@ pub struct IDeserializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
     ///- `name` uses ABI storage `* const < :: core :: primitive :: u8 as crate :: ComValue > :: AbiRepr` for `crate :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
     ///
     ///On success, `out` receives `< :: core :: primitive :: bool as crate :: ComValue > :: AbiRepr`.
@@ -531,7 +531,7 @@ pub struct IDeserializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -549,7 +549,7 @@ pub struct IDeserializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
     ///
     ///On success, `out` receives `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr`.
     #[allow(
@@ -568,7 +568,7 @@ pub struct IDeserializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -586,7 +586,7 @@ pub struct IDeserializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
     ///
     ///On success, `out` receives `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr`.
     #[allow(
@@ -605,7 +605,7 @@ pub struct IDeserializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -623,7 +623,7 @@ pub struct IDeserializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
     ///- `index` uses ABI storage `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
     ///- `name` uses ABI storage `* const < :: core :: primitive :: u8 as crate :: ComValue > :: AbiRepr` for `crate :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
     ///
@@ -648,7 +648,7 @@ pub struct IDeserializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table.
     ///- `message` uses ABI storage `* const < :: core :: primitive :: u8 as crate :: ComValue > :: AbiRepr` for `crate :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
     ///
     ///On success, no output value is written.
@@ -670,7 +670,7 @@ pub struct IDeserializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -762,7 +762,8 @@ const _: () = {
         identity as __nc_arg_0_3_values, identity as __nc_arg_0_3_written,
         identity as __nc_this, identity as __nc_status, identity as __nc_value,
         identity as __nc_raw, identity as __nc_result, identity as __nc_values,
-        identity as __nc_writer, identity as __nc_out, identity as __nc_identity,
+        identity as __nc_writer, identity as __nc_out, identity as __nc_scoped_context,
+        identity as __nc_scoped_callback, identity as __nc_identity,
         identity as __nc_this_0, identity as __nc_status_0, identity as __nc_result_0,
         identity as __nc_prepared, identity as __nc_out_0, identity as __nc_this_1,
         identity as __nc_status_1, identity as __nc_result_1,
@@ -824,8 +825,8 @@ const _: () = {
         ///
         ///Calls [`IDeserializer::enter_value`] through the generated COM ABI vtable.
         ///
-        ///This safe wrapper invokes the raw vtable function and maps a successful status to `Ok(())`.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///This safe wrapper invokes the status-only raw vtable function.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///
         ///On success, returns `()`.
         pub fn enter_value(&mut self) -> ::core::result::Result<(), crate::NcStatus> {
@@ -844,8 +845,8 @@ const _: () = {
         ///
         ///Calls [`IDeserializer::leave_value`] through the generated COM ABI vtable.
         ///
-        ///This safe wrapper invokes the raw vtable function and maps a successful status to `Ok(())`.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///This safe wrapper invokes the status-only raw vtable function.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///
         ///On success, returns `()`.
         pub fn leave_value(&mut self) -> ::core::result::Result<(), crate::NcStatus> {
@@ -864,8 +865,8 @@ const _: () = {
         ///
         ///Calls [`IDeserializer::deserialize_unit`] through the generated COM ABI vtable.
         ///
-        ///This safe wrapper invokes the raw vtable function and maps a successful status to `Ok(())`.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///This safe wrapper invokes the status-only raw vtable function.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///
         ///On success, returns `()`.
         pub fn deserialize_unit(
@@ -887,7 +888,7 @@ const _: () = {
         ///Calls [`IDeserializer::deserialize_bool`] through the generated COM ABI vtable.
         ///
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///
         ///On success, returns `:: core :: primitive :: bool` from the ABI out slot.
         pub fn deserialize_bool(
@@ -917,7 +918,7 @@ const _: () = {
         ///Calls [`IDeserializer::deserialize_u8`] through the generated COM ABI vtable.
         ///
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///
         ///On success, returns `:: core :: primitive :: u8` from the ABI out slot.
         pub fn deserialize_u8(
@@ -947,7 +948,7 @@ const _: () = {
         ///Calls [`IDeserializer::deserialize_u16`] through the generated COM ABI vtable.
         ///
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///
         ///On success, returns `:: core :: primitive :: u16` from the ABI out slot.
         pub fn deserialize_u16(
@@ -977,7 +978,7 @@ const _: () = {
         ///Calls [`IDeserializer::deserialize_u32`] through the generated COM ABI vtable.
         ///
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///
         ///On success, returns `:: core :: primitive :: u32` from the ABI out slot.
         pub fn deserialize_u32(
@@ -1007,7 +1008,7 @@ const _: () = {
         ///Calls [`IDeserializer::deserialize_u64`] through the generated COM ABI vtable.
         ///
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///
         ///On success, returns `:: core :: primitive :: u64` from the ABI out slot.
         pub fn deserialize_u64(
@@ -1037,7 +1038,7 @@ const _: () = {
         ///Calls [`IDeserializer::deserialize_i8`] through the generated COM ABI vtable.
         ///
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///
         ///On success, returns `:: core :: primitive :: i8` from the ABI out slot.
         pub fn deserialize_i8(
@@ -1067,7 +1068,7 @@ const _: () = {
         ///Calls [`IDeserializer::deserialize_i16`] through the generated COM ABI vtable.
         ///
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///
         ///On success, returns `:: core :: primitive :: i16` from the ABI out slot.
         pub fn deserialize_i16(
@@ -1097,7 +1098,7 @@ const _: () = {
         ///Calls [`IDeserializer::deserialize_i32`] through the generated COM ABI vtable.
         ///
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///
         ///On success, returns `:: core :: primitive :: i32` from the ABI out slot.
         pub fn deserialize_i32(
@@ -1127,7 +1128,7 @@ const _: () = {
         ///Calls [`IDeserializer::deserialize_i64`] through the generated COM ABI vtable.
         ///
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///
         ///On success, returns `:: core :: primitive :: i64` from the ABI out slot.
         pub fn deserialize_i64(
@@ -1157,7 +1158,7 @@ const _: () = {
         ///Calls [`IDeserializer::deserialize_f32`] through the generated COM ABI vtable.
         ///
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///
         ///On success, returns `:: core :: primitive :: f32` from the ABI out slot.
         pub fn deserialize_f32(
@@ -1187,7 +1188,7 @@ const _: () = {
         ///Calls [`IDeserializer::deserialize_f64`] through the generated COM ABI vtable.
         ///
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///
         ///On success, returns `:: core :: primitive :: f64` from the ABI out slot.
         pub fn deserialize_f64(
@@ -1217,7 +1218,7 @@ const _: () = {
         ///Calls [`IDeserializer::string_len`] through the generated COM ABI vtable.
         ///
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///
         ///On success, returns `:: core :: primitive :: u32` from the ABI out slot.
         pub fn string_len(
@@ -1247,7 +1248,7 @@ const _: () = {
         ///Calls [`IDeserializer::copy_string`] through the generated COM ABI vtable.
         ///
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///- `output` supplies output storage for `:: core :: primitive :: u8` through [`crate::NcOutput`]. See its lifecycle contract for acquisition, preparation and publication.
         ///
         ///On success, returns `:: core :: primitive :: u32` from the ABI out slot.
@@ -1289,7 +1290,7 @@ const _: () = {
         ///Calls [`IDeserializer::option_present`] through the generated COM ABI vtable.
         ///
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///
         ///On success, returns `:: core :: primitive :: bool` from the ABI out slot.
         pub fn option_present(
@@ -1319,7 +1320,7 @@ const _: () = {
         ///Calls [`IDeserializer::begin_record`] through the generated COM ABI vtable.
         ///
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///- `maximum` is passed by value as `:: core :: primitive :: u32`.
         ///
         ///On success, returns `:: core :: primitive :: u32` from the ABI out slot.
@@ -1356,7 +1357,7 @@ const _: () = {
         ///Calls [`IDeserializer::field`] through the generated COM ABI vtable.
         ///
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///- `name` is passed as a safe readable `:: core :: primitive :: u8` buffer plus offset.
         ///
         ///On success, returns `:: core :: primitive :: bool` from the ABI out slot.
@@ -1394,8 +1395,8 @@ const _: () = {
         ///
         ///Calls [`IDeserializer::end_record`] through the generated COM ABI vtable.
         ///
-        ///This safe wrapper invokes the raw vtable function and maps a successful status to `Ok(())`.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///This safe wrapper invokes the status-only raw vtable function.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///
         ///On success, returns `()`.
         pub fn end_record(&mut self) -> ::core::result::Result<(), crate::NcStatus> {
@@ -1415,7 +1416,7 @@ const _: () = {
         ///Calls [`IDeserializer::begin_sequence`] through the generated COM ABI vtable.
         ///
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///
         ///On success, returns `:: core :: primitive :: u32` from the ABI out slot.
         pub fn begin_sequence(
@@ -1444,8 +1445,8 @@ const _: () = {
         ///
         ///Calls [`IDeserializer::end_sequence`] through the generated COM ABI vtable.
         ///
-        ///This safe wrapper invokes the raw vtable function and maps a successful status to `Ok(())`.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///This safe wrapper invokes the status-only raw vtable function.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///
         ///On success, returns `()`.
         pub fn end_sequence(&mut self) -> ::core::result::Result<(), crate::NcStatus> {
@@ -1465,7 +1466,7 @@ const _: () = {
         ///Calls [`IDeserializer::begin_map`] through the generated COM ABI vtable.
         ///
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///
         ///On success, returns `:: core :: primitive :: u32` from the ABI out slot.
         pub fn begin_map(
@@ -1494,8 +1495,8 @@ const _: () = {
         ///
         ///Calls [`IDeserializer::end_map`] through the generated COM ABI vtable.
         ///
-        ///This safe wrapper invokes the raw vtable function and maps a successful status to `Ok(())`.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///This safe wrapper invokes the status-only raw vtable function.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///
         ///On success, returns `()`.
         pub fn end_map(&mut self) -> ::core::result::Result<(), crate::NcStatus> {
@@ -1515,7 +1516,7 @@ const _: () = {
         ///Calls [`IDeserializer::variant_is`] through the generated COM ABI vtable.
         ///
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///- `index` is passed by value as `:: core :: primitive :: u32`.
         ///- `name` is passed as a safe readable `:: core :: primitive :: u8` buffer plus offset.
         ///
@@ -1557,8 +1558,8 @@ const _: () = {
         ///
         ///Calls [`IDeserializer::fail`] through the generated COM ABI vtable.
         ///
-        ///This safe wrapper invokes the raw vtable function and maps a successful status to `Ok(())`.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///This safe wrapper invokes the status-only raw vtable function.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///- `message` is passed as a safe readable `:: core :: primitive :: u8` buffer plus offset.
         ///
         ///On success, returns `()`.
@@ -1588,8 +1589,8 @@ const _: () = {
         ///
         ///Calls [`IDeserializer::finish`] through the generated COM ABI vtable.
         ///
-        ///This safe wrapper invokes the raw vtable function and maps a successful status to `Ok(())`.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///This safe wrapper invokes the status-only raw vtable function.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///
         ///On success, returns `()`.
         pub fn finish(&mut self) -> ::core::result::Result<(), crate::NcStatus> {
@@ -1608,7 +1609,7 @@ const _: () = {
 impl IDeserializerAbi {
     ///Canonical validation form of this interface's typed ABI contract.
     pub const ABI_SIGNATURE: crate::NcAbiDigest = crate::NcAbiDigest::from_static(
-        b"\xA0\\\x87\x8D\rW\xB4]z\x90\x0F\x18\x103\xFD \xFE\x846\x08\xA6&\x90\x81\xE8\x05\xC3\xF1\xC1\x8F[\xFB",
+        b":y\x02{\xA7\xF3\x07\x88K\xAE\x02oH\x18Q\xBDu\x0E\x86\xA1$t*\xF5\x84\x9D\xF0\xB7\xCF\xC6\xCF\xDF",
     );
     ///Static descriptors for this interface's ABI methods.
     pub const METHOD_DESCRIPTORS: [crate::NcMethodDescriptor; 27usize] = [
@@ -2059,9 +2060,9 @@ impl IDeserializerAbi {
 impl IDeserializerAbi {
     #[doc(hidden)]
     pub const __NC_RUST_BINDING: [::core::primitive::u8; 32] = [
-        24u8, 118u8, 226u8, 143u8, 200u8, 221u8, 169u8, 165u8, 189u8, 122u8, 183u8,
-        151u8, 62u8, 26u8, 70u8, 85u8, 220u8, 195u8, 106u8, 250u8, 15u8, 176u8, 134u8,
-        100u8, 171u8, 139u8, 58u8, 244u8, 214u8, 72u8, 70u8, 146u8,
+        148u8, 162u8, 225u8, 93u8, 32u8, 42u8, 168u8, 163u8, 243u8, 166u8, 103u8, 55u8,
+        38u8, 237u8, 204u8, 246u8, 43u8, 74u8, 125u8, 132u8, 191u8, 23u8, 3u8, 193u8,
+        41u8, 200u8, 126u8, 202u8, 219u8, 130u8, 222u8, 245u8,
     ];
 }
 /// Immutable first-failure details on an owning serializer/deserializer session.
@@ -2120,7 +2121,7 @@ pub struct ISerializationDiagnosticsVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
     ///
     ///On success, `out` receives `< crate :: NcStatus as crate :: ComValue > :: AbiRepr`.
     #[allow(
@@ -2139,7 +2140,7 @@ pub struct ISerializationDiagnosticsVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
     ///
     ///On success, `out` receives `< :: core :: primitive :: u64 as crate :: ComValue > :: AbiRepr`.
     #[allow(
@@ -2158,7 +2159,7 @@ pub struct ISerializationDiagnosticsVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
     ///
     ///On success, `out` receives `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr`.
     #[allow(
@@ -2177,7 +2178,7 @@ pub struct ISerializationDiagnosticsVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
     ///
     ///On success, `out` receives `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr`.
     #[allow(
@@ -2196,7 +2197,7 @@ pub struct ISerializationDiagnosticsVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
     ///
     ///On success, `out` receives `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr`.
     #[allow(
@@ -2215,7 +2216,7 @@ pub struct ISerializationDiagnosticsVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
     ///- `output` uses ABI storage `* mut < :: core :: primitive :: u8 as crate :: ComValue > :: AbiRepr` for `crate :: NcOutputWriter < '_ , :: core :: primitive :: u8 >`. The writable buffer pointer is accompanied by `offset: u64`, `capacity: u64`, and a separate `written: *mut u64`. Old contents are not input. Only the successfully reported initialized prefix may be read; count and element storage must not alias.
     ///
     ///On success, `out` receives `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr`.
@@ -2239,7 +2240,7 @@ pub struct ISerializationDiagnosticsVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
     ///
     ///On success, `out` receives `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr`.
     #[allow(
@@ -2258,7 +2259,7 @@ pub struct ISerializationDiagnosticsVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
     ///- `output` uses ABI storage `* mut < :: core :: primitive :: u8 as crate :: ComValue > :: AbiRepr` for `crate :: NcOutputWriter < '_ , :: core :: primitive :: u8 >`. The writable buffer pointer is accompanied by `offset: u64`, `capacity: u64`, and a separate `written: *mut u64`. Old contents are not input. Only the successfully reported initialized prefix may be read; count and element storage must not alias.
     ///
     ///On success, `out` receives `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr`.
@@ -2341,7 +2342,8 @@ const _: () = {
         identity as __nc_arg_0_0_values, identity as __nc_arg_0_0_written,
         identity as __nc_this, identity as __nc_status, identity as __nc_value,
         identity as __nc_raw, identity as __nc_result, identity as __nc_values,
-        identity as __nc_writer, identity as __nc_out, identity as __nc_identity,
+        identity as __nc_writer, identity as __nc_out, identity as __nc_scoped_context,
+        identity as __nc_scoped_callback, identity as __nc_identity,
         identity as __nc_this_0, identity as __nc_status_0, identity as __nc_result_0,
         identity as __nc_prepared, identity as __nc_out_0, identity as __nc_this_1,
         identity as __nc_status_1, identity as __nc_result_1,
@@ -2368,7 +2370,7 @@ const _: () = {
         ///Calls [`ISerializationDiagnostics::failure_status`] through the generated COM ABI vtable.
         ///
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///
         ///On success, returns `crate :: NcStatus` from the ABI out slot.
         pub fn failure_status(
@@ -2396,7 +2398,7 @@ const _: () = {
         ///Calls [`ISerializationDiagnostics::byte_offset`] through the generated COM ABI vtable.
         ///
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///
         ///On success, returns `:: core :: primitive :: u64` from the ABI out slot.
         pub fn byte_offset(
@@ -2426,7 +2428,7 @@ const _: () = {
         ///Calls [`ISerializationDiagnostics::line`] through the generated COM ABI vtable.
         ///
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///
         ///On success, returns `:: core :: primitive :: u32` from the ABI out slot.
         pub fn line(
@@ -2455,7 +2457,7 @@ const _: () = {
         ///Calls [`ISerializationDiagnostics::column`] through the generated COM ABI vtable.
         ///
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///
         ///On success, returns `:: core :: primitive :: u32` from the ABI out slot.
         pub fn column(
@@ -2485,7 +2487,7 @@ const _: () = {
         ///Calls [`ISerializationDiagnostics::message_len`] through the generated COM ABI vtable.
         ///
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///
         ///On success, returns `:: core :: primitive :: u32` from the ABI out slot.
         pub fn message_len(
@@ -2515,7 +2517,7 @@ const _: () = {
         ///Calls [`ISerializationDiagnostics::copy_message`] through the generated COM ABI vtable.
         ///
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///- `output` supplies output storage for `:: core :: primitive :: u8` through [`crate::NcOutput`]. See its lifecycle contract for acquisition, preparation and publication.
         ///
         ///On success, returns `:: core :: primitive :: u32` from the ABI out slot.
@@ -2557,7 +2559,7 @@ const _: () = {
         ///Calls [`ISerializationDiagnostics::path_len`] through the generated COM ABI vtable.
         ///
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///
         ///On success, returns `:: core :: primitive :: u32` from the ABI out slot.
         pub fn path_len(
@@ -2587,7 +2589,7 @@ const _: () = {
         ///Calls [`ISerializationDiagnostics::copy_path`] through the generated COM ABI vtable.
         ///
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///- `output` supplies output storage for `:: core :: primitive :: u8` through [`crate::NcOutput`]. See its lifecycle contract for acquisition, preparation and publication.
         ///
         ///On success, returns `:: core :: primitive :: u32` from the ABI out slot.
@@ -2628,7 +2630,7 @@ const _: () = {
 impl ISerializationDiagnosticsAbi {
     ///Canonical validation form of this interface's typed ABI contract.
     pub const ABI_SIGNATURE: crate::NcAbiDigest = crate::NcAbiDigest::from_static(
-        b"\x13\x1E\xEF\xE7;\xA1\x9F\xEB\xB1\x9B\xB2'\x81\xE1\xB2\xFAe\x07\xEA\x12\xFCX\xF01\x98\x01\x89H\x1By\xEF\x15",
+        b"lB,/\x19r\r\xF0e\x9F\t\xCA?\xED\xC6\xA0\xF0jI\xD6\xB8\xA9\xDD\x0F\xA6>\xCC\xA7k\x9EI\xC6",
     );
     ///Static descriptors for this interface's ABI methods.
     pub const METHOD_DESCRIPTORS: [crate::NcMethodDescriptor; 8usize] = [
@@ -2787,9 +2789,9 @@ impl ISerializationDiagnosticsAbi {
 impl ISerializationDiagnosticsAbi {
     #[doc(hidden)]
     pub const __NC_RUST_BINDING: [::core::primitive::u8; 32] = [
-        160u8, 196u8, 189u8, 191u8, 237u8, 1u8, 180u8, 166u8, 246u8, 94u8, 9u8, 126u8,
-        117u8, 48u8, 51u8, 112u8, 172u8, 246u8, 152u8, 83u8, 185u8, 187u8, 152u8, 158u8,
-        203u8, 252u8, 212u8, 61u8, 176u8, 209u8, 45u8, 161u8,
+        181u8, 109u8, 73u8, 146u8, 49u8, 167u8, 125u8, 199u8, 180u8, 49u8, 208u8, 195u8,
+        47u8, 132u8, 57u8, 115u8, 243u8, 62u8, 95u8, 35u8, 227u8, 121u8, 180u8, 31u8,
+        156u8, 152u8, 38u8, 55u8, 175u8, 50u8, 199u8, 178u8,
     ];
 }
 /// A format plugin's shared root; each document receives its own exclusive session.
@@ -2830,7 +2832,7 @@ pub struct ISerializationFormatVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
     ///- `max_bytes` uses ABI storage `< :: core :: primitive :: u64 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u64`. Passed by value.
     ///- `max_elements` uses ABI storage `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
     ///- `max_depth` uses ABI storage `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
@@ -2857,7 +2859,7 @@ pub struct ISerializationFormatVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
     ///- `input` uses ABI storage `* const < :: core :: primitive :: u8 as crate :: ComValue > :: AbiRepr` for `crate :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
     ///- `max_bytes` uses ABI storage `< :: core :: primitive :: u64 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u64`. Passed by value.
     ///- `max_elements` uses ABI storage `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
@@ -2976,6 +2978,7 @@ const _: () = {
         identity as __nc_arg_4_written, identity as __nc_this, identity as __nc_status,
         identity as __nc_value, identity as __nc_raw, identity as __nc_result,
         identity as __nc_values, identity as __nc_writer, identity as __nc_out,
+        identity as __nc_scoped_context, identity as __nc_scoped_callback,
         identity as __nc_identity, identity as __nc_this_0, identity as __nc_status_0,
         identity as __nc_result_0, identity as __nc_prepared, identity as __nc_out_0,
         identity as __nc_this_1, identity as __nc_status_1, identity as __nc_result_1,
@@ -2990,7 +2993,7 @@ const _: () = {
         ///Calls [`ISerializationFormat::create_serializer`] through the generated COM ABI vtable.
         ///
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///- `max_bytes` is passed by value as `:: core :: primitive :: u64`.
         ///- `max_elements` is passed by value as `:: core :: primitive :: u32`.
         ///- `max_depth` is passed by value as `:: core :: primitive :: u32`.
@@ -3042,7 +3045,7 @@ const _: () = {
         ///Calls [`ISerializationFormat::create_deserializer`] through the generated COM ABI vtable.
         ///
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///- `input` is passed as a safe readable `:: core :: primitive :: u8` buffer plus offset.
         ///- `max_bytes` is passed by value as `:: core :: primitive :: u64`.
         ///- `max_elements` is passed by value as `:: core :: primitive :: u32`.
@@ -3099,7 +3102,7 @@ const _: () = {
 impl ISerializationFormatAbi {
     ///Canonical validation form of this interface's typed ABI contract.
     pub const ABI_SIGNATURE: crate::NcAbiDigest = crate::NcAbiDigest::from_static(
-        b"Q\x94\x92\xAB> \x82\x10'\xF7\xB2`\x945\xB2\xED:\x9A\xEFf\xBC\xB8o\xE1|b\x8F\xFD\\\xF5\xF2\xAA",
+        b"\r\x03np\xF2\xBB=}\0\xFF%\xBF\xFE\xC8\xC5\xA5\x13E]\xF1h3_\x96O\x1A\xCE\x89(b\x83\xFD",
     );
     ///Static descriptors for this interface's ABI methods.
     pub const METHOD_DESCRIPTORS: [crate::NcMethodDescriptor; 2usize] = [
@@ -3237,9 +3240,9 @@ impl ISerializationFormatAbi {
 impl ISerializationFormatAbi {
     #[doc(hidden)]
     pub const __NC_RUST_BINDING: [::core::primitive::u8; 32] = [
-        209u8, 192u8, 175u8, 237u8, 207u8, 173u8, 95u8, 72u8, 125u8, 164u8, 230u8, 7u8,
-        8u8, 62u8, 162u8, 68u8, 181u8, 96u8, 37u8, 36u8, 203u8, 92u8, 177u8, 26u8, 213u8,
-        56u8, 142u8, 125u8, 65u8, 237u8, 103u8, 31u8,
+        201u8, 255u8, 31u8, 23u8, 212u8, 16u8, 2u8, 59u8, 114u8, 207u8, 32u8, 102u8,
+        136u8, 135u8, 253u8, 224u8, 212u8, 125u8, 211u8, 204u8, 199u8, 166u8, 229u8,
+        235u8, 25u8, 17u8, 191u8, 94u8, 80u8, 156u8, 10u8, 176u8,
     ];
 }
 /// Byte output of a completed serializer, independent of its document format.
@@ -3272,7 +3275,7 @@ pub struct ISerializationOutputVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
     ///
     ///On success, `out` receives `< :: core :: primitive :: u64 as crate :: ComValue > :: AbiRepr`.
     #[allow(
@@ -3291,7 +3294,7 @@ pub struct ISerializationOutputVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
     ///- `output` uses ABI storage `* mut < :: core :: primitive :: u8 as crate :: ComValue > :: AbiRepr` for `crate :: NcOutputWriter < '_ , :: core :: primitive :: u8 >`. The writable buffer pointer is accompanied by `offset: u64`, `capacity: u64`, and a separate `written: *mut u64`. Old contents are not input. Only the successfully reported initialized prefix may be read; count and element storage must not alias.
     ///
     ///On success, `out` receives `< :: core :: primitive :: u64 as crate :: ComValue > :: AbiRepr`.
@@ -3367,6 +3370,7 @@ const _: () = {
         identity as __nc_arg_0_written, identity as __nc_this, identity as __nc_status,
         identity as __nc_value, identity as __nc_raw, identity as __nc_result,
         identity as __nc_values, identity as __nc_writer, identity as __nc_out,
+        identity as __nc_scoped_context, identity as __nc_scoped_callback,
         identity as __nc_identity, identity as __nc_this_0, identity as __nc_status_0,
         identity as __nc_result_0, identity as __nc_prepared, identity as __nc_out_0,
         identity as __nc_this_1, identity as __nc_status_1, identity as __nc_result_1,
@@ -3381,7 +3385,7 @@ const _: () = {
         ///Calls [`ISerializationOutput::byte_len`] through the generated COM ABI vtable.
         ///
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///
         ///On success, returns `:: core :: primitive :: u64` from the ABI out slot.
         pub fn byte_len(
@@ -3411,7 +3415,7 @@ const _: () = {
         ///Calls [`ISerializationOutput::copy_to`] through the generated COM ABI vtable.
         ///
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///- `output` supplies output storage for `:: core :: primitive :: u8` through [`crate::NcOutput`]. See its lifecycle contract for acquisition, preparation and publication.
         ///
         ///On success, returns `:: core :: primitive :: u64` from the ABI out slot.
@@ -3452,7 +3456,7 @@ const _: () = {
 impl ISerializationOutputAbi {
     ///Canonical validation form of this interface's typed ABI contract.
     pub const ABI_SIGNATURE: crate::NcAbiDigest = crate::NcAbiDigest::from_static(
-        b"\xD5\xA2\xA4a\xE0\xAE\xB7\xC2\x90\xCD4Gl\x8F\x0B(\xE6\xEC\xE4\xDD\x0FK\xDC\xD1x[W\xA1h\x9B\xB3j",
+        b";\x88U\xD9)h\x7F\xB4\xDF\x1D\xC9`\x9C\xC2\xD2\xC9\x19Z\xB6\xDFRdg\"\xDD\x91\xF6\x10f\xCB4~",
     );
     ///Static descriptors for this interface's ABI methods.
     pub const METHOD_DESCRIPTORS: [crate::NcMethodDescriptor; 2usize] = [
@@ -3516,9 +3520,9 @@ impl ISerializationOutputAbi {
 impl ISerializationOutputAbi {
     #[doc(hidden)]
     pub const __NC_RUST_BINDING: [::core::primitive::u8; 32] = [
-        94u8, 46u8, 112u8, 114u8, 6u8, 9u8, 141u8, 60u8, 49u8, 166u8, 208u8, 143u8, 43u8,
-        57u8, 151u8, 179u8, 9u8, 148u8, 189u8, 86u8, 14u8, 86u8, 51u8, 61u8, 45u8, 6u8,
-        218u8, 184u8, 168u8, 15u8, 231u8, 116u8,
+        12u8, 229u8, 14u8, 214u8, 199u8, 59u8, 146u8, 37u8, 114u8, 41u8, 114u8, 188u8,
+        168u8, 33u8, 2u8, 195u8, 158u8, 119u8, 122u8, 55u8, 35u8, 183u8, 7u8, 166u8,
+        105u8, 90u8, 130u8, 216u8, 241u8, 77u8, 166u8, 87u8,
     ];
 }
 /// One serialization plugin bundles its enabled codecs, with NCB always available.
@@ -3557,7 +3561,7 @@ pub struct ISerializationPluginVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
     ///
     ///On success, `out` receives `crate :: ComRaw < self :: ISerializationFormatAbi >` for `crate :: ComPtr < self :: ISerializationFormatAbi >`. The caller receives one shared owner and releases it when finished.
     #[allow(
@@ -3576,7 +3580,7 @@ pub struct ISerializationPluginVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
     ///- `name` uses ABI storage `* const < :: core :: primitive :: u8 as crate :: ComValue > :: AbiRepr` for `crate :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
     ///
     ///On success, `out` receives `crate :: ComRaw < self :: ISerializationFormatAbi >` for `crate :: ComPtr < self :: ISerializationFormatAbi >`. The caller receives one shared owner and releases it when finished.
@@ -3651,6 +3655,7 @@ const _: () = {
         identity as __nc_arg_0_written, identity as __nc_this, identity as __nc_status,
         identity as __nc_value, identity as __nc_raw, identity as __nc_result,
         identity as __nc_values, identity as __nc_writer, identity as __nc_out,
+        identity as __nc_scoped_context, identity as __nc_scoped_callback,
         identity as __nc_identity, identity as __nc_this_0, identity as __nc_status_0,
         identity as __nc_result_0, identity as __nc_prepared, identity as __nc_out_0,
         identity as __nc_this_1, identity as __nc_status_1, identity as __nc_result_1,
@@ -3665,7 +3670,7 @@ const _: () = {
         ///Calls [`ISerializationPlugin::default_format`] through the generated COM ABI vtable.
         ///
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///
         ///On success, returns `crate :: ComPtr < self :: ISerializationFormatAbi >`. The caller receives one shared owner and releases it when finished.
         pub fn default_format(
@@ -3698,7 +3703,7 @@ const _: () = {
         ///Calls [`ISerializationPlugin::format`] through the generated COM ABI vtable.
         ///
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///- `name` is passed as a safe readable `:: core :: primitive :: u8` buffer plus offset.
         ///
         ///On success, returns `crate :: ComPtr < self :: ISerializationFormatAbi >`. The caller receives one shared owner and releases it when finished.
@@ -3739,7 +3744,7 @@ const _: () = {
 impl ISerializationPluginAbi {
     ///Canonical validation form of this interface's typed ABI contract.
     pub const ABI_SIGNATURE: crate::NcAbiDigest = crate::NcAbiDigest::from_static(
-        b"^v3\x01\xBA\xFB;\x9D|\xE5\xAA\x02\x02ih\xA3\xEF\x94\x9Dm5\x17|k\xF7?J\xB5\xC8\"?\x14",
+        b"s\x81=#\xD1\x93\x1C\xA1A\t\xC5.\xDD\x13\t\"U\xFFCd-U\xB1\x1F\xB7\xEC\x84!\xC0\xCC0\xCD",
     );
     ///Static descriptors for this interface's ABI methods.
     pub const METHOD_DESCRIPTORS: [crate::NcMethodDescriptor; 2usize] = [
@@ -3803,9 +3808,9 @@ impl ISerializationPluginAbi {
 impl ISerializationPluginAbi {
     #[doc(hidden)]
     pub const __NC_RUST_BINDING: [::core::primitive::u8; 32] = [
-        212u8, 105u8, 79u8, 177u8, 60u8, 220u8, 227u8, 134u8, 34u8, 167u8, 184u8, 7u8,
-        100u8, 202u8, 205u8, 235u8, 147u8, 100u8, 142u8, 220u8, 7u8, 203u8, 152u8, 199u8,
-        12u8, 25u8, 131u8, 185u8, 24u8, 189u8, 200u8, 214u8,
+        84u8, 28u8, 150u8, 204u8, 74u8, 145u8, 208u8, 20u8, 96u8, 145u8, 116u8, 131u8,
+        104u8, 194u8, 160u8, 73u8, 48u8, 38u8, 181u8, 155u8, 236u8, 115u8, 112u8, 144u8,
+        238u8, 240u8, 2u8, 173u8, 10u8, 70u8, 216u8, 181u8,
     ];
 }
 /// A mutable format session. Failures poison it; finish commits one complete document.
@@ -3963,7 +3968,7 @@ pub struct ISerializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -3981,7 +3986,7 @@ pub struct ISerializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table.
     ///- `value` uses ABI storage `< :: core :: primitive :: bool as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: bool`. Passed by value.
     ///
     ///On success, no output value is written.
@@ -4001,7 +4006,7 @@ pub struct ISerializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table.
     ///- `value` uses ABI storage `< :: core :: primitive :: u8 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u8`. Passed by value.
     ///
     ///On success, no output value is written.
@@ -4021,7 +4026,7 @@ pub struct ISerializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table.
     ///- `value` uses ABI storage `< :: core :: primitive :: u16 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u16`. Passed by value.
     ///
     ///On success, no output value is written.
@@ -4041,7 +4046,7 @@ pub struct ISerializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table.
     ///- `value` uses ABI storage `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
     ///
     ///On success, no output value is written.
@@ -4061,7 +4066,7 @@ pub struct ISerializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table.
     ///- `value` uses ABI storage `< :: core :: primitive :: u64 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u64`. Passed by value.
     ///
     ///On success, no output value is written.
@@ -4081,7 +4086,7 @@ pub struct ISerializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table.
     ///- `value` uses ABI storage `< :: core :: primitive :: i8 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: i8`. Passed by value.
     ///
     ///On success, no output value is written.
@@ -4101,7 +4106,7 @@ pub struct ISerializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table.
     ///- `value` uses ABI storage `< :: core :: primitive :: i16 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: i16`. Passed by value.
     ///
     ///On success, no output value is written.
@@ -4121,7 +4126,7 @@ pub struct ISerializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table.
     ///- `value` uses ABI storage `< :: core :: primitive :: i32 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: i32`. Passed by value.
     ///
     ///On success, no output value is written.
@@ -4141,7 +4146,7 @@ pub struct ISerializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table.
     ///- `value` uses ABI storage `< :: core :: primitive :: i64 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: i64`. Passed by value.
     ///
     ///On success, no output value is written.
@@ -4161,7 +4166,7 @@ pub struct ISerializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table.
     ///- `value` uses ABI storage `< :: core :: primitive :: f32 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: f32`. Passed by value.
     ///
     ///On success, no output value is written.
@@ -4181,7 +4186,7 @@ pub struct ISerializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table.
     ///- `value` uses ABI storage `< :: core :: primitive :: f64 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: f64`. Passed by value.
     ///
     ///On success, no output value is written.
@@ -4201,7 +4206,7 @@ pub struct ISerializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table.
     ///- `value` uses ABI storage `* const < :: core :: primitive :: u8 as crate :: ComValue > :: AbiRepr` for `crate :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
     ///
     ///On success, no output value is written.
@@ -4223,7 +4228,7 @@ pub struct ISerializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table.
     ///- `present` uses ABI storage `< :: core :: primitive :: bool as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: bool`. Passed by value.
     ///
     ///On success, no output value is written.
@@ -4243,7 +4248,7 @@ pub struct ISerializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -4261,7 +4266,7 @@ pub struct ISerializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table.
     ///- `fields` uses ABI storage `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
     ///
     ///On success, no output value is written.
@@ -4281,7 +4286,7 @@ pub struct ISerializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table.
     ///- `name` uses ABI storage `* const < :: core :: primitive :: u8 as crate :: ComValue > :: AbiRepr` for `crate :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
     ///
     ///On success, no output value is written.
@@ -4303,7 +4308,7 @@ pub struct ISerializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -4321,7 +4326,7 @@ pub struct ISerializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table.
     ///- `length` uses ABI storage `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
     ///
     ///On success, no output value is written.
@@ -4341,7 +4346,7 @@ pub struct ISerializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -4359,7 +4364,7 @@ pub struct ISerializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table.
     ///- `pairs` uses ABI storage `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
     ///
     ///On success, no output value is written.
@@ -4379,7 +4384,7 @@ pub struct ISerializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -4397,7 +4402,7 @@ pub struct ISerializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table.
     ///- `index` uses ABI storage `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
     ///- `name` uses ABI storage `* const < :: core :: primitive :: u8 as crate :: ComValue > :: AbiRepr` for `crate :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
     ///
@@ -4421,7 +4426,7 @@ pub struct ISerializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -4439,7 +4444,7 @@ pub struct ISerializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table.
     ///- `message` uses ABI storage `* const < :: core :: primitive :: u8 as crate :: ComValue > :: AbiRepr` for `crate :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
     ///
     ///On success, no output value is written.
@@ -4461,7 +4466,7 @@ pub struct ISerializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///`this` must be the live allocation address paired with this table.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -4616,7 +4621,8 @@ const _: () = {
         identity as __nc_arg_0_17_values, identity as __nc_arg_0_17_written,
         identity as __nc_this, identity as __nc_status, identity as __nc_value,
         identity as __nc_raw, identity as __nc_result, identity as __nc_values,
-        identity as __nc_writer, identity as __nc_out, identity as __nc_identity,
+        identity as __nc_writer, identity as __nc_out, identity as __nc_scoped_context,
+        identity as __nc_scoped_callback, identity as __nc_identity,
         identity as __nc_this_0, identity as __nc_status_0, identity as __nc_result_0,
         identity as __nc_prepared, identity as __nc_out_0, identity as __nc_this_1,
         identity as __nc_status_1, identity as __nc_result_1,
@@ -4676,8 +4682,8 @@ const _: () = {
         ///
         ///Calls [`ISerializer::serialize_unit`] through the generated COM ABI vtable.
         ///
-        ///This safe wrapper invokes the raw vtable function and maps a successful status to `Ok(())`.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///This safe wrapper invokes the status-only raw vtable function.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///
         ///On success, returns `()`.
         pub fn serialize_unit(&mut self) -> ::core::result::Result<(), crate::NcStatus> {
@@ -4696,8 +4702,8 @@ const _: () = {
         ///
         ///Calls [`ISerializer::serialize_bool`] through the generated COM ABI vtable.
         ///
-        ///This safe wrapper invokes the raw vtable function and maps a successful status to `Ok(())`.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///This safe wrapper invokes the status-only raw vtable function.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///- `value` is passed by value as `:: core :: primitive :: bool`.
         ///
         ///On success, returns `()`.
@@ -4721,8 +4727,8 @@ const _: () = {
         ///
         ///Calls [`ISerializer::serialize_u8`] through the generated COM ABI vtable.
         ///
-        ///This safe wrapper invokes the raw vtable function and maps a successful status to `Ok(())`.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///This safe wrapper invokes the status-only raw vtable function.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///- `value` is passed by value as `:: core :: primitive :: u8`.
         ///
         ///On success, returns `()`.
@@ -4746,8 +4752,8 @@ const _: () = {
         ///
         ///Calls [`ISerializer::serialize_u16`] through the generated COM ABI vtable.
         ///
-        ///This safe wrapper invokes the raw vtable function and maps a successful status to `Ok(())`.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///This safe wrapper invokes the status-only raw vtable function.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///- `value` is passed by value as `:: core :: primitive :: u16`.
         ///
         ///On success, returns `()`.
@@ -4771,8 +4777,8 @@ const _: () = {
         ///
         ///Calls [`ISerializer::serialize_u32`] through the generated COM ABI vtable.
         ///
-        ///This safe wrapper invokes the raw vtable function and maps a successful status to `Ok(())`.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///This safe wrapper invokes the status-only raw vtable function.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///- `value` is passed by value as `:: core :: primitive :: u32`.
         ///
         ///On success, returns `()`.
@@ -4796,8 +4802,8 @@ const _: () = {
         ///
         ///Calls [`ISerializer::serialize_u64`] through the generated COM ABI vtable.
         ///
-        ///This safe wrapper invokes the raw vtable function and maps a successful status to `Ok(())`.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///This safe wrapper invokes the status-only raw vtable function.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///- `value` is passed by value as `:: core :: primitive :: u64`.
         ///
         ///On success, returns `()`.
@@ -4821,8 +4827,8 @@ const _: () = {
         ///
         ///Calls [`ISerializer::serialize_i8`] through the generated COM ABI vtable.
         ///
-        ///This safe wrapper invokes the raw vtable function and maps a successful status to `Ok(())`.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///This safe wrapper invokes the status-only raw vtable function.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///- `value` is passed by value as `:: core :: primitive :: i8`.
         ///
         ///On success, returns `()`.
@@ -4846,8 +4852,8 @@ const _: () = {
         ///
         ///Calls [`ISerializer::serialize_i16`] through the generated COM ABI vtable.
         ///
-        ///This safe wrapper invokes the raw vtable function and maps a successful status to `Ok(())`.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///This safe wrapper invokes the status-only raw vtable function.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///- `value` is passed by value as `:: core :: primitive :: i16`.
         ///
         ///On success, returns `()`.
@@ -4871,8 +4877,8 @@ const _: () = {
         ///
         ///Calls [`ISerializer::serialize_i32`] through the generated COM ABI vtable.
         ///
-        ///This safe wrapper invokes the raw vtable function and maps a successful status to `Ok(())`.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///This safe wrapper invokes the status-only raw vtable function.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///- `value` is passed by value as `:: core :: primitive :: i32`.
         ///
         ///On success, returns `()`.
@@ -4896,8 +4902,8 @@ const _: () = {
         ///
         ///Calls [`ISerializer::serialize_i64`] through the generated COM ABI vtable.
         ///
-        ///This safe wrapper invokes the raw vtable function and maps a successful status to `Ok(())`.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///This safe wrapper invokes the status-only raw vtable function.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///- `value` is passed by value as `:: core :: primitive :: i64`.
         ///
         ///On success, returns `()`.
@@ -4921,8 +4927,8 @@ const _: () = {
         ///
         ///Calls [`ISerializer::serialize_f32`] through the generated COM ABI vtable.
         ///
-        ///This safe wrapper invokes the raw vtable function and maps a successful status to `Ok(())`.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///This safe wrapper invokes the status-only raw vtable function.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///- `value` is passed by value as `:: core :: primitive :: f32`.
         ///
         ///On success, returns `()`.
@@ -4946,8 +4952,8 @@ const _: () = {
         ///
         ///Calls [`ISerializer::serialize_f64`] through the generated COM ABI vtable.
         ///
-        ///This safe wrapper invokes the raw vtable function and maps a successful status to `Ok(())`.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///This safe wrapper invokes the status-only raw vtable function.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///- `value` is passed by value as `:: core :: primitive :: f64`.
         ///
         ///On success, returns `()`.
@@ -4971,8 +4977,8 @@ const _: () = {
         ///
         ///Calls [`ISerializer::serialize_string`] through the generated COM ABI vtable.
         ///
-        ///This safe wrapper invokes the raw vtable function and maps a successful status to `Ok(())`.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///This safe wrapper invokes the status-only raw vtable function.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///- `value` is passed as a safe readable `:: core :: primitive :: u8` buffer plus offset.
         ///
         ///On success, returns `()`.
@@ -5002,8 +5008,8 @@ const _: () = {
         ///
         ///Calls [`ISerializer::begin_option`] through the generated COM ABI vtable.
         ///
-        ///This safe wrapper invokes the raw vtable function and maps a successful status to `Ok(())`.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///This safe wrapper invokes the status-only raw vtable function.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///- `present` is passed by value as `:: core :: primitive :: bool`.
         ///
         ///On success, returns `()`.
@@ -5027,8 +5033,8 @@ const _: () = {
         ///
         ///Calls [`ISerializer::end_option`] through the generated COM ABI vtable.
         ///
-        ///This safe wrapper invokes the raw vtable function and maps a successful status to `Ok(())`.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///This safe wrapper invokes the status-only raw vtable function.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///
         ///On success, returns `()`.
         pub fn end_option(&mut self) -> ::core::result::Result<(), crate::NcStatus> {
@@ -5047,8 +5053,8 @@ const _: () = {
         ///
         ///Calls [`ISerializer::begin_record`] through the generated COM ABI vtable.
         ///
-        ///This safe wrapper invokes the raw vtable function and maps a successful status to `Ok(())`.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///This safe wrapper invokes the status-only raw vtable function.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///- `fields` is passed by value as `:: core :: primitive :: u32`.
         ///
         ///On success, returns `()`.
@@ -5072,8 +5078,8 @@ const _: () = {
         ///
         ///Calls [`ISerializer::field`] through the generated COM ABI vtable.
         ///
-        ///This safe wrapper invokes the raw vtable function and maps a successful status to `Ok(())`.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///This safe wrapper invokes the status-only raw vtable function.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///- `name` is passed as a safe readable `:: core :: primitive :: u8` buffer plus offset.
         ///
         ///On success, returns `()`.
@@ -5103,8 +5109,8 @@ const _: () = {
         ///
         ///Calls [`ISerializer::end_record`] through the generated COM ABI vtable.
         ///
-        ///This safe wrapper invokes the raw vtable function and maps a successful status to `Ok(())`.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///This safe wrapper invokes the status-only raw vtable function.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///
         ///On success, returns `()`.
         pub fn end_record(&mut self) -> ::core::result::Result<(), crate::NcStatus> {
@@ -5123,8 +5129,8 @@ const _: () = {
         ///
         ///Calls [`ISerializer::begin_sequence`] through the generated COM ABI vtable.
         ///
-        ///This safe wrapper invokes the raw vtable function and maps a successful status to `Ok(())`.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///This safe wrapper invokes the status-only raw vtable function.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///- `length` is passed by value as `:: core :: primitive :: u32`.
         ///
         ///On success, returns `()`.
@@ -5149,8 +5155,8 @@ const _: () = {
         ///
         ///Calls [`ISerializer::end_sequence`] through the generated COM ABI vtable.
         ///
-        ///This safe wrapper invokes the raw vtable function and maps a successful status to `Ok(())`.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///This safe wrapper invokes the status-only raw vtable function.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///
         ///On success, returns `()`.
         pub fn end_sequence(&mut self) -> ::core::result::Result<(), crate::NcStatus> {
@@ -5169,8 +5175,8 @@ const _: () = {
         ///
         ///Calls [`ISerializer::begin_map`] through the generated COM ABI vtable.
         ///
-        ///This safe wrapper invokes the raw vtable function and maps a successful status to `Ok(())`.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///This safe wrapper invokes the status-only raw vtable function.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///- `pairs` is passed by value as `:: core :: primitive :: u32`.
         ///
         ///On success, returns `()`.
@@ -5194,8 +5200,8 @@ const _: () = {
         ///
         ///Calls [`ISerializer::end_map`] through the generated COM ABI vtable.
         ///
-        ///This safe wrapper invokes the raw vtable function and maps a successful status to `Ok(())`.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///This safe wrapper invokes the status-only raw vtable function.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///
         ///On success, returns `()`.
         pub fn end_map(&mut self) -> ::core::result::Result<(), crate::NcStatus> {
@@ -5214,8 +5220,8 @@ const _: () = {
         ///
         ///Calls [`ISerializer::begin_variant`] through the generated COM ABI vtable.
         ///
-        ///This safe wrapper invokes the raw vtable function and maps a successful status to `Ok(())`.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///This safe wrapper invokes the status-only raw vtable function.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///- `index` is passed by value as `:: core :: primitive :: u32`.
         ///- `name` is passed as a safe readable `:: core :: primitive :: u8` buffer plus offset.
         ///
@@ -5249,8 +5255,8 @@ const _: () = {
         ///
         ///Calls [`ISerializer::end_variant`] through the generated COM ABI vtable.
         ///
-        ///This safe wrapper invokes the raw vtable function and maps a successful status to `Ok(())`.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///This safe wrapper invokes the status-only raw vtable function.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///
         ///On success, returns `()`.
         pub fn end_variant(&mut self) -> ::core::result::Result<(), crate::NcStatus> {
@@ -5269,8 +5275,8 @@ const _: () = {
         ///
         ///Calls [`ISerializer::fail`] through the generated COM ABI vtable.
         ///
-        ///This safe wrapper invokes the raw vtable function and maps a successful status to `Ok(())`.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///This safe wrapper invokes the status-only raw vtable function.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///- `message` is passed as a safe readable `:: core :: primitive :: u8` buffer plus offset.
         ///
         ///On success, returns `()`.
@@ -5300,8 +5306,8 @@ const _: () = {
         ///
         ///Calls [`ISerializer::finish`] through the generated COM ABI vtable.
         ///
-        ///This safe wrapper invokes the raw vtable function and maps a successful status to `Ok(())`.
-        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///This safe wrapper invokes the status-only raw vtable function.
+        ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
         ///
         ///On success, returns `()`.
         pub fn finish(&mut self) -> ::core::result::Result<(), crate::NcStatus> {
@@ -5320,7 +5326,7 @@ const _: () = {
 impl ISerializerAbi {
     ///Canonical validation form of this interface's typed ABI contract.
     pub const ABI_SIGNATURE: crate::NcAbiDigest = crate::NcAbiDigest::from_static(
-        b"\xCC\x0C\xBA\xF7\xB68\xE1\xE1\xF3\xFFBEI%\x85\0\xA8\xF9\xDB%\xFD\xF5\xC9\xFD'\x1AQ?\xF1\xBC\xBB\xD9",
+        b"\xDE\0GEMQ\x1B\xEF\xAC\x05\xAE6#\xF2z\xA7\x186G\xB4\x8D\x9A\xDB\x98\x1C\xEB\xA4\x19\x0C\x14BJ",
     );
     ///Static descriptors for this interface's ABI methods.
     pub const METHOD_DESCRIPTORS: [crate::NcMethodDescriptor; 26usize] = [
@@ -5875,8 +5881,8 @@ impl ISerializerAbi {
 impl ISerializerAbi {
     #[doc(hidden)]
     pub const __NC_RUST_BINDING: [::core::primitive::u8; 32] = [
-        198u8, 76u8, 81u8, 180u8, 89u8, 197u8, 149u8, 237u8, 10u8, 117u8, 50u8, 1u8,
-        117u8, 208u8, 122u8, 63u8, 78u8, 207u8, 253u8, 5u8, 6u8, 249u8, 154u8, 35u8,
-        155u8, 211u8, 57u8, 63u8, 82u8, 84u8, 210u8, 104u8,
+        237u8, 150u8, 198u8, 76u8, 228u8, 106u8, 8u8, 36u8, 82u8, 18u8, 55u8, 197u8, 9u8,
+        65u8, 34u8, 128u8, 80u8, 232u8, 80u8, 133u8, 37u8, 217u8, 80u8, 39u8, 54u8,
+        157u8, 164u8, 189u8, 52u8, 234u8, 143u8, 11u8,
     ];
 }

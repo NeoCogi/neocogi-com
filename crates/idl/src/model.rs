@@ -233,6 +233,8 @@ pub struct Method {
     pub output: IdlType,
     /// How the generated Rust method exposes the status.
     pub return_projection: ReturnProjection,
+    /// Native passing selected once for the closed method result.
+    pub(crate) return_passing: ReturnPassing,
 }
 
 /// Rust source projection of the native status and successful payload.
@@ -240,6 +242,8 @@ pub struct Method {
 pub enum ReturnProjection {
     /// Both provider and caller express failure through `Result`.
     Fallible,
+    /// The authored Rust type projects successful completion directly.
+    Direct,
 }
 
 /// Receiver capability for one COM method.
@@ -260,6 +264,76 @@ pub struct Parameter {
     pub name: String,
     /// Parsed ABI type expression.
     pub ty: IdlType,
+    /// Native passing selected once for this closed input position.
+    pub(crate) passing: ParameterPassing,
+}
+
+impl Parameter {
+    /// Provides the type's runtime operand without interpreting its passing.
+    pub(crate) fn payload(&self) -> &IdlType {
+        self.ty.call_payload()
+    }
+}
+
+impl Method {
+    /// Provides the type's runtime operand without interpreting its passing.
+    pub(crate) fn return_payload(&self) -> &IdlType {
+        self.output.call_payload()
+    }
+}
+
+/// Bound direction and access of a single method input.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum ParameterPassing {
+    /// An authored expression whose template arguments are not yet closed.
+    Unresolved,
+    /// A closed input that cannot be admitted in this position.
+    Invalid,
+    /// A self-contained value supplied by copy.
+    Copied,
+    /// A checked, borrowed aggregate wire.
+    BorrowedValue,
+    /// A borrowed UTF-8 view with readable byte storage.
+    BorrowedText,
+    /// A readable element buffer.
+    InputBuffer,
+    /// A fresh writable element buffer.
+    OutputBuffer,
+    /// A read-only interface loan. Only optional inputs accept both-null.
+    SharedLoan {
+        /// Both-null denotes absence.
+        optional: bool,
+    },
+    /// A required mutable loan backed by an exclusively reborrowed handle.
+    MutableLoan,
+    /// An exclusive owner moved from a writable caller slot.
+    ConsumingBox,
+}
+
+/// Successful native method completion, independent of Rust status projection.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum ReturnPassing {
+    /// An authored expression whose template arguments are not yet closed.
+    Unresolved,
+    /// A closed result that cannot be admitted in this position.
+    Invalid,
+    /// Native completion is status-only.
+    Unit,
+    /// A self-contained copied value out slot.
+    Copied,
+    /// One shared owner transferred in an ordinary out-pair.
+    SharedOwner {
+        /// Both-null denotes a successful absence.
+        optional: bool,
+    },
+    /// One exclusive owner transferred in an ordinary out-pair.
+    BoxOwner,
+    /// One retained boxed weak observer.
+    BoxObserver,
+    /// One retained shared weak control token.
+    SharedObserver,
+    /// An optional read loan delivered synchronously to a continuation.
+    ScopedLoan,
 }
 
 /// One path naming an IDL declaration or built-in type.
@@ -341,6 +415,11 @@ pub enum IdlType {
         /// Borrowed referent type.
         Box<IdlType>,
     ),
+    /// An authored mutable borrow that must close over an interface or output slice.
+    BorrowedMut(
+        /// Borrowed referent type.
+        Box<IdlType>,
+    ),
     /// An explicitly owned variable-length sequence; generated Rust stores a Vec.
     Vector(
         /// Recursively owned element type, never an implicit borrowed field.
@@ -380,6 +459,21 @@ pub struct Specialization {
 }
 
 impl IdlType {
+    /// Peels the unary constructors that carry an operand in callable positions.
+    fn call_payload(&self) -> &Self {
+        match self {
+            Self::ComPtr(child)
+            | Self::WeakComPtr(child)
+            | Self::ComBox(child)
+            | Self::WeakComBox(child)
+            | Self::Borrowed(child)
+            | Self::BorrowedMut(child)
+            | Self::Slice(child)
+            | Self::OutputSlice(child) => child,
+            _ => self,
+        }
+    }
+
     /// Renders authored structural spelling for diagnostics, never for fingerprinting.
     pub fn source_name(&self) -> String {
         match self {
@@ -392,6 +486,7 @@ impl IdlType {
             Self::ComBox(value) => format!("ComBox<{}>", value.source_name()),
             Self::WeakComBox(value) => format!("WeakComBox<{}>", value.source_name()),
             Self::Borrowed(value) => format!("&{}", value.source_name()),
+            Self::BorrowedMut(value) => format!("&mut {}", value.source_name()),
             Self::Vector(value) => format!("Vec<{}>", value.source_name()),
             Self::UnsizedSlice(value) => format!("[{}]", value.source_name()),
             Self::Slice(value) => format!("&[{}]", value.source_name()),

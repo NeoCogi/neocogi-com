@@ -789,6 +789,7 @@ fn attach_type_source(ty: &mut IdlType, source: &SourceFile) {
         | IdlType::ComBox(value)
         | IdlType::WeakComBox(value)
         | IdlType::Borrowed(value)
+        | IdlType::BorrowedMut(value)
         | IdlType::Vector(value)
         | IdlType::UnsizedSlice(value)
         | IdlType::Slice(value)

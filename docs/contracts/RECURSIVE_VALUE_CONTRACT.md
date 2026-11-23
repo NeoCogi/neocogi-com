@@ -122,7 +122,8 @@ the receiving method cannot retain its temporary wire or backing storage.
 | Parameter | What the receiver borrows | Retention beyond the call |
 | --- | --- | --- |
 | `NcValueRef<'_, T>` | A checked value's raw record and producer-owned backing storage | Acquire `T` with `to_owned()` before returning. |
-| `ComRef<'_, I>` | A live interface reference | Acquire shared ownership with `try_add_ref()?`; an exclusive borrow returns `NC_E_INVALID_ARG`. A threading marker does not grant ownership. |
+| `ComRef<'_, I>` | A live interface loan for shared dispatch | The loan ends at method completion. |
+| `ComMut<'_, I>` | A live interface loan permitting mutable dispatch | The loan ends at method completion. |
 | `NcCopyFromBufferOffset<'_, T>` | Readable elements for this call | Copy needed contents into owned application storage during the call. |
 | `NcOutputWriter<'_, T>` | Fresh copied output on the provider | Encode directly into raw slots; never read old contents or retain the writer. Callers supply `NcOutput<'_, T>`. |
 

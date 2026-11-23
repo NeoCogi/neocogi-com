@@ -19,6 +19,7 @@ const _: () = {
         identity as __nc_arg_0_written, identity as __nc_this, identity as __nc_status,
         identity as __nc_value, identity as __nc_raw, identity as __nc_result,
         identity as __nc_values, identity as __nc_writer, identity as __nc_out,
+        identity as __nc_scoped_context, identity as __nc_scoped_callback,
         identity as __nc_identity, identity as __nc_this_0, identity as __nc_status_0,
         identity as __nc_result_0, identity as __nc_prepared, identity as __nc_out_0,
         identity as __nc_this_1, identity as __nc_status_1, identity as __nc_result_1,
@@ -64,8 +65,8 @@ const _: () = {
         /// IDL source: `neocogi/com/persistence/objects.ncidl:4:8` (module `neocogi.com.persistence`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
-        /// The gate is released before transferring an owned result; errors
-        /// are normalized so an unwritten output can never look successful.
+        /// Owned results transfer after release of the receiver guard. Scoped
+        /// loans are delivered before release. Error statuses are normalized.
         ///
         /// # Safety
         /// The interface belongs to T's live generated storage. Non-null ABI
@@ -109,8 +110,8 @@ const _: () = {
         /// IDL source: `neocogi/com/persistence/objects.ncidl:6:8` (module `neocogi.com.persistence`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
-        /// The gate is released before transferring an owned result; errors
-        /// are normalized so an unwritten output can never look successful.
+        /// Owned results transfer after release of the receiver guard. Scoped
+        /// loans are delivered before release. Error statuses are normalized.
         ///
         /// # Safety
         /// The interface belongs to T's live generated storage. Non-null ABI
@@ -173,6 +174,7 @@ const _: () = {
         identity as __nc_arg_0_written, identity as __nc_this, identity as __nc_status,
         identity as __nc_value, identity as __nc_raw, identity as __nc_result,
         identity as __nc_values, identity as __nc_writer, identity as __nc_out,
+        identity as __nc_scoped_context, identity as __nc_scoped_callback,
         identity as __nc_identity, identity as __nc_this_0, identity as __nc_status_0,
         identity as __nc_result_0, identity as __nc_prepared, identity as __nc_out_0,
         identity as __nc_this_1, identity as __nc_status_1, identity as __nc_result_1,
@@ -227,8 +229,8 @@ const _: () = {
         /// IDL source: `neocogi/com/persistence/objects.ncidl:12:8` (module `neocogi.com.persistence`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
-        /// The gate is released before transferring an owned result; errors
-        /// are normalized so an unwritten output can never look successful.
+        /// Owned results transfer after release of the receiver guard. Scoped
+        /// loans are delivered before release. Error statuses are normalized.
         ///
         /// # Safety
         /// The interface belongs to T's live generated storage. Non-null ABI
@@ -272,8 +274,8 @@ const _: () = {
         /// IDL source: `neocogi/com/persistence/objects.ncidl:14:8` (module `neocogi.com.persistence`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
-        /// The gate is released before transferring an owned result; errors
-        /// are normalized so an unwritten output can never look successful.
+        /// Owned results transfer after release of the receiver guard. Scoped
+        /// loans are delivered before release. Error statuses are normalized.
         ///
         /// # Safety
         /// The interface belongs to T's live generated storage. Non-null ABI
@@ -317,8 +319,8 @@ const _: () = {
         /// IDL source: `neocogi/com/persistence/objects.ncidl:16:8` (module `neocogi.com.persistence`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
-        /// The gate is released before transferring an owned result; errors
-        /// are normalized so an unwritten output can never look successful.
+        /// Owned results transfer after release of the receiver guard. Scoped
+        /// loans are delivered before release. Error statuses are normalized.
         ///
         /// # Safety
         /// The interface belongs to T's live generated storage. Non-null ABI
@@ -358,8 +360,8 @@ const _: () = {
         /// IDL source: `neocogi/com/persistence/objects.ncidl:18:8` (module `neocogi.com.persistence`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
-        /// The gate is released before transferring an owned result; errors
-        /// are normalized so an unwritten output can never look successful.
+        /// Owned results transfer after release of the receiver guard. Scoped
+        /// loans are delivered before release. Error statuses are normalized.
         ///
         /// # Safety
         /// The interface belongs to T's live generated storage. Non-null ABI
@@ -403,8 +405,8 @@ const _: () = {
         /// IDL source: `neocogi/com/persistence/objects.ncidl:20:8` (module `neocogi.com.persistence`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
-        /// The gate is released before transferring an owned result; errors
-        /// are normalized so an unwritten output can never look successful.
+        /// Owned results transfer after release of the receiver guard. Scoped
+        /// loans are delivered before release. Error statuses are normalized.
         ///
         /// # Safety
         /// The interface belongs to T's live generated storage. Non-null ABI
@@ -489,7 +491,8 @@ const _: () = {
         identity as __nc_arg_2_0_values, identity as __nc_arg_2_0_written,
         identity as __nc_this, identity as __nc_status, identity as __nc_value,
         identity as __nc_raw, identity as __nc_result, identity as __nc_values,
-        identity as __nc_writer, identity as __nc_out, identity as __nc_identity,
+        identity as __nc_writer, identity as __nc_out, identity as __nc_scoped_context,
+        identity as __nc_scoped_callback, identity as __nc_identity,
         identity as __nc_this_0, identity as __nc_status_0, identity as __nc_result_0,
         identity as __nc_prepared, identity as __nc_out_0, identity as __nc_this_1,
         identity as __nc_status_1, identity as __nc_result_1,
@@ -535,8 +538,8 @@ const _: () = {
         /// IDL source: `neocogi/com/persistence/objects.ncidl:26:8` (module `neocogi.com.persistence`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
-        /// The gate is released before transferring an owned result; errors
-        /// are normalized so an unwritten output can never look successful.
+        /// Owned results transfer after release of the receiver guard. Scoped
+        /// loans are delivered before release. Error statuses are normalized.
         ///
         /// # Safety
         /// The interface belongs to T's live generated storage. Non-null ABI
@@ -603,8 +606,8 @@ const _: () = {
         /// IDL source: `neocogi/com/persistence/objects.ncidl:29:8` (module `neocogi.com.persistence`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
-        /// The gate is released before transferring an owned result; errors
-        /// are normalized so an unwritten output can never look successful.
+        /// Owned results transfer after release of the receiver guard. Scoped
+        /// loans are delivered before release. Error statuses are normalized.
         ///
         /// # Safety
         /// The interface belongs to T's live generated storage. Non-null ABI

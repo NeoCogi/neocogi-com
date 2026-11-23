@@ -14,7 +14,7 @@ mod scoped;
 #[doc(hidden)]
 pub use scoped::{ISerializerVtblFor as ScopedSerializer, IDeserializerVtblFor as ScopedDeserializer};
 
-use crate::{ComDeserialize, ComSerialize, ComRef, NcStatus, NC_E_INVALID_ARG, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE};
+use crate::{ComDeserialize, ComSerialize, ComMut, NcStatus, NC_E_INVALID_ARG, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE};
 
 /// Finite resource policy shared by format providers and typed construction.
 #[derive(Clone, Copy, Debug)]
@@ -43,11 +43,11 @@ impl Default for Limits {
 /// Typed writing facade over an actual mutable COM format capability.
 pub struct Serializer<'a> {
     /// Caller-retained or scoped provider; no Rust implementation layout crosses COM.
-    interface: ComRef<'a, ISerializerAbi>,
+    interface: ComMut<'a, ISerializerAbi>,
 }
 impl<'a> Serializer<'a> {
     /// Borrows a format object. The caller retains it until this facade is dropped.
-    pub fn new(interface: ComRef<'a, ISerializerAbi>) -> Self {
+    pub fn new(interface: ComMut<'a, ISerializerAbi>) -> Self {
         Self { interface }
     }
     /// Writes one root and commits the session only after its complete success.
@@ -102,7 +102,7 @@ impl<'a> Serializer<'a> {
 /// Typed construction facade over an actual mutable COM source capability.
 pub struct Deserializer<'a> {
     /// Format-owned cursor and lifetime, retained by the caller or enclosing scope.
-    interface: ComRef<'a, IDeserializerAbi>,
+    interface: ComMut<'a, IDeserializerAbi>,
     /// Caller-side caps also bound allocation requests from foreign implementations.
     limits: Limits,
     /// Whether to request a provider diagnostic after an allocation failure.
@@ -110,17 +110,17 @@ pub struct Deserializer<'a> {
 }
 impl<'a> Deserializer<'a> {
     /// Uses default construction limits with the caller-retained format object.
-    pub fn new(interface: ComRef<'a, IDeserializerAbi>) -> Self {
+    pub fn new(interface: ComMut<'a, IDeserializerAbi>) -> Self {
         Self::with_limits(interface, Limits::default())
     }
     /// Supplies explicit allocation and collection caps in addition to provider limits.
-    pub fn with_limits(interface: ComRef<'a, IDeserializerAbi>, limits: Limits) -> Self {
+    pub fn with_limits(interface: ComMut<'a, IDeserializerAbi>, limits: Limits) -> Self {
         Self { interface, limits, report_oom: true }
     }
     /// Restore consumes the owning source. Its discard path can return an
     /// allocation failure without asking the provider to allocate diagnostics.
     #[cfg(feature = "alloc")]
-    pub(crate) fn for_restore(interface: ComRef<'a, IDeserializerAbi>, limits: Limits) -> Self {
+    pub(crate) fn for_restore(interface: ComMut<'a, IDeserializerAbi>, limits: Limits) -> Self {
         Self { interface, limits, report_oom: false }
     }
     /// Constructs one root and requires complete document consumption.
