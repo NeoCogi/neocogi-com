@@ -3,12 +3,12 @@
 use alloc::vec::Vec;
 use crate::{serialization, ComBox, ComDeserialize, ComSerialize, NC_E_INVALID_ARG, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NcStatus};
 
-/// One owned initialization tree with the original NCB-v1 field ordering.
+/// Recipe, initialization bytes, and child records needed to rebuild one object.
 ///
-/// This is a local Rust value, never an argument passed by value across COM.
-/// Sharing the schema lets authoring tools encode documents without a runtime.
+/// Authoring tools can construct this value and serialize it without a runtime.
+/// Serialization preserves the original NCB-v1 field order.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ObjectRecord {
+pub struct SavedObject {
     /// Recipe UUID in canonical byte order, independent of object identity.
     pub type_id: [u8; 16],
     /// Provider-owned persistent schema revision.
@@ -16,10 +16,10 @@ pub struct ObjectRecord {
     /// Explicit initialization bytes, excluding process-local resources.
     pub state: Vec<u8>,
     /// Owned children in the order expected by the parent's factory.
-    pub children: Vec<ObjectRecord>,
+    pub children: Vec<SavedObject>,
 }
 
-impl ObjectRecord {
+impl SavedObject {
     /// Count shared by the ordered encoder, decoder and virtual leaf measurement.
     const FIELD_COUNT: usize = 4;
     /// Creates a virtual leaf value for format-specific measurement before allocating state.
@@ -54,7 +54,7 @@ impl ObjectRecord {
     }
 }
 
-impl ComSerialize for ObjectRecord {
+impl ComSerialize for SavedObject {
     /// Preserves the positional schema and exact field order used before relocation.
     fn com_serialize(&self, serializer: &mut crate::serialization::Serializer<'_>) -> Result<(), crate::NcStatus> {
         Self::serialize_fields(serializer, &self.type_id, self.schema_version, &self.state, &self.children)
@@ -69,7 +69,7 @@ pub struct LeafSize {
 impl ComSerialize for LeafSize {
     /// Uses the same envelope fields as a real owned record with empty children.
     fn com_serialize(&self, serializer: &mut crate::serialization::Serializer<'_>) -> Result<(), crate::NcStatus> {
-        ObjectRecord::serialize_fields(serializer, &[0; 16], 0, &ByteCount(self.state_bytes), &[])
+        SavedObject::serialize_fields(serializer, &[0; 16], 0, &ByteCount(self.state_bytes), &[])
     }
 }
 
@@ -87,7 +87,7 @@ impl ComSerialize for ByteCount {
     }
 }
 
-impl ObjectRecord {
+impl SavedObject {
     /// Decodes a complete restore document under the caller's object policy.
     ///
     /// Consumes and releases the selected format's source, including on failure.
@@ -126,7 +126,7 @@ impl ObjectRecord {
     }
 }
 
-impl ComDeserialize for ObjectRecord {
+impl ComDeserialize for SavedObject {
     /// Authoring tools use the selected format's binary limits alone.
     fn com_deserialize(reader: &mut serialization::Deserializer<'_>) -> Result<Self, NcStatus> {
         Self::read_record(reader, None, 1)
@@ -160,12 +160,12 @@ impl RestoreBudget {
     }
 
     /// Charges all declared siblings once, then allocates only for completed records.
-    fn read_children(&mut self, reader: &mut serialization::Deserializer<'_>, depth: usize) -> Result<Vec<ObjectRecord>, NcStatus> {
+    fn read_children(&mut self, reader: &mut serialization::Deserializer<'_>, depth: usize) -> Result<Vec<SavedObject>, NcStatus> {
         reader.sequence(|sequence| {
             let count = sequence.remaining();
             self.charge(count, depth)?;
             let mut children = Vec::new();
-            while let Some(child) = sequence.read_next_with(|reader| ObjectRecord::read_record(reader, Some(self), depth + 1))? {
+            while let Some(child) = sequence.read_next_with(|reader| SavedObject::read_record(reader, Some(self), depth + 1))? {
                 if children.len() == children.capacity() {
                     let capacity = children.len().saturating_mul(2).max(1).min(count);
                     children
@@ -179,7 +179,7 @@ impl RestoreBudget {
     }
 }
 
-/// Local policy for both snapshot traversal and factory reconstruction.
+/// Resource limits for saving and restoring object trees.
 #[derive(Clone, Copy, Debug)]
 pub struct Limits {
     /// Binary encoding/decoding budget, including state bytes and value counts.

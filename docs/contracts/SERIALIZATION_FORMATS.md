@@ -13,7 +13,7 @@ from `nc.serialization` in its own catalog. The application explicitly registers
 the static descriptor or loads the dylib; the host embeds no implementation and
 never selects a default, registers or loads an implicit fallback. Root and format
 capabilities stay retained through codec use and restoration's recipe callbacks.
-Snapshot delivery uses completed host-owned bytes after those capabilities are
+Saving delivers complete host-owned bytes after those capabilities are
 released. Callbacks run outside catalog locks. Missing providers return
 `NC_E_NOT_FOUND`; selection failures propagate.
 
@@ -273,7 +273,7 @@ additional `value` scope. These rules keep encoder and decoder budgets symmetric
 Application value formatting and live object reconstruction remain separate.
 `IPersistable` exports provider-owned state bytes and children; the recipe's
 factory owns those bytes' schema and interpretation. The existing runtime
-snapshot envelope is fixed to NCB v1. The application explicitly supplies
+saved object-tree envelope is fixed to NCB v1. The application explicitly supplies
 `nc.serialization` in the host's plugin catalog; persistence selects named `ncb`
 regardless of that provider's default format. A missing provider fails with
 `NC_E_NOT_FOUND`, with no implicit registration, loading or codec fallback.

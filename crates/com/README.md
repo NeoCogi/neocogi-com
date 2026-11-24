@@ -313,7 +313,7 @@ linkage modes with ordinary Cargo.
 
 `neocogi_com_sdk::persistence` exposes the built-in `IPersistable`,
 `IPersistenceFactory`, and `IObjectChildren` contracts. Providers implement these
-without enabling a runtime. `ObjectRecord` and `Limits` require only `alloc`.
+without enabling a runtime. `SavedObject` and `Limits` require only `alloc`.
 With `runtime`, hosts can capture and reconstruct explicit initialization trees.
 
 The application must first supply `nc.serialization` in the same host's catalog.
@@ -327,12 +327,12 @@ empty registry creation and recipe registration remain available without one.
 Once the application has supplied the provider:
 
 ```rust,ignore
-use neocogi_com_sdk::persistence::{FactoryRegistry, snapshot};
+use neocogi_com_sdk::persistence::{FactoryRegistry, save_object_tree};
 
 let mut recipes = FactoryRegistry::new(&runtime)?;
 recipes.register(recipe_id, factory)?;
-let bytes = snapshot(&runtime, &object)?;
-let restored = recipes.restore(&bytes)?;
+let bytes = save_object_tree(&runtime, &object)?;
+let restored = recipes.restore_object_tree(&bytes)?;
 ```
 
 Each persistence registry is thread-local and independently owned. Its factories
@@ -349,7 +349,7 @@ See [persistence semantics and ownership](https://github.com/NeoCogi/neocogi-com
 | Selection | Available behavior |
 | --- | --- |
 | `default-features = false` | `no_std` core ABI, pointer/method-wrapper support, persistence contracts, and serialization traits; no runtime linkage |
-| `alloc` | Heap-backed object helpers, owned string/byte objects, and `ObjectRecord` |
+| `alloc` | Heap-backed object helpers, owned string/byte objects, and `SavedObject` |
 | `macros` | Implementation macro/derive re-exports |
 | `std` | `alloc` plus standard-library integrations; no runtime linkage by itself |
 | Defaults: `std`, `macros` | Local objects, owned data, and implementation macros; no runtime linkage |

@@ -2,7 +2,7 @@
 
 use neocogi_com::raw;
 use neocogi_com_sdk::{ComBytesExt, ComPtr, ComRaw, IUnknown, NcStatus, NC_E_INVALID_ARG, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE};
-use neocogi_com_sdk::persistence::{IPersistableAbi, Limits, ObjectRecord};
+use neocogi_com_sdk::persistence::{IPersistableAbi, Limits, SavedObject};
 
 /// Exports a shared opt-in tree, detects ownership cycles, and bounds traversal.
 /// The root consumes one object slot after exact identity validation and
@@ -11,11 +11,11 @@ use neocogi_com_sdk::persistence::{IPersistableAbi, Limits, ObjectRecord};
 /// # Safety
 /// A present raw pair borrows a live shared root owner for this operation. Its
 /// common table must be readable and provide the matching lifecycle operations.
-pub(crate) unsafe fn snapshot_with_limits(object: ComRaw<IUnknown>, limits: Limits) -> Result<Vec<u8>, NcStatus> {
+pub(crate) unsafe fn save_object_tree_with_limits(object: ComRaw<IUnknown>, limits: Limits) -> Result<Vec<u8>, NcStatus> {
     // SAFETY: The raw contract supplies a live shared lender. This checks only
     // the shape and exact interface before the traversal budget is consumed.
     unsafe { raw::validate_interface(object) }?;
-    let mut capture = Capture::new(limits);
+    let mut capture = ObjectTreeCapture::new(limits);
     capture.charge_slots(1)?;
     // SAFETY: The preceding check established exact identity, and the declared
     // shared owner remains alive while AddRef acquires this root for traversal.
@@ -27,8 +27,8 @@ pub(crate) unsafe fn snapshot_with_limits(object: ComRaw<IUnknown>, limits: Limi
     codec.format.serialize(&record).map_err(|_| NC_E_INVALID_ARG)
 }
 
-/// Per-snapshot traversal state, uniquely borrowed throughout recursive capture.
-struct Capture {
+/// Traversal state for one save, uniquely borrowed while collecting object data.
+struct ObjectTreeCapture {
     /// Immutable caller policy used for every descendant.
     limits: Limits,
     /// Unclaimed slots after counting the root and all admitted child counts.
@@ -42,7 +42,7 @@ struct Capture {
     child_capacity_requests: Vec<usize>,
 }
 
-impl Capture {
+impl ObjectTreeCapture {
     /// Starts one traversal with the full caller policy and no retained owners.
     fn new(limits: Limits) -> Self {
         Self {
@@ -67,7 +67,7 @@ impl Capture {
 
     /// Captures one already-budgeted object, using the frame's owner to keep its
     /// address valid across descendants and reject cycles through any projection.
-    fn admitted_object(&mut self, object: &ComPtr<IUnknown>) -> Result<ObjectRecord, NcStatus> {
+    fn admitted_object(&mut self, object: &ComPtr<IUnknown>) -> Result<SavedObject, NcStatus> {
         let identity = object.as_raw().object;
         if self.active.contains(&identity) {
             return Err(NC_E_INVALID_ARG);
@@ -98,7 +98,7 @@ impl Capture {
             }
             children.push(record);
         }
-        let result = ObjectRecord {
+        let result = SavedObject {
             type_id: value.type_id()?.to_uuid_bytes(),
             schema_version: value.schema_version()?,
             state,
@@ -159,13 +159,13 @@ mod tests {
         let inner = node(2, vec![leaf.clone()]);
         let outer = node(3, vec![leaf, inner]);
         let root = node(4, vec![outer]);
-        let mut capture = Capture::new(Limits::default());
+        let mut capture = ObjectTreeCapture::new(Limits::default());
         capture.charge_slots(1).unwrap();
         assert_eq!(capture.admitted_object(&root), Err(NC_E_NOT_FOUND));
         assert_eq!(capture.child_capacity_requests, [1, 1]);
 
         let full = node(3, (0..3).map(|_| node(0, Vec::new())).collect());
-        let mut capture = Capture::new(Limits::default());
+        let mut capture = ObjectTreeCapture::new(Limits::default());
         capture.charge_slots(1).unwrap();
         assert_eq!(capture.admitted_object(&full).unwrap().children.len(), 3);
         // The allocator may provide extra capacity. Every request still stays

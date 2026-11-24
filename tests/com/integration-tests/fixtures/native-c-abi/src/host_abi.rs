@@ -23,8 +23,8 @@ unavailable!(inspect(path: *const u8, len: usize, callback: Option<NcInspectPlug
 unavailable!(messenger(info: *const NcDebugMessengerCreateInfo, out: *mut u64));
 unavailable!(context(out: *mut *mut NcPersistenceContext));
 unavailable!(factory(context: *mut NcPersistenceContext, id: NcGuid, factory: ComRaw<persistence::IPersistenceFactoryAbi>));
-unavailable!(snapshot(object: ComRaw<IUnknown>, limits: NcPersistenceLimits, write: Option<NcPersistenceWriteBytes>, data: *mut c_void));
-unavailable!(restore(context: *const NcPersistenceContext, bytes: *const u8, len: usize, limits: NcPersistenceLimits, out: *mut ComRaw<IUnknown>));
+unavailable!(save_object_tree(object: ComRaw<IUnknown>, limits: NcPersistenceLimits, write: Option<NcPersistenceWriteBytes>, data: *mut c_void));
+unavailable!(restore_object_tree(context: *const NcPersistenceContext, bytes: *const u8, len: usize, limits: NcPersistenceLimits, out: *mut ComRaw<IUnknown>));
 /// Distinguishes the forwarded host table from a null/erased or swapped argument.
 unsafe extern "C" fn count() -> usize {
     17
@@ -53,8 +53,8 @@ static PERSISTENCE: NcPersistenceApi = NcPersistenceApi {
     create_context: context,
     destroy_context,
     register_factory: factory,
-    snapshot,
-    restore,
+    save_object_tree,
+    restore_object_tree,
 };
 static HOST: NcHostApi = NcHostApi {
     size: size_of::<NcHostApi>(),

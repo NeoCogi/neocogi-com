@@ -8,6 +8,6 @@
 mod interfaces;
 pub use interfaces::*;
 #[cfg(feature = "alloc")]
-mod record;
+mod saved_object;
 #[cfg(feature = "alloc")]
-pub use record::{Limits, ObjectRecord, LeafSize};
+pub use saved_object::{Limits, SavedObject, LeafSize};

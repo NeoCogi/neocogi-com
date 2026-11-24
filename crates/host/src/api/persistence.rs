@@ -1,4 +1,4 @@
-//! C entry points for caller-scoped persistence contexts and snapshot delivery.
+//! C entry points for saving and restoring object trees through the linked host.
 //!
 //! These adapters validate pointers before creating Rust borrows. Algorithms
 //! and registry ownership remain in `crate::persistence`; no global handle map,
@@ -9,7 +9,7 @@ use neocogi_com::{
     ComPtr, IUnknown, NcGuid, NcPersistenceApi, NcPersistenceContext, NcPersistenceLimits, NcPersistenceWriteBytes, NcStatus, NC_E_INVALID_ARG, NC_E_POINTER,
     NC_OK, persistence::IPersistenceFactoryAbi,
 };
-use crate::persistence::{Registry, snapshot_with_limits};
+use crate::persistence::{FactoryRegistry, save_object_tree_with_limits};
 
 /// Immutable operation table; a getter lends it for the runtime's entire lifetime.
 pub(super) static PERSISTENCE_API: NcPersistenceApi = NcPersistenceApi {
@@ -17,8 +17,8 @@ pub(super) static PERSISTENCE_API: NcPersistenceApi = NcPersistenceApi {
     create_context,
     destroy_context,
     register_factory,
-    snapshot,
-    restore,
+    save_object_tree,
+    restore_object_tree,
 };
 
 /// Allocates an empty registry in this runtime and transfers its opaque ownership.
@@ -32,7 +32,7 @@ unsafe extern "C" fn create_context(out: *mut *mut NcPersistenceContext) -> NcSt
     // SAFETY: The output is writable; no factory callbacks run during allocation.
     unsafe {
         out.write(ptr::null_mut());
-        out.write(Box::into_raw(Box::new(Registry::new())).cast());
+        out.write(Box::into_raw(Box::new(FactoryRegistry::new())).cast());
     }
     NC_OK
 }
@@ -45,7 +45,7 @@ unsafe extern "C" fn create_context(out: *mut *mut NcPersistenceContext) -> NcSt
 unsafe extern "C" fn destroy_context(context: *mut NcPersistenceContext) {
     if !context.is_null() {
         // SAFETY: Context ownership returns the original Box to its allocator.
-        unsafe { drop(Box::from_raw(context.cast::<Registry>())) };
+        unsafe { drop(Box::from_raw(context.cast::<FactoryRegistry>())) };
     }
 }
 
@@ -64,7 +64,7 @@ unsafe extern "C" fn register_factory(context: *mut NcPersistenceContext, id: Nc
         Err(status) => return status,
     };
     // SAFETY: The ABI requires exclusive context access for this operation.
-    match unsafe { &mut *context.cast::<Registry>() }.register(id, factory) {
+    match unsafe { &mut *context.cast::<FactoryRegistry>() }.register(id, factory) {
         Ok(()) => NC_OK,
         Err(status) => status.normalize_error(),
     }
@@ -75,7 +75,7 @@ unsafe extern "C" fn register_factory(context: *mut NcPersistenceContext, id: Nc
 /// # Safety
 /// A present object borrows a shared root owner. The callback and its opaque data
 /// satisfy the declared byte-sink contract and must not unwind across the ABI.
-unsafe extern "C" fn snapshot(
+unsafe extern "C" fn save_object_tree(
     object: neocogi_com::ComRaw<IUnknown>,
     limits: NcPersistenceLimits,
     write: Option<NcPersistenceWriteBytes>,
@@ -85,8 +85,8 @@ unsafe extern "C" fn snapshot(
         Some(write) => write,
         None => return NC_E_POINTER,
     };
-    // SAFETY: The provider contract lends the root through snapshot completion.
-    match unsafe { snapshot_with_limits(object, limits.into()) } {
+    // SAFETY: The provider contract lends the root until the save operation returns.
+    match unsafe { save_object_tree_with_limits(object, limits.into()) } {
         Ok(bytes) => {
             // SAFETY: The vector remains live for this single synchronous copy;
             // ownership stays in the runtime even if the receiver reports failure.
@@ -101,7 +101,7 @@ unsafe extern "C" fn snapshot(
 /// # Safety
 /// Context is shared-borrowed on its creating thread for the complete call.
 /// Input is readable for len bytes and output accepts one distinct pointer write.
-unsafe extern "C" fn restore(
+unsafe extern "C" fn restore_object_tree(
     context: *const NcPersistenceContext,
     bytes: *const u8,
     len: usize,
@@ -127,8 +127,8 @@ unsafe extern "C" fn restore(
         _ => unsafe { slice::from_raw_parts(bytes, len) },
     };
     // SAFETY: The ABI caller lends this exact runtime allocation immutably.
-    let registry = unsafe { &*context.cast::<Registry>() };
-    match registry.restore_with_limits(bytes, limits.into()) {
+    let registry = unsafe { &*context.cast::<FactoryRegistry>() };
+    match registry.restore_object_tree_with_limits(bytes, limits.into()) {
         Ok(root) => {
             // SAFETY: The output receives one owned COM reference, not a Rust Box.
             unsafe { out.write(root.into_raw()) };
@@ -164,17 +164,17 @@ mod tests {
                 register_factory(context, NcGuid::from_uuid_bytes([0; 16]), neocogi_com::ComRaw::null()),
                 NC_E_POINTER
             );
-            assert_eq!(restore(context, ptr::null(), 1, limits, &mut root), NC_E_POINTER);
+            assert_eq!(restore_object_tree(context, ptr::null(), 1, limits, &mut root), NC_E_POINTER);
             assert!(root.is_null());
             root = neocogi_com::ComRaw {
                 object: ptr::dangling_mut(),
                 vtable: ptr::null(),
             };
-            assert_eq!(restore(ptr::null(), ptr::null(), 0, limits, &mut root), NC_E_POINTER);
+            assert_eq!(restore_object_tree(ptr::null(), ptr::null(), 0, limits, &mut root), NC_E_POINTER);
             assert!(root.is_null());
-            assert_eq!(restore(context, ptr::dangling(), usize::MAX, limits, &mut root), NC_E_INVALID_ARG);
+            assert_eq!(restore_object_tree(context, ptr::dangling(), usize::MAX, limits, &mut root), NC_E_INVALID_ARG);
             assert!(root.is_null());
-            assert_eq!(snapshot(neocogi_com::ComRaw::null(), limits, None, ptr::null_mut()), NC_E_POINTER);
+            assert_eq!(save_object_tree(neocogi_com::ComRaw::null(), limits, None, ptr::null_mut()), NC_E_POINTER);
             destroy_context(context);
             destroy_context(ptr::null_mut());
         }

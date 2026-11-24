@@ -2,15 +2,15 @@
 
 use std::collections::BTreeMap;
 use neocogi_com_sdk::{ComPtr, IUnknown, NcCopyFromBufferOffset, NcGuid, NcStatus, NC_E_INVALID_ARG, NC_E_NOT_FOUND, NC_E_OUT_OF_RANGE};
-use neocogi_com_sdk::persistence::{IPersistenceFactoryAbi, Limits, ObjectRecord};
+use neocogi_com_sdk::persistence::{IPersistenceFactoryAbi, Limits, SavedObject};
 
 /// An explicit set of context-bound factories selected by the application.
 #[derive(Default)]
-pub(crate) struct Registry {
+pub(crate) struct FactoryRegistry {
     /// Recipe identity maps to one provider; replacement is never implicit.
     factories: BTreeMap<[u8; 16], ComPtr<IPersistenceFactoryAbi>>,
 }
-impl Registry {
+impl FactoryRegistry {
     /// Creates an empty loader with no dynamically discovered providers.
     pub(crate) fn new() -> Self {
         Self::default()
@@ -27,10 +27,10 @@ impl Registry {
         }
     }
     /// Uses bounded decoding and preflight before invoking any constructors.
-    pub(crate) fn restore_with_limits(&self, bytes: &[u8], limits: Limits) -> Result<ComPtr<IUnknown>, NcStatus> {
+    pub(crate) fn restore_object_tree_with_limits(&self, bytes: &[u8], limits: Limits) -> Result<ComPtr<IUnknown>, NcStatus> {
         let codec = super::ncb_format(limits.binary)?;
         let source = codec.format.deserializer(bytes).map_err(|_| NC_E_INVALID_ARG)?;
-        let record = ObjectRecord::decode_for_restore(source, limits)?;
+        let record = SavedObject::decode_for_restore(source, limits)?;
         // The exclusive reader has finished and dropped. The format and its
         // provider remain live through both factory passes.
         // Complete preflight must succeed before the first constructor runs.
@@ -38,7 +38,7 @@ impl Registry {
         self.construct(&record)
     }
     /// Preflight traverses the complete tree, including children of known parents.
-    fn validate(&self, record: &ObjectRecord) -> Result<(), NcStatus> {
+    fn validate(&self, record: &SavedObject) -> Result<(), NcStatus> {
         // Providers inspect immutable initialization state; they must not publish
         // resources during validation. Their constructor validates again on direct use.
         let factory = self.factories.get(&record.type_id).ok_or(NC_E_NOT_FOUND)?;
@@ -53,7 +53,7 @@ impl Registry {
         Ok(())
     }
     /// Children are ordinary owning COM references until the parent adopts them.
-    fn construct(&self, record: &ObjectRecord) -> Result<ComPtr<IUnknown>, NcStatus> {
+    fn construct(&self, record: &SavedObject) -> Result<ComPtr<IUnknown>, NcStatus> {
         // Collection drops already-built siblings on failure. The COM list then
         // owns all descendants until a successful parent adopts its chosen children.
         let children = record.children.iter().map(|child| self.construct(child)).collect::<Result<Vec<_>, _>>()?;

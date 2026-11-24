@@ -114,8 +114,8 @@ the same runtime that allocated it.
 
 The persistence table validates inputs, captures bounded object trees, preflights
 all recipes and provider state, and constructs descendants before their parents.
-Snapshot bytes are delivered once through a synchronous borrowed-byte callback;
-the Rust facade copies them into its own allocator. No Rust vector, map, or
+The save operation delivers the bytes once through a synchronous callback.
+The Rust facade copies them into its own allocator. No Rust vector, map, or
 allocator ownership crosses the ABI. Native and browser hosts execute the same
 implementation, while providers need only the built-in core contracts and
 the facade's implementation helpers. See [persistence](PERSISTENCE.md) for
@@ -141,8 +141,8 @@ registers a plugin or invokes its factory. All metadata/code remains process-pin
 
 ## Persistence provider
 
-Applications explicitly supply `nc.serialization` before snapshot or restore:
-register `neocogi_com_serialization::plugin_descriptor()` for static compositions,
+Applications explicitly supply `nc.serialization` before saving or restoring an object tree.
+Register `neocogi_com_serialization::plugin_descriptor()` for static compositions,
 or load `neocogi-com-serialization-dylib` for dynamic compositions. The host uses
 the registered provider's named `ncb` factory in both directions, regardless of
 its default format. It embeds no codec or fallback. Missing providers return

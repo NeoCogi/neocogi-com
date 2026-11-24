@@ -280,7 +280,7 @@ impl IObjectChildrenAbi {
         105u8, 180u8, 17u8, 164u8, 206u8, 80u8, 9u8, 125u8,
     ];
 }
-/// Optional snapshot capability for an owned construction tree.
+/// Optional capability that supplies the data needed to save an owned object tree.
 /// IDL source: `neocogi/com/persistence/objects.ncidl:10:11` (module `neocogi.com.persistence`).
 pub trait IPersistable {
     /// Identifies the registered construction recipe, not this object instance.

@@ -193,7 +193,7 @@ eager allocation before the first element is checked.
 
 Built-in persistence contracts live in `persistence`: provider traits, interface
 markers, wrappers and metadata require neither allocation nor a runtime. With
-`alloc`, the module also provides the portable `ObjectRecord` schema and limits.
+`alloc`, the module also provides the portable `SavedObject` schema and limits.
 The COM facade re-exports these contracts and supplies concrete-provider thunks.
 
 The canonical IDL is `schemas/neocogi/com/persistence/objects.ncidl`. Its built-in
@@ -235,7 +235,7 @@ format/access traits stay retired; the new extensibility boundary is COM.
 Application code may select a format through `neocogi_com_sdk::serialization::Format`
 or use core's COM interfaces and typed traversal facades directly. Unsupported
 format/value combinations return errors. Live object reconstruction still uses
-explicit `IPersistable` recipes; its runtime snapshot envelope remains NCB v1.
+explicit `IPersistable` recipes. Saved object trees use NCB v1.
 
 ### Historical NCB specialization validation
 
@@ -292,7 +292,7 @@ revision contents do not change their widths. Use it together with measurement o
 the actual inner value; it does not validate that value or cover child records.
 
 `Vec<u8>` always remains a collection: each byte consumes a value and an element
-of that collection. In particular, `ObjectRecord.state` receives this accounting
+of that collection. In particular, `SavedObject.state` receives this accounting
 even though its bytes may themselves encode provider initialization. A separate
 opaque-blob type would require an explicit schema/codec operation; the current
 codec does not implicitly convert byte vectors to blobs. A byte ceiling therefore

@@ -1143,7 +1143,8 @@ into a caller-owned error before releasing the session.
 
 `NcPersistenceApi` creates/destroys caller-owned, thread-local contexts, registers
 borrowed shared-owned `IPersistenceFactory` objects with one retained owner,
-snapshots shared-owned `IPersistable` trees, and restores an owned canonical `IUnknown`. Contexts do not
+saves shared-owned `IPersistable` trees with `save_object_tree`, and returns an
+owned canonical `IUnknown` from `restore_object_tree`. Contexts do not
 populate or replace the global plugin catalog. Mutation/destruction requires
 exclusive access; restore takes a shared borrow. `NcPersistenceLimits` carries
 binary and object-tree budgets explicitly.
@@ -1153,7 +1154,7 @@ layouts, not an available serialization provider. The caller still owes the
 host API's complete backing and lifetime guarantees. Host initialization, empty
 context creation and recipe registration do not require a codec or populate the catalog.
 The final application must explicitly register `nc.serialization` or load its
-library before snapshot/restore. Each operation acquires that provider through
+library before saving or restoring. Each operation acquires that provider through
 this host's own catalog and selects named `ncb`; `default_format()` is never used,
 even when an external provider defaults to JSON. The shipped serialization
 provider still defaults to NCB; JSON-default tests challenge persistence's
@@ -1162,17 +1163,17 @@ or embedded fallback. The provider root and selected format remain retained
 through codec use and restoration's recipe callbacks. Restore counts the root
 and charges each admitted child count during decoding. The host rejects an
 impossible object count or depth before reading the children or reserving their
-record storage. Child-record storage grows as children complete. Snapshot encoding produces
+record storage. Child-record storage grows as children complete. Saving produces
 an independent host-owned byte vector; its later delivery callback does not
 retain the codec objects. Provider and delivery callbacks run outside catalog locks.
 
 A missing provider returns `NC_E_NOT_FOUND`; root-acquisition and named-format
 selection errors propagate unchanged. Argument admission precedes selection:
-restore clears its output and checks the input-byte bound first, while snapshot
+`restore_object_tree` clears its output and checks the input-byte bound first. `save_object_tree`
 validates the sink and exact root pair, charges the root traversal budget,
 then retains the root and traverses its owned children. The caller lends the
 shared root for the entire raw call. After a node reports its child count,
-snapshot checks the binary element limit and any required next depth, then
+saving checks the binary element limit and any required next depth, then
 charges every declared child slot, including pending siblings. A count or depth
 that exceeds policy returns `NC_E_OUT_OF_RANGE` before that node's `save_state`
 or child getters. Getter errors encountered earlier propagate unchanged.
@@ -1181,7 +1182,7 @@ host child storage reports `NC_E_OUT_OF_MEMORY`. Codec failures continue to map 
 `NC_E_INVALID_ARG`. A conclusive object limit can precede a malformed unread
 child or a recipe failure. Recipe validation starts after complete document
 admission and finishes before construction. Selection
-failure emits no snapshot callback and runs no restore recipe callbacks. After
+failure emits no byte callback and runs no restore recipe callbacks. After
 selection, encoding/decoding errors retain their `NC_E_INVALID_ARG` mapping.
 Supplying a provider later permits retry using the same live context.
 
@@ -1192,11 +1193,11 @@ ABI v4. Provider selection and NCB-v1 bytes keep their
 existing contracts. An incompatible change to a shared layout, callback or guaranteed calling or
 ownership behavior must advance the native ABI version before old callers can invoke it.
 
-Capture calls `NcPersistenceWriteBytes` exactly once on success with the complete
+`save_object_tree` calls `NcPersistenceWriteBytes` exactly once on success with the complete
 borrowed document; failure never calls it. The callback may copy bytes, must not
 unwind, and cannot retain the pointer. Temporary storage is destroyed in the
-runtime, so no Rust allocator ownership crosses the ABI. Snapshot identity retains
-the canonical allocation along active ancestors; repeated siblings are legal.
+runtime, so no Rust allocator ownership crosses the ABI. While saving, the host
+retains the canonical allocations of active ancestors. Repeated siblings are legal.
 Logical interface equality is not allocation identity. Validate the whole recipe
 before constructing objects and release partial restored owners on failure.
 NCB v1, live-call wire validation and application reconstruction remain distinct

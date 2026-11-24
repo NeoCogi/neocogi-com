@@ -12,7 +12,8 @@ state owns edge properties such as grid placement. Repeated noncyclic references
 are copied as separate tree instances; graph aliasing is not preserved.
 
 Through `neocogi_com_sdk::persistence`, the application registers context-bound `IPersistenceFactory` objects in a
-`FactoryRegistry`. Creating a registry is fallible: `FactoryRegistry::new(&runtime)?`. `restore` decodes a bounded `ObjectRecord` tree, validates
+`FactoryRegistry`. Create it with `FactoryRegistry::new(&runtime)?`.
+`restore_object_tree` decodes a bounded `SavedObject` tree, validates
 all recipe IDs, revisions and provider state, then constructs descendants
 before their parents. Provider `validate` must be observational; `restore`
 must still validate its input when called directly through COM. A factory can
@@ -24,7 +25,7 @@ external resources and undo unpublished topology on construction failure; this
 does not publish application objects atomically. Keep construction detached
 until the complete root and its application bindings have been accepted.
 
-`snapshot` queries the optional capability, checks owned-path cycles and tree
+`save_object_tree` queries the optional capability, checks owned-path cycles and tree
 limits, and obtains provider state through a bounded COM byte-buffer copy. The
 result is an NCB-v1 document, which the application may embed or save wherever
 its platform permits. Saving observes the provider's current persistent fields.
@@ -35,23 +36,23 @@ provider's length is checked before host-local allocation or copying; lengths
 above the selected limit or Rust vector capacity return `NC_E_OUT_OF_RANGE`.
 A successfully reported zero length yields empty state without calling the
 provider's `copy_to` method. Length-query errors still propagate for empty state;
-nonempty copy errors discard private storage and publish no snapshot. A copy
+nonempty copy errors discard private storage and publish no saved document. A copy
 callback is therefore not an empty-state validation hook.
 
 The wire format and these APIs are experimental. The tests exercise recursive
-real COM objects, exact snapshot round trips, whole-tree preflight, bounded
+real COM objects, exact save and restore round trips, whole-tree preflight, bounded
 traversal, duplicate recipe rejection, and cleanup after parent failure.
 
 ## Executable integration examples
 
-The [plain-Cargo plugin example](../../examples/com-plugin/README.md) snapshots
+The [plain-Cargo plugin example](../../examples/com-plugin/README.md) saves
 objects and attaches typed class streams across a relocated shared library and in a
 monolith. Its adapter reconstructs through the provider's existing typed factory.
 
 ## Ownership and linkage
 
 The final application must supply `nc.serialization` in this host's catalog
-before snapshot or restore. A static/monolithic application explicitly registers
+before saving or restoring. A static/monolithic application explicitly registers
 `neocogi_com_serialization::plugin_descriptor()`; a dynamic application loads
 `neocogi-com-serialization-dylib`. Host initialization and empty context creation
 remain provider-independent. The host has no runtime dependency on a codec
@@ -62,7 +63,7 @@ runtime tables and requests `format("ncb")`, never `default_format()`. The shipp
 provider defaults to NCB; even an external provider with a different default
 cannot redirect persistence away from named NCB. The root and selected format
 factory are retained through codec use, including restoration preflight and
-construction. Snapshot encoding returns independent host-owned bytes, releasing
+construction. Saving returns independent host-owned bytes, releasing
 the codec objects before the raw adapter calls the byte sink. Each document uses
 an independent exclusive session. Catalog locks
 are released before bootstrap, selection, session and recipe callbacks. Existing
@@ -82,23 +83,23 @@ requirements are separate from the ABI family. Incompatible changes to frozen
 contracts require advancing the applicable compatibility authority, not editing
 them in place. Providers only implementing the contracts need neither runtime
 nor host linkage. The built-in contracts remain available without allocation; portable
-`ObjectRecord` authoring requires `alloc` but no linked runtime.
+`SavedObject` authoring requires `alloc` but no linked runtime.
 
 `FactoryRegistry` is an owning, non-Clone, thread-local handle. Its runtime
 allocation contains an ordinary `BTreeMap`; `register(&mut self, ...)` is the
-only mutating operation, and `restore(&self, ...)` borrows it. Dropping the
+only mutating operation, and `restore_object_tree(&self, ...)` borrows it. Dropping the
 handle destroys its context and releases retained factories in the allocating
 runtime. Independently owned restored objects remain valid afterward.
 
-Snapshot captures shared ownership trees and retains canonical identities along
+Saving traverses shared ownership trees and retains canonical identities along
 the active traversal path. The Rust SDK takes `&ComPtr<IUnknown>`. The raw
-snapshot root and raw registration factory must each be a live shared pair
+root supplied for saving and the raw registration factory must each be a live shared pair
 borrowed for the entire call. The raw entry points validate pair shape and exact
 interface identity. The producer's declared shared backing supplies the ownership
 proof. A persistence factory borrows `IObjectChildren` during `restore` and can
 keep the independently owned references returned by `get`.
 
-Snapshot traversal produces the document once. A synchronous byte callback
+The save operation produces one document. A synchronous byte callback
 copies the completed document into caller-owned storage; failure publishes no
 partial document. The runtime releases its temporary bytes after the callback.
 Restoration accepts a borrowed byte range and returns one owned COM root.
@@ -106,13 +107,13 @@ Neither direction exposes Rust container layout or transfers allocator ownership
 
 ## Limits and failure behavior
 
-`snapshot_with_limits` and `FactoryRegistry::restore_with_limits` accept the
+`save_object_tree_with_limits` and `FactoryRegistry::restore_object_tree_with_limits` accept the
 same `Limits`. Defaults allow 4,096 objects and at most 48 objects along a
 root-to-leaf path. The nested binary policy defaults to a 16 MiB document,
 65,536 elements/fields per container, 64 levels of value nesting, and 1,000,000
 decoded values. Binary nesting counts the encoded record/sequence structure,
 so it can be exhausted before the object-depth budget. Provider-state bytes
-and children also count toward binary container limits. Snapshot charges the root
+and children also count toward binary container limits. Saving charges the root
 before retaining it. After a successful `child_count`, capture checks the binary
 element limit, the depth needed by a nonempty child list and the remaining object
 allowance. Each advertised child takes one slot immediately, including pending
@@ -150,7 +151,7 @@ after a successful restore.
 An unregistered serialization provider returns `NC_E_NOT_FOUND`; root acquisition
 and named-format selection errors propagate unchanged. They never trigger another
 format or an embedded implementation. ABI argument admission precedes selection,
-including restore's input-byte budget and cleared output. Snapshot completes its
+including restore's input-byte budget and cleared output. Saving completes its
 ownership, capability, cycle and capture-budget checks before selection. Restore
 selects and decodes before any recipe callback. Source creation and codec errors
 map to `NC_E_INVALID_ARG`. An earlier codec failure takes precedence over an
@@ -164,9 +165,9 @@ registration never require codec availability.
 
 ## Rust access
 
-Snapshot and restore callers enable `neocogi-com-sdk/runtime`. Construct an owned
+Callers enable `neocogi-com-sdk/runtime` to save and restore trees. Construct an owned
 context with `FactoryRegistry::new(&runtime)?`; capture a shared `ComPtr<IUnknown>` with
-`snapshot(&runtime, &object)` or `snapshot_with_limits(&runtime, &object, limits)`.
+`save_object_tree(&runtime, &object)` or `save_object_tree_with_limits(&runtime, &object, limits)`.
 The supplied handle already admits the native ABI version. Contexts
 retain their exact creation table for operations and Drop. Provider interface
 identities, application recipe schemas and NCB-v1 bytes remain independent.

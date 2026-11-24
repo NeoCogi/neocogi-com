@@ -17,9 +17,11 @@ by `abi_version`. Initialize them with `NC_COM_ABI_MAGIC` and
 provider metadata. The generated adapter checks the same fields before using
 host tables or acquiring factories. Exact IID and signature checks still apply.
 
-The persistence service borrows shared-owned factory and snapshot-root pairs.
+The persistence service borrows shared-owned factory and root pairs.
 Pass a `ComPtr<IPersistenceFactoryAbi>` to registry registration and a
-`&ComPtr<IUnknown>` to the snapshot operation. Handwritten native providers
+`&ComPtr<IUnknown>` to `save_object_tree`. Use
+`FactoryRegistry::restore_object_tree` to rebuild the objects from the document.
+The portable record type is `SavedObject`. Handwritten native providers
 must lend the corresponding live shared interface for the full raw call.
 Persisted NCB-v1 documents keep their encoding.
 
@@ -28,7 +30,7 @@ text buffer. A format implementation records that
 status with the first failure and keeps it for subsequent operations.
 
 Link `neocogi-com-host` and forward its supplied `RuntimeHandle` to nested
-providers. Register or load `nc.serialization` before snapshot and restore.
+providers. Register or load `nc.serialization` before saving and restoring.
 
 ## Compose a native interface prefix
 

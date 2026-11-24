@@ -176,7 +176,7 @@ impl IPersistenceFactory for Factory {
 
 /// Exact NCB-v1 oracle from the existing implementation, used only as a dev fixture.
 fn bytes() -> Vec<u8> {
-    neocogi_com_serialization::ncb::to_vec(&ObjectRecord {
+    neocogi_com_serialization::ncb::to_vec(&SavedObject {
         type_id: KIND.to_uuid_bytes(),
         schema_version: 1,
         state: vec![42],
@@ -201,19 +201,21 @@ fn missing_provider_preserves_error_precedence() {
     let runtime = crate::initialize_runtime();
     let value = Value::from_value(Value);
     let registry = registry(&runtime);
-    assert_eq!(snapshot(&runtime, &value), Err(neocogi_com_sdk::NC_E_NOT_FOUND));
-    assert_eq!(registry.restore(&bytes()).unwrap_err(), neocogi_com_sdk::NC_E_NOT_FOUND);
-    assert_eq!(registry.restore(b"malformed").unwrap_err(), neocogi_com_sdk::NC_E_NOT_FOUND);
+    assert_eq!(save_object_tree(&runtime, &value), Err(neocogi_com_sdk::NC_E_NOT_FOUND));
+    assert_eq!(registry.restore_object_tree(&bytes()).unwrap_err(), neocogi_com_sdk::NC_E_NOT_FOUND);
+    assert_eq!(registry.restore_object_tree(b"malformed").unwrap_err(), neocogi_com_sdk::NC_E_NOT_FOUND);
     assert_eq!(
-        registry.restore_with_limits(&bytes(), Limits { objects: 0, ..Limits::default() }).unwrap_err(),
+        registry
+            .restore_object_tree_with_limits(&bytes(), Limits { objects: 0, ..Limits::default() })
+            .unwrap_err(),
         neocogi_com_sdk::NC_E_NOT_FOUND
     );
     assert_eq!(
-        snapshot_with_limits(&runtime, &value, Limits { objects: 0, ..Limits::default() }),
+        save_object_tree_with_limits(&runtime, &value, Limits { objects: 0, ..Limits::default() }),
         Err(neocogi_com_sdk::NC_E_OUT_OF_RANGE)
     );
     assert_eq!(
-        snapshot_with_limits(
+        save_object_tree_with_limits(
             &runtime,
             &value,
             Limits {
@@ -226,16 +228,22 @@ fn missing_provider_preserves_error_precedence() {
     );
     let mut limits = Limits::default();
     limits.binary.bytes = 0;
-    assert_eq!(snapshot_with_limits(&runtime, &value, limits), Err(neocogi_com_sdk::NC_E_OUT_OF_RANGE));
-    assert_eq!(registry.restore_with_limits(&bytes(), limits).unwrap_err(), neocogi_com_sdk::NC_E_INVALID_ARG);
-    assert_eq!(snapshot(&runtime, &Factory::from_value(Factory)), Err(neocogi_com_sdk::NC_E_NOINTERFACE));
+    assert_eq!(save_object_tree_with_limits(&runtime, &value, limits), Err(neocogi_com_sdk::NC_E_OUT_OF_RANGE));
+    assert_eq!(
+        registry.restore_object_tree_with_limits(&bytes(), limits).unwrap_err(),
+        neocogi_com_sdk::NC_E_INVALID_ARG
+    );
+    assert_eq!(
+        save_object_tree(&runtime, &Factory::from_value(Factory)),
+        Err(neocogi_com_sdk::NC_E_NOINTERFACE)
+    );
     assert_eq!(VALIDATIONS.load(Ordering::Relaxed), 0);
     assert!(runtime.plugins().unwrap().is_empty(), "persistence must never seed the catalog");
 }
 
 /// Caller-owned observation of actual byte delivery across the persistence ABI.
 #[derive(Default)]
-struct SnapshotReceipt {
+struct SaveReceipt {
     /// Successful deliveries; the host must call exactly once for a complete document.
     calls: usize,
     /// Copied bytes, independent of the runtime's temporary output allocation.
@@ -245,14 +253,14 @@ struct SnapshotReceipt {
 /// Copies one complete document while the raw ABI lends its storage.
 ///
 /// # Safety
-/// `data` exclusively borrows a live SnapshotReceipt until this callback returns.
+/// `data` exclusively borrows a live SaveReceipt until this callback returns.
 /// Nonempty `bytes` is readable for `len` bytes and does not overlap that receipt.
-unsafe extern "C" fn receive_snapshot(data: *mut core::ffi::c_void, bytes: *const u8, len: usize) -> NcStatus {
+unsafe extern "C" fn receive_saved_document(data: *mut core::ffi::c_void, bytes: *const u8, len: usize) -> NcStatus {
     if data.is_null() || (len != 0 && bytes.is_null()) {
         return neocogi_com_sdk::NC_E_POINTER;
     }
     // SAFETY: The test lends this exact receipt exclusively for the synchronous call.
-    let receipt = unsafe { &mut *data.cast::<SnapshotReceipt>() };
+    let receipt = unsafe { &mut *data.cast::<SaveReceipt>() };
     if receipt.calls != 0 {
         return neocogi_com_sdk::NC_E_INVALID_ARG;
     }
@@ -292,7 +300,7 @@ fn provider_registration_recovers_existing_context_through_raw_api() {
         assert_eq!((api.register_factory)(context, KIND, factory.as_raw()), neocogi_com_sdk::NC_OK);
     }
     drop(factory); // Only the context's retained factory can service the later retry.
-    let mut receipt = SnapshotReceipt::default();
+    let mut receipt = SaveReceipt::default();
     // A live borrowed pair is a valid output sentinel; failure must clear both
     // words without consuming this owner's separate reference.
     let mut root = value.as_raw();
@@ -300,11 +308,11 @@ fn provider_registration_recovers_existing_context_through_raw_api() {
     // each synchronous call; inputs do not overlap either writable output.
     unsafe {
         assert_eq!(
-            (api.snapshot)(value.as_raw(), limits, Some(receive_snapshot), core::ptr::from_mut(&mut receipt).cast()),
+            (api.save_object_tree)(value.as_raw(), limits, Some(receive_saved_document), core::ptr::from_mut(&mut receipt).cast()),
             neocogi_com_sdk::NC_E_NOT_FOUND
         );
         assert_eq!(
-            (api.restore)(context, expected.as_ptr(), expected.len(), limits, &mut root),
+            (api.restore_object_tree)(context, expected.as_ptr(), expected.len(), limits, &mut root),
             neocogi_com_sdk::NC_E_NOT_FOUND
         );
     }
@@ -321,7 +329,14 @@ fn provider_registration_recovers_existing_context_through_raw_api() {
     // SAFETY: Both owners are live and the callback borrows the receipt only
     // for this synchronous call, with no overlapping writable storage.
     assert_eq!(
-        unsafe { (api.snapshot)(value.as_raw(), short.into(), Some(receive_snapshot), core::ptr::from_mut(&mut receipt).cast()) },
+        unsafe {
+            (api.save_object_tree)(
+                value.as_raw(),
+                short.into(),
+                Some(receive_saved_document),
+                core::ptr::from_mut(&mut receipt).cast(),
+            )
+        },
         neocogi_com_sdk::NC_E_INVALID_ARG
     );
     assert_eq!(SELECTIONS.load(Ordering::Relaxed), 1);
@@ -333,11 +348,11 @@ fn provider_registration_recovers_existing_context_through_raw_api() {
     // output storage satisfy the unchanged synchronous C calling contract.
     unsafe {
         assert_eq!(
-            (api.snapshot)(value.as_raw(), limits, Some(receive_snapshot), core::ptr::from_mut(&mut receipt).cast()),
+            (api.save_object_tree)(value.as_raw(), limits, Some(receive_saved_document), core::ptr::from_mut(&mut receipt).cast()),
             neocogi_com_sdk::NC_OK
         );
         assert_eq!(
-            (api.restore)(context, receipt.bytes.as_ptr(), receipt.bytes.len(), limits, &mut root),
+            (api.restore_object_tree)(context, receipt.bytes.as_ptr(), receipt.bytes.len(), limits, &mut root),
             neocogi_com_sdk::NC_OK
         );
         // No call still borrows the unique context, so its retained factory can go.
@@ -365,9 +380,9 @@ fn named_ncb_retains_capabilities_and_ignores_json_default() {
     unsafe { runtime.register_plugin_descriptor(plugin_descriptor()) }.unwrap();
     let value = Value::from_value(Value);
     let registry = registry(&runtime);
-    let saved = snapshot(&runtime, &value).unwrap();
+    let saved = save_object_tree(&runtime, &value).unwrap();
     assert_eq!(saved, bytes(), "preserve the complete NCB-v1 envelope");
-    let restored = registry.restore(&saved).unwrap();
+    let restored = registry.restore_object_tree(&saved).unwrap();
     assert_eq!(restored.query::<IPersistableAbi>().unwrap().schema_version().unwrap(), 1);
     assert_eq!(SELECTIONS.load(Ordering::Relaxed), 2);
     assert_eq!(DEFAULTS.load(Ordering::Relaxed), 0);
@@ -379,8 +394,8 @@ fn named_ncb_retains_capabilities_and_ignores_json_default() {
     let mut permissive = Limits::default();
     permissive.binary.elements = usize::MAX;
     permissive.binary.depth = usize::MAX;
-    assert_eq!(snapshot_with_limits(&runtime, &value, permissive).unwrap(), saved);
-    drop(registry.restore_with_limits(&saved, permissive).unwrap());
+    assert_eq!(save_object_tree_with_limits(&runtime, &value, permissive).unwrap(), saved);
+    drop(registry.restore_object_tree_with_limits(&saved, permissive).unwrap());
     let validations = VALIDATIONS.load(Ordering::Relaxed);
 
     // The one-byte state fits capture's limit and the named factory is
@@ -388,18 +403,18 @@ fn named_ncb_retains_capabilities_and_ignores_json_default() {
     let selections = SELECTIONS.load(Ordering::Relaxed);
     let mut short = Limits::default();
     short.binary.bytes = 3;
-    assert_eq!(snapshot_with_limits(&runtime, &value, short), Err(neocogi_com_sdk::NC_E_INVALID_ARG));
+    assert_eq!(save_object_tree_with_limits(&runtime, &value, short), Err(neocogi_com_sdk::NC_E_INVALID_ARG));
     assert_eq!(SELECTIONS.load(Ordering::Relaxed), selections + 1);
     assert_eq!((ROOTS.load(Ordering::Relaxed), FORMATS.load(Ordering::Relaxed)), (0, 0));
 
     // A malformed document releases the selected capabilities before returning
     // and never invokes recipes. Every truncation and trailing data must fail.
     for end in 0..saved.len() {
-        assert_eq!(registry.restore(&saved[..end]).unwrap_err(), neocogi_com_sdk::NC_E_INVALID_ARG);
+        assert_eq!(registry.restore_object_tree(&saved[..end]).unwrap_err(), neocogi_com_sdk::NC_E_INVALID_ARG);
     }
     let mut trailing = saved;
     trailing.push(0);
-    assert_eq!(registry.restore(&trailing).unwrap_err(), neocogi_com_sdk::NC_E_INVALID_ARG);
+    assert_eq!(registry.restore_object_tree(&trailing).unwrap_err(), neocogi_com_sdk::NC_E_INVALID_ARG);
     assert_eq!(VALIDATIONS.load(Ordering::Relaxed), validations);
     assert_eq!((ROOTS.load(Ordering::Relaxed), FORMATS.load(Ordering::Relaxed)), (0, 0));
 }
@@ -421,8 +436,8 @@ fn format_selection_errors_have_no_fallback() {
         (3, neocogi_com_sdk::NC_E_OUT_OF_RANGE),
     ] {
         FAILURE.store(mode, Ordering::Relaxed);
-        assert_eq!(snapshot(&runtime, &value), Err(status));
-        assert_eq!(registry.restore(&bytes()).unwrap_err(), status);
+        assert_eq!(save_object_tree(&runtime, &value), Err(status));
+        assert_eq!(registry.restore_object_tree(&bytes()).unwrap_err(), status);
         assert_eq!((ROOTS.load(Ordering::Relaxed), FORMATS.load(Ordering::Relaxed)), (0, 0));
     }
     assert_eq!(SELECTIONS.load(Ordering::Relaxed), 6);
@@ -430,9 +445,9 @@ fn format_selection_errors_have_no_fallback() {
     assert_eq!(VALIDATIONS.load(Ordering::Relaxed), 0);
     FAILURE.store(0, Ordering::Relaxed);
     REFUSE_SOURCE.store(true, Ordering::Relaxed);
-    assert_eq!(registry.restore(&bytes()).unwrap_err(), neocogi_com_sdk::NC_E_INVALID_ARG);
+    assert_eq!(registry.restore_object_tree(&bytes()).unwrap_err(), neocogi_com_sdk::NC_E_INVALID_ARG);
     assert_eq!(VALIDATIONS.load(Ordering::Relaxed), 0);
     assert_eq!((ROOTS.load(Ordering::Relaxed), FORMATS.load(Ordering::Relaxed)), (0, 0));
     REFUSE_SOURCE.store(false, Ordering::Relaxed);
-    assert!(registry.restore(&bytes()).is_ok());
+    assert!(registry.restore_object_tree(&bytes()).is_ok());
 }

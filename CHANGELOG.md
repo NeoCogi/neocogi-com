@@ -6,6 +6,9 @@ Historical draft numbers do not define additional supported COM baselines.
 
 ## 0.5.0-wip-alpha.1 (development)
 
+- Call the object persistence operations `save_object_tree` and
+  `restore_object_tree`, and the serializable record `SavedObject`. These
+  source names keep the ABI layout and NCB v1 bytes.
 - Use ABI version 4 for the host bundle and plugin descriptor. A fixed header
   marker distinguishes superseded layouts before either side reads the version.
   Providers export the stable `nc_get_plugin_descriptor` getter. Inspector JSON

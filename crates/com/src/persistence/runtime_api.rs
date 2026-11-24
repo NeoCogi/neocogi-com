@@ -50,19 +50,19 @@ impl FactoryRegistry {
     /// Restores a complete owned tree using the default finite resource policy.
     /// Requires an explicitly supplied `nc.serialization` provider offering `ncb`.
     /// If missing, returns `NC_E_NOT_FOUND`; the context remains usable for retry.
-    pub fn restore(&self, bytes: &[u8]) -> Result<ComPtr<IUnknown>, NcStatus> {
-        self.restore_with_limits(bytes, Limits::default())
+    pub fn restore_object_tree(&self, bytes: &[u8]) -> Result<ComPtr<IUnknown>, NcStatus> {
+        self.restore_object_tree_with_limits(bytes, Limits::default())
     }
 
     /// Acquires named NCB, then checks object count and depth while decoding.
     /// Restore can reject a declared child count before reading child records.
     /// Every recipe and state is validated before invoking any constructor.
     /// Selection errors propagate and the context remains usable after failure.
-    pub fn restore_with_limits(&self, bytes: &[u8], limits: Limits) -> Result<ComPtr<IUnknown>, NcStatus> {
+    pub fn restore_object_tree_with_limits(&self, bytes: &[u8], limits: Limits) -> Result<ComPtr<IUnknown>, NcStatus> {
         let mut root = crate::ComRaw::null();
         // SAFETY: The context, input slice and output slot all live through the
         // synchronous call. The returned root transfers one COM reference.
-        let status = unsafe { (self.api.restore)(self.context.as_ptr(), bytes.as_ptr(), bytes.len(), limits.into(), &mut root) };
+        let status = unsafe { (self.api.restore_object_tree)(self.context.as_ptr(), bytes.as_ptr(), bytes.len(), limits.into(), &mut root) };
         if status.is_err() {
             return Err(status);
         }
@@ -81,36 +81,43 @@ impl Drop for FactoryRegistry {
     }
 }
 
-/// Captures a shared opt-in object tree with the default limits.
+/// Saves a shared opt-in object tree to NCB bytes with the default limits.
 /// The caller lends an existing shared owner throughout the operation.
 /// Requires an explicitly supplied `nc.serialization` provider offering `ncb`;
 /// provider absence returns `NC_E_NOT_FOUND`, without implicit loading/fallback.
 ///
-/// A boxed owner has a different lifetime contract than a shared snapshot root.
+/// The root must have shared ownership.
 ///
 /// ```compile_fail
-/// use neocogi_com_sdk::{ComBox, IUnknown, RuntimeHandle, persistence::snapshot};
+/// use neocogi_com_sdk::{ComBox, IUnknown, RuntimeHandle, persistence::save_object_tree};
 ///
 /// fn capture(runtime: &RuntimeHandle, root: &ComBox<IUnknown>) {
-///     let _ = snapshot(runtime, root);
+///     let _ = save_object_tree(runtime, root);
 /// }
 /// ```
-pub fn snapshot(runtime: &RuntimeHandle, object: &ComPtr<IUnknown>) -> Result<Vec<u8>, NcStatus> {
-    snapshot_with_limits(runtime, object, Limits::default())
+pub fn save_object_tree(runtime: &RuntimeHandle, object: &ComPtr<IUnknown>) -> Result<Vec<u8>, NcStatus> {
+    save_object_tree_with_limits(runtime, object, Limits::default())
 }
 
-/// Returns caller-owned document bytes after one successful shared-tree traversal.
+/// Saves a shared object tree to caller-owned NCB bytes under the supplied limits.
 /// Root and capture-budget checks precede named-NCB selection. Provider
 /// acquisition/selection errors propagate and publish no document bytes.
-pub fn snapshot_with_limits(runtime: &RuntimeHandle, object: &ComPtr<IUnknown>, limits: Limits) -> Result<Vec<u8>, NcStatus> {
+pub fn save_object_tree_with_limits(runtime: &RuntimeHandle, object: &ComPtr<IUnknown>, limits: Limits) -> Result<Vec<u8>, NcStatus> {
     let api = runtime.persistence;
-    let mut destination = SnapshotDestination {
+    let mut destination = SaveOutput {
         maximum: limits.binary.bytes,
         bytes: None,
     };
     // SAFETY: The shared owner retains the root and the destination stays at this
     // address for the entire synchronous operation.
-    let status = unsafe { (api.snapshot)(object.as_raw(), limits.into(), Some(receive_snapshot), ptr::from_mut(&mut destination).cast()) };
+    let status = unsafe {
+        (api.save_object_tree)(
+            object.as_raw(),
+            limits.into(),
+            Some(receive_saved_document),
+            ptr::from_mut(&mut destination).cast(),
+        )
+    };
     if status.is_err() {
         return Err(status);
     }
@@ -118,7 +125,7 @@ pub fn snapshot_with_limits(runtime: &RuntimeHandle, object: &ComPtr<IUnknown>, 
 }
 
 /// Typed state for a single synchronous byte-delivery callback.
-struct SnapshotDestination {
+struct SaveOutput {
     /// Maximum complete document size accepted by this caller.
     maximum: usize,
     /// None until the one successful delivery; Some rejects repeated delivery.
@@ -128,14 +135,14 @@ struct SnapshotDestination {
 /// Copies borrowed runtime bytes using the caller's allocator exactly once.
 ///
 /// # Safety
-/// user_data points to the live exclusive SnapshotDestination in snapshot_with_limits;
-/// nonempty input is readable for len bytes and does not overlap that destination.
-unsafe extern "C" fn receive_snapshot(user_data: *mut c_void, bytes: *const u8, len: usize) -> NcStatus {
+/// `user_data` points to the live exclusive `SaveOutput` in `save_object_tree_with_limits`.
+/// Nonempty input is readable for `len` bytes and does not overlap that destination.
+unsafe extern "C" fn receive_saved_document(user_data: *mut c_void, bytes: *const u8, len: usize) -> NcStatus {
     if user_data.is_null() || (len != 0 && bytes.is_null()) {
         return NC_E_POINTER;
     }
-    // SAFETY: Only snapshot_with_limits installs this callback/data pair.
-    let destination = unsafe { &mut *user_data.cast::<SnapshotDestination>() };
+    // SAFETY: Only save_object_tree_with_limits installs this callback/data pair.
+    let destination = unsafe { &mut *user_data.cast::<SaveOutput>() };
     // Model delivery as a one-way transition: an existing result is immutable.
     match destination.bytes {
         Some(_) => NC_E_INVALID_ARG,

@@ -80,10 +80,10 @@ fn native_shim_supplies_formats_and_failure_details() {
 /// Exercises host persistence with the actual independently built deployment DLL.
 /// This process never registers a static serialization descriptor.
 fn persistence_round_trip(runtime: &neocogi_com_sdk::RuntimeHandle) {
-    use neocogi_com_sdk::persistence::{FactoryRegistry, IPersistableAbi, ObjectRecord, snapshot};
+    use neocogi_com_sdk::persistence::{FactoryRegistry, IPersistableAbi, SavedObject, save_object_tree};
     let value = Persistent::from_value(Persistent);
-    let bytes = snapshot(runtime, &value).unwrap();
-    let expected = neocogi_com_serialization::ncb::to_vec(&ObjectRecord {
+    let bytes = save_object_tree(runtime, &value).unwrap();
+    let expected = neocogi_com_serialization::ncb::to_vec(&SavedObject {
         type_id: PERSISTENT_KIND.to_uuid_bytes(),
         schema_version: 1,
         state: vec![1, 2, 3],
@@ -95,15 +95,15 @@ fn persistence_round_trip(runtime: &neocogi_com_sdk::RuntimeHandle) {
     registry
         .register(PERSISTENT_KIND, PersistenceFactory::from_value(PersistenceFactory).query().unwrap())
         .unwrap();
-    let restored = registry.restore(&bytes).unwrap();
+    let restored = registry.restore_object_tree(&bytes).unwrap();
     assert_eq!(restored.query::<IPersistableAbi>().unwrap().schema_version().unwrap(), 1);
-    assert_eq!(snapshot(runtime, &restored).unwrap(), bytes);
+    assert_eq!(save_object_tree(runtime, &restored).unwrap(), bytes);
     for end in 0..bytes.len() {
-        assert_eq!(registry.restore(&bytes[..end]).unwrap_err(), neocogi_com_sdk::NC_E_INVALID_ARG);
+        assert_eq!(registry.restore_object_tree(&bytes[..end]).unwrap_err(), neocogi_com_sdk::NC_E_INVALID_ARG);
     }
     let mut trailing = bytes;
     trailing.push(0);
-    assert_eq!(registry.restore(&trailing).unwrap_err(), neocogi_com_sdk::NC_E_INVALID_ARG);
+    assert_eq!(registry.restore_object_tree(&trailing).unwrap_err(), neocogi_com_sdk::NC_E_INVALID_ARG);
 }
 
 /// Explicit recipe identity for an application object crossing the loaded codec.

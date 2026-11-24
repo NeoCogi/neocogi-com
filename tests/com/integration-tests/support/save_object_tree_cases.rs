@@ -3,10 +3,10 @@
 use neocogi_com_serialization::ncb as binary;
 use std::{cell::Cell, rc::Rc};
 use neocogi_com_sdk::{
-    com_object, ComInterface, ComPtr, IUnknown, IUnknownVTable, INcBytesAbi, LocalCom, NcBytes, NcGuid, NcStatus, WeakComPtr, NC_E_BUSY,
-    NC_E_INVALID_ARG, NC_E_NOT_FOUND, NC_E_OUT_OF_RANGE,
+    com_object, ComInterface, ComPtr, IUnknown, IUnknownVTable, INcBytesAbi, LocalCom, NcBytes, NcGuid, NcStatus, WeakComPtr, NC_E_BUSY, NC_E_INVALID_ARG,
+    NC_E_NOT_FOUND, NC_E_OUT_OF_RANGE,
 };
-use neocogi_com_sdk::persistence::{IPersistable, IPersistableAbi, IPersistableVtblFor, Limits, ObjectRecord};
+use neocogi_com_sdk::persistence::{IPersistable, IPersistableAbi, IPersistableVtblFor, Limits, SavedObject};
 
 // A valid exact IUnknown table copy for generated common-header allocations.
 // It changes dispatch storage, with identical lifecycle methods and identity.
@@ -16,10 +16,7 @@ static ALTERNATE: IUnknownVTable = IUnknownVTable {
 };
 
 /// An exact shared vtable that observes retention and forwards it unchanged.
-static COUNTED_ROOT: IUnknownVTable = IUnknownVTable {
-    add_ref: count_root_retain,
-    ..ALTERNATE
-};
+static COUNTED_ROOT: IUnknownVTable = IUnknownVTable { add_ref: count_root_retain, ..ALTERNATE };
 
 thread_local! {
     /// Number of explicit AddRef calls made through the probe on this thread.
@@ -64,7 +61,7 @@ enum Stage {
     /// Failure while copying the admitted nested provider bytes.
     BytesCopy,
     /// Foreign length content that cannot fit a Rust byte vector, despite a
-    /// permissive snapshot policy. No copy or allocation may be attempted.
+    /// permissive save limits. No copy or allocation may be attempted.
     BytesOversize,
 }
 
@@ -183,7 +180,7 @@ unsafe extern "C" fn reject_length(_: *mut core::ffi::c_void, _: *mut u64) -> Nc
     NC_E_NOT_FOUND
 }
 
-/// Copy rejection must discard private runtime storage and deliver no snapshot.
+/// Copy rejection must discard private runtime storage and deliver no document.
 /// # Safety
 /// Same admitted initialized destination contract as INcBytesVTable::copy_to.
 unsafe extern "C" fn reject_copy(_: *mut core::ffi::c_void, _: u64, _: u64, _: *mut u8) -> NcStatus {
@@ -230,7 +227,11 @@ fn failing_bytes(owner: ComPtr<INcBytesAbi>, stage: usize) -> ComPtr<INcBytesAbi
                 byte_at: original.byte_at,
                 copy_to,
             };
-            [table(reject_length, original.copy_to), table(original.len, reject_copy), table(oversized_length, reject_copy)]
+            [
+                table(reject_length, original.copy_to),
+                table(original.len, reject_copy),
+                table(oversized_length, reject_copy),
+            ]
         });
         &tables[stage] as *const _
     });
@@ -247,7 +248,11 @@ fn failing_bytes(owner: ComPtr<INcBytesAbi>, stage: usize) -> ComPtr<INcBytesAbi
 fn snapshot_state_uses_the_sdk_bounded_copy_contract() {
     let defaults = Limits::default();
     let permissive = Limits {
-        binary: binary::Limits { bytes: usize::MAX, elements: usize::MAX, ..defaults.binary },
+        binary: binary::Limits {
+            bytes: usize::MAX,
+            elements: usize::MAX,
+            ..defaults.binary
+        },
         ..defaults
     };
     for which in [Entry::Safe, Entry::Raw] {
@@ -260,7 +265,12 @@ fn snapshot_state_uses_the_sdk_bounded_copy_contract() {
         ] {
             let metrics = Rc::new(Metrics::default());
             let local = Node::into_local(Node {
-                edges: vec![], fail, state_len, metrics: metrics.clone(), tag: 7, keepalive: vec![],
+                edges: vec![],
+                fail,
+                state_len,
+                metrics: metrics.clone(),
+                tag: 7,
+                keepalive: vec![],
             });
             let root = local.query::<IUnknown>().unwrap();
             let before = BYTE_ERRORS.with(Cell::get);
@@ -271,7 +281,7 @@ fn snapshot_state_uses_the_sdk_bounded_copy_contract() {
             let completed = usize::from(expected.is_none());
             assert_eq!(metrics.entries(), [1, 1, 0, completed, completed]);
             if let Ok(bytes) = result {
-                let record: ObjectRecord = binary::from_slice(&bytes).unwrap();
+                let record: SavedObject = binary::from_slice(&bytes).unwrap();
                 assert_eq!(record.state, vec![7; state_len]);
                 assert!(record.children.is_empty());
             }
@@ -294,12 +304,17 @@ impl Entry {
     /// Raw delivery stays untouched on capture failure and matches safe bytes on success.
     fn capture(self, root: &ComPtr<IUnknown>, limits: Limits) -> Result<Vec<u8>, NcStatus> {
         match self {
-            Self::Safe => neocogi_com_sdk::persistence::snapshot_with_limits(&crate::host_runtime(), root, limits),
+            Self::Safe => neocogi_com_sdk::persistence::save_object_tree_with_limits(&crate::host_runtime(), root, limits),
             Self::Raw => {
                 let mut sink = Sink { bytes: Vec::new(), calls: 0 };
                 // SAFETY: linked table is static; root and exclusive sink outlive the call.
                 let status = unsafe {
-                    ((*neocogi_com_host::initialize_process().persistence).snapshot)(root.as_raw(), limits.into(), Some(deliver), core::ptr::from_mut(&mut sink).cast())
+                    ((*neocogi_com_host::initialize_process().persistence).save_object_tree)(
+                        root.as_raw(),
+                        limits.into(),
+                        Some(deliver),
+                        core::ptr::from_mut(&mut sink).cast(),
+                    )
                 };
                 if status.is_err() {
                     assert_eq!(sink.calls, 0);
@@ -426,7 +441,7 @@ fn run_graph(
         drop(root);
         assert_eq!(result.as_ref().err().copied(), expected, "{name} {which:?}");
         if let Ok(bytes) = &result {
-            let record: ObjectRecord = binary::from_slice(bytes).unwrap();
+            let record: SavedObject = binary::from_slice(bytes).unwrap();
             assert_eq!(record.children.len(), edges[0].len());
             if name == "repeated sibling" {
                 assert_eq!(record.children[0], record.children[1]);
@@ -437,7 +452,7 @@ fn run_graph(
         println!("{name} {which:?}: status={expected:?} entries={observed:?}");
         // All temporary capture owners must have gone away on success or error.
         // This explicit fixture teardown breaks provider-owned strong cycles;
-        // snapshot rejection never promises to alter application ownership.
+        // A failed save leaves ownership with the application.
         for local in &locals {
             local.try_borrow_mut().unwrap().keepalive.clear();
         }

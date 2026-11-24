@@ -42,7 +42,7 @@ fn builtin_object_records_preserve_the_existing_wire_format() {
     // Decode bytes emitted by the old derive into the new core-owned schema,
     // then require the encoder to produce exactly the same bytes.
     let original = binary::to_vec(&previous).unwrap();
-    let current: neocogi_com_sdk::persistence::ObjectRecord = binary::from_slice(&original).unwrap();
+    let current: neocogi_com_sdk::persistence::SavedObject = binary::from_slice(&original).unwrap();
     assert_eq!(current.type_id, [7; 16]);
     assert_eq!(current.children[0].state, [4, 6]);
     assert_eq!(binary::to_vec(&current).unwrap(), original);
@@ -259,8 +259,8 @@ fn collections_records_options_and_variants_have_symmetric_boundaries() {
 /// as restoring, rather than returning an artifact the receiver cannot accept.
 #[test]
 fn oversized_persistence_state_is_rejected_by_both_directions() {
-    use neocogi_com_sdk::persistence::ObjectRecord;
-    let record = ObjectRecord {
+    use neocogi_com_sdk::persistence::SavedObject;
+    let record = SavedObject {
         type_id: [0; 16],
         schema_version: 1,
         state: vec![42; 1_048_576],
@@ -279,17 +279,17 @@ fn oversized_persistence_state_is_rejected_by_both_directions() {
     let permissive = Limits { values: 2_000_000, ..limits };
     let encoded = binary::to_vec_with_limits(&record, permissive).unwrap();
     assert_eq!(encoded.len(), 1_048_616);
-    assert!(binary::from_slice_with_limits::<ObjectRecord>(&encoded, limits).is_err());
-    assert_eq!(binary::from_slice_with_limits::<ObjectRecord>(&encoded, permissive).unwrap(), record);
+    assert!(binary::from_slice_with_limits::<SavedObject>(&encoded, limits).is_err());
+    assert_eq!(binary::from_slice_with_limits::<SavedObject>(&encoded, permissive).unwrap(), record);
 }
 
 /// Real records and virtual leaf envelopes must agree at every independent budget
 /// boundary, including zero bytes, UUID elements and the final empty child vector.
 #[test]
 fn measured_leaf_envelopes_match_real_encoding_and_decoding() {
-    use neocogi_com_sdk::persistence::ObjectRecord;
+    use neocogi_com_sdk::persistence::SavedObject;
     for state_bytes in [0, 1, 15, 16, 17, 64] {
-        let record = ObjectRecord {
+        let record = SavedObject {
             type_id: [0xab; 16],
             schema_version: u32::MAX,
             state: vec![0xff; state_bytes],
@@ -315,7 +315,7 @@ fn measured_leaf_envelopes_match_real_encoding_and_decoding() {
                 binary::encoded_leaf_len(state_bytes, limits).unwrap_err(),
                 binary::to_vec_with_limits(&record, limits).unwrap_err()
             );
-            assert!(binary::from_slice_with_limits::<ObjectRecord>(&encoded, limits).is_err());
+            assert!(binary::from_slice_with_limits::<SavedObject>(&encoded, limits).is_err());
         }
     }
 }

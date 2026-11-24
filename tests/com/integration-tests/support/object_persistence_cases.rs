@@ -41,7 +41,7 @@ fn raw_factory_registration_validates_interface_before_retaining() {
 #[test]
 fn shared_root_without_persistence_returns_nointerface() {
     let owner = Factory::from_value(Factory { counts: Arc::new(Counts::default()) });
-    assert_eq!(snapshot(&crate::host_runtime(), &owner), Err(neocogi_com_sdk::NC_E_NOINTERFACE));
+    assert_eq!(save_object_tree(&crate::host_runtime(), &owner), Err(neocogi_com_sdk::NC_E_NOINTERFACE));
 }
 
 /// Explicit recipe identity, unrelated to individual object addresses.
@@ -127,13 +127,13 @@ fn registry_ownership_is_local_and_releases_retained_factories() {
     let second = FactoryRegistry::new(&crate::host_runtime()).unwrap();
     let bytes = binary::to_vec(&record("root", vec![])).unwrap();
     // A recipe in one context must never become visible in another context.
-    assert_eq!(second.restore(&bytes).err(), Some(neocogi_com_sdk::NC_E_NOT_FOUND));
-    let root = first.restore(&bytes).unwrap();
+    assert_eq!(second.restore_object_tree(&bytes).err(), Some(neocogi_com_sdk::NC_E_NOT_FOUND));
+    let root = first.restore_object_tree(&bytes).unwrap();
     assert_eq!(counts.factories_dropped.load(Ordering::Relaxed), 0);
     drop(first);
     assert_eq!(counts.factories_dropped.load(Ordering::Relaxed), 1);
     // Releasing a registry does not invalidate objects it previously created.
-    assert_eq!(snapshot(&crate::host_runtime(), &root).unwrap(), bytes);
+    assert_eq!(save_object_tree(&crate::host_runtime(), &root).unwrap(), bytes);
     drop(root);
     assert_eq!(counts.live.load(Ordering::Relaxed), 0);
 }
@@ -176,8 +176,8 @@ impl IPersistenceFactory for Factory {
 }
 
 /// Constructs typed initialization independently from live objects.
-fn record(label: &str, children: Vec<ObjectRecord>) -> ObjectRecord {
-    ObjectRecord {
+fn record(label: &str, children: Vec<SavedObject>) -> SavedObject {
+    SavedObject {
         type_id: KIND.to_uuid_bytes(),
         schema_version: 1,
         state: binary::to_vec(&State { label: label.into(), enabled: true }).unwrap(),
@@ -199,7 +199,7 @@ fn registry() -> (FactoryRegistry, Arc<Counts>) {
 fn persistence_projections_share_weak_ownership_with_the_root() {
     let (registry, counts) = registry();
     let bytes = binary::to_vec(&record("weak persistence", vec![])).unwrap();
-    let root = registry.restore(&bytes).unwrap();
+    let root = registry.restore_object_tree(&bytes).unwrap();
     let projected = root.query::<IPersistableAbi>().unwrap();
     let weak_root = root.downgrade().unwrap();
     let weak_projection = projected.downgrade().unwrap();
@@ -237,10 +237,10 @@ fn recursive_objects_round_trip_through_their_factories() {
     let original = record("root", vec![record("first", vec![]), record("second", vec![record("leaf", vec![])])]);
     let bytes = binary::to_vec(&original).unwrap();
     let (registry, counts) = registry();
-    let root = registry.restore(&bytes).unwrap();
+    let root = registry.restore_object_tree(&bytes).unwrap();
     assert_eq!(counts.live.load(Ordering::Relaxed), 4);
-    assert_eq!(snapshot(&crate::host_runtime(), &root).unwrap(), bytes);
-    let copy = registry.restore(&snapshot(&crate::host_runtime(), &root).unwrap()).unwrap();
+    assert_eq!(save_object_tree(&crate::host_runtime(), &root).unwrap(), bytes);
+    let copy = registry.restore_object_tree(&save_object_tree(&crate::host_runtime(), &root).unwrap()).unwrap();
     drop(root);
     drop(copy);
     assert_eq!(counts.live.load(Ordering::Relaxed), 0);
@@ -258,7 +258,7 @@ fn preflight_checks_the_complete_tree_before_construction() {
         }
         let root = record("root", vec![record("valid sibling", vec![]), bad]);
         let (registry, counts) = registry();
-        assert!(registry.restore(&binary::to_vec(&root).unwrap()).is_err());
+        assert!(registry.restore_object_tree(&binary::to_vec(&root).unwrap()).is_err());
         assert_eq!(counts.created.load(Ordering::Relaxed), 0);
     }
 }
@@ -268,7 +268,7 @@ fn preflight_checks_the_complete_tree_before_construction() {
 fn runtime_construction_failure_releases_partial_tree() {
     let root = record("runtime failure", vec![record("child", vec![record("leaf", vec![])])]);
     let (registry, counts) = registry();
-    assert!(registry.restore(&binary::to_vec(&root).unwrap()).is_err());
+    assert!(registry.restore_object_tree(&binary::to_vec(&root).unwrap()).is_err());
     assert_eq!(counts.created.load(Ordering::Relaxed), 2);
     assert_eq!(counts.live.load(Ordering::Relaxed), 0);
 }
@@ -280,10 +280,14 @@ fn tree_limits_and_duplicate_registration_preserve_existing_state() {
     let duplicate = Factory::from_value(Factory { counts: counts.clone() }).query().unwrap();
     assert!(registry.register(KIND, duplicate).is_err());
     let bytes = binary::to_vec(&record("parent", vec![record("child", vec![])])).unwrap();
-    assert!(registry.restore_with_limits(&bytes, Limits { objects: 1, ..Limits::default() }).is_err());
+    assert!(
+        registry
+            .restore_object_tree_with_limits(&bytes, Limits { objects: 1, ..Limits::default() })
+            .is_err()
+    );
     assert_eq!(counts.created.load(Ordering::Relaxed), 0);
-    let root = registry.restore(&bytes).unwrap();
-    assert!(snapshot_with_limits(&crate::host_runtime(), &root, Limits { depth: 1, ..Limits::default() }).is_err());
+    let root = registry.restore_object_tree(&bytes).unwrap();
+    assert!(save_object_tree_with_limits(&crate::host_runtime(), &root, Limits { depth: 1, ..Limits::default() }).is_err());
     drop(root);
     assert_eq!(counts.live.load(Ordering::Relaxed), 0);
 }
@@ -295,7 +299,7 @@ fn binary_limits_agree_across_snapshot_and_factory_restore() {
     let original = record("persistent label", vec![]);
     let bytes = binary::to_vec(&original).unwrap();
     let (registry, counts) = registry();
-    let root = registry.restore(&bytes).unwrap();
+    let root = registry.restore_object_tree(&bytes).unwrap();
     // This leaf envelope contains 21 values besides state bytes: one record,
     // one UUID array plus 16 bytes, one schema value, and two vector containers.
     let exact = Limits {
@@ -308,8 +312,8 @@ fn binary_limits_agree_across_snapshot_and_factory_restore() {
         objects: 1,
         depth: 1,
     };
-    assert_eq!(snapshot_with_limits(&crate::host_runtime(), &root, exact).unwrap(), bytes);
-    let restored = registry.restore_with_limits(&bytes, exact).unwrap();
+    assert_eq!(save_object_tree_with_limits(&crate::host_runtime(), &root, exact).unwrap(), bytes);
+    let restored = registry.restore_object_tree_with_limits(&bytes, exact).unwrap();
     drop(restored);
     let created = counts.created.load(Ordering::Relaxed);
 
@@ -332,8 +336,8 @@ fn binary_limits_agree_across_snapshot_and_factory_restore() {
         },
     ] {
         let insufficient = Limits { binary, ..exact };
-        assert!(snapshot_with_limits(&crate::host_runtime(), &root, insufficient).is_err());
-        assert!(registry.restore_with_limits(&bytes, insufficient).is_err());
+        assert!(save_object_tree_with_limits(&crate::host_runtime(), &root, insufficient).is_err());
+        assert!(registry.restore_object_tree_with_limits(&bytes, insufficient).is_err());
         // A resource rejection must precede factory acquisition, preserving the
         // already-live root and preventing construction of a partial copy.
         assert_eq!(counts.created.load(Ordering::Relaxed), created);
@@ -343,8 +347,8 @@ fn binary_limits_agree_across_snapshot_and_factory_restore() {
     assert_eq!(counts.live.load(Ordering::Relaxed), 0);
 }
 
-#[path = "snapshot_identity.rs"]
-mod snapshot_identity;
+#[path = "save_object_tree_cases.rs"]
+mod save_object_tree_cases;
 
 /// Initializes this final test executable's selected host and admits its static tables.
 fn host_runtime() -> neocogi_com_sdk::RuntimeHandle {

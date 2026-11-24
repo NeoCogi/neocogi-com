@@ -414,11 +414,11 @@ marketplace. Applications own installation, trust, signatures, and path policy.
 
 ## Experimental object persistence and typed integration
 
-[`neocogi_com_sdk::persistence`](../crates/host/PERSISTENCE.md) provides runtime-owned opt-in semantic snapshots and explicit,
-context-bound factory reconstruction. The portable value codec remains separate
-from object acquisition; arbitrary private object memory is never serialized.
-The [host/provider example](../examples/com-plugin/README.md) reconstructs saved
-objects through a typed factory and reconnects its application-defined observer.
+`save_object_tree` serializes initialization data supplied by live COM objects.
+`restore_object_tree` uses registered factories to reconstruct the tree.
+The host/provider example reconstructs saved objects through a typed factory
+and reconnects its application-defined observer.
+[Persistence API](../crates/host/PERSISTENCE.md) · [Host/provider example](../examples/com-plugin/README.md)
 
 ## Executed compatibility checks
 

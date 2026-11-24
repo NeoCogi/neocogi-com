@@ -5,11 +5,11 @@
 //! COM ownership until it either returns a complete tree or cleans up failure.
 
 mod children;
-mod registry;
-mod snapshot;
+mod factory_registry;
+mod save_object_tree;
 
-pub(crate) use registry::Registry;
-pub(crate) use snapshot::snapshot_with_limits;
+pub(crate) use factory_registry::FactoryRegistry;
+pub(crate) use save_object_tree::save_object_tree_with_limits;
 
 use neocogi_com_sdk::{ComPtr, NcCopyFromBufferOffset, NcStatus, guid_from_qualified_name};
 use neocogi_com_sdk::serialization::{Format, ISerializationPluginAbi, Limits};
@@ -18,7 +18,7 @@ use neocogi_com_sdk::serialization::{Format, ISerializationPluginAbi, Limits};
 /// The format and its root stay alive through traversal and recipe callbacks;
 /// their code/metadata are process-pinned by this host's catalog registration.
 struct NcbFormat {
-    /// Retained format factory; each encode/decode creates its own exclusive session.
+    /// Retained format factory. Each serialization or deserialization uses its own session.
     format: Format,
     /// Keep the acquiring provider alive until after the format is released.
     _provider: ComPtr<ISerializationPluginAbi>,

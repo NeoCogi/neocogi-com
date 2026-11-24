@@ -6,7 +6,7 @@ interface IObjectChildren {
     fn get(&self, index: u32) -> Result<ComPtr<IUnknown>>;
 }
 
-/// Optional snapshot capability for an owned construction tree.
+/// Optional capability that supplies the data needed to save an owned object tree.
 interface IPersistable {
     /// Identifies the registered construction recipe, not this object instance.
     fn type_id(&self) -> Result<Guid>;

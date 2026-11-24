@@ -493,5 +493,5 @@ pub fn factory() -> neocogi_com_sdk::ComPtr<neocogi_com_sdk::serialization::ISer
 /// Measures a leaf envelope using its authoritative format-neutral value schema.
 #[cfg(feature = "alloc")]
 pub fn encoded_leaf_len(state_bytes: usize, limits: Limits) -> Result<usize, Error> {
-    encoded_len_with_limits(&neocogi_com_sdk::persistence::ObjectRecord::leaf_size(state_bytes), limits)
+    encoded_len_with_limits(&neocogi_com_sdk::persistence::SavedObject::leaf_size(state_bytes), limits)
 }

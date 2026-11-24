@@ -33,7 +33,7 @@ pub struct NcPersistenceLimits {
     pub object_depth: usize,
 }
 
-/// Receives one complete encoded snapshot synchronously, after successful capture.
+/// Receives one complete saved document synchronously after successful encoding.
 ///
 /// The byte range is borrowed until this callback returns. The callback may copy
 /// it into its own allocator, must not unwind, and returns a failure status if
@@ -46,8 +46,8 @@ pub type NcPersistenceWriteBytes = unsafe extern "C" fn(user_data: *mut c_void, 
 /// The host bundle supplies the native ABI version and admission checks this
 /// table's size. Callers still owe the host API's backing and lifetime
 /// guarantees. The application must explicitly
-/// register or load `nc.serialization` in this host's catalog before snapshot
-/// or restore. Each operation acquires its root and requests named `ncb`;
+/// register or load `nc.serialization` in this host's catalog before saving
+/// or restoring. Each operation acquires its root and requests named `ncb`;
 /// the provider's default format is irrelevant. No codec is registered or loaded
 /// implicitly, and no embedded codec is used as a fallback.
 ///
@@ -79,7 +79,7 @@ pub struct NcPersistenceApi {
     /// The callback and its data must remain valid until this synchronous call ends.
     /// Root shape, exact identity and budget precede retention and codec
     /// selection. Provider/selection failure never calls the byte callback.
-    pub snapshot: unsafe extern "C" fn(
+    pub save_object_tree: unsafe extern "C" fn(
         object: crate::ComRaw<IUnknown>,
         limits: NcPersistenceLimits,
         write: Option<NcPersistenceWriteBytes>,
@@ -93,7 +93,7 @@ pub struct NcPersistenceApi {
     /// decoding before reading descendants or reserving their storage. An earlier
     /// shape or codec failure stops decoding. Recipe validation begins only after
     /// complete document acceptance, and construction follows full validation.
-    pub restore: unsafe extern "C" fn(
+    pub restore_object_tree: unsafe extern "C" fn(
         context: *const NcPersistenceContext,
         bytes: *const u8,
         len: usize,
