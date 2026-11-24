@@ -1292,8 +1292,11 @@ library phase must execute the named independent SharedSources consumer. Its
 real calls cover imported and qualified types in legal weak/underscore namespaces.
 Archives require the same shipped consumer alongside the older imported-provider
 operation; neither can be ignored or absent behind a broad passing test count.
-The cross-compiler native-loader cases run in the Linux safety job. The workflow
-contains four jobs total, with one Cargo build job and one test thread per job.
+The cross-compiler native-loader cases run in the Linux safety job. Qualification
+uses one test thread while Cargo selects build parallelism. The workspace, linked,
+and 32-bit gates require named success for the two native C protocol directions
+within the complete fixture run. The 32-bit gate queries the selected compiler's
+target configuration before building.
 
 Reports record `rustc -vV` for every selected compiler plus each role's exact
 profile, panic and LTO policy. A writable report changes to `running` before

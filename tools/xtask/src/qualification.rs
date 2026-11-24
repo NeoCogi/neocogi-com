@@ -11,6 +11,7 @@ use crate::{
         ABI_TESTS, GENERATION_SENTINEL, IMPORTED_INTERFACE_PROVIDER_TEST, SHARED_SOURCE_CONSUMER_TEST, abi_sentinel, execute_tests, require_execution,
         require_named_execution, require_tests, words,
     },
+    native_fixture::require_native_c_execution,
     packages::PUBLISHED,
     process::{Result, Runner, sources},
 };
@@ -369,6 +370,10 @@ pub(crate) fn workspace(runner: &Runner) -> Result<()> {
 /// Execute 32-bit layout and native-C tests; toolchain/multilib are caller supplied.
 pub(crate) fn abi_32(runner: &Runner) -> Result<()> {
     let target = std::env::var("NC_COM_32_BIT_TARGET").unwrap_or_else(|_| "i686-unknown-linux-gnu".into());
+    let cfg = runner.read("rustup", ["run", "stable", "rustc", "--target", &target, "--print", "cfg"])?;
+    if !cfg.lines().any(|line| line == "target_pointer_width=\"32\"") {
+        return Err(format!("abi-32 requires a compiler target with 32-bit pointers, got {target:?}").into());
+    }
     runner.cargo(
         "stable",
         &["test", "-p", "neocogi-com", "--target", &target, "--no-default-features", "--locked"],
@@ -388,6 +393,6 @@ pub(crate) fn abi_32(runner: &Runner) -> Result<()> {
                 "--locked",
             ],
         )
-        .map(|_| ());
+        .and_then(|output| Ok(require_native_c_execution(&output)?));
     crate::process::retire(owner, result)
 }

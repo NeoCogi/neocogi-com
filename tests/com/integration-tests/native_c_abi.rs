@@ -1,6 +1,9 @@
 use std::path::PathBuf;
 use std::process::Command;
 
+#[path = "../../../tools/xtask/src/native_fixture.rs"]
+mod native_fixture;
+
 #[test]
 fn generated_abi_is_callable_from_native_c() {
     let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("integration-tests/fixtures/native-c-abi/Cargo.toml");
@@ -27,4 +30,6 @@ fn generated_abi_is_callable_from_native_c() {
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    native_fixture::require_native_c_execution(&stdout).unwrap_or_else(|error| panic!("{error}\nstdout:\n{stdout}"));
 }

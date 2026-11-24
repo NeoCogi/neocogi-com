@@ -3,6 +3,7 @@
 //! owns its temporary sources and targets until every child has exited.
 mod compatibility;
 mod markdown;
+mod native_fixture;
 mod packages;
 mod process;
 mod qualification;

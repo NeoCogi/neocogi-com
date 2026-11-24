@@ -8,7 +8,11 @@ use std::{
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
-use crate::process::{Result, Runner, require_file, sources};
+pub(crate) use crate::native_fixture::require_named_execution;
+use crate::{
+    native_fixture::{NATIVE_C_CASES, require_native_c_execution},
+    process::{Result, Runner, require_file, sources},
+};
 
 /// Only printed by the example after its calls, events, persistence and release pass.
 const SUCCESS: &str = "factory object: 44 x 31";
@@ -244,18 +248,6 @@ pub(crate) const IMPORTED_INTERFACE_PROVIDER_TEST: &str = "backend_tests::bindin
 /// and real COM calls in the existing compiler-floor and archive library phases.
 pub(crate) const SHARED_SOURCE_CONSUMER_TEST: &str = "backend_tests::shared_sources_tests::independent_shared_source_consumers_call_through_their_own_bindings";
 
-/// Require one named test to have passed within a complete captured harness run.
-/// Other passing helpers, ignored tests and substring names cannot satisfy an
-/// archive's required semantic operation. The caller already checks process exit.
-pub(crate) fn require_named_execution(output: &str, required: &str) -> Result<()> {
-    let passed = format!("test {required} ... ok");
-    if output.lines().any(|line| line.trim() == passed) {
-        Ok(())
-    } else {
-        Err(format!("required test did not execute successfully: {required}").into())
-    }
-}
-
 /// Prove exact semantic names exist; benchmarks/substrings/empty listings fail.
 pub(crate) fn require_tests(listing: &str, required: &[&str]) -> Result<()> {
     let names: BTreeSet<_> = listing.lines().filter_map(|line| line.strip_suffix(": test")).collect();
@@ -481,18 +473,18 @@ fn ordinary_tests(runner: &Runner, build: Build, target: &Path, native: &str, sa
             }
             tests.push((package.into(), args, vec![]));
         }
-    } else {
-        tests.push((
-            "native_c_abi".into(),
-            manifest_args(&runner.root, "test", "tests/com/integration-tests/fixtures/native-c-abi/Cargo.toml"),
-            vec![],
-        ));
     }
     for (name, args, required) in tests {
         evidence.insert(
             name,
             execute_tests(|harness| cargo(runner, build, target, &args, native, sanitizer, harness), &required, &[])?,
         );
+    }
+    if sanitizer.is_none() {
+        let args = manifest_args(&runner.root, "test", "tests/com/integration-tests/fixtures/native-c-abi/Cargo.toml");
+        let output = cargo(runner, build, target, &args, native, None, &[])?;
+        require_native_c_execution(&output)?;
+        evidence.insert("native_c_abi".into(), json!({"required": NATIVE_C_CASES, "named_success": "passed", "complete": "passed"}));
     }
     Ok(evidence.into())
 }

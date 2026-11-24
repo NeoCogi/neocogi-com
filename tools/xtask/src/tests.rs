@@ -3,10 +3,29 @@ use std::{collections::BTreeMap, ffi::OsString, fs};
 use serde_json::{Value, json};
 use crate::{
     compatibility::*,
+    native_fixture::{NATIVE_C_CASES, require_native_c_execution},
     process::{Result, Runner, clean_environment},
 };
 
 mod rustdoc;
+
+/// Passing layout helpers cannot substitute for either native protocol direction.
+#[test]
+fn native_fixture_requires_every_protocol_case_in_the_complete_run() -> Result<()> {
+    let mut output = String::from("test layout ... ok\n");
+    for case in NATIVE_C_CASES {
+        output.push_str(&format!("test {case} ... ok\n"));
+    }
+    require_native_c_execution(&output)?;
+    for case in NATIVE_C_CASES {
+        let line = format!("test {case} ... ok\n");
+        for replacement in [String::new(), format!("test {case} ... ignored\n"), format!("test {case}_renamed ... ok\n")] {
+            let error = require_native_c_execution(&output.replace(&line, &replacement)).unwrap_err();
+            assert!(error.contains(case));
+        }
+    }
+    Ok(())
+}
 
 /// Real Cargo discovery admits the owner; losing or republishing a source fails.
 #[test]
