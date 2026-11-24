@@ -368,6 +368,7 @@ impl ISerializer for JsonWriter {
     }
     fn fail(
         &mut self,
+        _status: ::neocogi_com_sdk::NcStatus,
         _message: ::neocogi_com_sdk::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
     ) -> ::core::result::Result<(), ::neocogi_com_sdk::NcStatus> {
         self.reject()
@@ -539,6 +540,7 @@ impl IDeserializer for JsonReader {
     }
     fn fail(
         &mut self,
+        _status: ::neocogi_com_sdk::NcStatus,
         _message: ::neocogi_com_sdk::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
     ) -> ::core::result::Result<(), ::neocogi_com_sdk::NcStatus> {
         self.reject()
@@ -731,15 +733,15 @@ impl ComDeserialize for RejectRead {
 fn value_callback_failures_abort_the_com_session() {
     let mut writer = NcbSerializer::create(Limits::default()).unwrap();
     assert_eq!(Serializer::new(writer.as_com_mut()).serialize(&RejectWrite), Err(neocogi_com_sdk::NC_E_CLOSED));
-    assert_eq!(writer.as_com_mut().finish(), Err(NC_E_INVALID_ARG));
+    assert_eq!(writer.as_com_mut().finish(), Err(neocogi_com_sdk::NC_E_CLOSED));
     assert!(writer.query_ref::<ISerializationOutputAbi>().unwrap().byte_len().is_err());
     let mut reader = NcbDeserializer::create(binary::to_vec(&7u8).unwrap(), Limits::default()).unwrap();
     assert!(matches!(
         Deserializer::new(reader.as_com_mut()).deserialize::<RejectRead>(),
         Err(neocogi_com_sdk::NC_E_CLOSED)
     ));
-    assert_eq!(reader.as_com_mut().leave_value(), Err(NC_E_INVALID_ARG));
-    assert_eq!(reader.as_com_mut().finish(), Err(NC_E_INVALID_ARG));
+    assert_eq!(reader.as_com_mut().leave_value(), Err(neocogi_com_sdk::NC_E_CLOSED));
+    assert_eq!(reader.as_com_mut().finish(), Err(neocogi_com_sdk::NC_E_CLOSED));
 }
 
 /// Per-document limits apply to both owning implementations and their typed frontends.
