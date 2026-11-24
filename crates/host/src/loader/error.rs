@@ -20,7 +20,7 @@ use neocogi_com::NcStatus;
 pub enum PluginLoadErrorKind {
     /// The operating system loader rejected the shared library path.
     OpenLibrary,
-    /// The library did not expose the expected plugin descriptor symbol.
+    /// The selected library's descriptor export could not be verified or retained.
     FindSymbol,
     /// The descriptor entrypoint returned an error or a null descriptor.
     Entrypoint,

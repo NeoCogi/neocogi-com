@@ -13,6 +13,9 @@ use std::string::{String, ToString};
 
 use super::OpenLibraryError;
 
+#[cfg(all(target_os = "linux", target_env = "gnu"))]
+mod origin;
+
 #[link(name = "dl")]
 unsafe extern "C" {
     /// Opens a shared object and returns an opaque native handle.
@@ -24,6 +27,16 @@ unsafe extern "C" {
 }
 
 const RTLD_NOW: c_int = 2;
+
+/// Native `RTLD_FIRST` values from the Apple and Solaris-family <dlfcn.h>.
+/// These restrict symbol lookup without changing the open's visibility mode.
+const RTLD_FIRST: Option<c_int> = if cfg!(target_vendor = "apple") {
+    Some(0x100)
+} else if cfg!(any(target_os = "solaris", target_os = "illumos")) {
+    Some(0x2000)
+} else {
+    None
+};
 
 /// Non-null Unix dynamic-loader handle pinned for the process lifetime.
 ///
@@ -51,21 +64,29 @@ impl DynamicLibrary {
             CString::new(path.as_os_str().as_bytes()).map_err(|_| OpenLibraryError::OpenLibrary("library path contains an interior NUL byte".to_string()))?;
         // SAFETY: `path` is a NUL-terminated platform path and `RTLD_NOW` asks
         // the dynamic loader to resolve symbols before returning.
-        let handle = unsafe { dlopen(path.as_ptr(), RTLD_NOW) };
+        // RTLD_FIRST restricts lookup on this handle where the loader offers it.
+        let handle = unsafe { dlopen(path.as_ptr(), RTLD_NOW | RTLD_FIRST.unwrap_or_default()) };
         NonNull::new(handle)
             .map(|handle| Self { handle })
             .ok_or_else(|| OpenLibraryError::OpenLibrary(dl_error()))
     }
 
-    /// Resolves one trusted NUL-free symbol name from the live module.
+    /// Resolves one trusted NUL-free export of the selected module.
     ///
     /// # Safety
     /// Callers must establish the resolved symbol's exact signature before use.
     pub unsafe fn symbol(&self, symbol: &[u8]) -> Result<*mut c_void, String> {
+        #[cfg(not(all(target_os = "linux", target_env = "gnu")))]
+        if RTLD_FIRST.is_none() {
+            return Err("cannot verify selected module exports on this Unix loader".to_string());
+        }
         let symbol = CString::new(symbol).map_err(|_| "symbol name contains an interior NUL byte".to_string())?;
         // SAFETY: `self.handle` is live and `symbol` is NUL-terminated.
         let ptr = unsafe { dlsym(self.handle.as_ptr(), symbol.as_ptr()) };
-        if ptr.is_null() { Err(dl_error()) } else { Ok(ptr) }
+        let address = NonNull::new(ptr).ok_or_else(dl_error)?;
+        #[cfg(all(target_os = "linux", target_env = "gnu"))]
+        origin::require_local(self, address)?;
+        Ok(address.as_ptr())
     }
 }
 

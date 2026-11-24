@@ -772,6 +772,18 @@ Unix checks its byte path before dlopen. Both report the existing OpenLibrary
 phase. The facade's UTF-8 path adapter retains its invalid-argument rejection.
 Successfully opened native mappings remain process-pinned.
 
+Before invoking the versioned descriptor getter, native loading and inspection
+require the selected image to export it. An ordinary import of a library that
+exports the getter is insufficient and fails in `FindSymbol`. Windows PE export
+forwarders and Apple Mach-O reexports are explicit exports of the selected image.
+Windows also pins the image supplying the getter address. On glibc Linux, the
+getter must resolve within the selected ELF link map. A local getter can call an
+ordinary native dependency. Solaris and illumos restrict lookup to the selected
+object with `RTLD_FIRST`. Other Unix loaders fail in `FindSymbol` when selected
+exports cannot be verified. The caller's original path remains the diagnostic
+spelling and, after registration succeeds, records the first selected exporting
+image, including an export facade.
+
 On Windows, owned inspection, callback inspection and required loading share one
 opener. It rejects empty paths, qualifies the supplied filesystem path once with
 `std::path::absolute`, and calls `LoadLibraryExW` with
@@ -782,8 +794,9 @@ not a request for PATH discovery. Ordinary imports for this open search the
 selected DLL's directory and System32, subject to normal Windows module reuse
 and redirection. Deploy private import dependencies beside the selected DLL.
 Application, user-added, current-working and PATH directories are excluded from
-this per-open search. The original caller spelling remains the diagnostic path
-and first-registration provenance; the temporary absolute path is not catalog state.
+this per-open search. Export forward targets resolve under the native Windows
+loader policy. The original caller spelling remains the diagnostic path and
+first-registration provenance; the temporary absolute path is not catalog state.
 
 Qualification does not canonicalize links, authenticate files or bind a checked
 file handle to an image. Later provider-issued `LoadLibrary*` calls and delay
@@ -1103,9 +1116,10 @@ views across catalog growth, null/empty/undersized buffers and untouched spare
 slots. They also verify that metadata does not invoke bootstrap, that admission
 enforces the current discovery family and core generation, and that independent
 C layouts match the combined table and plugin record.
-Native-library tests cover provenance, identity conflicts, post-unlink metadata
-and retained factory code. Both independently loaded and statically linked providers exercise
-the same contracts; generated factories still undergo exact identity checks.
+Native-library tests cover getter provenance across native imports, identity
+conflicts, post-unlink metadata and retained factory code. Both independently
+loaded and statically linked providers exercise the same contracts. Generated
+factories still undergo exact identity checks.
 
 ## Serialization format objects
 

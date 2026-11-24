@@ -27,12 +27,19 @@ const LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR: u32 = 0x0000_0100;
 /// Search the OS directory without adding application, user, CWD or PATH entries.
 const LOAD_LIBRARY_SEARCH_SYSTEM32: u32 = 0x0000_0800;
 
+/// Keep the resolved image loaded until process termination.
+const GET_MODULE_HANDLE_EX_FLAG_PIN: u32 = 0x0000_0001;
+/// Interpret the second argument to GetModuleHandleExW as an address.
+const GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS: u32 = 0x0000_0004;
+
 #[link(name = "kernel32")]
 unsafe extern "system" {
     /// Opens one qualified UTF-16 path with an explicit per-call import search.
     fn LoadLibraryExW(lpLibFileName: *const u16, hFile: *mut c_void, dwFlags: u32) -> Hmodule;
     /// Resolves one NUL-terminated exported symbol name.
     fn GetProcAddress(hModule: Hmodule, lpProcName: *const c_char) -> Farproc;
+    /// Pins the loaded module containing an address when asked to do so.
+    fn GetModuleHandleExW(dwFlags: u32, lpModuleName: *const u16, phModule: *mut Hmodule) -> i32;
     /// Returns the calling thread's latest Windows error code.
     fn GetLastError() -> u32;
 }
@@ -89,7 +96,8 @@ impl DynamicLibrary {
             .ok_or_else(|| OpenLibraryError::OpenLibrary(last_error()))
     }
 
-    /// Resolves one trusted NUL-free export name from the live module.
+    /// Resolves one trusted NUL-free export of the selected module and pins
+    /// the image supplying its address, which may be an explicit forward target.
     ///
     /// # Safety
     /// Callers must establish the resolved symbol's exact signature before use.
@@ -97,7 +105,19 @@ impl DynamicLibrary {
         let symbol = CString::new(symbol).map_err(|_| "symbol name contains an interior NUL byte".to_string())?;
         // SAFETY: `self.handle` is live and `symbol` is NUL-terminated.
         let ptr = unsafe { GetProcAddress(self.handle.as_ptr(), symbol.as_ptr()) };
-        if ptr.is_null() { Err(last_error()) } else { Ok(ptr) }
+        if ptr.is_null() {
+            return Err(last_error());
+        }
+        let mut target = core::ptr::null_mut();
+        // SAFETY: GetProcAddress supplied a non-null address. FROM_ADDRESS
+        // interprets it as an address, and `target` is writable for one handle.
+        // PIN keeps an explicit forward target alive independently of the
+        // selected DLL's handle and any ordinary import relationships.
+        let pinned = unsafe { GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_PIN, ptr.cast(), &mut target) };
+        if pinned == 0 {
+            return Err(format!("cannot pin the image supplying the export: {}", last_error()));
+        }
+        Ok(ptr)
     }
 }
 

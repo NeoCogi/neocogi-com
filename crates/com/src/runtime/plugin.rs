@@ -39,9 +39,9 @@ pub struct PluginInfo {
 pub enum PluginOrigin {
     /// Metadata and code are supplied by statically linked process storage.
     Static,
-    /// Registered from a trusted library; the runtime keeps its mapping pinned.
+    /// Registered from a trusted native export, including an explicit export facade.
     Dynamic {
-        /// First successful caller path, preserved for diagnostics without reopening.
+        /// First successful caller path to the exporting library, preserved without reopening.
         path: PathBuf,
     },
 }

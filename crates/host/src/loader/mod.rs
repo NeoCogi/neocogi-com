@@ -61,14 +61,15 @@ impl PinnedLibrary {
         Ok(Self { library })
     }
 
-    /// Resolves and types the required plugin descriptor entrypoint.
+    /// Resolves and types the selected module's required plugin descriptor entrypoint.
     unsafe fn get_plugin_descriptor(&self, path: &Path) -> Result<NcGetPluginDescriptor, PluginLoadError> {
         // SAFETY: The caller selected trusted neocogi-com-sdk plugin code and the
         // returned address is called with the exact public plugin-descriptor ABI type.
         let symbol = unsafe { self.library.symbol(NC_GET_PLUGIN_DESCRIPTOR_SYMBOL.as_bytes()) }
             .map_err(|message| PluginLoadError::new(PluginLoadErrorKind::FindSymbol, path, None, message))?;
 
-        // SAFETY: The symbol name uniquely identifies this function signature.
+        // SAFETY: The selected module exports this name, which uniquely
+        // identifies the function signature under the trusted plugin ABI.
         Ok(unsafe { core::mem::transmute::<*mut c_void, NcGetPluginDescriptor>(symbol) })
     }
 }

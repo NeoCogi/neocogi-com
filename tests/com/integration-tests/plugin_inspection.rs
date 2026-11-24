@@ -10,25 +10,47 @@ use neocogi_com::NcAcquirePluginFactory;
 
 #[path = "fixtures/plugin-inspection/src/descriptors.rs"]
 mod descriptors;
+#[cfg(any(all(target_os = "linux", target_env = "gnu"), target_os = "macos", windows))]
+#[path = "support/native_getter_origin.rs"]
+mod native_getter_origin;
 
 /// Builds one immutable native case; Cargo tracks option_env and rebuilds when this child env changes.
 /// Every binary is copied before the next build, so pinned cases never share mutable storage.
 fn build_case(case: usize, directory: &Path) -> PathBuf {
+    build_case_with_name(case, directory, None)
+}
+
+/// Optionally gives the copied fixture the name an explicit native export
+/// names. On macOS the linked install name addresses that same staged file.
+fn build_case_with_name(case: usize, directory: &Path, named_export_target: Option<&str>) -> PathBuf {
+    // Cargo serializes builds, but the copy must also finish before the next
+    // test can replace the same fixture output with another case.
+    static BUILD: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let _build = BUILD.lock().unwrap();
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let target = std::env::var_os("CARGO_TARGET_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|| root.join("../../target"));
-    let output = Command::new(std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into()))
-        .args(["build", "--offline", "--locked", "--manifest-path"])
+    let name = format!("{}nc_plugin_inspection_fixture{}", std::env::consts::DLL_PREFIX, std::env::consts::DLL_SUFFIX);
+    let installed = named_export_target.map_or_else(
+        || format!("case{case}-{name}"),
+        |stem| format!("{}{stem}{}", std::env::consts::DLL_PREFIX, std::env::consts::DLL_SUFFIX),
+    );
+    let set_install_name = cfg!(target_os = "macos") && named_export_target.is_some();
+    let mut command = Command::new(std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into()));
+    command
+        .arg(if set_install_name { "rustc" } else { "build" })
+        .args(["--offline", "--locked", "--manifest-path"])
         .arg(root.join("integration-tests/fixtures/plugin-inspection/Cargo.toml"))
         .arg("--target-dir")
         .arg(&target)
-        .env("NC_COM_INSPECTION_CASE", case.to_string())
-        .output()
-        .unwrap();
+        .env("NC_COM_INSPECTION_CASE", case.to_string());
+    if set_install_name {
+        command.args(["--", "-C"]).arg(format!("link-arg=-Wl,-install_name,@loader_path/{installed}"));
+    }
+    let output = command.output().unwrap();
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
-    let name = format!("{}nc_plugin_inspection_fixture{}", std::env::consts::DLL_PREFIX, std::env::consts::DLL_SUFFIX);
-    let path = directory.join(format!("case{case}-{name}"));
+    let path = directory.join(installed);
     std::fs::copy(target.join("debug").join(name), &path).unwrap();
     path
 }

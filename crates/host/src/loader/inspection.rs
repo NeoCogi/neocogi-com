@@ -50,7 +50,8 @@ pub struct FactoryInspection {
 ///
 /// # Safety
 ///
-/// `path` must identify trusted code obeying the plugin descriptor ABI.
+/// `path` must identify trusted native code. Its descriptor export and any
+/// explicit forward target must obey the plugin descriptor ABI.
 pub unsafe fn inspect_plugin_library(path: impl AsRef<Path>) -> Result<PluginInspection, PluginLoadError> {
     let path = path.as_ref();
     // SAFETY: the selected library promises immutable process-lived metadata/code.

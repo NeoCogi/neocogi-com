@@ -108,6 +108,9 @@ jobs:
       - name: Native inspector integration tests
         if: ${{ !cancelled() }}
         run: cargo test -p neocogi-tooling-tests --test factory_plugin --locked -- --test-threads=1
+      - name: Native descriptor getter provenance
+        if: ${{ !cancelled() }}
+        run: cargo test -p neocogi-com-tests --features runtime --test plugin_inspection --locked
       - name: Extracted SDK and independent first-use tutorial
         if: ${{ !cancelled() }}
         run: cargo xtask packages
@@ -151,6 +154,9 @@ jobs:
       - name: Native inspector integration tests
         if: ${{ !cancelled() }}
         run: cargo test -p neocogi-tooling-tests --test factory_plugin --locked -- --test-threads=1
+      - name: Native descriptor getter provenance
+        if: ${{ !cancelled() }}
+        run: cargo test -p neocogi-com-tests --features runtime --test plugin_inspection --locked
       - name: Extracted SDK and independent first-use tutorial
         if: ${{ !cancelled() }}
         run: cargo xtask packages
