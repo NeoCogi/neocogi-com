@@ -327,9 +327,10 @@ fn resolve_ordered_modules(modules: Vec<Module>, limits: crate::specialize::budg
     connect_externals_and_imports(&mut entries)?;
     let admitted = admit_canonical_origins(&entries)?;
     let values = resolve_value_graph(&entries, &admitted)?;
+    let values_with_empty_arrays = values.values_with_empty_arrays();
     let mut diagnostics = Vec::new();
     for index in 0..entries.len() {
-        if let Err(error) = validate_module(index, &entries, &values) {
+        if let Err(error) = validate_module(index, &entries, &values, &values_with_empty_arrays) {
             diagnostics.extend(error.diagnostics);
         }
     }
@@ -737,7 +738,12 @@ fn connect_externals_and_imports(entries: &mut [ModuleEntry]) -> Result<(), Reso
 }
 
 /// Validates declaration-specific ABI positions and referenced kinds.
-fn validate_module(index: usize, entries: &[ModuleEntry], values: &crate::ValueGraph) -> Result<(), ResolutionError> {
+fn validate_module(
+    index: usize,
+    entries: &[ModuleEntry],
+    values: &crate::ValueGraph,
+    values_with_empty_arrays: &BTreeSet<&str>,
+) -> Result<(), ResolutionError> {
     let entry = &entries[index];
     let mut diagnostics = Vec::new();
     for declaration in &entry.module.declarations {
@@ -773,7 +779,10 @@ fn validate_module(index: usize, entries: &[ModuleEntry], values: &crate::ValueG
             DeclarationKind::BitEnum(bit_enum) => collect_diagnostics(&mut diagnostics, validate_bit_enum(declaration, bit_enum)),
             DeclarationKind::Interface(interface) => {
                 collect_diagnostics(&mut diagnostics, validate_interface_bases(interface, entries, &declaration.name));
-                collect_diagnostics(&mut diagnostics, validate_methods(interface, entries, values, &declaration.name));
+                collect_diagnostics(
+                    &mut diagnostics,
+                    validate_methods(interface, entries, values, values_with_empty_arrays, &declaration.name),
+                );
             }
         }
     }
@@ -1241,18 +1250,30 @@ fn validate_method_names(interface: &crate::Interface) -> Result<(), ResolutionE
 }
 
 /// Validates ordinary signatures and generated output getters in vtable order.
-fn validate_methods(interface: &crate::Interface, entries: &[ModuleEntry], values: &crate::ValueGraph, owner: &str) -> Result<(), ResolutionError> {
+fn validate_methods(
+    interface: &crate::Interface,
+    entries: &[ModuleEntry],
+    values: &crate::ValueGraph,
+    values_with_empty_arrays: &BTreeSet<&str>,
+    owner: &str,
+) -> Result<(), ResolutionError> {
     let mut diagnostics = Vec::new();
     collect_diagnostics(&mut diagnostics, validate_method_names(interface));
     for method in &interface.methods {
         for parameter in &method.parameters {
             collect_diagnostics(
                 &mut diagnostics,
-                validate_parameter(parameter, entries, values, &format!("{owner}::{} parameter {}", method.name, parameter.name)),
+                validate_parameter(
+                    parameter,
+                    entries,
+                    values,
+                    values_with_empty_arrays,
+                    &format!("{owner}::{} parameter {}", method.name, parameter.name),
+                ),
             );
         }
         let context = format!("{owner}::{} result", method.name);
-        collect_diagnostics(&mut diagnostics, validate_result(method, entries, values, &context));
+        collect_diagnostics(&mut diagnostics, validate_result(method, entries, values, values_with_empty_arrays, &context));
         let consumes_owner = method.parameters.iter().any(|parameter| parameter.passing == ParameterPassing::ConsumingBox);
         if method.return_passing == ReturnPassing::ScopedLoan {
             let writes_output = method.parameters.iter().any(|parameter| parameter.passing == ParameterPassing::OutputBuffer);
@@ -1593,10 +1614,17 @@ fn resolve_value_graph(entries: &[ModuleEntry], admitted: &HashMap<String, Canon
 }
 
 /// Requires an implemented self-contained copied lowering at this method position.
-fn validate_value_type(ty: &IdlType, entries: &[ModuleEntry], values: &crate::ValueGraph, context: &str, span: &SourceSpan) -> Result<(), ResolutionError> {
+fn validate_value_type(
+    ty: &IdlType,
+    entries: &[ModuleEntry],
+    values: &crate::ValueGraph,
+    values_with_empty_arrays: &BTreeSet<&str>,
+    context: &str,
+    span: &SourceSpan,
+) -> Result<(), ResolutionError> {
     validate_field_type(ty, entries, context, span)?;
     if copied_type(ty, entries, values) {
-        Ok(())
+        validate_live_array_lengths(ty, entries, values_with_empty_arrays, context, span)
     } else {
         Err(source_error(
             "EIDL060",
@@ -1607,8 +1635,47 @@ fn validate_value_type(ty: &IdlType, entries: &[ModuleEntry], values: &crate::Va
     }
 }
 
+/// Checks array lengths in a closed callable value position. The cached named
+/// proof already covers all fields and does not need to unfold a declaration.
+fn validate_live_array_lengths(
+    mut ty: &IdlType,
+    entries: &[ModuleEntry],
+    values_with_empty_arrays: &BTreeSet<&str>,
+    context: &str,
+    span: &SourceSpan,
+) -> Result<(), ResolutionError> {
+    let reaches_empty = loop {
+        match ty {
+            IdlType::Array { len: 0, .. } => break true,
+            IdlType::Array { element, .. } => ty = element,
+            IdlType::Named(name) => {
+                break resolve_named(name, entries).is_ok_and(|symbol| {
+                    let identity = &entries[symbol.module].declaration_identities[symbol.declaration];
+                    values_with_empty_arrays.contains(identity.qualified_name.as_str())
+                });
+            }
+            _ => break false,
+        }
+    };
+    if reaches_empty {
+        return Err(source_error(
+            "EIDL101",
+            span,
+            format!("{context} reaches a zero-length fixed array in its live wire"),
+            "live value wires require positive fixed-array lengths",
+        ));
+    }
+    Ok(())
+}
+
 /// Validates the payload using its already selected directional passing contract.
-fn validate_parameter(parameter: &crate::Parameter, entries: &[ModuleEntry], values: &crate::ValueGraph, context: &str) -> Result<(), ResolutionError> {
+fn validate_parameter(
+    parameter: &crate::Parameter,
+    entries: &[ModuleEntry],
+    values: &crate::ValueGraph,
+    values_with_empty_arrays: &BTreeSet<&str>,
+    context: &str,
+) -> Result<(), ResolutionError> {
     let ty = &parameter.ty;
     let payload = parameter.payload();
     let span = type_span(ty).unwrap_or(&parameter.span);
@@ -1616,8 +1683,11 @@ fn validate_parameter(parameter: &crate::Parameter, entries: &[ModuleEntry], val
         ParameterPassing::SharedLoan { optional: true } | ParameterPassing::MutableLoan | ParameterPassing::ConsumingBox => {
             validate_object_target(payload, entries, context, span)
         }
-        ParameterPassing::SharedLoan { optional: false } | ParameterPassing::BorrowedText | ParameterPassing::BorrowedValue => Ok(()),
-        ParameterPassing::InputBuffer | ParameterPassing::OutputBuffer => validate_value_type(payload, entries, values, context, span),
+        ParameterPassing::SharedLoan { optional: false } | ParameterPassing::BorrowedText => Ok(()),
+        ParameterPassing::BorrowedValue => validate_live_array_lengths(payload, entries, values_with_empty_arrays, context, span),
+        ParameterPassing::InputBuffer | ParameterPassing::OutputBuffer => {
+            validate_value_type(payload, entries, values, values_with_empty_arrays, context, span)
+        }
         ParameterPassing::Copied => match ty {
             IdlType::Named(name) if name.is_str() => Err(source_error(
                 "EIDL061",
@@ -1634,7 +1704,7 @@ fn validate_parameter(parameter: &crate::Parameter, entries: &[ModuleEntry], val
             IdlType::Named(name) => {
                 let symbol = resolve_named(name, entries)?;
                 match symbol.kind {
-                    SymbolKind::Value => validate_value_type(ty, entries, values, context, span),
+                    SymbolKind::Value => validate_value_type(ty, entries, values, values_with_empty_arrays, context, span),
                     SymbolKind::Interface => Err(kind_mismatch_error(
                         symbol,
                         entries,
@@ -1645,7 +1715,7 @@ fn validate_parameter(parameter: &crate::Parameter, entries: &[ModuleEntry], val
                     )),
                 }
             }
-            _ => validate_value_type(ty, entries, values, context, span),
+            _ => validate_value_type(ty, entries, values, values_with_empty_arrays, context, span),
         },
         ParameterPassing::Invalid => {
             let (message, label) = match ty {
@@ -1663,7 +1733,13 @@ fn validate_parameter(parameter: &crate::Parameter, entries: &[ModuleEntry], val
 }
 
 /// Validates result payload and the initial direct Rust projection forms.
-fn validate_result(method: &Method, entries: &[ModuleEntry], values: &crate::ValueGraph, context: &str) -> Result<(), ResolutionError> {
+fn validate_result(
+    method: &Method,
+    entries: &[ModuleEntry],
+    values: &crate::ValueGraph,
+    values_with_empty_arrays: &BTreeSet<&str>,
+    context: &str,
+) -> Result<(), ResolutionError> {
     let ty = &method.output;
     let span = type_span(ty).unwrap_or(&method.span);
     if method.return_projection == ReturnProjection::Direct
@@ -1681,7 +1757,7 @@ fn validate_result(method: &Method, entries: &[ModuleEntry], values: &crate::Val
     }
     match method.return_passing {
         ReturnPassing::Unit => Ok(()),
-        ReturnPassing::Copied => validate_value_type(ty, entries, values, context, span),
+        ReturnPassing::Copied => validate_value_type(ty, entries, values, values_with_empty_arrays, context, span),
         ReturnPassing::SharedOwner { .. }
         | ReturnPassing::BoxOwner
         | ReturnPassing::BoxObserver

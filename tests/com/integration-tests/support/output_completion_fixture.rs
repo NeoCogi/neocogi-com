@@ -6,6 +6,14 @@ use std::sync::{
 };
 use allocation_probe::Probe;
 
+/// A copied result with 100,000 bytes and 1,000,001 logical values.
+pub(super) type Excessive = [CountAtom; 100_000];
+
+/// Constructs a valid value whose logical cost exceeds the call budget.
+pub(super) fn excessive_payload() -> Excessive {
+    [CountAtom { value: Default::default() }; 100_000]
+}
+
 #[com_object(IItem, ownership = exclusive)]
 /// Exclusive input with independently observable destruction.
 struct Item {
@@ -71,11 +79,11 @@ impl IComplete for Receiver {
         self.children[0] = Some(first);
         Ok(42)
     }
-    /// Even zero-sized arrays must obey the cumulative logical value limit.
+    /// The copied return must fit the logical limit before any owner commits.
     fn excessive(&mut self, first: ComBox<IItemAbi>) -> Result<Excessive, (NcStatus, ComBox<IItemAbi>)> {
         self.calls.fetch_add(1, SeqCst);
         self.children[0] = Some(first);
-        Ok([[]; MAX_VALUE_COUNT])
+        Ok(excessive_payload())
     }
 }
 
@@ -359,6 +367,13 @@ fn raw_provider_count_failure_never_adopts_an_owner() {
 
 #[test]
 fn copied_return_bound_rejects_before_acceptance_even_if_actual_result_is_small() {
+    let cost = Excessive::MAX_COST.unwrap();
+    assert_eq!(std::mem::size_of::<<Excessive as ComValue>::AbiRepr>(), 100_000);
+    assert_eq!(
+        ValueBudget::new(MAX_VALUE_BYTES, MAX_VALUE_COUNT, MAX_VALUE_DEPTH).fixed(cost),
+        Err(NC_E_OUT_OF_RANGE)
+    );
+    assert_eq!(ValueBudget::new(MAX_VALUE_BYTES, MAX_VALUE_COUNT + 1, MAX_VALUE_DEPTH).fixed(cost), Ok(()));
     let (mut receiver, calls) = receiver();
     let ([first, second], drops) = items();
     let identity = first.as_raw().object;
@@ -373,8 +388,8 @@ fn copied_return_bound_rejects_before_acceptance_even_if_actual_result_is_small(
     let raw = receiver.as_raw();
     let mut output = std::mem::MaybeUninit::uninit();
     let probe = Probe::start(Some(0));
-    // SAFETY: the original token occupies one unique live slot; the copied
-    // zero-sized result still has a valid, aligned generated output address.
+    // SAFETY: the original token occupies one unique live slot. The generated
+    // output pointer is aligned and addresses separate writable storage.
     let status = unsafe { ((*raw.vtable).excessive)(raw.object, &mut slot, output.as_mut_ptr()) };
     let report = probe.finish();
     assert_eq!(status, NC_E_OUT_OF_RANGE);

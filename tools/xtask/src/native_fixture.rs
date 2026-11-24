@@ -1,9 +1,10 @@
 //! Execution evidence shared by the workspace and standalone native-C gates.
 
-/// Both directions of the independently authored C callable protocol.
+/// Independently authored C callable protocol and fixed-array wire cases.
 pub const NATIVE_C_CASES: &[&str] = &[
     "callable_slots::native_c_consumes_owned_optional_and_scoped_slots",
     "callable_slots::generated_callers_validate_native_c_result_protocols",
+    "fixed_arrays::native_c_calls_portable_fixed_array_wires",
 ];
 
 /// Checks a named success after the caller has verified the child exited successfully.
@@ -16,7 +17,7 @@ pub fn require_named_execution(output: &str, required: &str) -> Result<(), Strin
     }
 }
 
-/// Requires both native directions in a single complete fixture run.
+/// Requires the native cases in a single complete fixture run.
 pub fn require_native_c_execution(output: &str) -> Result<(), String> {
     for case in NATIVE_C_CASES {
         require_named_execution(output, case)?;

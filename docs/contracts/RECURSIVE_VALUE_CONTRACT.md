@@ -352,6 +352,14 @@ introduced by this intrinsic. Array aliases have identical ABI fingerprints.
 Normalization does not by itself change method-slot eligibility; the supported
 positions below remain a separate recursively checked capability.
 
+A zero-length fixed array is valid in local Rust data and stored values.
+Live NCIDL callable value slots require positive fixed-array lengths wherever
+their wire representation reaches an array. Resolution checks this after
+substitution, including fields of copied or borrowed values and the elements
+of readable and writable buffers. It follows record, enum, array, and sequence
+fields. An unused type argument creates no wire field. NCB retains the ordinary
+zero-count sequence encoding for stored arrays.
+
 A generic method borrowing `&T` may be closed with `T = Slice<u32>`; it then uses
 the same buffer contract as `&[u32]`. A slice type argument does not grant storage
 ownership or make an unsized record field valid. Owned vectors break recursive
@@ -425,7 +433,8 @@ Scalars, finite copied records/enums/bit sets, and recursively copied arrays
 support copied method and buffer positions. `Option<T>` follows the same rule as
 any enum: it is copied when all payloads are copied. Values containing sequences,
 text, or COM references use the borrowed named-value form. Owning aggregate
-returns remain rejected; a fixed array is eligible exactly when its element is.
+returns remain rejected. A live copied array requires a positive length and a
+copied element type.
 
 An application declares ordinary interfaces for message delivery and commands.
 The owning [IDL reference](IDL_MODULES.md#contract-changes)
@@ -472,8 +481,10 @@ addresses safe; the raw memory obligations above remain part of every call.
 ### Copied arrays
 
 `Array<T, N>` and `[T; N]` are copied values when `T` is recursively copied.
-They can occur directly in arguments/results, inside copied records/enums, and
-as readable or writable buffer elements. The checked `ValueArray<T::AbiRepr, N>`
+Within a live callable value slot, each fixed array has a positive length.
+These arrays can occur directly in arguments and results, inside copied
+records and enums, and as readable or writable buffer elements. The checked
+`ValueArray<T::AbiRepr, N>`
 codec validates every element; a `[bool; N]` is never reconstructed from foreign
 bytes as a native Rust boolean array. Owning elements still require borrowing a
 named aggregate; a fixed length does not remove their ownership obligations.

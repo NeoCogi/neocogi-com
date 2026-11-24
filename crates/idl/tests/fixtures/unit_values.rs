@@ -61,7 +61,7 @@ mod unit_tests {
         assert_eq!(owner.optional(Maybe::None).unwrap(),Maybe::None);
         let mixed=Mixed { before:3,unit:(),enabled:true,after:7 };
         assert_eq!(owner.mixed(mixed).unwrap(),mixed);
-        let arrays=Arrays { nested:[[();2];2],empty:[] };
+        let arrays=Arrays { nested:[[();2];2] };
         assert_eq!(owner.arrays(arrays).unwrap(),arrays);
         assert_eq!(owner.direct([();2]).unwrap(),[();2]);
         let input=[();3];
@@ -120,5 +120,18 @@ mod unit_tests {
         assert_eq!(returned.err(),Some(NC_E_INVALID_ARG));
         assert!(destination.is_empty());
         assert_eq!(drops.load(Ordering::SeqCst),1);
+    }
+
+    /// Stored zero-length arrays retain their local type and positional NCB encoding.
+    #[test]
+    fn stored_empty_array_round_trips_ncb_v1() {
+        use neocogi_com_serialization::ncb;
+
+        let value = StoredEmpty { empty: [] };
+        let mut bytes = [0; 16];
+        let len = ncb::to_slice(&value, &mut bytes).unwrap();
+        let document = &bytes[..len];
+        assert_eq!(document, b"NCB\x01\x01\0\0\0\0\0\0\0");
+        assert_eq!(ncb::from_slice::<StoredEmpty>(document).unwrap(), value);
     }
 }

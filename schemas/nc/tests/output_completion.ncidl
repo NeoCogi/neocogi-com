@@ -12,6 +12,9 @@ enum Choice: u8 {
     Filled(Details),
 }
 
+/// One stored byte with ten logical values in its checked representation.
+struct CountAtom { value: [[[[[[[[bool; 1]; 1]; 1]; 1]; 1]; 1]; 1]; 1] }
+
 #[id("bb1f0e51-45e5-541a-914e-c1518d031e04")]
 /// Small exclusive input observed through a weak reference after transfer.
 interface IItem {
@@ -27,7 +30,7 @@ interface IComplete {
     /// Direct numeric buffers retain their existing allocation-free identity path.
     fn direct(&mut self, first: ComBox<IItem>, values: &mut [u64]) -> Result<u32>;
     /// Known but excessive maximum must reject before implementation entry.
-    fn excessive(&mut self, first: ComBox<IItem>) -> Result<[[bool; 0]; 1000000]>;
+    fn excessive(&mut self, first: ComBox<IItem>) -> Result<[CountAtom; 100000]>;
 }
 
 #[id("ce20f285-8e98-58aa-818f-77520ca88fd0")]
@@ -36,7 +39,7 @@ interface IOrdinaryOutputs {
     /// A later converted buffer may exceed the actual-value budget.
     fn buffers(&mut self, flags: &mut [bool], choices: &mut [Choice]) -> Result<()>;
     /// An invalid copied return must not publish earlier converted buffers either.
-    fn result(&mut self, flags: &mut [bool]) -> Result<[[bool; 0]; 1000000]>;
+    fn result(&mut self, flags: &mut [bool]) -> Result<[CountAtom; 100000]>;
 }
 
 #[id("bd3502ac-3df3-506f-8c24-c2c007395d75")]

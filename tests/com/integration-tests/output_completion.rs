@@ -11,11 +11,9 @@ mod allocation_probe;
 extern crate self as fixture_output_completion;
 test_contracts::output_completion!();
 
-/// A copied zero-sized return can still exceed the logical traversal limit.
-type Excessive = [[bool; 0]; MAX_VALUE_COUNT];
-
 #[path = "support/output_completion_fixture.rs"]
 mod generated_calls;
+use generated_calls::Excessive;
 
 #[com_object(IOrdinaryOutputs)]
 /// Deliberately produces valid native outputs exceeding ordinary conversion limits.
@@ -31,12 +29,12 @@ impl IOrdinaryOutputs for OrdinaryOutputs {
         }
         Ok(())
     }
-    /// Returns zero physical bytes with too many logical array values.
+    /// Returns a compact array that exceeds the logical value limit.
     fn result(&mut self, mut flags: NcOutputWriter<'_, bool>) -> Result<Excessive, NcStatus> {
         for _ in 0..flags.capacity() {
             flags.push(true)?;
         }
-        Ok([[]; MAX_VALUE_COUNT])
+        Ok(generated_calls::excessive_payload())
     }
 }
 
@@ -66,7 +64,7 @@ fn provider_validates_all_converted_outputs_before_publishing_any() {
     assert_eq!(flags, [0]);
     assert!(choices.iter().all(|wire| unsafe { decode_inline::<Choice>(wire) }.unwrap() == Choice::Idle));
     let mut out = std::mem::MaybeUninit::uninit();
-    // SAFETY: output storage matches the copied wire, including its zero size.
+    // SAFETY: output storage matches the copied wire and cannot alias the buffer.
     let status = unsafe { ((*raw.vtable).result)(raw.object, 0, 1, flags.as_mut_ptr(), &mut flags_written, out.as_mut_ptr()) };
     assert_eq!(status, NC_E_OUT_OF_RANGE);
     assert_eq!(flags_written, 0);

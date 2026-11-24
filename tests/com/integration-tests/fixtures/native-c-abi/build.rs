@@ -7,6 +7,7 @@ fn main() {
     std::fs::write(std::path::PathBuf::from(std::env::var_os("OUT_DIR").unwrap()).join("contracts.rs"), bindings).unwrap();
 
     println!("cargo:rerun-if-changed=native/caller.c");
+    println!("cargo:rerun-if-changed=native/arrays.c");
 
     cc::Build::new()
         .file("native/caller.c")
@@ -15,4 +16,10 @@ fn main() {
         .std("c11")
         .warnings(true)
         .compile("native_c_abi_fixture");
+
+    cc::Build::new()
+        .file("native/arrays.c")
+        .std("c17")
+        .flag_if_supported("-pedantic-errors")
+        .compile("native_c_array_fixture");
 }

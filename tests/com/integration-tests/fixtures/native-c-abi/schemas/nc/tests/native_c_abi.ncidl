@@ -4,6 +4,20 @@ struct NativeAggregate {
     value: u64,
 }
 
+/// Fixed arrays nested in an ordinary copied record.
+struct NativeArrayRecord {
+    tag: u8,
+    values: [[u32; 2]; 3],
+    tail: u32,
+}
+
+/// Independently authored C uses the same by-value layout and buffer stride.
+interface INativeArrays {
+    fn rotate(&self, value: [u32; 3]) -> Result<[u32; 3]>;
+    fn increment(&self, record: NativeArrayRecord) -> Result<NativeArrayRecord>;
+    fn transfer(&self, input: &[[[u32; 2]; 2]], output: &mut [[[u32; 2]; 2]]) -> Result<()>;
+}
+
 #[id("7d83570c-632d-5dfb-b7f3-094248f1ba9e")]
 interface INativeValue {
     fn value(&self) -> Result<i32>;

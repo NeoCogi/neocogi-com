@@ -44,7 +44,7 @@ pub struct ValueDefinition {
     pub name: String,
     /// Flattened fields in declaration order, then variant order for an enum.
     pub fields: Vec<ValueType>,
-    /// Whether this backend provides a self-contained copied method lowering.
+    /// Whether this shape has a self-contained copied representation.
     pub copied: bool,
     /// Inferred availability of both persistence directions.
     pub persistence: Persistence,
@@ -145,7 +145,62 @@ impl ValueGraph {
     }
 
     /// Builds one reverse graph and only visits dependents of negative facts.
-    fn resolve_capability(&mut self, capability: Capability, #[cfg(test)] mut work: Option<&mut PropagationWork>) {
+    fn resolve_capability(&mut self, capability: Capability, #[cfg(test)] work: Option<&mut PropagationWork>) {
+        let rejected = self.rejected_definitions(
+            |definition| capability.supported(definition),
+            |ty| capability.requirement(ty),
+            false,
+            #[cfg(test)]
+            work,
+        );
+        for (definition, rejected) in self.definitions.values_mut().zip(rejected) {
+            if rejected {
+                capability.reject(definition);
+            }
+        }
+    }
+
+    /// Finds named value shapes that reach an empty array in their native
+    /// representation. Interface capabilities end the walk because their
+    /// object/table records do not store the target's method values.
+    pub(crate) fn values_with_empty_arrays(&self) -> BTreeSet<&str> {
+        let rejected = self.rejected_definitions(
+            |_| true,
+            |mut ty| loop {
+                match ty {
+                    ValueType::Array(_, 0) => break Requirement::Local(false),
+                    ValueType::Array(child, _) | ValueType::Sequence(child) => ty = child,
+                    ValueType::Named(name) => break Requirement::Named(name),
+                    ValueType::Unit
+                    | ValueType::Scalar(_)
+                    | ValueType::Text
+                    | ValueType::Object(_)
+                    | ValueType::WeakObject(_)
+                    | ValueType::WeakBoxObject(_) => break Requirement::Local(true),
+                }
+            },
+            // Other semantic checks report missing definitions. An absent
+            // definition is no evidence of an empty array.
+            true,
+            #[cfg(test)]
+            None,
+        );
+        self.definitions
+            .keys()
+            .zip(rejected)
+            .filter_map(|(name, rejected)| rejected.then_some(name.as_str()))
+            .collect()
+    }
+
+    /// Propagates the selected requirement through canonical definitions.
+    /// A reached negative fact schedules its dependent at most once.
+    fn rejected_definitions(
+        &self,
+        initially_supported: impl Fn(&ValueDefinition) -> bool,
+        requirement: impl for<'a> Fn(&'a ValueType) -> Requirement<'a>,
+        missing_supported: bool,
+        #[cfg(test)] mut work: Option<&mut PropagationWork>,
+    ) -> Vec<bool> {
         let indices = self
             .definitions
             .keys()
@@ -156,17 +211,17 @@ impl ValueGraph {
         let mut rejected = vec![false; indices.len()];
         let mut pending = Vec::new();
         for (index, definition) in self.definitions.values().enumerate() {
-            let mut supported = capability.supported(definition);
+            let mut supported = initially_supported(definition);
             if supported {
                 for field in &definition.fields {
-                    supported = match capability.requirement(field) {
+                    supported = match requirement(field) {
                         Requirement::Local(supported) => supported,
                         Requirement::Named(name) => match indices.get(name) {
                             Some(&dependency) => {
                                 dependents[dependency].push(index);
                                 true
                             }
-                            None => false,
+                            None => missing_supported,
                         },
                     };
                     if !supported {
@@ -193,11 +248,7 @@ impl ValueGraph {
                 }
             }
         }
-        for (definition, rejected) in self.definitions.values_mut().zip(rejected) {
-            if rejected {
-                capability.reject(definition);
-            }
-        }
+        rejected
     }
 
     /// Queries the final fact without expanding a named definition.
@@ -266,8 +317,8 @@ impl ValueGraph {
         None
     }
 
-    /// Reports implemented copied lowering, rather than merely finite Rust size.
-    /// Only arrays unwrap; sequences remain owned values regardless of their leaf.
+    /// Reports self-contained copied lowering. Sequences remain owned values.
+    /// Live NCIDL slots additionally require nonempty array wires.
     /// The borrowed query does not require detached inputs to have admitted height.
     pub fn is_copied(&self, ty: &ValueType) -> bool {
         self.supports(Capability::Copied, ty)

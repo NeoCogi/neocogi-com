@@ -9,7 +9,8 @@ fn unit_values_use_checked_storage_in_copied_calls() {
     let source = r#"
         enum Completion { Done(()), Idle }
         struct Mixed { before: u32, unit: (), enabled: bool, after: u32 }
-        struct Arrays { nested: [[(); 2]; 2], empty: [(); 0] }
+        struct Arrays { nested: [[(); 2]; 2] }
+        struct StoredEmpty { empty: [(); 0] }
         interface IUnits {
             fn status(&self) -> Result<()>;
             fn completion(&mut self, value: Completion) -> Result<Completion>;
@@ -32,8 +33,9 @@ fn unit_values_use_checked_storage_in_copied_calls() {
     fs::create_dir(project.path().join("src")).unwrap();
     // The generated runtime fixture deliberately uses alloc-only facade support.
     fs::write(project.path().join("Cargo.toml"), format!(
-        "[package]\nname='unit-values-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com-sdk={{path={:?},default-features=false,features=['alloc','macros']}}\n",
+        "[package]\nname='unit-values-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com-sdk={{path={:?},default-features=false,features=['alloc','macros']}}\nneocogi-com-serialization={{path={:?},default-features=false}}\n",
         root.join("crates/com"),
+        root.join("crates/serialization"),
     )).unwrap();
     fs::write(
         project.path().join("src/lib.rs"),
@@ -60,6 +62,7 @@ fn unit_values_use_checked_storage_in_copied_calls() {
         String::from_utf8_lossy(&output.stderr)
     );
     assert!(String::from_utf8_lossy(&output.stdout).contains("unit_calls_and_malformed_storage ... ok"));
+    assert!(String::from_utf8_lossy(&output.stdout).contains("stored_empty_array_round_trips_ncb_v1 ... ok"));
 
     // Bare unit input remains deliberately excluded from the method language.
     let module = neocogi_idl::parse_module(Path::new("proof/bare.ncidl"), "interface Bare { fn accept(&self, value: ()) -> Result<()>; }").unwrap();

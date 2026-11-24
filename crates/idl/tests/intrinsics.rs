@@ -72,6 +72,67 @@ fn arrays_reject_invalid_counts_and_arity() {
     graph("struct Empty { items: Array<u8, 0> }");
 }
 
+/// Empty arrays are legal storage, but an actual callable value representation
+/// must be expressible in portable C before Rust bindings are generated.
+#[test]
+fn zero_length_arrays_reject_each_reachable_callable_wire() {
+    for source in [
+        "interface IUse { fn take(&self, value: [u64; 0]); }",
+        "interface IUse { fn get(&self) -> Result<[[u8; 0]; 2]>; }",
+        "struct Data { empty: [u64; 0], stamp: u8 } interface IUse { fn take(&self, value: Data); }",
+        "interface IUse { fn take(&self, value: Option<Array<u8, 0>>); }",
+        "interface IUse { fn take(&self, values: &[[u32; 0]]); }",
+        "interface IUse { fn fill(&mut self, values: &mut [[u32; 0]]); }",
+        "struct Data { items: Vec<[u8; 0]> } interface IUse { fn take(&self, value: &Data); }",
+        "interface ITemplate<T> { fn take(&self, value: T); } interface IUse: ITemplate<[u8; 0]> {}",
+    ] {
+        let input = parse_module(Path::new("proof/wire.ncidl"), source).unwrap();
+        let neocogi_idl::ModuleGraphError::Resolution(error) = resolve_modules(vec![input]).unwrap_err() else {
+            panic!("expected a source-located slot error");
+        };
+        let [diagnostic] = error.diagnostics.as_slice() else {
+            panic!("expected a single slot diagnostic for {source}: {error}");
+        };
+        assert_eq!(diagnostic.code, "EIDL101", "{error}");
+        assert!(diagnostic.message.contains("zero-length fixed array"), "{error}");
+        assert_eq!(diagnostic.labels[0].span.path(), "proof/wire.ncidl");
+    }
+}
+
+/// The bound supplying graph determines the wire. Cycles through Vec must
+/// complete, and phantom type arguments must not create fields.
+#[test]
+fn zero_length_array_admission_tracks_specialized_fields() {
+    let owner = parse_module(
+        Path::new("proof/library.ncidl"),
+        "struct Node<T> { children: Vec<Node<T>>, item: T }
+         struct Phantom<T> { item: u8 }",
+    )
+    .unwrap();
+    for (argument, portable) in [("[u8; 1]", true), ("[u8; 0]", false)] {
+        let use_site = parse_module(
+            Path::new("proof/wire.ncidl"),
+            &format!(
+                "extern proof.library; use proof.library::{{Node, Phantom}};
+                 struct Stored {{ field: Node<[u8; 0]> }}
+                 interface IUse {{
+                     fn borrow(&self, value: &Node<{argument}>);
+                     fn phantom(&self, value: Phantom<[u8; 0]>);
+                 }}"
+            ),
+        )
+        .unwrap();
+        let result = resolve_modules(vec![owner.clone(), use_site]);
+        if portable {
+            let graph = result.unwrap();
+            assert!(neocogi_idl::generate_rust(&graph, "proof.wire").is_ok());
+        } else {
+            let error = result.unwrap_err().to_string();
+            assert!(error.contains("EIDL101") && error.contains("IUse::borrow parameter value"), "{error}");
+        }
+    }
+}
+
 /// Resolver acceptance is backed by compiling and calling generated bindings.
 #[test]
 fn copied_arrays_compile_and_cross_real_com_thunks() {

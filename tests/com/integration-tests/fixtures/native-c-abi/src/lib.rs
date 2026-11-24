@@ -85,6 +85,73 @@ impl INativeChoice for Choice {
 }
 
 #[cfg(test)]
+mod fixed_arrays {
+    use super::*;
+    use core::ffi::c_void;
+    use neocogi_com_sdk::ComValue;
+
+    /// Single checked wire for a top-level fixed array.
+    type Direct = <[u32; 3] as ComValue>::AbiRepr;
+    /// Checked nested arrays plus scalars in a copied record.
+    type Record = <NativeArrayRecord as ComValue>::AbiRepr;
+    /// A real buffer element containing two fixed arrays.
+    type Rows = [[u32; 2]; 2];
+    type RowWire = <Rows as ComValue>::AbiRepr;
+
+    // Independent C signature declarations exercise these exact generated slots.
+    unsafe extern "C" {
+        fn nc_c_exercise_fixed_arrays(
+            object: *mut c_void,
+            rotate: unsafe extern "C" fn(*mut c_void, Direct, *mut Direct) -> NcStatus,
+            increment: unsafe extern "C" fn(*mut c_void, Record, *mut Record) -> NcStatus,
+            transfer: unsafe extern "C" fn(*mut c_void, u64, u64, *const RowWire, u64, u64, *mut RowWire, *mut u64) -> NcStatus,
+        ) -> i32;
+    }
+
+    /// Distinct values let the native peer observe element, record and buffer layout.
+    #[com_object(INativeArrays)]
+    struct Arrays;
+
+    impl INativeArrays for Arrays {
+        fn rotate(&self, [first, second, third]: [u32; 3]) -> Result<[u32; 3], NcStatus> {
+            Ok([second, third, first])
+        }
+
+        fn increment(&self, mut record: NativeArrayRecord) -> Result<NativeArrayRecord, NcStatus> {
+            for value in record.values.iter_mut().flatten() {
+                *value = value.wrapping_add(1);
+            }
+            record.tail = record.tail.wrapping_add(1);
+            Ok(record)
+        }
+
+        fn transfer(&self, input: NcCopyFromBufferOffset<'_, Rows>, mut output: NcOutputWriter<'_, Rows>) -> Result<(), NcStatus> {
+            if input.offset() != 5 || output.offset() != 9 {
+                return Err(NC_E_OUT_OF_RANGE);
+            }
+            for &value in input.as_slice().iter().rev() {
+                output.push(value)?;
+            }
+            Ok(())
+        }
+    }
+
+    /// Strict C calls by-value slots and walks a two-element buffer by C stride.
+    #[test]
+    fn native_c_calls_portable_fixed_array_wires() {
+        let owner = Arrays::from_value(Arrays).query::<INativeArraysAbi>().unwrap();
+        let raw = owner.as_raw();
+        // SAFETY: The owner supplies its live object and exact generated slots.
+        // The C fixture supplies complete, properly aligned input and output wires.
+        let result = unsafe {
+            let table = &*raw.vtable;
+            nc_c_exercise_fixed_arrays(raw.object, table.rotate, table.increment, table.transfer)
+        };
+        assert_eq!(result, 0);
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use neocogi_com_sdk::{ComInterface, IUnknown, NC_E_POINTER, NC_OK, NcDebugApiV4, NcInterfaceDescriptor, NcInterfaceId, NcPluginApiV4, NcPluginInfoV4};
