@@ -187,6 +187,43 @@ fn definition_docs(attributes: &[syn::Attribute]) -> String {
     docs.text.join("\n")
 }
 
+/// Both scoped caller projections document the effect of a visitor panic on
+/// their own public generated helper.
+#[test]
+fn scoped_caller_projections_document_the_visitor_panic_boundary() {
+    /// The printed helpers live inside a private binding scope.
+    #[derive(Default)]
+    struct Methods<'a>(Vec<&'a syn::ImplItemFn>);
+    impl<'a> Visit<'a> for Methods<'a> {
+        fn visit_impl_item_fn(&mut self, method: &'a syn::ImplItemFn) {
+            self.0.push(method);
+        }
+    }
+
+    let source = "interface Loan {} interface Service {
+        fn direct(&self) -> Option<&Loan>;
+        fn checked(&self) -> Result<Option<&Loan>>;
+    }";
+    let module = crate::parse_module(Path::new("proof/scoped.ncidl"), source).unwrap();
+    let graph = crate::resolve_modules(vec![module]).unwrap();
+    let generated = crate::generate_rust(&graph, "proof.scoped").unwrap();
+    let file = syn::parse_file(&generated).unwrap();
+    let mut methods = Methods::default();
+    methods.visit_file(&file);
+    for helper in ["with_direct", "with_checked"] {
+        let method = methods
+            .0
+            .iter()
+            .find(|method| method.sig.ident == helper)
+            .unwrap_or_else(|| panic!("missing generated {helper}"));
+        let docs = definition_docs(&method.attrs);
+        let lines = docs.lines().map(str::trim).collect::<Vec<_>>();
+        assert!(lines.windows(3).any(|lines| lines == ["", "# Panics", ""]), "{docs}");
+        assert!(docs.contains("An uncaught panic in the visitor terminates the process"), "{docs}");
+        assert!(docs.contains("non-unwinding C callback boundary"), "{docs}");
+    }
+}
+
 /// The exact parsed ABI slot supplies expected physical types. Native-enum and
 /// scalar-domain buffers, consuming inputs and all four returned token categories
 /// must agree with their descriptions in normal and printed executable consumers.

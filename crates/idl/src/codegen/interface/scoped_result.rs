@@ -115,6 +115,11 @@ pub(super) fn marker_method(nc: &Path, method: &AbiMethod, names: &mut PrivateNa
         /// The receiver's shared admission protects the loan through the visitor.
         /// The visitor's output cannot carry that loan beyond the call.
         #[doc = #status_doc]
+        ///
+        /// # Panics
+        ///
+        /// An uncaught panic in the visitor terminates the process at the
+        /// non-unwinding C callback boundary.
         #[allow(non_camel_case_types, reason = "Generated type parameters can need a numeric hygiene suffix.")]
         pub fn #helper<#source_mode: #nc::ThreadingModel, #result>(
             #source: #nc::ComRef<'_, Self, #source_mode>,

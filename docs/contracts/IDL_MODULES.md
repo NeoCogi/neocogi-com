@@ -20,8 +20,8 @@ Methods and fields accept documentation attributes at their own declaration.
 Receivers, parameters and integer expressions accept no attributes, including
 documentation or Rust `cfg`; unsupported annotations are rejected before lowering.
 Type paths are module-relative without a leading `::`, including built-in types
-and the required `Result<T>` return spelling. Plain integer spelling and equivalent
-collection/type punctuation normalize without adding Rust attribute semantics.
+and `Result<T>`. Plain integer spelling and equivalent collection/type punctuation
+normalize without adding Rust attribute semantics.
 
 A suffix such as `interface Button: IWidget + IActions` gives one physical vtable
 prefix (the first entry) and required sibling projections (later entries). All
@@ -302,11 +302,24 @@ so the caller can recover the original owners on rejection.
 A scoped getter accepts a shared receiver and nonconsuming inputs. It borrows
 an optional value from that receiver. The generated provider's `tooltip` has
 return type `Option<ComRef<'_, INcStringAbi>>`. The caller uses
-`CatalogAbi::with_tooltip(live_source, |loan| ...)` while the provider holds its
-shared guard. The visitor can return owned application data; its loan cannot
-escape. An explicit `Result<Option<&I>>` projects the same native continuation as
-`Result<Option<R>, NcStatus>` at the caller. Write-only buffer parameters and
-mutable receivers are excluded from the initial scoped result contract.
+`CatalogAbi::with_tooltip(live_source, |loan| ...)` to visit a present loan
+synchronously while the provider holds its receiver read guard. The visitor can
+return owned application data. Its interface loan expires when the visitor
+returns. An uncaught visitor panic terminates the process at the non-unwinding C
+callback boundary. A visitor can return its own `Result` for an application
+error. For example, converting the loan to owned text returns
+`Option<Result<String, NcStatus>>` for the direct getter.
+
+```rust,ignore
+use neocogi_com_sdk::ComStringExt;
+
+let text = CatalogAbi::with_tooltip(live_source, |loan| loan.to_string());
+```
+
+An explicit `Result<Option<&I>>` projects the same native continuation as
+`Result<Option<R>, NcStatus>` at the caller, where `R` is the visitor's result
+type. Write-only buffer parameters and mutable receivers are excluded from the
+initial scoped result contract.
 
 Recognition of slot nullability matches the resolved bundled `neocogi.lang::Option`
 at the method root after generic substitution. Local enums named `Option`,
