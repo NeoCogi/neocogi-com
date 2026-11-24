@@ -258,7 +258,7 @@ fn json_container_errors_keep_real_paths_and_child_entry_keeps_attempted_index()
     assert!(source.as_com_mut().field(neocogi_com_sdk::NcCopyFromBufferOffset::new(0, b"items")).unwrap());
     let status = source
         .as_com_mut()
-        .fail(neocogi_com_sdk::NcCopyFromBufferOffset::new(0, b"invalid selected field"))
+        .fail(NC_E_INVALID_ARG, neocogi_com_sdk::NcCopyFromBufferOffset::new(0, b"invalid selected field"))
         .unwrap_err();
     assert_eq!(Error::capture(status, &source).path, "$.items");
     // Child budget failures happen before pushing their path, including payloads.

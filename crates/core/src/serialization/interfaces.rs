@@ -10,141 +10,143 @@ pub const MODULE_ID: crate::NcGuid = crate::NcGuid::from_fields(
 );
 /// Transitive canonical ABI fingerprint of this generated module.
 pub const ABI_FINGERPRINT: [::core::primitive::u8; 32] = [
-    244u8, 156u8, 133u8, 187u8, 193u8, 218u8, 58u8, 183u8, 243u8, 51u8, 252u8, 130u8,
-    76u8, 159u8, 57u8, 89u8, 145u8, 242u8, 254u8, 252u8, 191u8, 250u8, 115u8, 54u8, 75u8,
-    165u8, 173u8, 163u8, 167u8, 143u8, 108u8, 42u8,
+    204u8, 19u8, 123u8, 180u8, 17u8, 214u8, 155u8, 45u8, 4u8, 100u8, 133u8, 55u8, 65u8,
+    239u8, 21u8, 99u8, 207u8, 161u8, 203u8, 176u8, 77u8, 189u8, 128u8, 124u8, 191u8,
+    126u8, 194u8, 178u8, 36u8, 77u8, 139u8, 34u8,
 ];
 /// Exact dotted module name derived from the normalized IDL path.
 pub const MODULE_NAME: &::core::primitive::str = "neocogi.com.serialization";
 /// A mutable typed source; each value scope constructs one caller-owned value.
-/// IDL source: `neocogi/com/serialization/formats.ncidl:58:11` (module `neocogi.com.serialization`).
+/// IDL source: `neocogi/com/serialization/formats.ncidl:59:11` (module `neocogi.com.serialization`).
 pub trait IDeserializer {
     /// Opens one typed value, charging nesting and construction limits.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:60:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:61:8` (module `neocogi.com.serialization`).
     fn enter_value(&mut self) -> ::core::result::Result<(), crate::NcStatus>;
     /// Completes the current typed value after its children have been consumed.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:62:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:63:8` (module `neocogi.com.serialization`).
     fn leave_value(&mut self) -> ::core::result::Result<(), crate::NcStatus>;
     /// Reads a unit value.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:64:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:65:8` (module `neocogi.com.serialization`).
     fn deserialize_unit(&mut self) -> ::core::result::Result<(), crate::NcStatus>;
     /// Acquires one validated bool value.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:66:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:67:8` (module `neocogi.com.serialization`).
     fn deserialize_bool(
         &mut self,
     ) -> ::core::result::Result<::core::primitive::bool, crate::NcStatus>;
     /// Acquires one validated u8 value.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:68:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:69:8` (module `neocogi.com.serialization`).
     fn deserialize_u8(
         &mut self,
     ) -> ::core::result::Result<::core::primitive::u8, crate::NcStatus>;
     /// Acquires one validated u16 value.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:70:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:71:8` (module `neocogi.com.serialization`).
     fn deserialize_u16(
         &mut self,
     ) -> ::core::result::Result<::core::primitive::u16, crate::NcStatus>;
     /// Acquires one validated u32 value.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:72:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:73:8` (module `neocogi.com.serialization`).
     fn deserialize_u32(
         &mut self,
     ) -> ::core::result::Result<::core::primitive::u32, crate::NcStatus>;
     /// Acquires one validated u64 value.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:74:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:75:8` (module `neocogi.com.serialization`).
     fn deserialize_u64(
         &mut self,
     ) -> ::core::result::Result<::core::primitive::u64, crate::NcStatus>;
     /// Acquires one validated i8 value.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:76:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:77:8` (module `neocogi.com.serialization`).
     fn deserialize_i8(
         &mut self,
     ) -> ::core::result::Result<::core::primitive::i8, crate::NcStatus>;
     /// Acquires one validated i16 value.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:78:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:79:8` (module `neocogi.com.serialization`).
     fn deserialize_i16(
         &mut self,
     ) -> ::core::result::Result<::core::primitive::i16, crate::NcStatus>;
     /// Acquires one validated i32 value.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:80:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:81:8` (module `neocogi.com.serialization`).
     fn deserialize_i32(
         &mut self,
     ) -> ::core::result::Result<::core::primitive::i32, crate::NcStatus>;
     /// Acquires one validated i64 value.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:82:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:83:8` (module `neocogi.com.serialization`).
     fn deserialize_i64(
         &mut self,
     ) -> ::core::result::Result<::core::primitive::i64, crate::NcStatus>;
     /// Acquires one validated f32 value.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:84:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:85:8` (module `neocogi.com.serialization`).
     fn deserialize_f32(
         &mut self,
     ) -> ::core::result::Result<::core::primitive::f32, crate::NcStatus>;
     /// Acquires one validated f64 value.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:86:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:87:8` (module `neocogi.com.serialization`).
     fn deserialize_f64(
         &mut self,
     ) -> ::core::result::Result<::core::primitive::f64, crate::NcStatus>;
     /// Admits a complete UTF-8 string and reports its byte length before allocation.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:88:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:89:8` (module `neocogi.com.serialization`).
     fn string_len(
         &mut self,
     ) -> ::core::result::Result<::core::primitive::u32, crate::NcStatus>;
     /// Copies exactly the admitted string into fresh caller-owned output.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:90:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:91:8` (module `neocogi.com.serialization`).
     fn copy_string(
         &mut self,
         output: crate::NcOutputWriter<'_, ::core::primitive::u8>,
     ) -> ::core::result::Result<::core::primitive::u32, crate::NcStatus>;
     /// Reads optional presence; a present child follows within this value scope.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:92:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:93:8` (module `neocogi.com.serialization`).
     fn option_present(
         &mut self,
     ) -> ::core::result::Result<::core::primitive::bool, crate::NcStatus>;
     /// Opens a record and rejects more than maximum fields.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:94:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:95:8` (module `neocogi.com.serialization`).
     fn begin_record(
         &mut self,
         maximum: ::core::primitive::u32,
     ) -> ::core::result::Result<::core::primitive::u32, crate::NcStatus>;
     /// Selects a named field in schema order; false means genuinely absent.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:96:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:97:8` (module `neocogi.com.serialization`).
     fn field(
         &mut self,
         name: crate::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
     ) -> ::core::result::Result<::core::primitive::bool, crate::NcStatus>;
     /// Completes the record, rejecting unconsumed or unknown fields.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:98:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:99:8` (module `neocogi.com.serialization`).
     fn end_record(&mut self) -> ::core::result::Result<(), crate::NcStatus>;
     /// Opens an ordered collection and reports its bounded element count.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:100:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:101:8` (module `neocogi.com.serialization`).
     fn begin_sequence(
         &mut self,
     ) -> ::core::result::Result<::core::primitive::u32, crate::NcStatus>;
     /// Completes the collection, rejecting unconsumed elements.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:102:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:103:8` (module `neocogi.com.serialization`).
     fn end_sequence(&mut self) -> ::core::result::Result<(), crate::NcStatus>;
     /// Opens a map and reports its bounded pair count.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:104:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:105:8` (module `neocogi.com.serialization`).
     fn begin_map(
         &mut self,
     ) -> ::core::result::Result<::core::primitive::u32, crate::NcStatus>;
     /// Completes the map.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:106:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:107:8` (module `neocogi.com.serialization`).
     fn end_map(&mut self) -> ::core::result::Result<(), crate::NcStatus>;
     /// Probes cases in declaration order; a match selects the following payload.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:108:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:109:8` (module `neocogi.com.serialization`).
     fn variant_is(
         &mut self,
         index: ::core::primitive::u32,
         name: crate::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
     ) -> ::core::result::Result<::core::primitive::bool, crate::NcStatus>;
-    /// Marks a schema failure; no later operation may succeed.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:110:8` (module `neocogi.com.serialization`).
+    /// Records a failure reported by the typed caller and returns its status.
+    /// A failed session returns its first stored status.
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:112:8` (module `neocogi.com.serialization`).
     fn fail(
         &mut self,
+        status: crate::NcStatus,
         message: crate::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
     ) -> ::core::result::Result<(), crate::NcStatus>;
     /// Requires a complete root with no trailing input and closes the session.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:112:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:114:8` (module `neocogi.com.serialization`).
     fn finish(&mut self) -> ::core::result::Result<(), crate::NcStatus>;
 }
 ///Interface marker for [`IDeserializer`]; handles carry its object/table pair.
@@ -155,7 +157,7 @@ pub struct IDeserializerVTable {
     /// Common identity, query and reference-count slots.
     pub unknown: crate::IUnknownVTable,
     /// Opens one typed value, charging nesting and construction limits.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:60:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:61:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`IDeserializer::enter_value`].
     ///
     ///Returns `NcStatus`; success is represented by the returned status and there is no `out` pointer.
@@ -173,7 +175,7 @@ pub struct IDeserializerVTable {
         __nc_this: *mut ::core::ffi::c_void,
     ) -> crate::NcStatus,
     /// Completes the current typed value after its children have been consumed.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:62:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:63:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`IDeserializer::leave_value`].
     ///
     ///Returns `NcStatus`; success is represented by the returned status and there is no `out` pointer.
@@ -191,7 +193,7 @@ pub struct IDeserializerVTable {
         __nc_this: *mut ::core::ffi::c_void,
     ) -> crate::NcStatus,
     /// Reads a unit value.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:64:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:65:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`IDeserializer::deserialize_unit`].
     ///
     ///Returns `NcStatus`; success is represented by the returned status and there is no `out` pointer.
@@ -209,7 +211,7 @@ pub struct IDeserializerVTable {
         __nc_this: *mut ::core::ffi::c_void,
     ) -> crate::NcStatus,
     /// Acquires one validated bool value.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:66:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:67:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`IDeserializer::deserialize_bool`].
     ///
     ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
@@ -228,7 +230,7 @@ pub struct IDeserializerVTable {
         __nc_out: *mut <::core::primitive::bool as crate::ComValue>::AbiRepr,
     ) -> crate::NcStatus,
     /// Acquires one validated u8 value.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:68:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:69:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`IDeserializer::deserialize_u8`].
     ///
     ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
@@ -247,7 +249,7 @@ pub struct IDeserializerVTable {
         __nc_out: *mut <::core::primitive::u8 as crate::ComValue>::AbiRepr,
     ) -> crate::NcStatus,
     /// Acquires one validated u16 value.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:70:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:71:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`IDeserializer::deserialize_u16`].
     ///
     ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
@@ -266,7 +268,7 @@ pub struct IDeserializerVTable {
         __nc_out: *mut <::core::primitive::u16 as crate::ComValue>::AbiRepr,
     ) -> crate::NcStatus,
     /// Acquires one validated u32 value.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:72:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:73:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`IDeserializer::deserialize_u32`].
     ///
     ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
@@ -285,7 +287,7 @@ pub struct IDeserializerVTable {
         __nc_out: *mut <::core::primitive::u32 as crate::ComValue>::AbiRepr,
     ) -> crate::NcStatus,
     /// Acquires one validated u64 value.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:74:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:75:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`IDeserializer::deserialize_u64`].
     ///
     ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
@@ -304,7 +306,7 @@ pub struct IDeserializerVTable {
         __nc_out: *mut <::core::primitive::u64 as crate::ComValue>::AbiRepr,
     ) -> crate::NcStatus,
     /// Acquires one validated i8 value.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:76:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:77:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`IDeserializer::deserialize_i8`].
     ///
     ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
@@ -323,7 +325,7 @@ pub struct IDeserializerVTable {
         __nc_out: *mut <::core::primitive::i8 as crate::ComValue>::AbiRepr,
     ) -> crate::NcStatus,
     /// Acquires one validated i16 value.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:78:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:79:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`IDeserializer::deserialize_i16`].
     ///
     ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
@@ -342,7 +344,7 @@ pub struct IDeserializerVTable {
         __nc_out: *mut <::core::primitive::i16 as crate::ComValue>::AbiRepr,
     ) -> crate::NcStatus,
     /// Acquires one validated i32 value.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:80:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:81:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`IDeserializer::deserialize_i32`].
     ///
     ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
@@ -361,7 +363,7 @@ pub struct IDeserializerVTable {
         __nc_out: *mut <::core::primitive::i32 as crate::ComValue>::AbiRepr,
     ) -> crate::NcStatus,
     /// Acquires one validated i64 value.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:82:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:83:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`IDeserializer::deserialize_i64`].
     ///
     ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
@@ -380,7 +382,7 @@ pub struct IDeserializerVTable {
         __nc_out: *mut <::core::primitive::i64 as crate::ComValue>::AbiRepr,
     ) -> crate::NcStatus,
     /// Acquires one validated f32 value.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:84:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:85:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`IDeserializer::deserialize_f32`].
     ///
     ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
@@ -399,7 +401,7 @@ pub struct IDeserializerVTable {
         __nc_out: *mut <::core::primitive::f32 as crate::ComValue>::AbiRepr,
     ) -> crate::NcStatus,
     /// Acquires one validated f64 value.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:86:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:87:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`IDeserializer::deserialize_f64`].
     ///
     ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
@@ -418,7 +420,7 @@ pub struct IDeserializerVTable {
         __nc_out: *mut <::core::primitive::f64 as crate::ComValue>::AbiRepr,
     ) -> crate::NcStatus,
     /// Admits a complete UTF-8 string and reports its byte length before allocation.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:88:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:89:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`IDeserializer::string_len`].
     ///
     ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
@@ -437,7 +439,7 @@ pub struct IDeserializerVTable {
         __nc_out: *mut <::core::primitive::u32 as crate::ComValue>::AbiRepr,
     ) -> crate::NcStatus,
     /// Copies exactly the admitted string into fresh caller-owned output.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:90:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:91:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`IDeserializer::copy_string`].
     ///
     ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
@@ -461,7 +463,7 @@ pub struct IDeserializerVTable {
         __nc_out: *mut <::core::primitive::u32 as crate::ComValue>::AbiRepr,
     ) -> crate::NcStatus,
     /// Reads optional presence; a present child follows within this value scope.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:92:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:93:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`IDeserializer::option_present`].
     ///
     ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
@@ -480,7 +482,7 @@ pub struct IDeserializerVTable {
         __nc_out: *mut <::core::primitive::bool as crate::ComValue>::AbiRepr,
     ) -> crate::NcStatus,
     /// Opens a record and rejects more than maximum fields.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:94:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:95:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`IDeserializer::begin_record`].
     ///
     ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
@@ -501,7 +503,7 @@ pub struct IDeserializerVTable {
         __nc_out: *mut <::core::primitive::u32 as crate::ComValue>::AbiRepr,
     ) -> crate::NcStatus,
     /// Selects a named field in schema order; false means genuinely absent.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:96:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:97:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`IDeserializer::field`].
     ///
     ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
@@ -524,7 +526,7 @@ pub struct IDeserializerVTable {
         __nc_out: *mut <::core::primitive::bool as crate::ComValue>::AbiRepr,
     ) -> crate::NcStatus,
     /// Completes the record, rejecting unconsumed or unknown fields.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:98:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:99:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`IDeserializer::end_record`].
     ///
     ///Returns `NcStatus`; success is represented by the returned status and there is no `out` pointer.
@@ -542,7 +544,7 @@ pub struct IDeserializerVTable {
         __nc_this: *mut ::core::ffi::c_void,
     ) -> crate::NcStatus,
     /// Opens an ordered collection and reports its bounded element count.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:100:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:101:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`IDeserializer::begin_sequence`].
     ///
     ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
@@ -561,7 +563,7 @@ pub struct IDeserializerVTable {
         __nc_out: *mut <::core::primitive::u32 as crate::ComValue>::AbiRepr,
     ) -> crate::NcStatus,
     /// Completes the collection, rejecting unconsumed elements.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:102:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:103:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`IDeserializer::end_sequence`].
     ///
     ///Returns `NcStatus`; success is represented by the returned status and there is no `out` pointer.
@@ -579,7 +581,7 @@ pub struct IDeserializerVTable {
         __nc_this: *mut ::core::ffi::c_void,
     ) -> crate::NcStatus,
     /// Opens a map and reports its bounded pair count.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:104:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:105:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`IDeserializer::begin_map`].
     ///
     ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
@@ -598,7 +600,7 @@ pub struct IDeserializerVTable {
         __nc_out: *mut <::core::primitive::u32 as crate::ComValue>::AbiRepr,
     ) -> crate::NcStatus,
     /// Completes the map.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:106:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:107:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`IDeserializer::end_map`].
     ///
     ///Returns `NcStatus`; success is represented by the returned status and there is no `out` pointer.
@@ -616,7 +618,7 @@ pub struct IDeserializerVTable {
         __nc_this: *mut ::core::ffi::c_void,
     ) -> crate::NcStatus,
     /// Probes cases in declaration order; a match selects the following payload.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:108:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:109:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`IDeserializer::variant_is`].
     ///
     ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
@@ -640,8 +642,9 @@ pub struct IDeserializerVTable {
         __nc_arg_1_ptr: *const <::core::primitive::u8 as crate::ComValue>::AbiRepr,
         __nc_out: *mut <::core::primitive::bool as crate::ComValue>::AbiRepr,
     ) -> crate::NcStatus,
-    /// Marks a schema failure; no later operation may succeed.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:110:8` (module `neocogi.com.serialization`).
+    /// Records a failure reported by the typed caller and returns its status.
+    /// A failed session returns its first stored status.
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:112:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`IDeserializer::fail`].
     ///
     ///Returns `NcStatus`; success is represented by the returned status and there is no `out` pointer.
@@ -649,6 +652,7 @@ pub struct IDeserializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table.
+    ///- `status` uses ABI storage `< crate :: NcStatus as crate :: ComValue > :: AbiRepr` for `crate :: NcStatus`. Passed by value.
     ///- `message` uses ABI storage `* const < :: core :: primitive :: u8 as crate :: ComValue > :: AbiRepr` for `crate :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
     ///
     ///On success, no output value is written.
@@ -658,12 +662,13 @@ pub struct IDeserializerVTable {
     )]
     pub fail: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_arg_0_3_offset: ::core::primitive::u64,
-        __nc_arg_0_3_len: ::core::primitive::u64,
-        __nc_arg_0_3_ptr: *const <::core::primitive::u8 as crate::ComValue>::AbiRepr,
+        __nc_arg_0_3: <crate::NcStatus as crate::ComValue>::AbiRepr,
+        __nc_arg_1_0_offset: ::core::primitive::u64,
+        __nc_arg_1_0_len: ::core::primitive::u64,
+        __nc_arg_1_0_ptr: *const <::core::primitive::u8 as crate::ComValue>::AbiRepr,
     ) -> crate::NcStatus,
     /// Requires a complete root with no trailing input and closes the session.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:112:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:114:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`IDeserializer::finish`].
     ///
     ///Returns `NcStatus`; success is represented by the returned status and there is no `out` pointer.
@@ -760,13 +765,17 @@ const _: () = {
         identity as __nc_arg_0_3_owner_original, identity as __nc_arg_0_3_offset,
         identity as __nc_arg_0_3_len, identity as __nc_arg_0_3_ptr,
         identity as __nc_arg_0_3_values, identity as __nc_arg_0_3_written,
-        identity as __nc_this, identity as __nc_status, identity as __nc_value,
-        identity as __nc_raw, identity as __nc_result, identity as __nc_values,
-        identity as __nc_writer, identity as __nc_out, identity as __nc_scoped_context,
-        identity as __nc_scoped_callback, identity as __nc_identity,
-        identity as __nc_this_0, identity as __nc_status_0, identity as __nc_result_0,
-        identity as __nc_prepared, identity as __nc_out_0, identity as __nc_this_1,
-        identity as __nc_status_1, identity as __nc_result_1,
+        identity as __nc_arg_1_0, identity as __nc_arg_1_0_owner_slot,
+        identity as __nc_arg_1_0_owner_table, identity as __nc_arg_1_0_owner_original,
+        identity as __nc_arg_1_0_offset, identity as __nc_arg_1_0_len,
+        identity as __nc_arg_1_0_ptr, identity as __nc_arg_1_0_values,
+        identity as __nc_arg_1_0_written, identity as __nc_this, identity as __nc_status,
+        identity as __nc_value, identity as __nc_raw, identity as __nc_result,
+        identity as __nc_values, identity as __nc_writer, identity as __nc_out,
+        identity as __nc_scoped_context, identity as __nc_scoped_callback,
+        identity as __nc_identity, identity as __nc_this_0, identity as __nc_status_0,
+        identity as __nc_result_0, identity as __nc_prepared, identity as __nc_out_0,
+        identity as __nc_this_1, identity as __nc_status_1, identity as __nc_result_1,
         identity as __nc_prepared_0, identity as __nc_out_1, identity as __nc_this_2,
         identity as __nc_status_2, identity as __nc_result_2,
         identity as __nc_prepared_1, identity as __nc_out_2, identity as __nc_this_3,
@@ -821,7 +830,7 @@ const _: () = {
     };
     impl<__NcThreading: crate::ThreadingModel> IDeserializerWrapper<__NcThreading> {
         /// Opens one typed value, charging nesting and construction limits.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:60:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:61:8` (module `neocogi.com.serialization`).
         ///
         ///Calls [`IDeserializer::enter_value`] through the generated COM ABI vtable.
         ///
@@ -841,7 +850,7 @@ const _: () = {
             ::core::result::Result::Ok(__nc_result_0)
         }
         /// Completes the current typed value after its children have been consumed.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:62:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:63:8` (module `neocogi.com.serialization`).
         ///
         ///Calls [`IDeserializer::leave_value`] through the generated COM ABI vtable.
         ///
@@ -861,7 +870,7 @@ const _: () = {
             ::core::result::Result::Ok(__nc_result_1)
         }
         /// Reads a unit value.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:64:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:65:8` (module `neocogi.com.serialization`).
         ///
         ///Calls [`IDeserializer::deserialize_unit`] through the generated COM ABI vtable.
         ///
@@ -883,7 +892,7 @@ const _: () = {
             ::core::result::Result::Ok(__nc_result_2)
         }
         /// Acquires one validated bool value.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:66:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:67:8` (module `neocogi.com.serialization`).
         ///
         ///Calls [`IDeserializer::deserialize_bool`] through the generated COM ABI vtable.
         ///
@@ -913,7 +922,7 @@ const _: () = {
             ::core::result::Result::Ok(__nc_result_3)
         }
         /// Acquires one validated u8 value.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:68:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:69:8` (module `neocogi.com.serialization`).
         ///
         ///Calls [`IDeserializer::deserialize_u8`] through the generated COM ABI vtable.
         ///
@@ -943,7 +952,7 @@ const _: () = {
             ::core::result::Result::Ok(__nc_result_4)
         }
         /// Acquires one validated u16 value.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:70:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:71:8` (module `neocogi.com.serialization`).
         ///
         ///Calls [`IDeserializer::deserialize_u16`] through the generated COM ABI vtable.
         ///
@@ -973,7 +982,7 @@ const _: () = {
             ::core::result::Result::Ok(__nc_result_5)
         }
         /// Acquires one validated u32 value.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:72:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:73:8` (module `neocogi.com.serialization`).
         ///
         ///Calls [`IDeserializer::deserialize_u32`] through the generated COM ABI vtable.
         ///
@@ -1003,7 +1012,7 @@ const _: () = {
             ::core::result::Result::Ok(__nc_result_6)
         }
         /// Acquires one validated u64 value.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:74:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:75:8` (module `neocogi.com.serialization`).
         ///
         ///Calls [`IDeserializer::deserialize_u64`] through the generated COM ABI vtable.
         ///
@@ -1033,7 +1042,7 @@ const _: () = {
             ::core::result::Result::Ok(__nc_result_7)
         }
         /// Acquires one validated i8 value.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:76:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:77:8` (module `neocogi.com.serialization`).
         ///
         ///Calls [`IDeserializer::deserialize_i8`] through the generated COM ABI vtable.
         ///
@@ -1063,7 +1072,7 @@ const _: () = {
             ::core::result::Result::Ok(__nc_result_8)
         }
         /// Acquires one validated i16 value.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:78:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:79:8` (module `neocogi.com.serialization`).
         ///
         ///Calls [`IDeserializer::deserialize_i16`] through the generated COM ABI vtable.
         ///
@@ -1093,7 +1102,7 @@ const _: () = {
             ::core::result::Result::Ok(__nc_result_9)
         }
         /// Acquires one validated i32 value.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:80:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:81:8` (module `neocogi.com.serialization`).
         ///
         ///Calls [`IDeserializer::deserialize_i32`] through the generated COM ABI vtable.
         ///
@@ -1123,7 +1132,7 @@ const _: () = {
             ::core::result::Result::Ok(__nc_result_10)
         }
         /// Acquires one validated i64 value.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:82:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:83:8` (module `neocogi.com.serialization`).
         ///
         ///Calls [`IDeserializer::deserialize_i64`] through the generated COM ABI vtable.
         ///
@@ -1153,7 +1162,7 @@ const _: () = {
             ::core::result::Result::Ok(__nc_result_11)
         }
         /// Acquires one validated f32 value.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:84:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:85:8` (module `neocogi.com.serialization`).
         ///
         ///Calls [`IDeserializer::deserialize_f32`] through the generated COM ABI vtable.
         ///
@@ -1183,7 +1192,7 @@ const _: () = {
             ::core::result::Result::Ok(__nc_result_12)
         }
         /// Acquires one validated f64 value.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:86:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:87:8` (module `neocogi.com.serialization`).
         ///
         ///Calls [`IDeserializer::deserialize_f64`] through the generated COM ABI vtable.
         ///
@@ -1213,7 +1222,7 @@ const _: () = {
             ::core::result::Result::Ok(__nc_result_13)
         }
         /// Admits a complete UTF-8 string and reports its byte length before allocation.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:88:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:89:8` (module `neocogi.com.serialization`).
         ///
         ///Calls [`IDeserializer::string_len`] through the generated COM ABI vtable.
         ///
@@ -1243,7 +1252,7 @@ const _: () = {
             ::core::result::Result::Ok(__nc_result_14)
         }
         /// Copies exactly the admitted string into fresh caller-owned output.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:90:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:91:8` (module `neocogi.com.serialization`).
         ///
         ///Calls [`IDeserializer::copy_string`] through the generated COM ABI vtable.
         ///
@@ -1285,7 +1294,7 @@ const _: () = {
             ::core::result::Result::Ok(__nc_result_15)
         }
         /// Reads optional presence; a present child follows within this value scope.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:92:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:93:8` (module `neocogi.com.serialization`).
         ///
         ///Calls [`IDeserializer::option_present`] through the generated COM ABI vtable.
         ///
@@ -1315,7 +1324,7 @@ const _: () = {
             ::core::result::Result::Ok(__nc_result_16)
         }
         /// Opens a record and rejects more than maximum fields.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:94:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:95:8` (module `neocogi.com.serialization`).
         ///
         ///Calls [`IDeserializer::begin_record`] through the generated COM ABI vtable.
         ///
@@ -1352,7 +1361,7 @@ const _: () = {
             ::core::result::Result::Ok(__nc_result_17)
         }
         /// Selects a named field in schema order; false means genuinely absent.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:96:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:97:8` (module `neocogi.com.serialization`).
         ///
         ///Calls [`IDeserializer::field`] through the generated COM ABI vtable.
         ///
@@ -1391,7 +1400,7 @@ const _: () = {
             ::core::result::Result::Ok(__nc_result_18)
         }
         /// Completes the record, rejecting unconsumed or unknown fields.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:98:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:99:8` (module `neocogi.com.serialization`).
         ///
         ///Calls [`IDeserializer::end_record`] through the generated COM ABI vtable.
         ///
@@ -1411,7 +1420,7 @@ const _: () = {
             ::core::result::Result::Ok(__nc_result_19)
         }
         /// Opens an ordered collection and reports its bounded element count.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:100:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:101:8` (module `neocogi.com.serialization`).
         ///
         ///Calls [`IDeserializer::begin_sequence`] through the generated COM ABI vtable.
         ///
@@ -1441,7 +1450,7 @@ const _: () = {
             ::core::result::Result::Ok(__nc_result_20)
         }
         /// Completes the collection, rejecting unconsumed elements.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:102:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:103:8` (module `neocogi.com.serialization`).
         ///
         ///Calls [`IDeserializer::end_sequence`] through the generated COM ABI vtable.
         ///
@@ -1461,7 +1470,7 @@ const _: () = {
             ::core::result::Result::Ok(__nc_result_21)
         }
         /// Opens a map and reports its bounded pair count.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:104:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:105:8` (module `neocogi.com.serialization`).
         ///
         ///Calls [`IDeserializer::begin_map`] through the generated COM ABI vtable.
         ///
@@ -1491,7 +1500,7 @@ const _: () = {
             ::core::result::Result::Ok(__nc_result_22)
         }
         /// Completes the map.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:106:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:107:8` (module `neocogi.com.serialization`).
         ///
         ///Calls [`IDeserializer::end_map`] through the generated COM ABI vtable.
         ///
@@ -1511,7 +1520,7 @@ const _: () = {
             ::core::result::Result::Ok(__nc_result_23)
         }
         /// Probes cases in declaration order; a match selects the following payload.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:108:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:109:8` (module `neocogi.com.serialization`).
         ///
         ///Calls [`IDeserializer::variant_is`] through the generated COM ABI vtable.
         ///
@@ -1553,29 +1562,34 @@ const _: () = {
             })?;
             ::core::result::Result::Ok(__nc_result_24)
         }
-        /// Marks a schema failure; no later operation may succeed.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:110:8` (module `neocogi.com.serialization`).
+        /// Records a failure reported by the typed caller and returns its status.
+        /// A failed session returns its first stored status.
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:112:8` (module `neocogi.com.serialization`).
         ///
         ///Calls [`IDeserializer::fail`] through the generated COM ABI vtable.
         ///
         ///This safe wrapper invokes the status-only raw vtable function.
         ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
+        ///- `status` is passed by value as `crate :: NcStatus`.
         ///- `message` is passed as a safe readable `:: core :: primitive :: u8` buffer plus offset.
         ///
         ///On success, returns `()`.
         pub fn fail(
             &mut self,
-            __nc_arg_0_3: crate::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
+            __nc_arg_0_3: crate::NcStatus,
+            __nc_arg_1_0: crate::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
         ) -> ::core::result::Result<(), crate::NcStatus> {
-            let __nc_arg_0_3 = crate::EncodedInput::new(__nc_arg_0_3)?;
+            let __nc_arg_0_3 = crate::encode_inline(&__nc_arg_0_3)?;
+            let __nc_arg_1_0 = crate::EncodedInput::new(__nc_arg_1_0)?;
             let __nc_this_25 = self.__nc_pointer.as_raw();
             let __nc_status_25 = unsafe {
                 ((*__nc_this_25.vtable)
                     .fail)(
                     __nc_this_25.object,
-                    __nc_arg_0_3.offset(),
-                    __nc_arg_0_3.len(),
-                    __nc_arg_0_3.as_ptr(),
+                    __nc_arg_0_3,
+                    __nc_arg_1_0.offset(),
+                    __nc_arg_1_0.len(),
+                    __nc_arg_1_0.as_ptr(),
                 )
             };
             if __nc_status_25.is_err() {
@@ -1585,7 +1599,7 @@ const _: () = {
             ::core::result::Result::Ok(__nc_result_25)
         }
         /// Requires a complete root with no trailing input and closes the session.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:112:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:114:8` (module `neocogi.com.serialization`).
         ///
         ///Calls [`IDeserializer::finish`] through the generated COM ABI vtable.
         ///
@@ -1609,7 +1623,7 @@ const _: () = {
 impl IDeserializerAbi {
     ///Canonical validation form of this interface's typed ABI contract.
     pub const ABI_SIGNATURE: crate::NcAbiDigest = crate::NcAbiDigest::from_static(
-        b":y\x02{\xA7\xF3\x07\x88K\xAE\x02oH\x18Q\xBDu\x0E\x86\xA1$t*\xF5\x84\x9D\xF0\xB7\xCF\xC6\xCF\xDF",
+        b"\xA5\xD0\xE0\x86\x8C\xE9w\xDB\xAB\x8D\xBA\x85\xA4\xF2OZ\xE5\xC6(R\x9F\xCD\xD6\xEA+rp\xDE\x7F}\x97L",
     );
     ///Static descriptors for this interface's ABI methods.
     pub const METHOD_DESCRIPTORS: [crate::NcMethodDescriptor; 27usize] = [
@@ -2007,8 +2021,17 @@ impl IDeserializerAbi {
         crate::NcMethodDescriptor {
             name: crate::NcStaticUtf8::from_static("fail"),
             receiver: crate::NC_ABI_RECEIVER_MUTABLE,
-            param_count: 1u32,
+            param_count: 2u32,
             params: (&[
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("status"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                        crate::NcAbiPassing::Value,
+                    ),
+                    ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                        crate::__nc_abi_type::<crate::NcStatus>(),
+                    ),
+                },
                 crate::NcMethodParamDescriptor {
                     name: crate::NcStaticUtf8::from_static("message"),
                     passing: crate::NcAbiPassingDescriptor::from_abi_passing(
@@ -2060,47 +2083,47 @@ impl IDeserializerAbi {
 impl IDeserializerAbi {
     #[doc(hidden)]
     pub const __NC_RUST_BINDING: [::core::primitive::u8; 32] = [
-        148u8, 162u8, 225u8, 93u8, 32u8, 42u8, 168u8, 163u8, 243u8, 166u8, 103u8, 55u8,
-        38u8, 237u8, 204u8, 246u8, 43u8, 74u8, 125u8, 132u8, 191u8, 23u8, 3u8, 193u8,
-        41u8, 200u8, 126u8, 202u8, 219u8, 130u8, 222u8, 245u8,
+        148u8, 249u8, 115u8, 251u8, 50u8, 245u8, 53u8, 20u8, 190u8, 218u8, 18u8, 217u8,
+        177u8, 220u8, 98u8, 173u8, 48u8, 196u8, 179u8, 131u8, 116u8, 211u8, 50u8, 46u8,
+        12u8, 69u8, 47u8, 182u8, 57u8, 140u8, 113u8, 144u8,
     ];
 }
 /// Immutable first-failure details on an owning serializer/deserializer session.
 /// Coordinates are optional: u64::MAX means no byte offset, zero means no line/column.
-/// IDL source: `neocogi/com/serialization/formats.ncidl:141:11` (module `neocogi.com.serialization`).
+/// IDL source: `neocogi/com/serialization/formats.ncidl:143:11` (module `neocogi.com.serialization`).
 pub trait ISerializationDiagnostics {
     /// Returns the original failed operation's status, as data.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:143:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:145:8` (module `neocogi.com.serialization`).
     fn failure_status(&self) -> ::core::result::Result<crate::NcStatus, crate::NcStatus>;
     /// Reports a zero-based byte cursor/offset, or u64::MAX when unavailable.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:145:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:147:8` (module `neocogi.com.serialization`).
     fn byte_offset(
         &self,
     ) -> ::core::result::Result<::core::primitive::u64, crate::NcStatus>;
     /// Reports a one-based source line, or zero when unavailable.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:147:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:149:8` (module `neocogi.com.serialization`).
     fn line(&self) -> ::core::result::Result<::core::primitive::u32, crate::NcStatus>;
     /// Reports a one-based source column, or zero when unavailable.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:149:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:151:8` (module `neocogi.com.serialization`).
     fn column(&self) -> ::core::result::Result<::core::primitive::u32, crate::NcStatus>;
     /// Reports the diagnostic message's UTF-8 byte length.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:151:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:153:8` (module `neocogi.com.serialization`).
     fn message_len(
         &self,
     ) -> ::core::result::Result<::core::primitive::u32, crate::NcStatus>;
     /// Copies the complete message to fresh output; short capacity writes no prefix.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:153:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:155:8` (module `neocogi.com.serialization`).
     fn copy_message(
         &self,
         output: crate::NcOutputWriter<'_, ::core::primitive::u8>,
     ) -> ::core::result::Result<::core::primitive::u32, crate::NcStatus>;
     /// Reports the logical field/index path's UTF-8 byte length.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:155:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:157:8` (module `neocogi.com.serialization`).
     fn path_len(
         &self,
     ) -> ::core::result::Result<::core::primitive::u32, crate::NcStatus>;
     /// Copies the complete logical path, rooted at $, into fresh output.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:157:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:159:8` (module `neocogi.com.serialization`).
     fn copy_path(
         &self,
         output: crate::NcOutputWriter<'_, ::core::primitive::u8>,
@@ -2114,7 +2137,7 @@ pub struct ISerializationDiagnosticsVTable {
     /// Common identity, query and reference-count slots.
     pub unknown: crate::IUnknownVTable,
     /// Returns the original failed operation's status, as data.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:143:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:145:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializationDiagnostics::failure_status`].
     ///
     ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
@@ -2133,7 +2156,7 @@ pub struct ISerializationDiagnosticsVTable {
         __nc_out: *mut <crate::NcStatus as crate::ComValue>::AbiRepr,
     ) -> crate::NcStatus,
     /// Reports a zero-based byte cursor/offset, or u64::MAX when unavailable.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:145:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:147:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializationDiagnostics::byte_offset`].
     ///
     ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
@@ -2152,7 +2175,7 @@ pub struct ISerializationDiagnosticsVTable {
         __nc_out: *mut <::core::primitive::u64 as crate::ComValue>::AbiRepr,
     ) -> crate::NcStatus,
     /// Reports a one-based source line, or zero when unavailable.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:147:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:149:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializationDiagnostics::line`].
     ///
     ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
@@ -2171,7 +2194,7 @@ pub struct ISerializationDiagnosticsVTable {
         __nc_out: *mut <::core::primitive::u32 as crate::ComValue>::AbiRepr,
     ) -> crate::NcStatus,
     /// Reports a one-based source column, or zero when unavailable.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:149:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:151:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializationDiagnostics::column`].
     ///
     ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
@@ -2190,7 +2213,7 @@ pub struct ISerializationDiagnosticsVTable {
         __nc_out: *mut <::core::primitive::u32 as crate::ComValue>::AbiRepr,
     ) -> crate::NcStatus,
     /// Reports the diagnostic message's UTF-8 byte length.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:151:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:153:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializationDiagnostics::message_len`].
     ///
     ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
@@ -2209,7 +2232,7 @@ pub struct ISerializationDiagnosticsVTable {
         __nc_out: *mut <::core::primitive::u32 as crate::ComValue>::AbiRepr,
     ) -> crate::NcStatus,
     /// Copies the complete message to fresh output; short capacity writes no prefix.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:153:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:155:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializationDiagnostics::copy_message`].
     ///
     ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
@@ -2233,7 +2256,7 @@ pub struct ISerializationDiagnosticsVTable {
         __nc_out: *mut <::core::primitive::u32 as crate::ComValue>::AbiRepr,
     ) -> crate::NcStatus,
     /// Reports the logical field/index path's UTF-8 byte length.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:155:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:157:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializationDiagnostics::path_len`].
     ///
     ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
@@ -2252,7 +2275,7 @@ pub struct ISerializationDiagnosticsVTable {
         __nc_out: *mut <::core::primitive::u32 as crate::ComValue>::AbiRepr,
     ) -> crate::NcStatus,
     /// Copies the complete logical path, rooted at $, into fresh output.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:157:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:159:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializationDiagnostics::copy_path`].
     ///
     ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
@@ -2365,7 +2388,7 @@ const _: () = {
         __NcThreading: crate::ThreadingModel,
     > ISerializationDiagnosticsWrapper<__NcThreading> {
         /// Returns the original failed operation's status, as data.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:143:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:145:8` (module `neocogi.com.serialization`).
         ///
         ///Calls [`ISerializationDiagnostics::failure_status`] through the generated COM ABI vtable.
         ///
@@ -2393,7 +2416,7 @@ const _: () = {
             ::core::result::Result::Ok(__nc_result_0)
         }
         /// Reports a zero-based byte cursor/offset, or u64::MAX when unavailable.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:145:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:147:8` (module `neocogi.com.serialization`).
         ///
         ///Calls [`ISerializationDiagnostics::byte_offset`] through the generated COM ABI vtable.
         ///
@@ -2423,7 +2446,7 @@ const _: () = {
             ::core::result::Result::Ok(__nc_result_1)
         }
         /// Reports a one-based source line, or zero when unavailable.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:147:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:149:8` (module `neocogi.com.serialization`).
         ///
         ///Calls [`ISerializationDiagnostics::line`] through the generated COM ABI vtable.
         ///
@@ -2452,7 +2475,7 @@ const _: () = {
             ::core::result::Result::Ok(__nc_result_2)
         }
         /// Reports a one-based source column, or zero when unavailable.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:149:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:151:8` (module `neocogi.com.serialization`).
         ///
         ///Calls [`ISerializationDiagnostics::column`] through the generated COM ABI vtable.
         ///
@@ -2482,7 +2505,7 @@ const _: () = {
             ::core::result::Result::Ok(__nc_result_3)
         }
         /// Reports the diagnostic message's UTF-8 byte length.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:151:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:153:8` (module `neocogi.com.serialization`).
         ///
         ///Calls [`ISerializationDiagnostics::message_len`] through the generated COM ABI vtable.
         ///
@@ -2512,7 +2535,7 @@ const _: () = {
             ::core::result::Result::Ok(__nc_result_4)
         }
         /// Copies the complete message to fresh output; short capacity writes no prefix.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:153:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:155:8` (module `neocogi.com.serialization`).
         ///
         ///Calls [`ISerializationDiagnostics::copy_message`] through the generated COM ABI vtable.
         ///
@@ -2554,7 +2577,7 @@ const _: () = {
             ::core::result::Result::Ok(__nc_result_5)
         }
         /// Reports the logical field/index path's UTF-8 byte length.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:155:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:157:8` (module `neocogi.com.serialization`).
         ///
         ///Calls [`ISerializationDiagnostics::path_len`] through the generated COM ABI vtable.
         ///
@@ -2584,7 +2607,7 @@ const _: () = {
             ::core::result::Result::Ok(__nc_result_6)
         }
         /// Copies the complete logical path, rooted at $, into fresh output.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:157:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:159:8` (module `neocogi.com.serialization`).
         ///
         ///Calls [`ISerializationDiagnostics::copy_path`] through the generated COM ABI vtable.
         ///
@@ -2630,7 +2653,7 @@ const _: () = {
 impl ISerializationDiagnosticsAbi {
     ///Canonical validation form of this interface's typed ABI contract.
     pub const ABI_SIGNATURE: crate::NcAbiDigest = crate::NcAbiDigest::from_static(
-        b"lB,/\x19r\r\xF0e\x9F\t\xCA?\xED\xC6\xA0\xF0jI\xD6\xB8\xA9\xDD\x0F\xA6>\xCC\xA7k\x9EI\xC6",
+        b"\x0F\x81\x04\xA5|\xFF\x88\xE1E;_\x91`\xFBa\xFB6\xC6\x9F\xBBa>\xA4\xF6\\Q+{(\xCD1\x9E",
     );
     ///Static descriptors for this interface's ABI methods.
     pub const METHOD_DESCRIPTORS: [crate::NcMethodDescriptor; 8usize] = [
@@ -2789,16 +2812,16 @@ impl ISerializationDiagnosticsAbi {
 impl ISerializationDiagnosticsAbi {
     #[doc(hidden)]
     pub const __NC_RUST_BINDING: [::core::primitive::u8; 32] = [
-        181u8, 109u8, 73u8, 146u8, 49u8, 167u8, 125u8, 199u8, 180u8, 49u8, 208u8, 195u8,
-        47u8, 132u8, 57u8, 115u8, 243u8, 62u8, 95u8, 35u8, 227u8, 121u8, 180u8, 31u8,
-        156u8, 152u8, 38u8, 55u8, 175u8, 50u8, 199u8, 178u8,
+        36u8, 194u8, 112u8, 196u8, 109u8, 187u8, 83u8, 170u8, 54u8, 36u8, 215u8, 49u8,
+        155u8, 222u8, 170u8, 237u8, 13u8, 21u8, 222u8, 182u8, 149u8, 194u8, 117u8, 85u8,
+        10u8, 40u8, 146u8, 238u8, 145u8, 69u8, 155u8, 213u8,
     ];
 }
 /// A format plugin's shared root; each document receives its own exclusive session.
-/// IDL source: `neocogi/com/serialization/formats.ncidl:124:11` (module `neocogi.com.serialization`).
+/// IDL source: `neocogi/com/serialization/formats.ncidl:126:11` (module `neocogi.com.serialization`).
 pub trait ISerializationFormat {
     /// Creates a bounded serializer with format-owned output storage.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:126:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:128:8` (module `neocogi.com.serialization`).
     fn create_serializer(
         &self,
         max_bytes: ::core::primitive::u64,
@@ -2807,7 +2830,7 @@ pub trait ISerializationFormat {
         max_values: ::core::primitive::u64,
     ) -> ::core::result::Result<crate::ComBox<self::ISerializerAbi>, crate::NcStatus>;
     /// Copies the complete borrowed document into a new bounded source session.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:128:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:130:8` (module `neocogi.com.serialization`).
     fn create_deserializer(
         &self,
         input: crate::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
@@ -2825,7 +2848,7 @@ pub struct ISerializationFormatVTable {
     /// Common identity, query and reference-count slots.
     pub unknown: crate::IUnknownVTable,
     /// Creates a bounded serializer with format-owned output storage.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:126:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:128:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializationFormat::create_serializer`].
     ///
     ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
@@ -2852,7 +2875,7 @@ pub struct ISerializationFormatVTable {
         __nc_out: *mut crate::ComRaw<self::ISerializerAbi>,
     ) -> crate::NcStatus,
     /// Copies the complete borrowed document into a new bounded source session.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:128:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:130:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializationFormat::create_deserializer`].
     ///
     ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
@@ -2988,7 +3011,7 @@ const _: () = {
         __NcThreading: crate::ThreadingModel,
     > ISerializationFormatWrapper<__NcThreading> {
         /// Creates a bounded serializer with format-owned output storage.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:126:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:128:8` (module `neocogi.com.serialization`).
         ///
         ///Calls [`ISerializationFormat::create_serializer`] through the generated COM ABI vtable.
         ///
@@ -3040,7 +3063,7 @@ const _: () = {
             ::core::result::Result::Ok(__nc_result_0)
         }
         /// Copies the complete borrowed document into a new bounded source session.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:128:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:130:8` (module `neocogi.com.serialization`).
         ///
         ///Calls [`ISerializationFormat::create_deserializer`] through the generated COM ABI vtable.
         ///
@@ -3102,7 +3125,7 @@ const _: () = {
 impl ISerializationFormatAbi {
     ///Canonical validation form of this interface's typed ABI contract.
     pub const ABI_SIGNATURE: crate::NcAbiDigest = crate::NcAbiDigest::from_static(
-        b"\r\x03np\xF2\xBB=}\0\xFF%\xBF\xFE\xC8\xC5\xA5\x13E]\xF1h3_\x96O\x1A\xCE\x89(b\x83\xFD",
+        b"Kq\xFC\xA5\x97V\xBA\xC45s\xE3\x93J\xFCf\xDB&\x01{\xF7\xA1Uy\xAC6\x1B\xBD\x17\x91\x1BJJ",
     );
     ///Static descriptors for this interface's ABI methods.
     pub const METHOD_DESCRIPTORS: [crate::NcMethodDescriptor; 2usize] = [
@@ -3240,21 +3263,21 @@ impl ISerializationFormatAbi {
 impl ISerializationFormatAbi {
     #[doc(hidden)]
     pub const __NC_RUST_BINDING: [::core::primitive::u8; 32] = [
-        201u8, 255u8, 31u8, 23u8, 212u8, 16u8, 2u8, 59u8, 114u8, 207u8, 32u8, 102u8,
-        136u8, 135u8, 253u8, 224u8, 212u8, 125u8, 211u8, 204u8, 199u8, 166u8, 229u8,
-        235u8, 25u8, 17u8, 191u8, 94u8, 80u8, 156u8, 10u8, 176u8,
+        168u8, 15u8, 194u8, 73u8, 135u8, 152u8, 80u8, 230u8, 180u8, 217u8, 159u8, 42u8,
+        255u8, 227u8, 105u8, 225u8, 90u8, 211u8, 107u8, 152u8, 82u8, 219u8, 196u8, 73u8,
+        79u8, 92u8, 126u8, 194u8, 169u8, 211u8, 154u8, 24u8,
     ];
 }
 /// Byte output of a completed serializer, independent of its document format.
-/// IDL source: `neocogi/com/serialization/formats.ncidl:116:11` (module `neocogi.com.serialization`).
+/// IDL source: `neocogi/com/serialization/formats.ncidl:118:11` (module `neocogi.com.serialization`).
 pub trait ISerializationOutput {
     /// Reports the complete document length after successful finish.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:118:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:120:8` (module `neocogi.com.serialization`).
     fn byte_len(
         &self,
     ) -> ::core::result::Result<::core::primitive::u64, crate::NcStatus>;
     /// Copies the complete document; insufficient capacity publishes no prefix.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:120:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:122:8` (module `neocogi.com.serialization`).
     fn copy_to(
         &self,
         output: crate::NcOutputWriter<'_, ::core::primitive::u8>,
@@ -3268,7 +3291,7 @@ pub struct ISerializationOutputVTable {
     /// Common identity, query and reference-count slots.
     pub unknown: crate::IUnknownVTable,
     /// Reports the complete document length after successful finish.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:118:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:120:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializationOutput::byte_len`].
     ///
     ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
@@ -3287,7 +3310,7 @@ pub struct ISerializationOutputVTable {
         __nc_out: *mut <::core::primitive::u64 as crate::ComValue>::AbiRepr,
     ) -> crate::NcStatus,
     /// Copies the complete document; insufficient capacity publishes no prefix.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:120:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:122:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializationOutput::copy_to`].
     ///
     ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
@@ -3380,7 +3403,7 @@ const _: () = {
         __NcThreading: crate::ThreadingModel,
     > ISerializationOutputWrapper<__NcThreading> {
         /// Reports the complete document length after successful finish.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:118:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:120:8` (module `neocogi.com.serialization`).
         ///
         ///Calls [`ISerializationOutput::byte_len`] through the generated COM ABI vtable.
         ///
@@ -3410,7 +3433,7 @@ const _: () = {
             ::core::result::Result::Ok(__nc_result_0)
         }
         /// Copies the complete document; insufficient capacity publishes no prefix.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:120:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:122:8` (module `neocogi.com.serialization`).
         ///
         ///Calls [`ISerializationOutput::copy_to`] through the generated COM ABI vtable.
         ///
@@ -3456,7 +3479,7 @@ const _: () = {
 impl ISerializationOutputAbi {
     ///Canonical validation form of this interface's typed ABI contract.
     pub const ABI_SIGNATURE: crate::NcAbiDigest = crate::NcAbiDigest::from_static(
-        b";\x88U\xD9)h\x7F\xB4\xDF\x1D\xC9`\x9C\xC2\xD2\xC9\x19Z\xB6\xDFRdg\"\xDD\x91\xF6\x10f\xCB4~",
+        b"\xC4\xB2\xE1\xA43\x84\xDB\xEE!\x99YB\x0C\x88h\x1B%Z\xF0\x90\xA3)M\xAC\xBB\x1B\xAC\x1Aa\xD2|\x19",
     );
     ///Static descriptors for this interface's ABI methods.
     pub const METHOD_DESCRIPTORS: [crate::NcMethodDescriptor; 2usize] = [
@@ -3520,16 +3543,16 @@ impl ISerializationOutputAbi {
 impl ISerializationOutputAbi {
     #[doc(hidden)]
     pub const __NC_RUST_BINDING: [::core::primitive::u8; 32] = [
-        12u8, 229u8, 14u8, 214u8, 199u8, 59u8, 146u8, 37u8, 114u8, 41u8, 114u8, 188u8,
-        168u8, 33u8, 2u8, 195u8, 158u8, 119u8, 122u8, 55u8, 35u8, 183u8, 7u8, 166u8,
-        105u8, 90u8, 130u8, 216u8, 241u8, 77u8, 166u8, 87u8,
+        194u8, 219u8, 47u8, 120u8, 22u8, 80u8, 3u8, 189u8, 46u8, 15u8, 163u8, 199u8,
+        212u8, 234u8, 212u8, 46u8, 126u8, 72u8, 239u8, 227u8, 131u8, 63u8, 132u8, 2u8,
+        231u8, 114u8, 214u8, 46u8, 119u8, 140u8, 159u8, 163u8,
     ];
 }
 /// One serialization plugin bundles its enabled codecs, with NCB always available.
-/// IDL source: `neocogi/com/serialization/formats.ncidl:132:11` (module `neocogi.com.serialization`).
+/// IDL source: `neocogi/com/serialization/formats.ncidl:134:11` (module `neocogi.com.serialization`).
 pub trait ISerializationPlugin {
     /// Returns the unconditional default NCB format factory.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:134:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:136:8` (module `neocogi.com.serialization`).
     fn default_format(
         &self,
     ) -> ::core::result::Result<
@@ -3537,7 +3560,7 @@ pub trait ISerializationPlugin {
         crate::NcStatus,
     >;
     /// Selects ncb or json; disabled and unknown names return NC_E_NOINTERFACE.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:136:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:138:8` (module `neocogi.com.serialization`).
     fn format(
         &self,
         name: crate::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
@@ -3554,7 +3577,7 @@ pub struct ISerializationPluginVTable {
     /// Common identity, query and reference-count slots.
     pub unknown: crate::IUnknownVTable,
     /// Returns the unconditional default NCB format factory.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:134:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:136:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializationPlugin::default_format`].
     ///
     ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
@@ -3573,7 +3596,7 @@ pub struct ISerializationPluginVTable {
         __nc_out: *mut crate::ComRaw<self::ISerializationFormatAbi>,
     ) -> crate::NcStatus,
     /// Selects ncb or json; disabled and unknown names return NC_E_NOINTERFACE.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:136:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:138:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializationPlugin::format`].
     ///
     ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
@@ -3665,7 +3688,7 @@ const _: () = {
         __NcThreading: crate::ThreadingModel,
     > ISerializationPluginWrapper<__NcThreading> {
         /// Returns the unconditional default NCB format factory.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:134:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:136:8` (module `neocogi.com.serialization`).
         ///
         ///Calls [`ISerializationPlugin::default_format`] through the generated COM ABI vtable.
         ///
@@ -3698,7 +3721,7 @@ const _: () = {
             ::core::result::Result::Ok(__nc_result_0)
         }
         /// Selects ncb or json; disabled and unknown names return NC_E_NOINTERFACE.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:136:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:138:8` (module `neocogi.com.serialization`).
         ///
         ///Calls [`ISerializationPlugin::format`] through the generated COM ABI vtable.
         ///
@@ -3744,7 +3767,7 @@ const _: () = {
 impl ISerializationPluginAbi {
     ///Canonical validation form of this interface's typed ABI contract.
     pub const ABI_SIGNATURE: crate::NcAbiDigest = crate::NcAbiDigest::from_static(
-        b"s\x81=#\xD1\x93\x1C\xA1A\t\xC5.\xDD\x13\t\"U\xFFCd-U\xB1\x1F\xB7\xEC\x84!\xC0\xCC0\xCD",
+        b"\xA8i\x99\xE6\xF4\xEE:X3\xDBl\x84\xEAH\x06\xF6EJD\x05{\xF9+\x86,:>)\x91\x80\xD1s",
     );
     ///Static descriptors for this interface's ABI methods.
     pub const METHOD_DESCRIPTORS: [crate::NcMethodDescriptor; 2usize] = [
@@ -3808,9 +3831,9 @@ impl ISerializationPluginAbi {
 impl ISerializationPluginAbi {
     #[doc(hidden)]
     pub const __NC_RUST_BINDING: [::core::primitive::u8; 32] = [
-        84u8, 28u8, 150u8, 204u8, 74u8, 145u8, 208u8, 20u8, 96u8, 145u8, 116u8, 131u8,
-        104u8, 194u8, 160u8, 73u8, 48u8, 38u8, 181u8, 155u8, 236u8, 115u8, 112u8, 144u8,
-        238u8, 240u8, 2u8, 173u8, 10u8, 70u8, 216u8, 181u8,
+        236u8, 196u8, 0u8, 62u8, 146u8, 222u8, 26u8, 210u8, 75u8, 136u8, 119u8, 177u8,
+        247u8, 107u8, 13u8, 172u8, 235u8, 18u8, 14u8, 75u8, 98u8, 126u8, 74u8, 154u8,
+        157u8, 102u8, 114u8, 224u8, 248u8, 211u8, 246u8, 184u8,
     ];
 }
 /// A mutable format session. Failures poison it; finish commits one complete document.
@@ -3943,14 +3966,16 @@ pub trait ISerializer {
     /// Completes the selected case and its optional payload.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:50:8` (module `neocogi.com.serialization`).
     fn end_variant(&mut self) -> ::core::result::Result<(), crate::NcStatus>;
-    /// Marks a schema failure; no later operation may succeed.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:52:8` (module `neocogi.com.serialization`).
+    /// Records a failure reported by the typed caller and returns its status.
+    /// A failed session returns its first stored status.
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:53:8` (module `neocogi.com.serialization`).
     fn fail(
         &mut self,
+        status: crate::NcStatus,
         message: crate::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
     ) -> ::core::result::Result<(), crate::NcStatus>;
     /// Commits a complete document; repeated finish and further writes fail.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:54:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:55:8` (module `neocogi.com.serialization`).
     fn finish(&mut self) -> ::core::result::Result<(), crate::NcStatus>;
 }
 ///Interface marker for [`ISerializer`]; handles carry its object/table pair.
@@ -4436,8 +4461,9 @@ pub struct ISerializerVTable {
     pub end_variant: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
     ) -> crate::NcStatus,
-    /// Marks a schema failure; no later operation may succeed.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:52:8` (module `neocogi.com.serialization`).
+    /// Records a failure reported by the typed caller and returns its status.
+    /// A failed session returns its first stored status.
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:53:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializer::fail`].
     ///
     ///Returns `NcStatus`; success is represented by the returned status and there is no `out` pointer.
@@ -4445,6 +4471,7 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table.
+    ///- `status` uses ABI storage `< crate :: NcStatus as crate :: ComValue > :: AbiRepr` for `crate :: NcStatus`. Passed by value.
     ///- `message` uses ABI storage `* const < :: core :: primitive :: u8 as crate :: ComValue > :: AbiRepr` for `crate :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
     ///
     ///On success, no output value is written.
@@ -4454,12 +4481,13 @@ pub struct ISerializerVTable {
     )]
     pub fail: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
-        __nc_arg_0_17_offset: ::core::primitive::u64,
-        __nc_arg_0_17_len: ::core::primitive::u64,
-        __nc_arg_0_17_ptr: *const <::core::primitive::u8 as crate::ComValue>::AbiRepr,
+        __nc_arg_0_17: <crate::NcStatus as crate::ComValue>::AbiRepr,
+        __nc_arg_1_0_offset: ::core::primitive::u64,
+        __nc_arg_1_0_len: ::core::primitive::u64,
+        __nc_arg_1_0_ptr: *const <::core::primitive::u8 as crate::ComValue>::AbiRepr,
     ) -> crate::NcStatus,
     /// Commits a complete document; repeated finish and further writes fail.
-    /// IDL source: `neocogi/com/serialization/formats.ncidl:54:8` (module `neocogi.com.serialization`).
+    /// IDL source: `neocogi/com/serialization/formats.ncidl:55:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializer::finish`].
     ///
     ///Returns `NcStatus`; success is represented by the returned status and there is no `out` pointer.
@@ -4619,13 +4647,17 @@ const _: () = {
         identity as __nc_arg_0_17_owner_original, identity as __nc_arg_0_17_offset,
         identity as __nc_arg_0_17_len, identity as __nc_arg_0_17_ptr,
         identity as __nc_arg_0_17_values, identity as __nc_arg_0_17_written,
-        identity as __nc_this, identity as __nc_status, identity as __nc_value,
-        identity as __nc_raw, identity as __nc_result, identity as __nc_values,
-        identity as __nc_writer, identity as __nc_out, identity as __nc_scoped_context,
-        identity as __nc_scoped_callback, identity as __nc_identity,
-        identity as __nc_this_0, identity as __nc_status_0, identity as __nc_result_0,
-        identity as __nc_prepared, identity as __nc_out_0, identity as __nc_this_1,
-        identity as __nc_status_1, identity as __nc_result_1,
+        identity as __nc_arg_1_0, identity as __nc_arg_1_0_owner_slot,
+        identity as __nc_arg_1_0_owner_table, identity as __nc_arg_1_0_owner_original,
+        identity as __nc_arg_1_0_offset, identity as __nc_arg_1_0_len,
+        identity as __nc_arg_1_0_ptr, identity as __nc_arg_1_0_values,
+        identity as __nc_arg_1_0_written, identity as __nc_this, identity as __nc_status,
+        identity as __nc_value, identity as __nc_raw, identity as __nc_result,
+        identity as __nc_values, identity as __nc_writer, identity as __nc_out,
+        identity as __nc_scoped_context, identity as __nc_scoped_callback,
+        identity as __nc_identity, identity as __nc_this_0, identity as __nc_status_0,
+        identity as __nc_result_0, identity as __nc_prepared, identity as __nc_out_0,
+        identity as __nc_this_1, identity as __nc_status_1, identity as __nc_result_1,
         identity as __nc_prepared_0, identity as __nc_out_1, identity as __nc_this_2,
         identity as __nc_status_2, identity as __nc_result_2,
         identity as __nc_prepared_1, identity as __nc_out_2, identity as __nc_this_3,
@@ -5270,29 +5302,34 @@ const _: () = {
             let __nc_result_23 = ();
             ::core::result::Result::Ok(__nc_result_23)
         }
-        /// Marks a schema failure; no later operation may succeed.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:52:8` (module `neocogi.com.serialization`).
+        /// Records a failure reported by the typed caller and returns its status.
+        /// A failed session returns its first stored status.
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:53:8` (module `neocogi.com.serialization`).
         ///
         ///Calls [`ISerializer::fail`] through the generated COM ABI vtable.
         ///
         ///This safe wrapper invokes the status-only raw vtable function.
         ///Call errors remain visible. Generated Rust thunks normalize non-negative `Result::Err` values to `NC_E_INVALID_ARG`.
+        ///- `status` is passed by value as `crate :: NcStatus`.
         ///- `message` is passed as a safe readable `:: core :: primitive :: u8` buffer plus offset.
         ///
         ///On success, returns `()`.
         pub fn fail(
             &mut self,
-            __nc_arg_0_17: crate::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
+            __nc_arg_0_17: crate::NcStatus,
+            __nc_arg_1_0: crate::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
         ) -> ::core::result::Result<(), crate::NcStatus> {
-            let __nc_arg_0_17 = crate::EncodedInput::new(__nc_arg_0_17)?;
+            let __nc_arg_0_17 = crate::encode_inline(&__nc_arg_0_17)?;
+            let __nc_arg_1_0 = crate::EncodedInput::new(__nc_arg_1_0)?;
             let __nc_this_24 = self.__nc_pointer.as_raw();
             let __nc_status_24 = unsafe {
                 ((*__nc_this_24.vtable)
                     .fail)(
                     __nc_this_24.object,
-                    __nc_arg_0_17.offset(),
-                    __nc_arg_0_17.len(),
-                    __nc_arg_0_17.as_ptr(),
+                    __nc_arg_0_17,
+                    __nc_arg_1_0.offset(),
+                    __nc_arg_1_0.len(),
+                    __nc_arg_1_0.as_ptr(),
                 )
             };
             if __nc_status_24.is_err() {
@@ -5302,7 +5339,7 @@ const _: () = {
             ::core::result::Result::Ok(__nc_result_24)
         }
         /// Commits a complete document; repeated finish and further writes fail.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:54:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:55:8` (module `neocogi.com.serialization`).
         ///
         ///Calls [`ISerializer::finish`] through the generated COM ABI vtable.
         ///
@@ -5326,7 +5363,7 @@ const _: () = {
 impl ISerializerAbi {
     ///Canonical validation form of this interface's typed ABI contract.
     pub const ABI_SIGNATURE: crate::NcAbiDigest = crate::NcAbiDigest::from_static(
-        b"\xDE\0GEMQ\x1B\xEF\xAC\x05\xAE6#\xF2z\xA7\x186G\xB4\x8D\x9A\xDB\x98\x1C\xEB\xA4\x19\x0C\x14BJ",
+        b"{\xC3V\xF0\x1E\x144\x93&\x99\xD4,h\xE4e\xBC\xA7\x1E\xAEE\xF0\x13(\xCB\xFB\x99e\xE47\x8D-T",
     );
     ///Static descriptors for this interface's ABI methods.
     pub const METHOD_DESCRIPTORS: [crate::NcMethodDescriptor; 26usize] = [
@@ -5828,8 +5865,17 @@ impl ISerializerAbi {
         crate::NcMethodDescriptor {
             name: crate::NcStaticUtf8::from_static("fail"),
             receiver: crate::NC_ABI_RECEIVER_MUTABLE,
-            param_count: 1u32,
+            param_count: 2u32,
             params: (&[
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("status"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                        crate::NcAbiPassing::Value,
+                    ),
+                    ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                        crate::__nc_abi_type::<crate::NcStatus>(),
+                    ),
+                },
                 crate::NcMethodParamDescriptor {
                     name: crate::NcStaticUtf8::from_static("message"),
                     passing: crate::NcAbiPassingDescriptor::from_abi_passing(
@@ -5881,8 +5927,8 @@ impl ISerializerAbi {
 impl ISerializerAbi {
     #[doc(hidden)]
     pub const __NC_RUST_BINDING: [::core::primitive::u8; 32] = [
-        237u8, 150u8, 198u8, 76u8, 228u8, 106u8, 8u8, 36u8, 82u8, 18u8, 55u8, 197u8, 9u8,
-        65u8, 34u8, 128u8, 80u8, 232u8, 80u8, 133u8, 37u8, 217u8, 80u8, 39u8, 54u8,
-        157u8, 164u8, 189u8, 52u8, 234u8, 143u8, 11u8,
+        234u8, 104u8, 175u8, 117u8, 207u8, 230u8, 120u8, 216u8, 89u8, 119u8, 136u8,
+        130u8, 204u8, 169u8, 125u8, 154u8, 219u8, 117u8, 96u8, 84u8, 171u8, 208u8, 234u8,
+        120u8, 85u8, 49u8, 221u8, 68u8, 41u8, 98u8, 134u8, 56u8,
     ];
 }

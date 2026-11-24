@@ -30,7 +30,7 @@ v2 with runtime and descriptor family 2, core generation 19, and
 `nc_get_plugin_descriptor_v2`. SDK `0.4.0` uses provisional ABI v3 with runtime
 and descriptor family 3, core generation 21, and
 `nc_get_plugin_descriptor_v3`. The development candidate uses provisional ABI
-v4 with family 4, core generation 22, and `nc_get_plugin_descriptor_v4`.
+v4 with family 4, core generation 23, and `nc_get_plugin_descriptor_v4`.
 Deploy hosts, providers and generated bindings from one SDK revision. Current
 hosts reject older libraries before acquisition. Interface signatures, IDL encoding
 and NCB persistence format have their own authorities in the

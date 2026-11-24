@@ -26,11 +26,12 @@ use crate::signature::NcAbiDigest;
 /// Layouts and callbacks may evolve before release freeze, with coherent
 /// generation/admission changes to reject incompatible binaries.
 ///
-/// Generation 22 establishes shared backing for the host's persistence inputs.
-/// The typed lifetime layouts and metadata established by core 21 carry forward.
+/// Generation 23 carries the originating status in serializer and deserializer
+/// failure slots. Shared persistence inputs use the declared backing contract
+/// established by core 22, and retain core 21's typed lifetime storage.
 /// Older cores are rejected before interpreting a complete descriptor or service graph.
 /// Runtime and descriptor discovery separately select family 4.
-pub const NC_COM_CORE_ABI_VERSION: u32 = 22;
+pub const NC_COM_CORE_ABI_VERSION: u32 = 23;
 
 /// Stable identity for one COM interface ABI contract.
 ///

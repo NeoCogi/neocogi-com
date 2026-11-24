@@ -205,6 +205,135 @@ fn failures_report_their_message_and_location() {
         assert_eq!(source.query_ref::<ISerializationDiagnosticsAbi>().unwrap().failure_status().unwrap(), status);
     }
 }
+
+/// Explicit failure reporting preserves the first status and location across
+/// owning serializer and source calls, even when the later diagnostic is invalid.
+#[test]
+fn owning_sessions_keep_the_first_origin_status() {
+    use neocogi_com_sdk::{NC_E_INVALID_ARG, NC_E_NOT_FOUND, NC_E_OUT_OF_RANGE, NC_OK, NcStatus};
+    use neocogi_com_sdk::serialization::{Deserializer, Error, ISerializationDiagnosticsAbi, ISerializationOutputAbi, Serializer};
+
+    let custom = NcStatus::from_code(-731);
+    let malformed = NcCopyFromBufferOffset::new(1, b"\xff");
+    for (name, format) in formats() {
+        let bytes = format.serialize(&17_u8).unwrap();
+        for (status, message, expected) in [
+            (custom, NcCopyFromBufferOffset::new(0, b"application failure"), custom),
+            (NC_OK, NcCopyFromBufferOffset::new(0, b"application failure"), NC_E_INVALID_ARG),
+            (NC_E_OUT_OF_RANGE, NcCopyFromBufferOffset::new(1, b"valid text"), NC_E_INVALID_ARG),
+            (NC_E_NOT_FOUND, NcCopyFromBufferOffset::new(0, b"\xff"), NC_E_INVALID_ARG),
+        ] {
+            let mut writer = format.serializer().unwrap();
+            assert_eq!(writer.fail(status, message), Err(expected), "{name}");
+            let first = Error::capture(expected, &writer);
+            assert_eq!(writer.query_ref::<ISerializationDiagnosticsAbi>().unwrap().failure_status(), Ok(expected));
+            assert_eq!(writer.fail(NC_E_NOT_FOUND, malformed), Err(expected));
+            assert_eq!(writer.finish(), Err(expected));
+            assert_eq!(Error::capture(expected, &writer), first);
+            assert_eq!(writer.query_ref::<ISerializationOutputAbi>().unwrap().byte_len(), Err(NC_E_INVALID_ARG));
+
+            let mut reader = format.deserializer(&bytes).unwrap();
+            assert_eq!(reader.fail(status, message), Err(expected), "{name}");
+            let first = Error::capture(expected, &reader);
+            assert_eq!(reader.query_ref::<ISerializationDiagnosticsAbi>().unwrap().failure_status(), Ok(expected));
+            assert_eq!(reader.fail(NC_E_NOT_FOUND, malformed), Err(expected));
+            assert_eq!(reader.finish(), Err(expected));
+            assert_eq!(Error::capture(expected, &reader), first);
+            if status == custom {
+                assert_eq!(first.message, "application failure");
+                assert_eq!(first.path, "$");
+            }
+        }
+
+        let mut writer = format.serializer().unwrap();
+        Serializer::new(writer.as_com_mut()).serialize(&17_u8).unwrap();
+        assert_eq!(writer.fail(custom, malformed), Err(NC_E_INVALID_ARG));
+        assert_eq!(
+            writer.query_ref::<ISerializationDiagnosticsAbi>().unwrap().failure_status(),
+            Err(NC_E_INVALID_ARG)
+        );
+        assert_eq!(writer.query_ref::<ISerializationOutputAbi>().unwrap().byte_len(), Ok(bytes.len() as u64));
+
+        let mut reader = format.deserializer(&bytes).unwrap();
+        assert_eq!(Deserializer::new(reader.as_com_mut()).deserialize::<u8>(), Ok(17));
+        assert_eq!(reader.fail(custom, malformed), Err(NC_E_INVALID_ARG));
+        assert_eq!(
+            reader.query_ref::<ISerializationDiagnosticsAbi>().unwrap().failure_status(),
+            Err(NC_E_INVALID_ARG)
+        );
+
+        let mut writer = format.serializer().unwrap();
+        let status = writer.finish().unwrap_err();
+        let first = Error::capture(status, &writer);
+        assert_eq!(writer.fail(custom, malformed), Err(status));
+        assert_eq!(Error::capture(status, &writer), first);
+
+        let mut reader = format.deserializer(&bytes).unwrap();
+        reader.enter_value().unwrap();
+        let status = reader.deserialize_bool().unwrap_err();
+        let first = Error::capture(status, &reader);
+        assert_eq!(reader.fail(custom, malformed), Err(status));
+        assert_eq!(Error::capture(status, &reader), first);
+    }
+}
+
+/// The typed caller's resource and application errors have the same status as
+/// terminal diagnostics from either built-in format.
+#[test]
+fn typed_failures_agree_with_both_codec_diagnostics() {
+    use neocogi_com_sdk::{NC_E_OUT_OF_RANGE, NcStatus};
+    use neocogi_com_sdk::serialization::{Deserializer, Error, ISerializationDiagnosticsAbi, Serializer};
+
+    const CUSTOM: NcStatus = NcStatus::from_code(-731);
+    #[derive(Debug)]
+    struct Fails;
+    impl ComSerialize for Fails {
+        fn com_serialize(&self, _: &mut Serializer<'_>) -> Result<(), NcStatus> {
+            Err(CUSTOM)
+        }
+    }
+    impl ComDeserialize for Fails {
+        fn com_deserialize(_: &mut Deserializer<'_>) -> Result<Self, NcStatus> {
+            Err(CUSTOM)
+        }
+    }
+
+    for (_, format) in formats() {
+        let bytes = format.serialize(&[1_u8, 2]).unwrap();
+        let mut reader = format.deserializer(&bytes).unwrap();
+        let limits = Limits { elements: 1, ..Limits::default() };
+        assert_eq!(
+            Deserializer::with_limits(reader.as_com_mut(), limits).deserialize::<Vec<u8>>(),
+            Err(NC_E_OUT_OF_RANGE)
+        );
+        assert_eq!(
+            reader.query_ref::<ISerializationDiagnosticsAbi>().unwrap().failure_status(),
+            Ok(NC_E_OUT_OF_RANGE)
+        );
+        assert_eq!(Error::capture(NC_E_OUT_OF_RANGE, &reader).message, "collection element limit");
+
+        let bytes = format.serialize("bound").unwrap();
+        let mut reader = format.deserializer(&bytes).unwrap();
+        let limits = Limits { bytes: 4, ..Limits::default() };
+        assert_eq!(
+            Deserializer::with_limits(reader.as_com_mut(), limits).deserialize::<String>(),
+            Err(NC_E_OUT_OF_RANGE)
+        );
+        assert_eq!(
+            reader.query_ref::<ISerializationDiagnosticsAbi>().unwrap().failure_status(),
+            Ok(NC_E_OUT_OF_RANGE)
+        );
+        assert_eq!(Error::capture(NC_E_OUT_OF_RANGE, &reader).message, "document byte limit");
+
+        let bytes = format.serialize(&17_u8).unwrap();
+        let error = format.deserialize::<Fails>(&bytes).unwrap_err();
+        assert_eq!(error.status, CUSTOM);
+        assert_eq!(error.message, "invalid persistent value");
+        let error = format.serialize(&Fails).unwrap_err();
+        assert_eq!(error.status, CUSTOM);
+        assert_eq!(error.message, "invalid persistent value");
+    }
+}
 /// Schema failures identify the actual nested field/index without formatting or
 /// allocating a path string for successful scalar operations.
 #[derive(Debug, ComDeserialize)]

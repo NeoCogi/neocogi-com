@@ -43,9 +43,9 @@ pub type NcPersistenceWriteBytesV4 = unsafe extern "C" fn(user_data: *mut c_void
 
 /// Size-prefixed persistence table admitted through the host API description.
 ///
-/// Table admission establishes ABI v4/core-generation-22 compatibility,
-/// not serialization-provider availability. Callers still owe the host API's
-/// backing and lifetime guarantees. The application must explicitly
+/// The v4 host checks this table's size and [`crate::NC_COM_CORE_ABI_VERSION`]
+/// during admission. Callers still owe the host API's backing and lifetime
+/// guarantees. The application must explicitly
 /// register or load `nc.serialization` in this host's catalog before snapshot
 /// or restore. Each operation acquires its root and requests named `ncb`;
 /// the provider's default format is irrelevant. No codec is registered or loaded

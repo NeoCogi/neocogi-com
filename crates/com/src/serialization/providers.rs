@@ -39,13 +39,17 @@ const _: () = {
         identity as __nc_arg_0_3_owner_original, identity as __nc_arg_0_3_offset,
         identity as __nc_arg_0_3_len, identity as __nc_arg_0_3_ptr,
         identity as __nc_arg_0_3_values, identity as __nc_arg_0_3_written,
-        identity as __nc_this, identity as __nc_status, identity as __nc_value,
-        identity as __nc_raw, identity as __nc_result, identity as __nc_values,
-        identity as __nc_writer, identity as __nc_out, identity as __nc_scoped_context,
-        identity as __nc_scoped_callback, identity as __nc_identity,
-        identity as __nc_this_0, identity as __nc_status_0, identity as __nc_result_0,
-        identity as __nc_prepared, identity as __nc_out_0, identity as __nc_this_1,
-        identity as __nc_status_1, identity as __nc_result_1,
+        identity as __nc_arg_1_0, identity as __nc_arg_1_0_owner_slot,
+        identity as __nc_arg_1_0_owner_table, identity as __nc_arg_1_0_owner_original,
+        identity as __nc_arg_1_0_offset, identity as __nc_arg_1_0_len,
+        identity as __nc_arg_1_0_ptr, identity as __nc_arg_1_0_values,
+        identity as __nc_arg_1_0_written, identity as __nc_this, identity as __nc_status,
+        identity as __nc_value, identity as __nc_raw, identity as __nc_result,
+        identity as __nc_values, identity as __nc_writer, identity as __nc_out,
+        identity as __nc_scoped_context, identity as __nc_scoped_callback,
+        identity as __nc_identity, identity as __nc_this_0, identity as __nc_status_0,
+        identity as __nc_result_0, identity as __nc_prepared, identity as __nc_out_0,
+        identity as __nc_this_1, identity as __nc_status_1, identity as __nc_result_1,
         identity as __nc_prepared_0, identity as __nc_out_1, identity as __nc_this_2,
         identity as __nc_status_2, identity as __nc_result_2,
         identity as __nc_prepared_1, identity as __nc_out_2, identity as __nc_this_3,
@@ -160,7 +164,7 @@ const _: () = {
             }
         }
         /// Opens one typed value, charging nesting and construction limits.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:60:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:61:8` (module `neocogi.com.serialization`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
         /// Owned results transfer after release of the receiver guard. Scoped
@@ -195,7 +199,7 @@ const _: () = {
             }
         }
         /// Completes the current typed value after its children have been consumed.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:62:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:63:8` (module `neocogi.com.serialization`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
         /// Owned results transfer after release of the receiver guard. Scoped
@@ -230,7 +234,7 @@ const _: () = {
             }
         }
         /// Reads a unit value.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:64:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:65:8` (module `neocogi.com.serialization`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
         /// Owned results transfer after release of the receiver guard. Scoped
@@ -265,7 +269,7 @@ const _: () = {
             }
         }
         /// Acquires one validated bool value.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:66:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:67:8` (module `neocogi.com.serialization`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
         /// Owned results transfer after release of the receiver guard. Scoped
@@ -310,7 +314,7 @@ const _: () = {
             }
         }
         /// Acquires one validated u8 value.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:68:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:69:8` (module `neocogi.com.serialization`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
         /// Owned results transfer after release of the receiver guard. Scoped
@@ -355,7 +359,7 @@ const _: () = {
             }
         }
         /// Acquires one validated u16 value.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:70:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:71:8` (module `neocogi.com.serialization`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
         /// Owned results transfer after release of the receiver guard. Scoped
@@ -400,7 +404,7 @@ const _: () = {
             }
         }
         /// Acquires one validated u32 value.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:72:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:73:8` (module `neocogi.com.serialization`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
         /// Owned results transfer after release of the receiver guard. Scoped
@@ -445,7 +449,7 @@ const _: () = {
             }
         }
         /// Acquires one validated u64 value.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:74:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:75:8` (module `neocogi.com.serialization`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
         /// Owned results transfer after release of the receiver guard. Scoped
@@ -490,7 +494,7 @@ const _: () = {
             }
         }
         /// Acquires one validated i8 value.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:76:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:77:8` (module `neocogi.com.serialization`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
         /// Owned results transfer after release of the receiver guard. Scoped
@@ -535,7 +539,7 @@ const _: () = {
             }
         }
         /// Acquires one validated i16 value.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:78:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:79:8` (module `neocogi.com.serialization`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
         /// Owned results transfer after release of the receiver guard. Scoped
@@ -580,7 +584,7 @@ const _: () = {
             }
         }
         /// Acquires one validated i32 value.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:80:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:81:8` (module `neocogi.com.serialization`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
         /// Owned results transfer after release of the receiver guard. Scoped
@@ -625,7 +629,7 @@ const _: () = {
             }
         }
         /// Acquires one validated i64 value.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:82:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:83:8` (module `neocogi.com.serialization`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
         /// Owned results transfer after release of the receiver guard. Scoped
@@ -670,7 +674,7 @@ const _: () = {
             }
         }
         /// Acquires one validated f32 value.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:84:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:85:8` (module `neocogi.com.serialization`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
         /// Owned results transfer after release of the receiver guard. Scoped
@@ -715,7 +719,7 @@ const _: () = {
             }
         }
         /// Acquires one validated f64 value.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:86:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:87:8` (module `neocogi.com.serialization`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
         /// Owned results transfer after release of the receiver guard. Scoped
@@ -760,7 +764,7 @@ const _: () = {
             }
         }
         /// Admits a complete UTF-8 string and reports its byte length before allocation.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:88:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:89:8` (module `neocogi.com.serialization`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
         /// Owned results transfer after release of the receiver guard. Scoped
@@ -805,7 +809,7 @@ const _: () = {
             }
         }
         /// Copies exactly the admitted string into fresh caller-owned output.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:90:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:91:8` (module `neocogi.com.serialization`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
         /// Owned results transfer after release of the receiver guard. Scoped
@@ -881,7 +885,7 @@ const _: () = {
             }
         }
         /// Reads optional presence; a present child follows within this value scope.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:92:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:93:8` (module `neocogi.com.serialization`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
         /// Owned results transfer after release of the receiver guard. Scoped
@@ -926,7 +930,7 @@ const _: () = {
             }
         }
         /// Opens a record and rejects more than maximum fields.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:94:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:95:8` (module `neocogi.com.serialization`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
         /// Owned results transfer after release of the receiver guard. Scoped
@@ -979,7 +983,7 @@ const _: () = {
             }
         }
         /// Selects a named field in schema order; false means genuinely absent.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:96:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:97:8` (module `neocogi.com.serialization`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
         /// Owned results transfer after release of the receiver guard. Scoped
@@ -1040,7 +1044,7 @@ const _: () = {
             }
         }
         /// Completes the record, rejecting unconsumed or unknown fields.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:98:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:99:8` (module `neocogi.com.serialization`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
         /// Owned results transfer after release of the receiver guard. Scoped
@@ -1075,7 +1079,7 @@ const _: () = {
             }
         }
         /// Opens an ordered collection and reports its bounded element count.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:100:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:101:8` (module `neocogi.com.serialization`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
         /// Owned results transfer after release of the receiver guard. Scoped
@@ -1120,7 +1124,7 @@ const _: () = {
             }
         }
         /// Completes the collection, rejecting unconsumed elements.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:102:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:103:8` (module `neocogi.com.serialization`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
         /// Owned results transfer after release of the receiver guard. Scoped
@@ -1155,7 +1159,7 @@ const _: () = {
             }
         }
         /// Opens a map and reports its bounded pair count.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:104:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:105:8` (module `neocogi.com.serialization`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
         /// Owned results transfer after release of the receiver guard. Scoped
@@ -1200,7 +1204,7 @@ const _: () = {
             }
         }
         /// Completes the map.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:106:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:107:8` (module `neocogi.com.serialization`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
         /// Owned results transfer after release of the receiver guard. Scoped
@@ -1235,7 +1239,7 @@ const _: () = {
             }
         }
         /// Probes cases in declaration order; a match selects the following payload.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:108:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:109:8` (module `neocogi.com.serialization`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
         /// Owned results transfer after release of the receiver guard. Scoped
@@ -1303,8 +1307,9 @@ const _: () = {
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
         }
-        /// Marks a schema failure; no later operation may succeed.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:110:8` (module `neocogi.com.serialization`).
+        /// Records a failure reported by the typed caller and returns its status.
+        /// A failed session returns its first stored status.
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:112:8` (module `neocogi.com.serialization`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
         /// Owned results transfer after release of the receiver guard. Scoped
@@ -1315,9 +1320,10 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn fail_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_arg_0_3_offset: ::core::primitive::u64,
-            __nc_arg_0_3_len: ::core::primitive::u64,
-            __nc_arg_0_3_ptr: *const <::core::primitive::u8 as crate::ComValue>::AbiRepr,
+            __nc_arg_0_3: <crate::NcStatus as crate::ComValue>::AbiRepr,
+            __nc_arg_1_0_offset: ::core::primitive::u64,
+            __nc_arg_1_0_len: ::core::primitive::u64,
+            __nc_arg_1_0_ptr: *const <::core::primitive::u8 as crate::ComValue>::AbiRepr,
         ) -> crate::NcStatus {
             if __nc_this.is_null() {
                 return crate::NC_E_POINTER;
@@ -1326,17 +1332,23 @@ const _: () = {
             if __nc_dispatch_object.is_null() {
                 return crate::NC_E_POINTER;
             }
-            let __nc_arg_0_3_values = match unsafe {
+            let __nc_arg_0_3 = match unsafe {
+                crate::decode_inline::<crate::NcStatus>(&__nc_arg_0_3)
+            } {
+                ::core::result::Result::Ok(__nc_value) => __nc_value,
+                ::core::result::Result::Err(__nc_status) => return __nc_status,
+            };
+            let __nc_arg_1_0_values = match unsafe {
                 crate::DecodedInput::<
                     ::core::primitive::u8,
-                >::from_raw(__nc_arg_0_3_ptr, __nc_arg_0_3_len)
+                >::from_raw(__nc_arg_1_0_ptr, __nc_arg_1_0_len)
             } {
                 ::core::result::Result::Ok(__nc_values) => __nc_values,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
-            let __nc_arg_0_3 = crate::NcCopyFromBufferOffset::new(
-                __nc_arg_0_3_offset,
-                __nc_arg_0_3_values.as_slice(),
+            let __nc_arg_1_0 = crate::NcCopyFromBufferOffset::new(
+                __nc_arg_1_0_offset,
+                __nc_arg_1_0_values.as_slice(),
             );
             let mut __nc_dispatch_value = match unsafe {
                 <__NcProvider as crate::ComObject>::borrow_abi_mut(__nc_dispatch_object)
@@ -1347,6 +1359,7 @@ const _: () = {
             let __nc_result = <__NcProvider as IDeserializer>::fail(
                 &mut *__nc_dispatch_value,
                 __nc_arg_0_3,
+                __nc_arg_1_0,
             );
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
@@ -1355,7 +1368,7 @@ const _: () = {
             }
         }
         /// Requires a complete root with no trailing input and closes the session.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:112:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:114:8` (module `neocogi.com.serialization`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
         /// Owned results transfer after release of the receiver guard. Scoped
@@ -1474,7 +1487,7 @@ const _: () = {
             }
         }
         /// Returns the original failed operation's status, as data.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:143:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:145:8` (module `neocogi.com.serialization`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
         /// Owned results transfer after release of the receiver guard. Scoped
@@ -1519,7 +1532,7 @@ const _: () = {
             }
         }
         /// Reports a zero-based byte cursor/offset, or u64::MAX when unavailable.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:145:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:147:8` (module `neocogi.com.serialization`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
         /// Owned results transfer after release of the receiver guard. Scoped
@@ -1564,7 +1577,7 @@ const _: () = {
             }
         }
         /// Reports a one-based source line, or zero when unavailable.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:147:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:149:8` (module `neocogi.com.serialization`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
         /// Owned results transfer after release of the receiver guard. Scoped
@@ -1609,7 +1622,7 @@ const _: () = {
             }
         }
         /// Reports a one-based source column, or zero when unavailable.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:149:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:151:8` (module `neocogi.com.serialization`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
         /// Owned results transfer after release of the receiver guard. Scoped
@@ -1654,7 +1667,7 @@ const _: () = {
             }
         }
         /// Reports the diagnostic message's UTF-8 byte length.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:151:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:153:8` (module `neocogi.com.serialization`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
         /// Owned results transfer after release of the receiver guard. Scoped
@@ -1699,7 +1712,7 @@ const _: () = {
             }
         }
         /// Copies the complete message to fresh output; short capacity writes no prefix.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:153:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:155:8` (module `neocogi.com.serialization`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
         /// Owned results transfer after release of the receiver guard. Scoped
@@ -1775,7 +1788,7 @@ const _: () = {
             }
         }
         /// Reports the logical field/index path's UTF-8 byte length.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:155:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:157:8` (module `neocogi.com.serialization`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
         /// Owned results transfer after release of the receiver guard. Scoped
@@ -1820,7 +1833,7 @@ const _: () = {
             }
         }
         /// Copies the complete logical path, rooted at $, into fresh output.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:157:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:159:8` (module `neocogi.com.serialization`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
         /// Owned results transfer after release of the receiver guard. Scoped
@@ -1993,7 +2006,7 @@ const _: () = {
             }
         }
         /// Creates a bounded serializer with format-owned output storage.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:126:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:128:8` (module `neocogi.com.serialization`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
         /// Owned results transfer after release of the receiver guard. Scoped
@@ -2066,7 +2079,7 @@ const _: () = {
             }
         }
         /// Copies the complete borrowed document into a new bounded source session.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:128:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:130:8` (module `neocogi.com.serialization`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
         /// Owned results transfer after release of the receiver guard. Scoped
@@ -2216,7 +2229,7 @@ const _: () = {
             }
         }
         /// Reports the complete document length after successful finish.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:118:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:120:8` (module `neocogi.com.serialization`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
         /// Owned results transfer after release of the receiver guard. Scoped
@@ -2261,7 +2274,7 @@ const _: () = {
             }
         }
         /// Copies the complete document; insufficient capacity publishes no prefix.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:120:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:122:8` (module `neocogi.com.serialization`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
         /// Owned results transfer after release of the receiver guard. Scoped
@@ -2398,7 +2411,7 @@ const _: () = {
             }
         }
         /// Returns the unconditional default NCB format factory.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:134:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:136:8` (module `neocogi.com.serialization`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
         /// Owned results transfer after release of the receiver guard. Scoped
@@ -2439,7 +2452,7 @@ const _: () = {
             }
         }
         /// Selects ncb or json; disabled and unknown names return NC_E_NOINTERFACE.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:136:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:138:8` (module `neocogi.com.serialization`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
         /// Owned results transfer after release of the receiver guard. Scoped
@@ -2597,13 +2610,17 @@ const _: () = {
         identity as __nc_arg_0_17_owner_original, identity as __nc_arg_0_17_offset,
         identity as __nc_arg_0_17_len, identity as __nc_arg_0_17_ptr,
         identity as __nc_arg_0_17_values, identity as __nc_arg_0_17_written,
-        identity as __nc_this, identity as __nc_status, identity as __nc_value,
-        identity as __nc_raw, identity as __nc_result, identity as __nc_values,
-        identity as __nc_writer, identity as __nc_out, identity as __nc_scoped_context,
-        identity as __nc_scoped_callback, identity as __nc_identity,
-        identity as __nc_this_0, identity as __nc_status_0, identity as __nc_result_0,
-        identity as __nc_prepared, identity as __nc_out_0, identity as __nc_this_1,
-        identity as __nc_status_1, identity as __nc_result_1,
+        identity as __nc_arg_1_0, identity as __nc_arg_1_0_owner_slot,
+        identity as __nc_arg_1_0_owner_table, identity as __nc_arg_1_0_owner_original,
+        identity as __nc_arg_1_0_offset, identity as __nc_arg_1_0_len,
+        identity as __nc_arg_1_0_ptr, identity as __nc_arg_1_0_values,
+        identity as __nc_arg_1_0_written, identity as __nc_this, identity as __nc_status,
+        identity as __nc_value, identity as __nc_raw, identity as __nc_result,
+        identity as __nc_values, identity as __nc_writer, identity as __nc_out,
+        identity as __nc_scoped_context, identity as __nc_scoped_callback,
+        identity as __nc_identity, identity as __nc_this_0, identity as __nc_status_0,
+        identity as __nc_result_0, identity as __nc_prepared, identity as __nc_out_0,
+        identity as __nc_this_1, identity as __nc_status_1, identity as __nc_result_1,
         identity as __nc_prepared_0, identity as __nc_out_1, identity as __nc_this_2,
         identity as __nc_status_2, identity as __nc_result_2,
         identity as __nc_prepared_1, identity as __nc_out_2, identity as __nc_this_3,
@@ -3730,8 +3747,9 @@ const _: () = {
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
         }
-        /// Marks a schema failure; no later operation may succeed.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:52:8` (module `neocogi.com.serialization`).
+        /// Records a failure reported by the typed caller and returns its status.
+        /// A failed session returns its first stored status.
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:53:8` (module `neocogi.com.serialization`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
         /// Owned results transfer after release of the receiver guard. Scoped
@@ -3742,9 +3760,10 @@ const _: () = {
         /// arguments must satisfy their method's readable/writable contracts.
         unsafe extern "C" fn fail_thunk(
             __nc_this: *mut ::core::ffi::c_void,
-            __nc_arg_0_17_offset: ::core::primitive::u64,
-            __nc_arg_0_17_len: ::core::primitive::u64,
-            __nc_arg_0_17_ptr: *const <::core::primitive::u8 as crate::ComValue>::AbiRepr,
+            __nc_arg_0_17: <crate::NcStatus as crate::ComValue>::AbiRepr,
+            __nc_arg_1_0_offset: ::core::primitive::u64,
+            __nc_arg_1_0_len: ::core::primitive::u64,
+            __nc_arg_1_0_ptr: *const <::core::primitive::u8 as crate::ComValue>::AbiRepr,
         ) -> crate::NcStatus {
             if __nc_this.is_null() {
                 return crate::NC_E_POINTER;
@@ -3753,17 +3772,23 @@ const _: () = {
             if __nc_dispatch_object.is_null() {
                 return crate::NC_E_POINTER;
             }
-            let __nc_arg_0_17_values = match unsafe {
+            let __nc_arg_0_17 = match unsafe {
+                crate::decode_inline::<crate::NcStatus>(&__nc_arg_0_17)
+            } {
+                ::core::result::Result::Ok(__nc_value) => __nc_value,
+                ::core::result::Result::Err(__nc_status) => return __nc_status,
+            };
+            let __nc_arg_1_0_values = match unsafe {
                 crate::DecodedInput::<
                     ::core::primitive::u8,
-                >::from_raw(__nc_arg_0_17_ptr, __nc_arg_0_17_len)
+                >::from_raw(__nc_arg_1_0_ptr, __nc_arg_1_0_len)
             } {
                 ::core::result::Result::Ok(__nc_values) => __nc_values,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
-            let __nc_arg_0_17 = crate::NcCopyFromBufferOffset::new(
-                __nc_arg_0_17_offset,
-                __nc_arg_0_17_values.as_slice(),
+            let __nc_arg_1_0 = crate::NcCopyFromBufferOffset::new(
+                __nc_arg_1_0_offset,
+                __nc_arg_1_0_values.as_slice(),
             );
             let mut __nc_dispatch_value = match unsafe {
                 <__NcProvider as crate::ComObject>::borrow_abi_mut(__nc_dispatch_object)
@@ -3774,6 +3799,7 @@ const _: () = {
             let __nc_result = <__NcProvider as ISerializer>::fail(
                 &mut *__nc_dispatch_value,
                 __nc_arg_0_17,
+                __nc_arg_1_0,
             );
             ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
@@ -3782,7 +3808,7 @@ const _: () = {
             }
         }
         /// Commits a complete document; repeated finish and further writes fail.
-        /// IDL source: `neocogi/com/serialization/formats.ncidl:54:8` (module `neocogi.com.serialization`).
+        /// IDL source: `neocogi/com/serialization/formats.ncidl:55:8` (module `neocogi.com.serialization`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
         /// Owned results transfer after release of the receiver guard. Scoped

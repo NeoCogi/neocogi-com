@@ -49,7 +49,7 @@ mod legacy {
     struct LegacyDescriptor {
         /// Current family for core rejection, or the older symbol's family.
         description_abi_version: u32,
-        /// Prior core generation, incompatible with development core 22.
+        /// Prior core generation, incompatible with development core 23.
         core_abi_version: u32,
         /// Same plugin identity as the compatible control.
         plugin_id: NcGuid,
@@ -92,7 +92,15 @@ mod legacy {
         } else {
             neocogi_com::NC_PLUGIN_DESCRIPTOR_ABI_VERSION
         },
-        core_abi_version: if cfg!(feature = "legacy-symbol") { 18 } else if cfg!(feature = "legacy-v2-symbol") { 19 } else { 21 },
+        core_abi_version: if cfg!(feature = "legacy-symbol") {
+            18
+        } else if cfg!(feature = "legacy-v2-symbol") {
+            19
+        } else if cfg!(feature = "legacy-v3-symbol") {
+            21
+        } else {
+            22
+        },
         plugin_id: guid_from_qualified_name("nc.tests.legacy_bootstrap"),
         qualified_name: NcStaticUtf8::from_static("nc.tests.legacy_bootstrap"),
         plugin_version: NcStaticUtf8::from_static("0.0.0"),

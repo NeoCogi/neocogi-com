@@ -32,12 +32,15 @@ impl Error {
         }
     }
     /// Copies immutable details while the caller still retains the failed session.
-    /// Broken or absent diagnostic projections cannot hide the original status.
+    /// Provider details describe this operation only if their status agrees.
     pub fn capture<I: ComInterface>(status: NcStatus, source: &crate::ComBox<I>) -> Self {
         let mut result = Self::from(status);
         let Ok(details) = source.query_ref::<ISerializationDiagnosticsAbi>() else {
             return result;
         };
+        if details.failure_status() != Ok(status) {
+            return result;
+        }
         if let Some(message) = copied(details, true) {
             result.message = message;
         }

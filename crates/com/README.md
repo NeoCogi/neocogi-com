@@ -5,7 +5,7 @@ component ABI. It provides typed COM pointers, generated interface/object
 support, typed plugin roots, and optional API wrappers for
 host-supplied runtime services.
 
-The `0.5.0-wip-alpha.1` SDK uses **provisional ABI v4/core generation 22**.
+The `0.5.0-wip-alpha.1` SDK uses **provisional ABI v4/core generation 23**.
 Published 0.3.0 uses ABI v2/core generation 19.
 
 The [standalone walkthrough](https://github.com/NeoCogi/neocogi-com/blob/v0.4.0/examples/getting-started/README.md)

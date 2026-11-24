@@ -361,7 +361,7 @@ described above.
 Interfaces have no implementation-role discriminator in their canonical encoding.
 Canonical encoding v15 contains ordinary value and callable-interface contracts;
 IDL has no event-reference slots. Rebuild affected contracts, providers and hosts
-together, including built-in persistence bindings. Nominal IDs, core generation 22,
+together, including built-in persistence bindings. Nominal IDs, core generation 23,
 source-graph schema and the host-owned runtime registry are separate contracts;
 runtime discovery uses ABI v4. Closed generic interfaces work as object
 contracts and plugin roots; open templates have no callable ABI.
@@ -783,7 +783,7 @@ UUID overrides remain errors.
 Generated nominal IDs and signatures change: rebuild contracts, providers and
 hosts together. Compiler encoding v15 records the versionless contract; COM
 discovery uses ABI v2 for SDK 0.3.0, ABI v3 for SDK 0.4.0, and ABI v4/core
-generation 22 on this development branch. V15 adds callable passing modes after binding and specialization.
+generation 23 on this development branch. V15 adds callable passing modes after binding and specialization.
 
 Generated values and interface markers carry a hidden Rust binding proof. A
 consumer checks the actual selected Rust type, including a type reached through

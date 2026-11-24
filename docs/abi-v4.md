@@ -18,10 +18,10 @@ adapters admit those older participants.
 
 The persistence service now explicitly borrows shared-owned roots and factories.
 Construction and declared ABI ownership establish the matching header; provider
-metadata contains no ownership discriminator. The new family and core generation
-admit providers under that shared-ownership contract. Native providers export
-`nc_get_plugin_descriptor_v4`. Rebuild all
-hosts, providers and generated consumers together before exchanging objects.
+metadata contains no ownership discriminator. Core generation 23 carries the
+originating error status in both serialization session failure slots. Native
+providers export `nc_get_plugin_descriptor_v4`. Rebuild all hosts, providers and
+generated consumers together before exchanging objects.
 
 ## ABI identities and versions
 
@@ -32,7 +32,7 @@ Opening an image may still execute its initializers and descriptor getter.
 
 | Identity or version | Current authority and purpose |
 | --- | --- |
-| Core ABI | NC_COM_CORE_ABI_VERSION == 22; policy-specific lifetime headers, metadata and callbacks |
+| Core ABI | NC_COM_CORE_ABI_VERSION == 23; status-bearing codec failures and policy-specific lifetime headers |
 | Runtime ABI | NC_COM_RUNTIME_ABI_VERSION == 4; supplied immutable host-service family |
 | Plugin descriptor ABI | NC_PLUGIN_DESCRIPTOR_ABI_VERSION == 4; nc_get_plugin_descriptor_v4 and its prefix |
 | Interface contract | IID plus exact 32-byte ABI signature; checked independently of core admission |
@@ -157,7 +157,7 @@ Rust source/generated-name change. C layouts, vtable slots, exact IID/signatures
 canonical IDL encoding and NCB-v1 bytes were unchanged by that rename.
 Regenerate Rust bindings with the matching SDK.
 
-Discovery checks core generation 22 before dispatch. Exact interface signatures do
+Discovery checks core generation 23 before dispatch. Exact interface signatures do
 not replace that global layout/behavior check. See the
 [storage rationale](contracts/COM_INTERFACE_STORAGE.md) for the
 object/table design and its measurement boundaries.
@@ -243,7 +243,7 @@ The public static constructor makes digest width a compile-time obligation:
 
 ```rust
 use neocogi_com_sdk::{NcAbiDigest, NC_COM_CORE_ABI_VERSION};
-assert_eq!(NC_COM_CORE_ABI_VERSION, 22);
+assert_eq!(NC_COM_CORE_ABI_VERSION, 23);
 static FIRST: [u8; 32] = [7; 32];
 static SECOND: [u8; 32] = [7; 32];
 let a = NcAbiDigest::from_static(&FIRST);
@@ -358,7 +358,7 @@ one private cold non-unwinding failure path preserves fail-stop exhaustion for
 ordinary Rust weak clones. destroy_value/deallocate remain C callbacks because
 final cleanup can execute in the allocating provider's binary.
 
-ABI v4/core 22 retains the three-word headers and four-word provider type
+ABI v4/core 23 retains the three-word headers and four-word provider type
 information introduced in ABI v3/core 21. Discovery rejects older generations
 before interpreting callbacks or object storage.
 
@@ -906,7 +906,7 @@ Rust entry, returning an admitted `RuntimeHandle` from its existing singleton wi
 provider calls. It owns unsafe adoption of the complete static graph; safe
 startup never promotes a raw record returned by an arbitrary module. The separate
 `initialize_process()` lends the immutable C description for ABI bootstrap:
-`NcHostApiV4` has byte size, runtime family 4 and core generation 22,
+`NcHostApiV4` has byte size, runtime family 4 and core generation 23,
 and pointers to the runtime, debug and persistence tables. The complete service
 graph and callback code remain process/instance-lived, including after main
 returns. Copying this description does not create a registry.
@@ -1178,7 +1178,7 @@ Supplying a provider later permits retry using the same live context.
 The explicit application dependency introduced in COM `0.3.0` changed deployment
 requirements from `0.2.0`, whose host embedded NCB. That provider-selection change
 retained ABI v2/core generation 19. The shared persistence input contract uses
-ABI v4/core generation 22. Provider selection and NCB-v1 bytes keep their
+ABI v4/core generation 23. Provider selection and NCB-v1 bytes keep their
 existing contracts. An incompatible change to a frozen layout, callback or guaranteed
 calling/ownership behavior must advance its applicable compatibility authority
 before old callers can invoke it.

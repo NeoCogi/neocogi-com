@@ -6,7 +6,7 @@ Historical draft numbers do not define additional supported COM baselines.
 
 ## 0.5.0-wip-alpha.1 (development)
 
-- Select ABI v4 with core generation 22, runtime and descriptor family 4, and
+- Select ABI v4 with core generation 23, runtime and descriptor family 4, and
   discovery symbol `nc_get_plugin_descriptor_v4`.
 - Declare shared ownership for persistence factories and snapshot roots. The
   Rust snapshot API takes `&ComPtr<IUnknown>`. Existing NCB-v1 documents retain
@@ -15,6 +15,8 @@ Historical draft numbers do not define additional supported COM baselines.
 - Add optional shared transfers, optional shared inputs and scoped borrowed
   getters. NCIDL v15 fingerprints distinguish the native passing contracts,
   while actual Rust type checks distinguish direct and fallible projections.
+- Carry the originating status through serializer and deserializer failures and
+  retain the first recorded provider diagnostic.
 
 ## 0.4.0
 

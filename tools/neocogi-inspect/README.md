@@ -6,7 +6,7 @@ dependencies, descriptor/core ABI versions, and full factory IID/signature and
 threading capability. There are no contract libraries or module graphs to load.
 Opened libraries remain pinned until the short-lived process exits.
 
-This checkout inspects WIP ABI v4/core 22. Build it from the same SDK revision
+This checkout inspects WIP ABI v4/core 23. Build it from the same SDK revision
 as the provider with `cargo build -p neocogi-inspect`.
 
 Version `0.4.0` inspects providers using

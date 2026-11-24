@@ -1,10 +1,9 @@
 # Typed lifetime contracts
 
-ABI v4/core 22 retains the lifetime storage from ABI v3/core 21. Core 21 removed runtime allocation-policy
-discrimination and shrinks `NcObjectTypeInfo` from five to four pointer-width
-words. Core 20 is incompatible and rejected before storage/callback use. The
-three-word lifetime headers, C interface slots, IID/full digests, IDL v14 and
-NCB-v1 document encoding are unchanged. Rebuild hosts/providers together.
+ABI v4 uses the three-word lifetime headers and four-word `NcObjectTypeInfo`
+from ABI v3/core 21. Core 21 removed runtime allocation-policy discrimination
+and reduced `NcObjectTypeInfo` from five pointer-width words to four. Rebuild
+hosts and providers using the same ABI generation. [Current ABI authorities](../abi-v4.md#abi-identities-and-versions)
 
 ## Ownership is a precondition
 

@@ -374,27 +374,50 @@ fn owning_ncb_reports_output_allocation_refusal() {
     assert_eq!(writer.query_ref::<ISerializationOutputAbi>().unwrap().byte_len(), Err(NC_E_INVALID_ARG));
 }
 
-/// A caller-supplied diagnostic retains its text and uses the exact schema status rules.
+/// A caller-supplied diagnostic retains both its text and its independent status.
 #[test]
 fn ncb_schema_messages_use_explicit_statuses() {
-    use neocogi_com_sdk::{NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE, NcCopyFromBufferOffset, NcOutputBuffer};
+    use neocogi_com_sdk::{NC_E_INVALID_ARG, NC_E_NOT_FOUND, NC_E_OUT_OF_RANGE, NcCopyFromBufferOffset, NcOutputBuffer};
     use neocogi_com_sdk::serialization::ISerializationDiagnosticsAbi;
 
     let format = binary::factory();
     for (message, status) in [
-        ("collection element limit", NC_E_OUT_OF_RANGE),
+        ("collection element limit", NC_E_NOT_FOUND),
         ("document byte limit", NC_E_OUT_OF_RANGE),
         ("length exceeds u32", NC_E_INVALID_ARG),
         ("custom limit diagnostic", NC_E_INVALID_ARG),
     ] {
         let mut writer = format.create_serializer(64, 16, 8, 32).unwrap();
-        assert_eq!(writer.fail(NcCopyFromBufferOffset::new(0, message.as_bytes())), Err(status));
+        assert_eq!(writer.fail(status, NcCopyFromBufferOffset::new(0, message.as_bytes())), Err(status));
         let diagnostic = writer.query_ref::<ISerializationDiagnosticsAbi>().unwrap();
         assert_eq!(diagnostic.failure_status(), Ok(status));
         let mut copied = NcOutputBuffer::<u8>::new();
         diagnostic.copy_message(copied.output(0, message.len())).unwrap();
         assert_eq!(copied.into_vec(), message.as_bytes());
     }
+}
+
+/// The convenience API copies diagnostics for the failure actually returned to the caller.
+#[test]
+fn replaced_application_status_does_not_inherit_provider_diagnostics() {
+    use neocogi_com_sdk::{NC_E_INVALID_ARG, NC_E_NOT_FOUND, NcStatus, serialization::{Deserializer, Error, Format}};
+
+    /// The typed reader reports its own error after seeing the provider reject a bool.
+    #[derive(Debug)]
+    struct ReplacesFailure;
+    impl ComDeserialize for ReplacesFailure {
+        fn com_deserialize(reader: &mut Deserializer<'_>) -> Result<Self, NcStatus> {
+            assert_eq!(reader.deserialize_bool(), Err(NC_E_INVALID_ARG));
+            Err(NC_E_NOT_FOUND)
+        }
+    }
+
+    let format = Format::new(binary::factory(), Limits::default());
+    let bytes = format.serialize(&42u8).unwrap();
+    let original = format.deserialize::<bool>(&bytes).unwrap_err();
+    assert_eq!(original.status, NC_E_INVALID_ARG);
+    assert_eq!(original.message, "invalid boolean");
+    assert_eq!(format.deserialize::<ReplacesFailure>(&bytes).unwrap_err(), Error::from(NC_E_NOT_FOUND));
 }
 
 /// Ordinary ordered fields must be required unless trailing defaults are explicit.

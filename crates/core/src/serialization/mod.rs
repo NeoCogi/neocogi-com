@@ -53,18 +53,23 @@ impl<'a> Serializer<'a> {
     /// Writes one root and commits the session only after its complete success.
     pub fn serialize<T: ComSerialize + ?Sized>(&mut self, value: &T) -> Result<(), NcStatus> {
         if let Err(status) = value.com_serialize(self) {
-            let _ = self.interface.fail(text("invalid persistent value"));
-            return Err(status.normalize_error());
+            return Err(self.fail(status, "invalid persistent value"));
         }
         self.interface.finish()
     }
-    /// Marks a schema failure on the provider and returns its failed status.
+    /// Reports an invalid application value or schema and returns `NC_E_INVALID_ARG`.
     pub fn error(&mut self, message: &str) -> NcStatus {
-        self.interface.fail(text(message)).err().unwrap_or(NC_E_INVALID_ARG)
+        self.fail(NC_E_INVALID_ARG, message)
+    }
+    /// Reports a detected error without asking the provider to choose its status.
+    fn fail(&mut self, status: NcStatus, message: &str) -> NcStatus {
+        let status = status.normalize_error();
+        let _ = self.interface.fail(status, text(message));
+        status
     }
     /// Converts a local count before it crosses the fixed-width COM boundary.
     fn count(&mut self, count: usize) -> Result<u32, NcStatus> {
-        u32::try_from(count).map_err(|_| self.error("length exceeds u32"))
+        u32::try_from(count).map_err(|_| self.fail(NC_E_OUT_OF_RANGE, "length exceeds u32"))
     }
     /// Streams optional presence and its statically typed child.
     pub fn serialize_option<T: ComSerialize>(&mut self, value: Option<&T>) -> Result<(), NcStatus> {
@@ -140,33 +145,33 @@ impl<'a> Deserializer<'a> {
     /// Opens a scope for an aggregate enum payload without erasing its type.
     pub fn value<T>(&mut self, read: impl FnOnce(&mut Self) -> Result<T, NcStatus>) -> Result<T, NcStatus> {
         self.interface.enter_value()?;
-        let value = match read(self) {
-            Ok(value) => value,
-            Err(status) => {
-                if self.report_oom || status != NC_E_OUT_OF_MEMORY {
-                    let _ = self.interface.fail(text("invalid persistent value"));
-                }
-                return Err(status.normalize_error());
-            }
-        };
+        let value = read(self).map_err(|status| self.fail(status, "invalid persistent value"))?;
         self.interface.leave_value()?;
         Ok(value)
     }
-    /// Records an application/schema failure and makes the document terminal.
+    /// Reports an invalid application value or schema and returns `NC_E_INVALID_ARG`.
     pub fn error(&mut self, message: &str) -> NcStatus {
-        self.interface.fail(text(message)).err().unwrap_or(NC_E_INVALID_ARG)
+        self.fail(NC_E_INVALID_ARG, message)
+    }
+    /// Reports the originating status, except on the allocation-free restore discard path.
+    fn fail(&mut self, status: NcStatus, message: &str) -> NcStatus {
+        let status = status.normalize_error();
+        if self.report_oom || status != NC_E_OUT_OF_MEMORY {
+            let _ = self.interface.fail(status, text(message));
+        }
+        status
     }
     /// Checks a foreign count before constructing any collection storage.
     fn count(&mut self, count: u32) -> Result<usize, NcStatus> {
         let count = count as usize;
         if count > self.limits.elements {
-            return Err(self.error("collection element limit"));
+            return Err(self.fail(NC_E_OUT_OF_RANGE, "collection element limit"));
         }
         Ok(count)
     }
     /// Opens a record whose fields may be supplied in a format-specific order.
     pub fn record<T>(&mut self, maximum: usize, read: impl FnOnce(&mut RecordFieldReader<'_, 'a>) -> Result<T, NcStatus>) -> Result<T, NcStatus> {
-        let maximum = u32::try_from(maximum).map_err(|_| NC_E_OUT_OF_RANGE)?;
+        let maximum = u32::try_from(maximum).map_err(|_| self.fail(NC_E_OUT_OF_RANGE, "length exceeds u32"))?;
         let count = self.interface.begin_record(maximum)?;
         let count = self.count(count)?;
         if count > maximum as usize {
@@ -196,7 +201,7 @@ impl<'a> Deserializer<'a> {
     /// Maps authored case names and ordinals to this source's selected payload.
     pub fn variant(&mut self, names: &[&str]) -> Result<u32, NcStatus> {
         for (index, name) in names.iter().enumerate() {
-            let index = u32::try_from(index).map_err(|_| NC_E_OUT_OF_RANGE)?;
+            let index = u32::try_from(index).map_err(|_| self.fail(NC_E_OUT_OF_RANGE, "length exceeds u32"))?;
             if self.interface.variant_is(index, text(name))? {
                 return Ok(index);
             }
@@ -206,12 +211,12 @@ impl<'a> Deserializer<'a> {
     /// Pointer-sized schema integers must fit the receiving target.
     pub fn deserialize_usize(&mut self) -> Result<usize, NcStatus> {
         let value = self.interface.deserialize_u64()?;
-        usize::try_from(value).map_err(|_| self.error("usize overflow"))
+        usize::try_from(value).map_err(|_| self.fail(NC_E_OUT_OF_RANGE, "usize overflow"))
     }
     /// Signed pointer-sized schema integers must fit the receiving target.
     pub fn deserialize_isize(&mut self) -> Result<isize, NcStatus> {
         let value = self.interface.deserialize_i64()?;
-        isize::try_from(value).map_err(|_| self.error("isize overflow"))
+        isize::try_from(value).map_err(|_| self.fail(NC_E_OUT_OF_RANGE, "isize overflow"))
     }
     /// Distinguishes absence from a present unit/default value.
     pub fn deserialize_option<T: ComDeserialize>(&mut self) -> Result<Option<T>, NcStatus> {
@@ -222,7 +227,7 @@ impl<'a> Deserializer<'a> {
     pub fn deserialize_string(&mut self) -> Result<alloc::string::String, NcStatus> {
         let len = self.interface.string_len()? as usize;
         if len > self.limits.bytes {
-            return Err(self.error("document byte limit"));
+            return Err(self.fail(NC_E_OUT_OF_RANGE, "document byte limit"));
         }
         let mut output = crate::NcOutputBuffer::<u8>::new();
         let written = self.interface.copy_string(output.output(0, len))? as usize;

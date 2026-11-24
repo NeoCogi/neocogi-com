@@ -161,14 +161,10 @@ impl ISerializer for NcbSerializer {
     /// Delegates fail to the canonical NCB format state.
     fn fail(
         &mut self,
+        status: NcStatus,
         message: ::neocogi_com_sdk::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
     ) -> ::core::result::Result<(), ::neocogi_com_sdk::NcStatus> {
-        if self.encoder.last_error().is_none() && message.offset() == 0 {
-            self.message = core::str::from_utf8(message.as_slice())
-                .ok()
-                .map(neocogi_com_sdk::__alloc::string::String::from);
-        }
-        <binary::Encoder as ISerializer>::fail(&mut self.encoder, message)
+        self.encoder.fail_application(status, message, |text| self.message = Some(text.into()))
     }
     /// Delegates finish to the canonical NCB format state.
     fn finish(&mut self) -> ::core::result::Result<(), ::neocogi_com_sdk::NcStatus> {
@@ -178,105 +174,105 @@ impl ISerializer for NcbSerializer {
 impl IDeserializer for NcbDeserializer {
     /// Delegates enter_value to the canonical NCB format state.
     fn enter_value(&mut self) -> ::core::result::Result<(), ::neocogi_com_sdk::NcStatus> {
-        <binary::Decoder as IDeserializer>::enter_value(self.decoder()?)
+        <binary::Decoder as IDeserializer>::enter_value(self.source.decoder()?)
     }
     /// Delegates leave_value to the canonical NCB format state.
     fn leave_value(&mut self) -> ::core::result::Result<(), ::neocogi_com_sdk::NcStatus> {
-        <binary::Decoder as IDeserializer>::leave_value(self.decoder()?)
+        <binary::Decoder as IDeserializer>::leave_value(self.source.decoder()?)
     }
     /// Delegates deserialize_unit to the canonical NCB format state.
     fn deserialize_unit(&mut self) -> ::core::result::Result<(), ::neocogi_com_sdk::NcStatus> {
-        <binary::Decoder as IDeserializer>::deserialize_unit(self.decoder()?)
+        <binary::Decoder as IDeserializer>::deserialize_unit(self.source.decoder()?)
     }
     /// Delegates deserialize_bool to the canonical NCB format state.
     fn deserialize_bool(&mut self) -> ::core::result::Result<::core::primitive::bool, ::neocogi_com_sdk::NcStatus> {
-        <binary::Decoder as IDeserializer>::deserialize_bool(self.decoder()?)
+        <binary::Decoder as IDeserializer>::deserialize_bool(self.source.decoder()?)
     }
     /// Delegates deserialize_u8 to the canonical NCB format state.
     fn deserialize_u8(&mut self) -> ::core::result::Result<::core::primitive::u8, ::neocogi_com_sdk::NcStatus> {
-        <binary::Decoder as IDeserializer>::deserialize_u8(self.decoder()?)
+        <binary::Decoder as IDeserializer>::deserialize_u8(self.source.decoder()?)
     }
     /// Delegates deserialize_u16 to the canonical NCB format state.
     fn deserialize_u16(&mut self) -> ::core::result::Result<::core::primitive::u16, ::neocogi_com_sdk::NcStatus> {
-        <binary::Decoder as IDeserializer>::deserialize_u16(self.decoder()?)
+        <binary::Decoder as IDeserializer>::deserialize_u16(self.source.decoder()?)
     }
     /// Delegates deserialize_u32 to the canonical NCB format state.
     fn deserialize_u32(&mut self) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com_sdk::NcStatus> {
-        <binary::Decoder as IDeserializer>::deserialize_u32(self.decoder()?)
+        <binary::Decoder as IDeserializer>::deserialize_u32(self.source.decoder()?)
     }
     /// Delegates deserialize_u64 to the canonical NCB format state.
     fn deserialize_u64(&mut self) -> ::core::result::Result<::core::primitive::u64, ::neocogi_com_sdk::NcStatus> {
-        <binary::Decoder as IDeserializer>::deserialize_u64(self.decoder()?)
+        <binary::Decoder as IDeserializer>::deserialize_u64(self.source.decoder()?)
     }
     /// Delegates deserialize_i8 to the canonical NCB format state.
     fn deserialize_i8(&mut self) -> ::core::result::Result<::core::primitive::i8, ::neocogi_com_sdk::NcStatus> {
-        <binary::Decoder as IDeserializer>::deserialize_i8(self.decoder()?)
+        <binary::Decoder as IDeserializer>::deserialize_i8(self.source.decoder()?)
     }
     /// Delegates deserialize_i16 to the canonical NCB format state.
     fn deserialize_i16(&mut self) -> ::core::result::Result<::core::primitive::i16, ::neocogi_com_sdk::NcStatus> {
-        <binary::Decoder as IDeserializer>::deserialize_i16(self.decoder()?)
+        <binary::Decoder as IDeserializer>::deserialize_i16(self.source.decoder()?)
     }
     /// Delegates deserialize_i32 to the canonical NCB format state.
     fn deserialize_i32(&mut self) -> ::core::result::Result<::core::primitive::i32, ::neocogi_com_sdk::NcStatus> {
-        <binary::Decoder as IDeserializer>::deserialize_i32(self.decoder()?)
+        <binary::Decoder as IDeserializer>::deserialize_i32(self.source.decoder()?)
     }
     /// Delegates deserialize_i64 to the canonical NCB format state.
     fn deserialize_i64(&mut self) -> ::core::result::Result<::core::primitive::i64, ::neocogi_com_sdk::NcStatus> {
-        <binary::Decoder as IDeserializer>::deserialize_i64(self.decoder()?)
+        <binary::Decoder as IDeserializer>::deserialize_i64(self.source.decoder()?)
     }
     /// Delegates deserialize_f32 to the canonical NCB format state.
     fn deserialize_f32(&mut self) -> ::core::result::Result<::core::primitive::f32, ::neocogi_com_sdk::NcStatus> {
-        <binary::Decoder as IDeserializer>::deserialize_f32(self.decoder()?)
+        <binary::Decoder as IDeserializer>::deserialize_f32(self.source.decoder()?)
     }
     /// Delegates deserialize_f64 to the canonical NCB format state.
     fn deserialize_f64(&mut self) -> ::core::result::Result<::core::primitive::f64, ::neocogi_com_sdk::NcStatus> {
-        <binary::Decoder as IDeserializer>::deserialize_f64(self.decoder()?)
+        <binary::Decoder as IDeserializer>::deserialize_f64(self.source.decoder()?)
     }
     /// Delegates string_len to the canonical NCB format state.
     fn string_len(&mut self) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com_sdk::NcStatus> {
-        <binary::Decoder as IDeserializer>::string_len(self.decoder()?)
+        <binary::Decoder as IDeserializer>::string_len(self.source.decoder()?)
     }
     /// Delegates copy_string to the canonical NCB format state.
     fn copy_string(
         &mut self,
         output: ::neocogi_com_sdk::NcOutputWriter<'_, ::core::primitive::u8>,
     ) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com_sdk::NcStatus> {
-        <binary::Decoder as IDeserializer>::copy_string(self.decoder()?, output)
+        <binary::Decoder as IDeserializer>::copy_string(self.source.decoder()?, output)
     }
     /// Delegates option_present to the canonical NCB format state.
     fn option_present(&mut self) -> ::core::result::Result<::core::primitive::bool, ::neocogi_com_sdk::NcStatus> {
-        <binary::Decoder as IDeserializer>::option_present(self.decoder()?)
+        <binary::Decoder as IDeserializer>::option_present(self.source.decoder()?)
     }
     /// Delegates begin_record to the canonical NCB format state.
     fn begin_record(&mut self, maximum: ::core::primitive::u32) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com_sdk::NcStatus> {
-        <binary::Decoder as IDeserializer>::begin_record(self.decoder()?, maximum)
+        <binary::Decoder as IDeserializer>::begin_record(self.source.decoder()?, maximum)
     }
     /// Delegates field to the canonical NCB format state.
     fn field(
         &mut self,
         name: ::neocogi_com_sdk::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
     ) -> ::core::result::Result<::core::primitive::bool, ::neocogi_com_sdk::NcStatus> {
-        <binary::Decoder as IDeserializer>::field(self.decoder()?, name)
+        <binary::Decoder as IDeserializer>::field(self.source.decoder()?, name)
     }
     /// Delegates end_record to the canonical NCB format state.
     fn end_record(&mut self) -> ::core::result::Result<(), ::neocogi_com_sdk::NcStatus> {
-        <binary::Decoder as IDeserializer>::end_record(self.decoder()?)
+        <binary::Decoder as IDeserializer>::end_record(self.source.decoder()?)
     }
     /// Delegates begin_sequence to the canonical NCB format state.
     fn begin_sequence(&mut self) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com_sdk::NcStatus> {
-        <binary::Decoder as IDeserializer>::begin_sequence(self.decoder()?)
+        <binary::Decoder as IDeserializer>::begin_sequence(self.source.decoder()?)
     }
     /// Delegates end_sequence to the canonical NCB format state.
     fn end_sequence(&mut self) -> ::core::result::Result<(), ::neocogi_com_sdk::NcStatus> {
-        <binary::Decoder as IDeserializer>::end_sequence(self.decoder()?)
+        <binary::Decoder as IDeserializer>::end_sequence(self.source.decoder()?)
     }
     /// Delegates begin_map to the canonical NCB format state.
     fn begin_map(&mut self) -> ::core::result::Result<::core::primitive::u32, ::neocogi_com_sdk::NcStatus> {
-        <binary::Decoder as IDeserializer>::begin_map(self.decoder()?)
+        <binary::Decoder as IDeserializer>::begin_map(self.source.decoder()?)
     }
     /// Delegates end_map to the canonical NCB format state.
     fn end_map(&mut self) -> ::core::result::Result<(), ::neocogi_com_sdk::NcStatus> {
-        <binary::Decoder as IDeserializer>::end_map(self.decoder()?)
+        <binary::Decoder as IDeserializer>::end_map(self.source.decoder()?)
     }
     /// Delegates variant_is to the canonical NCB format state.
     fn variant_is(
@@ -284,23 +280,21 @@ impl IDeserializer for NcbDeserializer {
         index: ::core::primitive::u32,
         name: ::neocogi_com_sdk::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
     ) -> ::core::result::Result<::core::primitive::bool, ::neocogi_com_sdk::NcStatus> {
-        <binary::Decoder as IDeserializer>::variant_is(self.decoder()?, index, name)
+        <binary::Decoder as IDeserializer>::variant_is(self.source.decoder()?, index, name)
     }
     /// Delegates fail to the canonical NCB format state.
     fn fail(
         &mut self,
+        status: NcStatus,
         message: ::neocogi_com_sdk::NcCopyFromBufferOffset<'_, ::core::primitive::u8>,
     ) -> ::core::result::Result<(), ::neocogi_com_sdk::NcStatus> {
-        if self.details().is_err() && message.offset() == 0 {
-            self.message = core::str::from_utf8(message.as_slice())
-                .ok()
-                .map(neocogi_com_sdk::__alloc::string::String::from);
-        }
-        <binary::Decoder as IDeserializer>::fail(self.decoder()?, message)
+        self.source
+            .decoder()?
+            .fail_application(status, message, |text| self.message = Some(text.into()))
     }
     /// Delegates finish to the canonical NCB format state.
     fn finish(&mut self) -> ::core::result::Result<(), ::neocogi_com_sdk::NcStatus> {
-        <binary::Decoder as IDeserializer>::finish(self.decoder()?)
+        <binary::Decoder as IDeserializer>::finish(self.source.decoder()?)
     }
 }
 impl ISerializationOutput for NcbSerializer {
@@ -367,6 +361,15 @@ enum Source {
     /// Initial parsing failed before a decoder could be published.
     Rejected(binary::Failure),
 }
+impl Source {
+    /// Rejects calls on an initially failed source without changing its diagnostic.
+    fn decoder(&mut self) -> Result<&mut binary::Decoder<'static>, NcStatus> {
+        match self {
+            Self::Ready(value) => Ok(value),
+            Self::Rejected(error) => Err(error.status),
+        }
+    }
+}
 impl NcbDeserializer {
     /// Creates a source whose first read reports an initial parse failure, if any.
     fn session(bytes: neocogi_com_sdk::__alloc::vec::Vec<u8>, limits: Limits) -> ComBox<IDeserializerAbi> {
@@ -377,13 +380,6 @@ impl NcbDeserializer {
         Self::into_box(Self { source, message: None })
             .query()
             .unwrap_or_else(|_| unreachable!("NCB source projection"))
-    }
-    /// Rejects all operations on an initially failed source without losing details.
-    fn decoder(&mut self) -> Result<&mut binary::Decoder<'static>, NcStatus> {
-        match &mut self.source {
-            Source::Ready(value) => Ok(value),
-            Source::Rejected(error) => Err(error.status),
-        }
     }
     /// Borrows the original native diagnostic without allocating during queries.
     fn details(&self) -> Result<crate::diagnostics::Details<'_>, NcStatus> {

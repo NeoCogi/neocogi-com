@@ -205,6 +205,17 @@ before each append. NCB remains the direct byte codec; it builds no syntax tree.
 
 ## Failure diagnostics
 
+When typed construction detects a failure, `ISerializer::fail` and
+`IDeserializer::fail` carry its `Status` separately from the diagnostic text.
+Caller-side bounds report `NC_E_OUT_OF_RANGE`, and typed application errors
+retain their negative status. A nonnegative failure report normalizes to
+`NC_E_INVALID_ARG`. A valid report on an active session records that failure and
+returns its status. A failed session returns its first recorded status, and a
+finished session rejects a failure report with `NC_E_INVALID_ARG`. The active
+session records `NC_E_INVALID_ARG` for invalid UTF-8 or a nonzero text offset.
+Raw buffer admission precedes provider entry. Restore discards the source after
+a local allocation failure without requesting provider diagnostics.
+
 Owning supplied sessions expose `ISerializationDiagnostics`. Read-only calls
 return the first failure's status, message length, complete copied UTF-8 message,
 logical path, byte offset and line/column when available. Short output storage
@@ -226,8 +237,9 @@ representation and allocation-free diagnostics.
 with `status`, `message`, `path` and optional coordinates. They copy the diagnostic
 before releasing the failed COM session. Low-level creation/traversal methods
 still return `NcStatus`; callers retaining a session can query details themselves.
-Providers lacking a usable diagnostic projection retain their original status
-with a generic fallback. Diagnostic copies are bounded to 64 KiB each in the
+Diagnostic details accompany the returned operation only if the provider reports
+the same failure status. Otherwise the original operation status uses a generic
+diagnostic. Diagnostic copies are bounded to 64 KiB each in the
 convenience API. Successful traversal does no diagnostic formatting; field keys
 move from the syntax map into path components, and a path string is built only
 on failure.
@@ -269,7 +281,7 @@ The format interfaces themselves add no global registry, filesystem access,
 loader policy or automatic object-memory capture.
 
 Published `0.3.0` uses ABI v2 discovery. This branch uses unreleased ABI v4
-discovery and core generation 22, documented in the [development ABI
+discovery and core generation 23, documented in the [development ABI
 specification](../abi-v4.md). The format interfaces and NCB format version 1
 are unchanged by the lifetime-policy split.
 

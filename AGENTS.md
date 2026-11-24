@@ -23,5 +23,5 @@ contract. Shared raw weak inputs point to NcSharedLifetimeState; boxed ABI input
 require boxed backing. Provider metadata has no ownership tag. Do not reintroduce
 raw expected-kind checks or mixed-policy rejection/cleanup dispatch: a wrong-policy
 input violates its producer contract. Keep shape/interface checks, reference bounds,
-terminal expiration and actual reader/writer admission. ABI v4/core 22 retains
+terminal expiration and actual reader/writer admission. ABI v4/core 23 retains
 the four-word type information introduced in ABI v3/core 21.

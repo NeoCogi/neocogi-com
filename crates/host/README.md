@@ -6,7 +6,7 @@ implementation of caller-owned persistence contexts. It contains
 no contract-module registry, native contract descriptions, or event seeding.
 Applications use `neocogi_com_sdk::RuntimeHandle`.
 
-Version `0.5.0-wip-alpha.1` uses **provisional ABI v4/core generation 22**.
+Version `0.5.0-wip-alpha.1` uses **provisional ABI v4/core generation 23**.
 Version `0.3.0` uses ABI v2/core generation 19. Deploy matching hosts and providers.
 
 ## Host implementation and shared SDK
@@ -31,7 +31,10 @@ for the complete graph and startup/call sequence.
 
 A provider dynamic library exports `nc_get_plugin_descriptor_v4`, lending an
 immutable descriptor with plugin metadata, hard dependencies, full root factory
-IID/signature, threading, and bootstrap. Registration validates the metadata and
+IID/signature, threading, and bootstrap. The selected image must export the
+getter, which can be an explicit Apple reexport or Windows export forwarder.
+An ordinary native import alone does not supply the selected image's export.
+Registration validates the metadata and
 publishes one plugin atomically. Dependencies must already be registered;
 registration never invokes bootstrap or discovers provider paths.
 
@@ -64,8 +67,9 @@ path once and use `LoadLibraryExW` with
 ordinary import dependencies beside the selected DLL. This open excludes
 application, user-added, CWD and PATH search directories, without changing global
 process policy or retrying with broader flags. Windows module reuse/redirection
-still applies; later provider-issued loads and delay loads retain their own
-policy. Bare names select CWD-relative files rather than requesting PATH lookup.
+still applies. Forward targets use the native Windows loader policy, and the
+host pins the image supplying the getter address. Later provider-issued loads
+and delay loads retain their own policy. Bare names select CWD-relative files.
 The caller's original path remains in errors and first-registration provenance.
 Native inspection accepts UTF-16 paths; SDK path adapters require UTF-8. Paths
 and ABI identities do not authenticate native code: providers and their native

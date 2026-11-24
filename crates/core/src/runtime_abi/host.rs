@@ -19,7 +19,7 @@ use crate::{NC_COM_CORE_ABI_VERSION, NC_E_ABI_VERSION, NC_E_POINTER, NC_OK, NcSt
 /// support concurrent access. Caller-owned persistence contexts remain subject
 /// to their own thread-local and exclusive-borrow operation contracts.
 ///
-/// WIP ABI v4/core generation 22 selects the current layout and callbacks,
+/// WIP ABI v4/core generation 23 selects the current layout and callbacks,
 /// which remain provisional until release freeze. Use matching source revisions;
 /// discovery family 4 and incompatible-generation rejection remain separate checks.
 #[repr(C)]

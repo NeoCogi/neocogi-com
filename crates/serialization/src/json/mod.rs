@@ -595,10 +595,11 @@ impl ISerializer for JsonSerializer {
             w.store(Node::Object(fields))
         })
     }
-    fn fail(&mut self, message: NcCopyFromBufferOffset<'_, u8>) -> Result<(), NcStatus> {
+    fn fail(&mut self, status: NcStatus, message: NcCopyFromBufferOffset<'_, u8>) -> Result<(), NcStatus> {
         self.writer.run("fail", |w| {
-            w.failure = Some(Failure::new(NC_E_INVALID_ARG, text(message)?));
-            Err(NC_E_INVALID_ARG)
+            let status = status.normalize_error();
+            w.failure = Some(Failure::new(status, text(message)?));
+            Err(status)
         })
     }
     fn finish(&mut self) -> Result<(), NcStatus> {
@@ -823,12 +824,13 @@ impl IDeserializer for JsonDeserializer {
             }
         })
     }
-    fn fail(&mut self, message: NcCopyFromBufferOffset<'_, u8>) -> Result<(), NcStatus> {
+    fn fail(&mut self, status: NcStatus, message: NcCopyFromBufferOffset<'_, u8>) -> Result<(), NcStatus> {
         self.reader.run("fail", |r| {
-            let mut error = Failure::new(NC_E_INVALID_ARG, text(message)?);
+            let status = status.normalize_error();
+            let mut error = Failure::new(status, text(message)?);
             error.path = r.path(PathSite::SelectedField);
             r.failure = Some(error);
-            Err(NC_E_INVALID_ARG)
+            Err(status)
         })
     }
     fn finish(&mut self) -> Result<(), NcStatus> {

@@ -5,7 +5,7 @@ runtime. Its default configuration is allocation-free; optional `alloc` helpers
 own decoded values and binary documents. Most authors use the `neocogi-com-sdk`
 facade. The [current object ABI](../../docs/abi-v4.md) remains experimental.
 
-The `0.5.0-wip-alpha.1` SDK uses **provisional ABI v4/core generation 22**.
+The `0.5.0-wip-alpha.1` SDK uses **provisional ABI v4/core generation 23**.
 Published 0.3.0 uses ABI v2/core generation 19.
 
 Core defines statuses, GUIDs, exact signatures, typed metadata, raw object/table pairs

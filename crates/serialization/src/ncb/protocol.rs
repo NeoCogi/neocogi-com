@@ -191,9 +191,11 @@ impl Protocol {
         if self.root && self.depth == 0 { Ok(()) } else { Err("incomplete document") }
     }
 }
-/// Chooses stable schema diagnostics without borrowing arbitrary foreign message storage.
-fn schema_message(message: &str) -> &'static str {
+/// Chooses stable application diagnostics without borrowing foreign message storage.
+fn application_message(message: &str) -> &'static str {
     match message {
+        "collection element limit" => "collection element limit",
+        "document byte limit" => "document byte limit",
         "missing field" => "missing field",
         "unknown enum variant" => "unknown enum variant",
         "invalid sequence length" => "invalid sequence length",
@@ -209,15 +211,23 @@ fn schema_message(message: &str) -> &'static str {
         _ => "invalid persistent value",
     }
 }
-/// Translates the legacy text-only application failure operation at its boundary.
-fn schema_failure(message: &str, offset: usize) -> Failure {
-    match message {
-        "collection element limit" => Failure::range(offset, "collection element limit"),
-        "document byte limit" => Failure::range(offset, "document byte limit"),
-        _ => Failure::invalid(offset, schema_message(message)),
+/// Records an origin-selected status after validating the message. Only owning
+/// sessions copy arbitrary text. Borrowed sessions retain a bounded static diagnostic.
+fn application_failure(status: NcStatus, offset: usize, message: NcCopyFromBufferOffset<'_, u8>, retain: impl FnOnce(&str)) -> Failure {
+    match read_text(message) {
+        Ok(message) => {
+            retain(message);
+            Failure::new(status.normalize_error(), offset, application_message(message))
+        }
+        Err(reason) => Failure::invalid(offset, reason),
     }
 }
 impl Encoder<'_> {
+    /// Fails an active writer and optionally supplies validated text to its owner.
+    pub(super) fn fail_application(&mut self, status: NcStatus, message: NcCopyFromBufferOffset<'_, u8>, retain: impl FnOnce(&str)) -> Result<(), NcStatus> {
+        self.run(|writer| Err(application_failure(status, writer.offset, message, retain)))
+    }
+
     /// Returns the original failed diagnostic or a schema failure at the current position.
     pub(super) fn failure(&self, fallback: &'static str) -> Error {
         self.last_error().unwrap_or_else(|| self.error(fallback).diagnostic)
@@ -296,6 +306,11 @@ impl Encoder<'_> {
     }
 }
 impl Decoder<'_> {
+    /// Fails an active reader and optionally supplies validated text to its owner.
+    pub(super) fn fail_application(&mut self, status: NcStatus, message: NcCopyFromBufferOffset<'_, u8>, retain: impl FnOnce(&str)) -> Result<(), NcStatus> {
+        self.run(|reader| Err(application_failure(status, reader.offset, message, retain)))
+    }
+
     /// Returns the first format failure, preserving exact NCB error offsets.
     pub(super) fn failure(&self, fallback: &'static str) -> Error {
         self.last_error().unwrap_or_else(|| self.error(fallback).diagnostic)
@@ -488,11 +503,8 @@ impl ISerializer for Encoder<'_> {
             writer.end_variant()
         })
     }
-    fn fail(&mut self, message: NcCopyFromBufferOffset<'_, u8>) -> Result<(), NcStatus> {
-        self.run(|writer| {
-            let message = read_text(message).map_err(|message| writer.error(message))?;
-            Err(schema_failure(message, writer.offset))
-        })
+    fn fail(&mut self, status: NcStatus, message: NcCopyFromBufferOffset<'_, u8>) -> Result<(), NcStatus> {
+        self.fail_application(status, message, |_| {})
     }
     fn finish(&mut self) -> Result<(), NcStatus> {
         self.run(|writer| writer.protocol.finish().map_err(|message| writer.error(message)))?;
@@ -649,11 +661,8 @@ impl IDeserializer for Decoder<'_> {
             Ok(matched)
         })
     }
-    fn fail(&mut self, message: NcCopyFromBufferOffset<'_, u8>) -> Result<(), NcStatus> {
-        self.run(|reader| {
-            let message = read_text(message).map_err(|message| reader.error(message))?;
-            Err(schema_failure(message, reader.offset))
-        })
+    fn fail(&mut self, status: NcStatus, message: NcCopyFromBufferOffset<'_, u8>) -> Result<(), NcStatus> {
+        self.fail_application(status, message, |_| {})
     }
     fn finish(&mut self) -> Result<(), NcStatus> {
         self.run(|reader| {
@@ -835,6 +844,55 @@ mod tests {
             protocol: Protocol::new(),
             phase: Phase::Active,
         }
+    }
+
+    /// Both scoped C adapters retain the selected status without allocating a
+    /// diagnostic. Invalid ABI shape leaves the provider active.
+    #[test]
+    fn scoped_failure_keeps_the_origin_status_and_bounded_native_message() {
+        let custom = NcStatus::from_code(-731);
+        let message = NcCopyFromBufferOffset::new(0, b"collection element limit");
+        let invalid_offset = NcCopyFromBufferOffset::new(1, b"fallback");
+
+        let mut scope = ScopedComProvider::new(writer());
+        // SAFETY: this generated table lends the exact retained encoder type.
+        let mut view: neocogi_com_sdk::ComMut<'_, ISerializerAbi> = unsafe { scope.interface(&ScopedSerializer::<Encoder<'_>>::VTABLE) };
+        let raw = view.as_raw();
+        // SAFETY: the provider and status are valid. The null/nonempty input
+        // explicitly exercises the buffer admission check in the thunk.
+        let rejected = unsafe { ((*raw.vtable).fail)(raw.object, custom, 0, 1, core::ptr::null()) };
+        assert_eq!(rejected, neocogi_com_sdk::NC_E_POINTER);
+        assert_eq!(view.fail(custom, message), Err(custom));
+        assert_eq!(view.fail(NC_E_OUT_OF_RANGE, invalid_offset), Err(custom));
+        assert_eq!(view.finish(), Err(custom));
+        assert_eq!(scope.into_inner().last_error().unwrap().message, "collection element limit");
+
+        let reader = decode_scoped(b"NCB\x01\x17", |mut view| {
+            view.enter_value().unwrap();
+            assert_eq!(view.deserialize_u8(), Ok(23));
+            assert_eq!(view.fail(custom, NcCopyFromBufferOffset::new(0, b"document byte limit")), Err(custom));
+            assert_eq!(view.fail(NC_E_INVALID_ARG, invalid_offset), Err(custom));
+            assert_eq!(view.finish(), Err(custom));
+        });
+        assert_eq!(
+            reader.last_error(),
+            Some(Error {
+                message: "document byte limit",
+                offset: 5
+            })
+        );
+
+        let reader = decode_scoped(b"NCB\x01", |mut view| {
+            assert_eq!(view.fail(custom, invalid_offset), Err(NC_E_INVALID_ARG));
+            assert_eq!(view.fail(custom, message), Err(NC_E_INVALID_ARG));
+        });
+        assert_eq!(
+            reader.last_error(),
+            Some(Error {
+                message: "invalid text offset",
+                offset: 4
+            })
+        );
     }
 
     /// Borrowed scopes cannot acquire ownership or weak references and obey their ABI gate.

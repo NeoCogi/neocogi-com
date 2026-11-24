@@ -230,7 +230,7 @@ impl IDeserializer for FaultSource {
         self.inner.variant_is(index, name)
     }
     /// Delegates to the real NCB session after failure admission.
-    fn fail(&mut self, message: NcCopyFromBufferOffset<'_, u8>) -> Result<(), NcStatus> {
+    fn fail(&mut self, status: NcStatus, message: NcCopyFromBufferOffset<'_, u8>) -> Result<(), NcStatus> {
         if self.wrong_record_count() {
             self.record_calls.push(match message.as_slice() {
                 b"unconsumed record fields" => "remainder failure",
@@ -245,7 +245,7 @@ impl IDeserializer for FaultSource {
         if let Some(status) = self.failed {
             return Err(status);
         }
-        let status = self.inner.fail(message).err().unwrap_or(NC_E_INVALID_ARG);
+        let status = self.inner.fail(status, message).err().unwrap_or(NC_E_INVALID_ARG);
         self.failed = Some(status);
         Err(status)
     }

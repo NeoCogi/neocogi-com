@@ -220,7 +220,7 @@ fn logical_paths_quote_ambiguous_literal_field_names() {
             let error = if present {
                 view.enter_value().unwrap_err()
             } else {
-                view.fail(NcCopyFromBufferOffset::new(0, b"missing field")).unwrap_err()
+                view.fail(NC_E_INVALID_ARG, NcCopyFromBufferOffset::new(0, b"missing field")).unwrap_err()
             };
             assert_eq!(error, if present { neocogi_com_sdk::NC_E_OUT_OF_RANGE } else { NC_E_INVALID_ARG });
             let first = Error::capture(error, &source);

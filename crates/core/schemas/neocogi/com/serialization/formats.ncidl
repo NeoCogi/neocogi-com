@@ -48,8 +48,9 @@ interface ISerializer {
     fn begin_variant(&mut self, index: u32, name: &str) -> Result<()>;
     /// Completes the selected case and its optional payload.
     fn end_variant(&mut self) -> Result<()>;
-    /// Marks a schema failure; no later operation may succeed.
-    fn fail(&mut self, message: &str) -> Result<()>;
+    /// Records a failure reported by the typed caller and returns its status.
+    /// A failed session returns its first stored status.
+    fn fail(&mut self, status: Status, message: &str) -> Result<()>;
     /// Commits a complete document; repeated finish and further writes fail.
     fn finish(&mut self) -> Result<()>;
 }
@@ -106,8 +107,9 @@ interface IDeserializer {
     fn end_map(&mut self) -> Result<()>;
     /// Probes cases in declaration order; a match selects the following payload.
     fn variant_is(&mut self, index: u32, name: &str) -> Result<bool>;
-    /// Marks a schema failure; no later operation may succeed.
-    fn fail(&mut self, message: &str) -> Result<()>;
+    /// Records a failure reported by the typed caller and returns its status.
+    /// A failed session returns its first stored status.
+    fn fail(&mut self, status: Status, message: &str) -> Result<()>;
     /// Requires a complete root with no trailing input and closes the session.
     fn finish(&mut self) -> Result<()>;
 }
