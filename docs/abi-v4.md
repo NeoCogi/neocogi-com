@@ -1161,9 +1161,13 @@ selection errors propagate unchanged. Argument admission precedes selection:
 restore clears its output and checks the input-byte bound first, while snapshot
 validates the sink and exact root pair, charges the root traversal budget,
 then retains the root and traverses its owned children. The caller lends the
-shared root for the entire raw call. Restore's
-object shape rejection reports `NC_E_OUT_OF_RANGE`, and refusal of host child
-storage reports `NC_E_OUT_OF_MEMORY`. Codec failures continue to map to
+shared root for the entire raw call. After a node reports its child count,
+snapshot checks the binary element limit and any required next depth, then
+charges every declared child slot, including pending siblings. A count or depth
+that exceeds policy returns `NC_E_OUT_OF_RANGE` before that node's `save_state`
+or child getters. Getter errors encountered earlier propagate unchanged.
+Restore's object shape rejection reports `NC_E_OUT_OF_RANGE`, and refusal of
+host child storage reports `NC_E_OUT_OF_MEMORY`. Codec failures continue to map to
 `NC_E_INVALID_ARG`. A conclusive object limit can precede a malformed unread
 child or a recipe failure. Recipe validation starts after complete document
 admission and finishes before construction. Selection

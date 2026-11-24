@@ -5,7 +5,7 @@ use neocogi_com_sdk::{ComBytesExt, ComPtr, ComRaw, IUnknown, NcStatus, NC_E_INVA
 use neocogi_com_sdk::persistence::{IPersistableAbi, Limits, ObjectRecord};
 
 /// Exports a shared opt-in tree, detects ownership cycles, and bounds traversal.
-/// The root consumes one traversal budget after exact identity validation and
+/// The root consumes one object slot after exact identity validation and
 /// before any retain, query or provider selection.
 ///
 /// # Safety
@@ -16,7 +16,7 @@ pub(crate) unsafe fn snapshot_with_limits(object: ComRaw<IUnknown>, limits: Limi
     // the shape and exact interface before the traversal budget is consumed.
     unsafe { raw::validate_interface(object) }?;
     let mut capture = Capture::new(limits);
-    capture.admit()?;
+    capture.charge_slots(1)?;
     // SAFETY: The preceding check established exact identity, and the declared
     // shared owner remains alive while AddRef acquires this root for traversal.
     let root = unsafe { ComPtr::clone_from_raw(object) }.ok_or(NC_E_INVALID_ARG)?;
@@ -31,7 +31,7 @@ pub(crate) unsafe fn snapshot_with_limits(object: ComRaw<IUnknown>, limits: Limi
 struct Capture {
     /// Immutable caller policy used for every descendant.
     limits: Limits,
-    /// Object budget shared across siblings, never reset when unwinding a path.
+    /// Unclaimed slots after counting the root and all admitted child counts.
     remaining: usize,
     /// Aggregate provider-state byte budget left before final document encoding.
     bytes_left: usize,
@@ -55,13 +55,13 @@ impl Capture {
         }
     }
 
-    /// Charges one traversal entry before any query or acquisition for that entry.
-    fn admit(&mut self) -> Result<(), NcStatus> {
-        // Refuse work before querying providers once any traversal budget is spent.
-        if self.remaining == 0 || self.active.len() >= self.limits.depth {
+    /// Charges entries at the next depth before acquiring them. Pending siblings
+    /// on every active ancestor have already been charged against this budget.
+    fn charge_slots(&mut self, count: usize) -> Result<(), NcStatus> {
+        if count != 0 && self.active.len() >= self.limits.depth {
             return Err(NC_E_OUT_OF_RANGE);
         }
-        self.remaining -= 1;
+        self.remaining = self.remaining.checked_sub(count).ok_or(NC_E_OUT_OF_RANGE)?;
         Ok(())
     }
 
@@ -75,9 +75,10 @@ impl Capture {
         let value = object.query::<IPersistableAbi>()?;
         self.active.push(identity);
         let count = value.child_count()?;
-        if count as usize > self.remaining || count as usize > self.limits.binary.elements {
+        if count as usize > self.limits.binary.elements {
             return Err(NC_E_OUT_OF_RANGE);
         }
+        self.charge_slots(count as usize)?;
         let state = value.save_state()?;
         // The SDK owns length/capacity admission and publishes initialized bytes
         // only after a complete copy. Empty state needs no foreign copy call.
@@ -86,7 +87,6 @@ impl Capture {
         let mut children = Vec::new();
         for index in 0..count {
             let child = value.child(index)?;
-            self.admit()?;
             let record = self.admitted_object(&child)?;
             // Grow only for a completed child. Ancestors retain capacity
             // proportional to their acquired children during descent.
@@ -160,13 +160,13 @@ mod tests {
         let outer = node(3, vec![leaf, inner]);
         let root = node(4, vec![outer]);
         let mut capture = Capture::new(Limits::default());
-        capture.admit().unwrap();
+        capture.charge_slots(1).unwrap();
         assert_eq!(capture.admitted_object(&root), Err(NC_E_NOT_FOUND));
         assert_eq!(capture.child_capacity_requests, [1, 1]);
 
         let full = node(3, (0..3).map(|_| node(0, Vec::new())).collect());
         let mut capture = Capture::new(Limits::default());
-        capture.admit().unwrap();
+        capture.charge_slots(1).unwrap();
         assert_eq!(capture.admitted_object(&full).unwrap().children.len(), 3);
         // The allocator may provide extra capacity. Every request still stays
         // within the admitted count, and no leaf requests child slots.

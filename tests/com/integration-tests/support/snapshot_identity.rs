@@ -366,7 +366,7 @@ fn run_graph(
     state_len: usize,
     limits: Limits,
     expected: Option<NcStatus>,
-    expected_counts: Option<&[usize]>,
+    expected_entries: &[[usize; 5]],
 ) {
     for which in [Entry::Safe, Entry::Raw] {
         let metrics: Vec<_> = edges.iter().map(|_| Rc::new(Metrics::default())).collect();
@@ -433,30 +433,8 @@ fn run_graph(
             }
         }
         let observed: Vec<_> = metrics.iter().map(|m| m.entries()).collect();
-        if limits.objects == 0 || limits.depth == 0 {
-            assert!(observed.iter().all(|entry| *entry == [0; 5]));
-        } else if let Some((target, stage)) = fail {
-            // Explicit expected observations for these identified failure scenarios;
-            // they distinguish the exact failing boundary and completed child work.
-            let expected = match (target, stage) {
-                (0, Stage::Count) => vec![[1, 0, 0, 0, 0], [0; 5], [0; 5]],
-                (0, Stage::State | Stage::BytesLen | Stage::BytesCopy) => vec![[1, 1, 0, 0, 0], [0; 5], [0; 5]],
-                (0, Stage::Child(1)) => vec![[1, 1, 2, 0, 0], [1, 1, 0, 1, 1], [0; 5]],
-                (0, Stage::Type) => vec![[1, 1, 2, 1, 0], [1, 1, 0, 1, 1], [1, 1, 0, 1, 1]],
-                (0, Stage::Schema) => vec![[1, 1, 2, 1, 1], [1, 1, 0, 1, 1], [1, 1, 0, 1, 1]],
-                (1, Stage::State) => vec![[1, 1, 1, 0, 0], [1, 1, 0, 0, 0]],
-                _ => panic!("add an exact work expectation for {name}"),
-            };
-            assert_eq!(observed, expected, "{name} {which:?} work before failure");
-        }
-        let counts: Vec<_> = metrics.iter().map(|m| m.count.get()).collect();
-        if let Some(expected) = expected_counts {
-            assert_eq!(&counts, expected, "{name} {which:?} provider entries");
-        }
-        println!(
-            "{name} {which:?}: status={expected:?} entries={:?}",
-            metrics.iter().map(|m| m.entries()).collect::<Vec<_>>()
-        );
+        assert_eq!(observed, expected_entries, "{name} {which:?} provider entries");
+        println!("{name} {which:?}: status={expected:?} entries={observed:?}");
         // All temporary capture owners must have gone away on success or error.
         // This explicit fixture teardown breaks provider-owned strong cycles;
         // snapshot rejection never promises to alter application ownership.
@@ -474,30 +452,35 @@ fn run_graph(
 #[test]
 fn retained_allocation_identity_through_actual_safe_and_raw_runtime() {
     let defaults = Limits::default();
-    run_graph("leaf", &[&[]], None, 2, defaults, None, Some(&[1]));
-    run_graph("repeated sibling", &[&[(1, false), (1, true)], &[]], None, 2, defaults, None, Some(&[1, 2]));
+    let completed_leaf = [1, 1, 0, 1, 1];
+    run_graph("leaf", &[&[]], None, 2, Limits { objects: 1, depth: 1, ..defaults }, None, &[completed_leaf]);
+    run_graph(
+        "repeated sibling",
+        &[&[(1, false), (1, true)], &[]],
+        None,
+        2,
+        Limits { objects: 3, depth: 2, ..defaults },
+        None,
+        &[[1, 1, 2, 1, 1], [2, 2, 0, 2, 2]],
+    );
     run_graph(
         "diamond DAG",
         &[&[(1, false), (2, false)], &[(3, true)], &[(3, false)], &[]],
         None,
         2,
-        defaults,
+        Limits { objects: 5, depth: 3, ..defaults },
         None,
-        Some(&[1, 1, 1, 2]),
+        &[[1, 1, 2, 1, 1], [1, 1, 1, 1, 1], [1, 1, 1, 1, 1], [2, 2, 0, 2, 2]],
     );
     for depth in [0, 1, 2, 3] {
         let limits = Limits { depth, ..defaults };
         let status = Some(if depth < 2 { NC_E_OUT_OF_RANGE } else { NC_E_INVALID_ARG });
-        let calls = if depth == 0 { 0 } else { 1 };
-        run_graph(
-            &format!("same-table self depth={depth}"),
-            &[&[(0, false)]],
-            None,
-            2,
-            limits,
-            status,
-            Some(&[calls]),
-        );
+        let entries = match depth {
+            0 => [0; 5],
+            1 => [1, 0, 0, 0, 0],
+            _ => [1, 1, 1, 0, 0],
+        };
+        run_graph(&format!("same-table self depth={depth}"), &[&[(0, false)]], None, 2, limits, status, &[entries]);
         run_graph(
             &format!("duplicate-table self depth={depth}"),
             &[&[(0, true)]],
@@ -505,7 +488,7 @@ fn retained_allocation_identity_through_actual_safe_and_raw_runtime() {
             2,
             limits,
             status,
-            Some(&[calls]),
+            &[entries],
         );
     }
     run_graph(
@@ -515,9 +498,17 @@ fn retained_allocation_identity_through_actual_safe_and_raw_runtime() {
         2,
         defaults,
         Some(NC_E_INVALID_ARG),
-        Some(&[1, 1]),
+        &[[1, 1, 1, 0, 0]; 2],
     );
-    run_graph("strong cycle self", &[&[(0, true)]], None, 2, defaults, Some(NC_E_INVALID_ARG), Some(&[1]));
+    run_graph(
+        "strong cycle self",
+        &[&[(0, true)]],
+        None,
+        2,
+        defaults,
+        Some(NC_E_INVALID_ARG),
+        &[[1, 1, 1, 0, 0]],
+    );
     run_graph(
         "strong cycle indirect",
         &[&[(1, true)], &[(0, true)]],
@@ -525,7 +516,7 @@ fn retained_allocation_identity_through_actual_safe_and_raw_runtime() {
         2,
         defaults,
         Some(NC_E_INVALID_ARG),
-        Some(&[1, 1]),
+        &[[1, 1, 1, 0, 0]; 2],
     );
     run_graph(
         "alternate root canonical child",
@@ -534,21 +525,33 @@ fn retained_allocation_identity_through_actual_safe_and_raw_runtime() {
         2,
         Limits { depth: 2, ..defaults },
         Some(NC_E_INVALID_ARG),
-        Some(&[1]),
+        &[[1, 1, 1, 0, 0]],
     );
     for objects in [0, 1, 2] {
         let limits = Limits { objects, ..defaults };
-        let new = Some(if objects < 2 { NC_E_OUT_OF_RANGE } else { NC_E_INVALID_ARG });
-        run_graph(&format!("duplicate-table self objects={objects}"), &[&[(0, true)]], None, 2, limits, new, None);
+        let (status, entries) = match objects {
+            0 => (NC_E_OUT_OF_RANGE, [0; 5]),
+            1 => (NC_E_OUT_OF_RANGE, [1, 0, 0, 0, 0]),
+            _ => (NC_E_INVALID_ARG, [1, 1, 1, 0, 0]),
+        };
+        run_graph(
+            &format!("duplicate-table self objects={objects}"),
+            &[&[(0, true)]],
+            None,
+            2,
+            limits,
+            Some(status),
+            &[entries],
+        );
     }
-    for stage in [
-        Stage::Count,
-        Stage::State,
-        Stage::Child(1),
-        Stage::Type,
-        Stage::Schema,
-        Stage::BytesLen,
-        Stage::BytesCopy,
+    for (stage, entries) in [
+        (Stage::Count, [[1, 0, 0, 0, 0], [0; 5], [0; 5]]),
+        (Stage::State, [[1, 1, 0, 0, 0], [0; 5], [0; 5]]),
+        (Stage::Child(1), [[1, 1, 2, 0, 0], completed_leaf, [0; 5]]),
+        (Stage::Type, [[1, 1, 2, 1, 0], completed_leaf, completed_leaf]),
+        (Stage::Schema, [[1, 1, 2, 1, 1], completed_leaf, completed_leaf]),
+        (Stage::BytesLen, [[1, 1, 0, 0, 0], [0; 5], [0; 5]]),
+        (Stage::BytesCopy, [[1, 1, 0, 0, 0], [0; 5], [0; 5]]),
     ] {
         run_graph(
             &format!("provider error {stage:?}"),
@@ -557,7 +560,7 @@ fn retained_allocation_identity_through_actual_safe_and_raw_runtime() {
             2,
             defaults,
             Some(NC_E_NOT_FOUND),
-            None,
+            &entries,
         );
     }
     run_graph(
@@ -567,7 +570,7 @@ fn retained_allocation_identity_through_actual_safe_and_raw_runtime() {
         2,
         defaults,
         Some(NC_E_NOT_FOUND),
-        Some(&[1, 1]),
+        &[[1, 1, 1, 0, 0], [1, 1, 0, 0, 0]],
     );
     run_graph(
         "object budget before provider error",
@@ -576,7 +579,7 @@ fn retained_allocation_identity_through_actual_safe_and_raw_runtime() {
         2,
         Limits { objects: 0, ..defaults },
         Some(NC_E_OUT_OF_RANGE),
-        Some(&[0]),
+        &[[0; 5]],
     );
     run_graph(
         "depth budget before provider error",
@@ -585,7 +588,7 @@ fn retained_allocation_identity_through_actual_safe_and_raw_runtime() {
         2,
         Limits { depth: 0, ..defaults },
         Some(NC_E_OUT_OF_RANGE),
-        Some(&[0]),
+        &[[0; 5]],
     );
     run_graph(
         "count beyond object budget",
@@ -594,7 +597,7 @@ fn retained_allocation_identity_through_actual_safe_and_raw_runtime() {
         2,
         Limits { objects: 2, ..defaults },
         Some(NC_E_OUT_OF_RANGE),
-        Some(&[1, 0]),
+        &[[1, 0, 0, 0, 0], [0; 5]],
     );
     run_graph(
         "count beyond element budget",
@@ -606,7 +609,46 @@ fn retained_allocation_identity_through_actual_safe_and_raw_runtime() {
             ..defaults
         },
         Some(NC_E_OUT_OF_RANGE),
-        Some(&[1, 0]),
+        &[[1, 0, 0, 0, 0], [0; 5]],
+    );
+    run_graph(
+        "child depth before failing getter",
+        &[&[(1, false)], &[]],
+        Some((0, Stage::Child(0))),
+        2,
+        Limits { objects: 2, depth: 1, ..defaults },
+        Some(NC_E_OUT_OF_RANGE),
+        &[[1, 0, 0, 0, 0], [0; 5]],
+    );
+    run_graph(
+        "getter failure at admitted depth and count",
+        &[&[(1, false)], &[]],
+        Some((0, Stage::Child(0))),
+        2,
+        Limits { objects: 2, depth: 2, ..defaults },
+        Some(NC_E_NOT_FOUND),
+        &[[1, 1, 1, 0, 0], [0; 5]],
+    );
+    // After the first child advertises its grandchild, the root's pending second
+    // child already accounts for the last slot. Neither getter may run.
+    let with_grandchild: &[&[(usize, bool)]] = &[&[(1, false), (2, false)], &[(3, false)], &[], &[]];
+    run_graph(
+        "grandchild exceeds count with pending sibling",
+        with_grandchild,
+        Some((0, Stage::Child(1))),
+        2,
+        Limits { objects: 3, depth: 3, ..defaults },
+        Some(NC_E_OUT_OF_RANGE),
+        &[[1, 1, 1, 0, 0], [1, 0, 0, 0, 0], [0; 5], [0; 5]],
+    );
+    run_graph(
+        "grandchild and pending sibling exactly fit",
+        with_grandchild,
+        None,
+        2,
+        Limits { objects: 4, depth: 3, ..defaults },
+        None,
+        &[[1, 1, 2, 1, 1], [1, 1, 1, 1, 1], completed_leaf, completed_leaf],
     );
     run_graph(
         "provider-state bytes",
@@ -618,7 +660,7 @@ fn retained_allocation_identity_through_actual_safe_and_raw_runtime() {
             ..defaults
         },
         Some(NC_E_OUT_OF_RANGE),
-        Some(&[1]),
+        &[[1, 1, 0, 0, 0]],
     );
     run_graph(
         "final codec budget",
@@ -630,7 +672,7 @@ fn retained_allocation_identity_through_actual_safe_and_raw_runtime() {
             ..defaults
         },
         Some(NC_E_INVALID_ARG),
-        Some(&[1]),
+        &[completed_leaf],
     );
     for which in [Entry::Safe, Entry::Raw] {
         let local = Node::into_local(Node {

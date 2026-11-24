@@ -90,14 +90,13 @@ only mutating operation, and `restore(&self, ...)` borrows it. Dropping the
 handle destroys its context and releases retained factories in the allocating
 runtime. Independently owned restored objects remain valid afterward.
 
-Snapshot capture currently supports shared ownership trees. It must retain
-canonical identities along the active traversal path; a live exclusive root is
-a valid borrow but cannot grant a shared reference. Both snapshot entry points
-return `NC_E_INVALID_ARG` before persistence getters or byte delivery run, leaving
-the sole owner intact. Exclusive-tree snapshots require a separate observation
-protocol and are not provided by this service. The raw factory registration
-table also rejects a non-shareable borrowed factory before registry mutation;
-the Rust registry facade already requires an owned `ComPtr`.
+Snapshot captures shared ownership trees and retains canonical identities along
+the active traversal path. The Rust SDK takes `&ComPtr<IUnknown>`. The raw
+snapshot root and raw registration factory must each be a live shared pair
+borrowed for the entire call. The raw entry points validate pair shape and exact
+interface identity. The producer's declared shared backing supplies the ownership
+proof. A persistence factory borrows `IObjectChildren` during `restore` and can
+keep the independently owned references returned by `get`.
 
 Snapshot traversal produces the document once. A synchronous byte callback
 copies the completed document into caller-owned storage; failure publishes no
@@ -113,10 +112,15 @@ root-to-leaf path. The nested binary policy defaults to a 16 MiB document,
 65,536 elements/fields per container, 64 levels of value nesting, and 1,000,000
 decoded values. Binary nesting counts the encoded record/sequence structure,
 so it can be exhausted before the object-depth budget. Provider-state bytes
-and children also count toward binary container limits. Snapshot capture checks
-the advertised child count before visiting children, then grows each child
-vector fallibly as records complete. Allocation failure during child growth
-returns `NC_E_OUT_OF_MEMORY`.
+and children also count toward binary container limits. Snapshot charges the root
+before retaining it. After a successful `child_count`, capture checks the binary
+element limit, the depth needed by a nonempty child list and the remaining object
+allowance. Each advertised child takes one slot immediately, including pending
+siblings. An impossible count or depth returns `NC_E_OUT_OF_RANGE` before
+calling that node's `save_state` or any child getter. Getter failures encountered
+before discovering an impossible shape keep their original status. Each child
+vector grows fallibly as records complete. Allocation failure during child
+growth returns `NC_E_OUT_OF_MEMORY`.
 Restore charges the root and each declared child count during decoding. Pending
 siblings count toward the object limit as soon as their sequence's binary count
 is admitted. An impossible count or path returns `NC_E_OUT_OF_RANGE` before
@@ -129,12 +133,13 @@ The format COM ABI represents container and value-depth ceilings as `u32`.
 Persistence saturates larger `usize` ceilings to `u32::MAX` at that boundary,
 so permissive caller policy still accepts small NCB-v1 documents.
 
-Registration consumes an owned factory pointer. The runtime retains one
-reference on success; duplicate IDs return `NC_E_INVALID_ARG` and preserve
-the existing provider. Restoration reports `NC_E_NOT_FOUND` for an unregistered
-recipe. Providers decide which schema versions they support and return their
-own validation errors. No factory constructor runs until the full preflight
-succeeds, although provider `validate` calls have already run.
+The Rust registration method takes a `ComPtr` by value and lends its pair to
+the runtime. The runtime retains its own reference on success. Duplicate IDs
+return `NC_E_INVALID_ARG` and preserve the existing provider. Restoration reports
+`NC_E_NOT_FOUND` for an unregistered recipe. Providers decide which schema
+versions they support and return their own validation errors. No factory
+constructor runs until the full preflight succeeds, although provider `validate`
+calls have already run.
 
 Cycles return `NC_E_INVALID_ARG`; explicit object/state traversal budget checks
 return `NC_E_OUT_OF_RANGE`. Codec failures are mapped to `NC_E_INVALID_ARG`,

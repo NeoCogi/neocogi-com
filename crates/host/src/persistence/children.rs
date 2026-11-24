@@ -1,8 +1,8 @@
 //! Immutable, runtime-owned child lists lent to persistence factories.
 //!
-//! Only COM reference counting changes after publication. Factories may retain
-//! the list or individual children; their final Release always frees storage in
-//! the runtime that allocated it. No facade object machinery is required here.
+//! Factories use the list loan for the call and may keep the owned child
+//! references returned by `get`. Only COM reference counting changes the list
+//! after publication. Final list release frees storage in the allocating runtime.
 
 use core::{ffi::c_void, sync::atomic::AtomicU32};
 use neocogi_com_sdk::{
