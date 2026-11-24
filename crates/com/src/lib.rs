@@ -116,8 +116,8 @@ mod data;
 /// Static descriptions of generated IDL interfaces, methods and value types.
 pub mod idl_metadata;
 mod object;
-mod runtime_access;
-pub use runtime_access::RuntimeHandle;
+mod runtime_handle;
+pub use runtime_handle::RuntimeHandle;
 pub mod persistence;
 #[cfg(feature = "runtime")]
 mod runtime;

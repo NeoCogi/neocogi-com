@@ -6,7 +6,7 @@
 //! the higher-level `neocogi-com-sdk` crate; this core module contains only ABI contracts.
 
 use crate::guid::{NcGuid, guid_from_qualified_name};
-use crate::signature::NcAbiDigest;
+use crate::abi_digest::NcAbiDigest;
 use crate::metadata::{
     NcAbiPassing, NcAbiPassingDescriptor, NcAbiType, NcAbiTypeDescriptor, NcInterfaceDescriptor, NcInterfaceId, NcMethodDescriptor, NcMethodParamDescriptor,
     NcMethodReturnDescriptor, NcStaticUtf8,

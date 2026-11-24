@@ -8,7 +8,7 @@ use core::ffi::c_void;
 
 use crate::guid::NcGuid;
 use crate::metadata::{NcInterfaceDescriptor, NcInterfaceId, NcStaticUtf8};
-use crate::signature::NcAbiDigest;
+use crate::abi_digest::NcAbiDigest;
 use crate::status::NcStatus;
 use crate::{ThreadLocal, ThreadSafe, ThreadingModel};
 

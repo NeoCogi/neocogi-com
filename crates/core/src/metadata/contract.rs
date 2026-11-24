@@ -18,7 +18,7 @@
 //! the raw record would still need integer storage that permits validation.
 
 use crate::guid::NcGuid;
-use crate::signature::NcAbiDigest;
+use crate::abi_digest::NcAbiDigest;
 
 /// Native ABI version shared by plugin descriptors, host services, and COM objects.
 ///

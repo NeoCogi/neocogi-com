@@ -39,8 +39,8 @@ pub use method_names::{NC_COM_HANDLE_METHOD_NAMES, is_reserved_com_method};
 mod generated_names;
 pub use generated_names::{NcComDenseEnumMember, NcComInterfaceCompanion};
 mod data;
-mod decode;
-mod encode;
+mod deserialize;
+mod serialize;
 mod guid;
 mod plugin_descriptor;
 mod value;
@@ -54,7 +54,6 @@ mod ptr;
 pub use boxed::{ComBox, WeakComBox};
 /// Common allocation header and non-generic strong/weak lifetime operations.
 pub mod lifetime;
-#[path = "raw.rs"]
 mod raw_handle;
 mod ref_count;
 mod scoped_result;
@@ -68,7 +67,7 @@ pub use output::NcOutputBuffer;
 #[doc(hidden)]
 pub use ref_count::{__com_add_ref_count, __com_release_ref_count};
 pub mod runtime_abi;
-mod signature;
+mod abi_digest;
 mod status;
 
 #[cfg(feature = "alloc")]
@@ -86,10 +85,10 @@ pub use value::{ValueSequenceKeepAlive, encode_value_buffer, decode_value_buffer
 pub use buffer::{NcCopyFromBufferOffset};
 pub use rust_interface::{ComRustInterface, ComInterfacePointer};
 pub use data::{IID_INC_BYTES, IID_INC_STRING, INcBytesAbi, INcBytesVTable, INcStringAbi, INcStringVTable, QUALIFIED_NAME_INC_BYTES, QUALIFIED_NAME_INC_STRING};
-pub use encode::ComSerialize;
-pub use decode::ComDeserialize;
+pub use serialize::ComSerialize;
+pub use deserialize::ComDeserialize;
 pub use guid::{NC_COM_GUID_NAMESPACE, NC_GUID_NIL, NcGuid, ParseGuidError, guid_from_name, guid_from_qualified_name};
-pub use signature::NcAbiDigest;
+pub use abi_digest::NcAbiDigest;
 #[cfg(feature = "alloc")]
 pub use metadata::{format_abi_signature, format_method_signature};
 pub use metadata::{

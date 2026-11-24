@@ -37,7 +37,7 @@ mod api;
 mod debug;
 mod descriptor;
 mod factory_acquisition;
-mod factory_plugin_registry;
+mod plugin_registry;
 mod factory_registration;
 mod inspection;
 mod loader;

@@ -8,7 +8,7 @@
 use neocogi_com::{NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS, NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE, NC_OK, NcPluginDescriptor, NcStatus};
 use crate::descriptor::ValidatedPluginDescriptor;
 
-use crate::factory_plugin_registry::{PluginRegistry, PluginOrigin, RegisteredPlugin};
+use crate::plugin_registry::{PluginRegistry, PluginOrigin, RegisteredPlugin};
 use crate::state::RuntimeState;
 
 /// Validates one descriptor with its actual origin before atomic publication.

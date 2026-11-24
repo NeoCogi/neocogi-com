@@ -14,10 +14,10 @@ use crate::{
     NC_ABI_THREADING_THREAD_LOCAL, NcDebugApi, NcPluginDescriptor, NcGuid, NcPluginApi, NcStatus, NcUtf8View, ThreadingModel, RuntimeHandle,
 };
 
-mod debug;
+mod diagnostics;
 mod plugin;
 
-pub use debug::{RuntimeDiagnostics, DebugMessenger};
+pub use diagnostics::{RuntimeDiagnostics, DebugMessenger};
 pub use plugin::{FactoryInfo, PluginInfo, PluginOrigin};
 
 /// Maximum number of elements copied by one Rust runtime-facade enumeration.

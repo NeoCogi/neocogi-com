@@ -8,7 +8,7 @@ mod debug;
 mod host;
 mod persistence;
 mod plugin;
-mod runtime;
+mod plugin_api;
 pub use persistence::{NcPersistenceApi, NcPersistenceContext, NcPersistenceLimits, NcPersistenceWriteBytes};
 
 pub use debug::{
@@ -17,7 +17,7 @@ pub use debug::{
     NcDebugMessengerCreateInfo,
 };
 pub use plugin::{NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS, NcFactoryInfo, NcInspectPluginDescriptorCallback, NcPluginInfo};
-pub use runtime::NcPluginApi;
+pub use plugin_api::NcPluginApi;
 pub use host::{NcHostApi, validate_host_api};
 
 /// Borrowed immutable UTF-8 bytes owned by the runtime.

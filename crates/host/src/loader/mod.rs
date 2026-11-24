@@ -16,7 +16,7 @@ use std::path::Path;
 
 use neocogi_com::{NC_E_POINTER, NC_GET_PLUGIN_DESCRIPTOR_SYMBOL, NcPluginDescriptor, NcGetPluginDescriptor, NcGuid};
 
-use crate::factory_plugin_registry::{PluginOrigin, RegisteredPlugin};
+use crate::plugin_registry::{PluginOrigin, RegisteredPlugin};
 use crate::descriptor::ValidatedPluginDescriptor;
 use crate::native_library as library;
 use crate::state::RuntimeState;

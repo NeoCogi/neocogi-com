@@ -13,7 +13,7 @@
 
 use super::contract::{NcAbiPassingDescriptor, NcAbiTypeDescriptor, NcInterfaceId};
 use crate::guid::NcGuid;
-use crate::signature::NcAbiDigest;
+use crate::abi_digest::NcAbiDigest;
 use crate::status::{NC_E_INVALID_ARG, NC_E_POINTER, NcStatus};
 
 /// C-stable typed ABI descriptor for one method parameter.

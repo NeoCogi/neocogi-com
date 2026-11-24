@@ -3,7 +3,7 @@
 //! storage. Moving the enclosing catalog records never moves these allocations.
 
 use neocogi_com::{NcFactoryInfo, NcPluginInfo, NcStaticUtf8, NcUtf8View};
-use crate::factory_plugin_registry::{PluginOrigin, RegisteredPlugin};
+use crate::plugin_registry::{PluginOrigin, RegisteredPlugin};
 
 /// Borrows a complete record from process-lived registration storage.
 pub(crate) fn plugin_info(registered: &RegisteredPlugin) -> NcPluginInfo {

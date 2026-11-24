@@ -8,7 +8,7 @@
 use std::sync::{OnceLock, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 use crate::debug::DebugState;
-use crate::factory_plugin_registry::PluginRegistry;
+use crate::plugin_registry::PluginRegistry;
 
 /// Catalog retained by the selected host implementation after initialization.
 static STATE: OnceLock<RuntimeState> = OnceLock::new();
@@ -64,7 +64,7 @@ mod tests {
 
     use neocogi_com::{IUnknown, NC_E_CLOSED, NC_E_NOT_FOUND, NcPluginDependencyDescriptor, NcPluginDescriptor, NcStaticUtf8};
 
-    use crate::factory_plugin_registry::PluginOrigin;
+    use crate::plugin_registry::PluginOrigin;
     use crate::factory_registration::prepare_factory_plugin;
 
     /// Registry fixtures use the same complete validation as production records.

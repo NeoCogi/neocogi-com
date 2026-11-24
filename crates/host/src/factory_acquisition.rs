@@ -9,7 +9,7 @@ use neocogi_com::{
     NcGuid, NcInterfaceId, NcStatus, raw,
 };
 
-use crate::factory_plugin_registry::PluginRegistry;
+use crate::plugin_registry::PluginRegistry;
 
 /// Resolves one compatible acquisition pointer without entering plugin code.
 pub(crate) fn resolve_factory(
@@ -111,7 +111,7 @@ mod tests {
     use neocogi_com::{IUnknownVTable, NC_ABI_THREADING_THREAD_LOCAL, NC_E_ABI_VERSION, NcAbiDigest, NcPluginDescriptor, NcStaticUtf8, guid_from_qualified_name};
 
     use super::*;
-    use crate::factory_plugin_registry::PluginOrigin;
+    use crate::plugin_registry::PluginOrigin;
     use crate::factory_registration::prepare_factory_plugin;
 
     /// Stable fake factory interface used by raw acquisition validation.

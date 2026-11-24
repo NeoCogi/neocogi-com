@@ -732,7 +732,7 @@ mod tests {
     unsafe impl ComInterface for IProbe {
         const INTERFACE_ID: NcInterfaceId = NcInterfaceId::new(
             crate::NcGuid::from_fields(0x1234_5678, 0x1234, 0x5678, [1, 2, 3, 4, 5, 6, 7, 8]),
-            crate::signature::NcAbiDigest::from_static(&[1u8; 32]),
+            crate::abi_digest::NcAbiDigest::from_static(&[1u8; 32]),
         );
         type Threading = ThreadLocal;
         type VTable = IUnknownVTable;

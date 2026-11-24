@@ -7,7 +7,7 @@
 
 use crate::guid::NcGuid;
 use crate::metadata::NcAbiType;
-use crate::signature::NcAbiDigest;
+use crate::abi_digest::NcAbiDigest;
 use crate::status::NcStatus;
 
 /// Canonical type metadata for copied application values with checked wire codecs.
