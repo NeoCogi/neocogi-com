@@ -1,27 +1,21 @@
-# COM ABI v4 (WIP)
+# COM ABI 24 (WIP)
 
-**SDK 0.5.0-wip-alpha.1 uses ABI v4 while the ABI is WORK IN PROGRESS (WIP).**
+**SDK 0.5.0-wip-alpha.1 uses ABI 24 while the ABI is WORK IN PROGRESS (WIP).**
 
-Layouts, vtables, callback signatures, ownership contracts and Rust APIs may
-change before the ABI-v4 release freeze. The [versions below](#abi-identities-and-versions)
-identify the compatibility checks used by this SDK. Further incompatible design
-changes can remain part of ABI v4 while it is WIP. Keep core generations and
-admission checks coherent so incompatible binaries are rejected. Rebuild hosts,
-providers and generated consumers from the same source revision.
+One native ABI version covers the shared layouts, callback signatures and
+ownership contracts. Hosts and plugins require an exact version match.
+Advance the version whenever a change makes older binaries incompatible and
+rebuild hosts, providers and generated consumers from the same source revision.
 
-This provisional COM binary contract rejects SDK 0.4.0 (ABI v3/core 21) and
-SDK 0.3.0 (ABI v2/core 19). The [ABI v3 specification](https://github.com/NeoCogi/neocogi-com/blob/v0.4.0/docs/abi-v3.md)
-and [ABI v2 specification](https://github.com/NeoCogi/neocogi-com/blob/v0.3.0/docs/abi-v2.md)
-and [ABI v1 specification](https://github.com/NeoCogi/neocogi-com/blob/v0.1.0/docs/abi-v1.md)
-remain available at their release tags. No fallback symbols, aliases or automatic
-adapters admit those older participants.
+Published SDK 0.4.0 uses [ABI v3/core 21](https://github.com/NeoCogi/neocogi-com/blob/v0.4.0/docs/abi-v3.md).
+Published SDK 0.3.0 uses [ABI v2/core 19](https://github.com/NeoCogi/neocogi-com/blob/v0.3.0/docs/abi-v2.md).
+The [ABI v1 specification](https://github.com/NeoCogi/neocogi-com/blob/v0.1.0/docs/abi-v1.md)
+is available at its release tag. ABI 24 also rejects the superseded ABI v4/core
+23 candidate. No fallback symbols, aliases or adapters admit older binaries.
 
-The persistence service now explicitly borrows shared-owned roots and factories.
-Construction and declared ABI ownership establish the matching header; provider
-metadata contains no ownership discriminator. Core generation 23 carries the
-originating error status in both serialization session failure slots. Native
-providers export `nc_get_plugin_descriptor_v4`. Rebuild all hosts, providers and
-generated consumers together before exchanging objects.
+The persistence service borrows shared-owned roots and factories. Construction
+and declared ownership establish the matching lifetime header. Serialization
+session failures carry the originating status.
 
 ## ABI identities and versions
 
@@ -32,10 +26,9 @@ Opening an image may still execute its initializers and descriptor getter.
 
 | Identity or version | Current authority and purpose |
 | --- | --- |
-| Core ABI | NC_COM_CORE_ABI_VERSION == 23; status-bearing codec failures and policy-specific lifetime headers |
-| Runtime ABI | NC_COM_RUNTIME_ABI_VERSION == 4; supplied immutable host-service family |
-| Plugin descriptor ABI | NC_PLUGIN_DESCRIPTOR_ABI_VERSION == 4; nc_get_plugin_descriptor_v4 and its prefix |
-| Interface contract | IID plus exact 32-byte ABI signature; checked independently of core admission |
+| Native ABI | NC_COM_ABI_VERSION == 24; checked in the plugin descriptor and host bundle |
+| Native getter | `nc_get_plugin_descriptor`; fixed C signature and leading descriptor version |
+| Interface contract | IID plus exact 32-byte ABI signature; checked for a particular interface |
 | IDL fingerprint encoding | MODULE_ABI_ENCODING_DOMAIN; canonical encoding v15 with directional callable slots |
 | NCB format | Version 1; independent of live object ownership and lifetime layout |
 
@@ -47,7 +40,7 @@ and explicit serialization-provider selection keep their contracts. No Rust trai
 or unwinding crosses a C boundary. The application links one host owner and
 supplies its tables through nested plugins.
 
-The [provider migration guide](guides/ABI_V4_MIGRATION.md) maps earlier headers,
+The [provider migration guide](guides/ABI_MIGRATION.md) maps earlier headers,
 metadata, raw tokens and bootstrap names to this development contract.
 
 ## Interface identity and calls
@@ -157,8 +150,8 @@ Rust source/generated-name change. C layouts, vtable slots, exact IID/signatures
 canonical IDL encoding and NCB-v1 bytes were unchanged by that rename.
 Regenerate Rust bindings with the matching SDK.
 
-Discovery checks core generation 23 before dispatch. Exact interface signatures do
-not replace that global layout/behavior check. See the
+Admission checks the native ABI before dispatch. Interface signatures also
+check each particular callable contract. See the
 [storage rationale](contracts/COM_INTERFACE_STORAGE.md) for the
 object/table design and its measurement boundaries.
 
@@ -242,8 +235,8 @@ equal contracts stored in different libraries.
 The public static constructor makes digest width a compile-time obligation:
 
 ```rust
-use neocogi_com_sdk::{NcAbiDigest, NC_COM_CORE_ABI_VERSION};
-assert_eq!(NC_COM_CORE_ABI_VERSION, 23);
+use neocogi_com_sdk::{NcAbiDigest, NC_COM_ABI_VERSION};
+assert_eq!(NC_COM_ABI_VERSION, 24);
 static FIRST: [u8; 32] = [7; 32];
 static SECOND: [u8; 32] = [7; 32];
 let a = NcAbiDigest::from_static(&FIRST);
@@ -358,8 +351,8 @@ one private cold non-unwinding failure path preserves fail-stop exhaustion for
 ordinary Rust weak clones. destroy_value/deallocate remain C callbacks because
 final cleanup can execute in the allocating provider's binary.
 
-ABI v4/core 23 retains the three-word headers and four-word provider type
-information introduced in ABI v3/core 21. Discovery rejects older generations
+ABI 24 retains the three-word headers and four-word provider type
+information introduced in ABI v3/core 21. Admission rejects older versions
 before interpreting callbacks or object storage.
 
 ## Allocation and borrowing
@@ -437,7 +430,7 @@ The last available count is usable and may later be decremented normally.
 Saturating the **actual** counter while accepting more owners would undercount
 later releases and permit premature destruction. A capped diagnostic `u32`
 return is allowed only when the wider private counter still records the retain.
-This policy does not change any handle, method table or core ABI version.
+This policy does not change any handle, method table or native ABI version.
 
 Exclusive owner Drop clears owner presence with an acquire/release operation, rejecting all
 new calls. It waits for existing readers/writers using acquire observations, invokes
@@ -605,15 +598,15 @@ Built-in data interfaces exercise shared ownership and checked native calls:
 
 ```rust
 use neocogi_com_sdk::{INcBytesAbi, ComBytesExt, ComStringExt, IUnknown, NcString};
-let text = NcString::from_utf8_str("ABI v4");
+let text = NcString::from_utf8_str("ABI 24");
 let another = text.clone();
 let bytes = text.query::<INcBytesAbi>().unwrap();
-assert_eq!(bytes.to_vec().unwrap(), b"ABI v4");
-assert_eq!(another.to_string().unwrap(), "ABI v4");
+assert_eq!(bytes.to_vec().unwrap(), b"ABI 24");
+assert_eq!(another.to_string().unwrap(), "ABI 24");
 let identity = text.query::<IUnknown>().unwrap();
 assert!(identity.as_com_ref().same_object(bytes.as_com_ref()));
 drop(text); // Other strong owners still retain the immutable value.
-assert_eq!(another.to_string().unwrap(), "ABI v4");
+assert_eq!(another.to_string().unwrap(), "ABI 24");
 ```
 
 
@@ -842,18 +835,24 @@ The accessor and native export return metadata without registration or acquisiti
 | --- | --- |
 | Metadata input | `NcPluginDescriptor`; no separate plugin-kind qualifier. |
 | Generated Rust accessor | `plugin_descriptor()` borrows assembly metadata. |
-| Native getter | `NcGetPluginDescriptor`, exported as `nc_get_plugin_descriptor_v4` by `#[plugin]` under `dynamic-plugin`. |
+| Native getter | `NcGetPluginDescriptor`, exported as `nc_get_plugin_descriptor` by `#[plugin]` under `dynamic-plugin`. |
 | Validation | `validate_plugin_descriptor` checks metadata without acquiring a factory or checking whether providers are registered. |
 | Static registration | `RuntimeHandle::register_plugin_descriptor` validates and publishes the descriptor after requiring registered hard providers. |
 | Unregistered library inspection | `RuntimeHandle::with_plugin_library_descriptor` lends the validated descriptor to a synchronous visitor. |
-| Registered inspection output | `NcPluginInfoV4` / owned `PluginInfo`, including first registration origin. |
+| Registered inspection output | `NcPluginInfo` / owned `PluginInfo`, including first registration origin. |
 | Factory acquisition | `RuntimeHandle::acquire_plugin_root` checks the exact contract and returns one COM owner. |
 
-The descriptor's `description_abi_version` field matches
-`NC_PLUGIN_DESCRIPTOR_ABI_VERSION`. Its next field, `core_abi_version`, matches
-`NC_COM_CORE_ABI_VERSION`; the current authorities are listed in the table above.
-Both are checked before the remaining layout is read. The two-word prefix must be checked before borrowing the complete descriptor.
-Interface IID/signature and threading checks additionally select the exact callable contract.
+The stable getter takes a pointer to one descriptor-pointer output slot and
+returns `NcStatus`. The returned record starts with a C `uint32_t abi_version`
+at offset zero. A consumer reads only that word until it matches
+`NC_COM_ABI_VERSION`. The matched descriptor must have the complete native
+layout and immutable backing. Static registration checks the same leading word.
+Interface IID/signature and threading checks additionally select the exact
+callable contract.
+
+The former versioned exports are no longer discovery entry points. Older
+unversioned exports used the same C call shape and a lower leading version,
+so the same prefix check rejects them before using the rest of the record.
 
 The provider owns the descriptor's storage and code. Static registration requires
 the entire graph to remain immutable for the process lifetime, including referenced
@@ -863,7 +862,7 @@ library. Descriptor copies own neither those allocations nor a library mapping.
 The native getter clears a usable output slot before validation, leaves it null
 on failure, and returns `NC_E_POINTER` for null output.
 
-`NcPluginInfoV4` is an output projected from a registered catalog record; it has
+`NcPluginInfo` is an output projected from a registered catalog record; it has
 provenance but no bootstrap pointer. The facade's `PluginInfo` owns copies of text,
 paths and dependency GUIDs. Neither output can be used to register a provider, and
 neither holds a live factory reference. The catalog below remains the single
@@ -884,7 +883,7 @@ There are no parallel ID vectors, cached metadata summaries or module-to-plugin
 joins. Enumeration returns complete records, removing the need for repeated
 lookups to assemble plugin, factory and dependency information. Registration and inspection share this one authoritative record.
 
-| `NcPluginInfoV4` field | Meaning and owner |
+| `NcPluginInfo` field | Meaning and owner |
 | --- | --- |
 | `plugin_id` | Stable GUID derived from the qualified plugin name; acquisition and lookup key. |
 | `qualified_name` | Borrowed immutable descriptor text; copied to `PluginInfo.qualified_name`. |
@@ -894,7 +893,7 @@ lookups to assemble plugin, factory and dependency information. Registration and
 | `factory.threading` | Valid raw `NcAbiThreadingMode`; the Rust facade returns the typed enum. |
 | `dependencies` / `dependency_count` | Original immutable aligned `NcPluginDependencyDescriptor` array in declared order, borrowed directly from the validated descriptor. |
 
-`NcFactoryInfoV4` contains only interface and threading information: the enclosing
+`NcFactoryInfo` contains only interface and threading information: the enclosing
 plugin already supplies identity. There is one factory per plugin, so a separate
 interface GUID or enumeration is unnecessary. Neither record contains a live COM
 reference. Reading metadata never invokes the factory bootstrap.
@@ -919,32 +918,28 @@ Rust entry, returning an admitted `RuntimeHandle` from its existing singleton wi
 provider calls. It owns unsafe adoption of the complete static graph; safe
 startup never promotes a raw record returned by an arbitrary module. The separate
 `initialize_process()` lends the immutable C description for ABI bootstrap:
-`NcHostApiV4` has byte size, runtime family 4 and core generation 23,
-and pointers to the runtime, debug and persistence tables. The complete service
-graph and callback code remain process/instance-lived, including after main
-returns. Copying this description does not create a registry.
+`NcHostApi` starts with the byte size (`size_t`), native ABI version
+(`uint32_t`), and a reserved `uint32_t` initialized to zero. The reserved word
+gives legacy validators an initialized byte range for their former second
+version read. Current admission ignores it. The three following pointers select
+the runtime, debug and persistence tables. The complete graph and callback code
+remain process/instance-lived, including after main returns. Copying the
+description copies access to the same registry.
 
-`validate_host_api` checks required pointers, advertised byte sizes and matching
-versions without invoking callbacks. It reads prefixes before complete layouts;
-the unsafe caller still guarantees readable backing, valid callable tables and
-coherent ownership. Validation retains nothing. Adopting references for process
-lifetime additionally requires that lifetime for every reachable table/code
-allocation; a static outer description alone proves no child lifetime. This is
-part of the current core-generation contract; discovery family and interface
-identities remain separate.
+`validate_host_api` requires the exact host size and the current ABI version
+before reading child pointers. It requires all three child sizes to match their
+respective table layouts. Each child belongs to the same immutable host graph
+and carries its byte size as its first field. An unsupported version or a
+wrong size returns `NC_E_ABI_VERSION`; a required null pointer returns
+`NC_E_POINTER`. The checks invoke no callbacks and retain nothing. The unsafe
+caller guarantees readable backing and callable code. Adoption additionally
+requires those guarantees for the entire process lifetime.
 
-Operations use the supplied record, which requires all three service tables.
-`NcPluginApiV4` for plugin operations, `NcDebugApiV4` for diagnostics, and
-`NcPersistenceApiV4` for caller-owned persistence contexts. The safe handle stores
-private references only after size/version checks and under the unsafe caller's
-complete process-lived graph guarantee. Unsupported versions and short records
-return `NC_E_ABI_VERSION`; required null pointers return `NC_E_POINTER`.
-Handle copies can cross threads. Unsafe adoption therefore also guarantees
-concurrently callable host entrypoints; caller-owned persistence contexts keep
-their own thread-local and exclusive-borrow restrictions.
-ABI v4 remains WIP: these layouts are provisional, selected by the current core
-generation. Use matching source revisions and reject incompatible binaries; a
-ABI-v4 layout freeze has not occurred.
+The three tables are `NcPluginApi` for plugin operations, `NcDebugApi` for
+diagnostics, and `NcPersistenceApi` for caller-owned persistence contexts. The
+safe handle stores private references after admission. Handle copies can cross
+threads. Host callbacks must support concurrent calls, and caller-owned
+persistence contexts keep their thread-local and exclusive-borrow restrictions.
 
 | Runtime operation | Result and purpose |
 | --- | --- |
@@ -1039,7 +1034,7 @@ Acquisition means obtaining one owned root factory COM reference. The descriptor
 stores `acquire: Option<NcAcquirePluginFactory>`; generated bootstrap code adapts
 the implementation's typed construction policy to that fixed supplied-host ABI.
 The raw bootstrap is
-`unsafe extern "C" fn(*const NcHostApiV4, *mut ComRaw<IUnknown>) -> NcStatus`.
+`unsafe extern "C" fn(*const NcHostApi, *mut ComRaw<IUnknown>) -> NcStatus`.
 The authored `#[plugin]` function accepts one `RuntimeHandle` and returns its existing
 exact typed `Result<ComPtr<FactoryAbi>, NcStatus>`. Its adapter clears output
 before admitting host access; invalid access enters no provider code and
@@ -1114,7 +1109,7 @@ The regression suites check complete lookup/enumeration agreement, dependency
 ordering, failed publication, duplicate registration, owned copies, borrowed
 views across catalog growth, null/empty/undersized buffers and untouched spare
 slots. They also verify that metadata does not invoke bootstrap, that admission
-enforces the current discovery family and core generation, and that independent
+checks the native ABI before borrowing layouts, and that independent
 C layouts match the combined table and plugin record.
 Native-library tests cover getter provenance across native imports, identity
 conflicts, post-unlink metadata and retained factory code. Both independently
@@ -1145,11 +1140,11 @@ into a caller-owned error before releasing the session.
 
 ## Persistence and diagnostics
 
-`NcPersistenceApiV4` creates/destroys caller-owned, thread-local contexts, registers
+`NcPersistenceApi` creates/destroys caller-owned, thread-local contexts, registers
 borrowed shared-owned `IPersistenceFactory` objects with one retained owner,
 snapshots shared-owned `IPersistable` trees, and restores an owned canonical `IUnknown`. Contexts do not
 populate or replace the global plugin catalog. Mutation/destruction requires
-exclusive access; restore takes a shared borrow. `NcPersistenceLimitsV4` carries
+exclusive access; restore takes a shared borrow. `NcPersistenceLimits` carries
 binary and object-tree budgets explicitly.
 
 Table presence and successful host admission establish supported operation
@@ -1192,12 +1187,11 @@ Supplying a provider later permits retry using the same live context.
 The explicit application dependency introduced in COM `0.3.0` changed deployment
 requirements from `0.2.0`, whose host embedded NCB. That provider-selection change
 retained ABI v2/core generation 19. The shared persistence input contract uses
-ABI v4/core generation 23. Provider selection and NCB-v1 bytes keep their
-existing contracts. An incompatible change to a frozen layout, callback or guaranteed
-calling/ownership behavior must advance its applicable compatibility authority
-before old callers can invoke it.
+ABI 24. Provider selection and NCB-v1 bytes keep their
+existing contracts. An incompatible change to a shared layout, callback or guaranteed calling or
+ownership behavior must advance the native ABI version before old callers can invoke it.
 
-Capture calls `NcPersistenceWriteBytesV4` exactly once on success with the complete
+Capture calls `NcPersistenceWriteBytes` exactly once on success with the complete
 borrowed document; failure never calls it. The callback may copy bytes, must not
 unwind, and cannot retain the pointer. Temporary storage is destroyed in the
 runtime, so no Rust allocator ownership crosses the ABI. Snapshot identity retains
@@ -1207,7 +1201,7 @@ before constructing objects and release partial restored owners on failure.
 NCB v1, live-call wire validation and application reconstruction remain distinct
 contracts; see [persistence](../crates/host/PERSISTENCE.md).
 
-`NcDebugApiV4` separately owns callback messenger creation/destruction. At most
+`NcDebugApi` separately owns callback messenger creation/destruction. At most
 64 messengers are live; callbacks execute outside runtime catalog locks. Final
 destruction prevents new entry and waits for admitted callbacks to finish.
 Callbacks may run concurrently on any thread and must not destroy a messenger.
@@ -1229,7 +1223,7 @@ children are static. Copy callback metadata needed after a callback. See the
 The SDK provides typed wrappers over the selected host's C service graph.
 Native and browser applications link the `neocogi_com_host` rlib and can
 register linked provider descriptors. Native applications can also load
-provider libraries exporting `nc_get_plugin_descriptor_v4`. Both operations
+provider libraries exporting `nc_get_plugin_descriptor`. Both operations
 use the linked host's registry. Native provider mappings stay process-pinned
 through final object and weak release. Linked host state, tables and callback
 code outlive main in the process or Wasm instance.
@@ -1358,7 +1352,7 @@ execution. A cancelled run or detached JSON is insufficient evidence.
 The independent sample exercises typed factory construction, inherited interface
 calls, exclusive mutation, domain notifications delivered into the host's concrete queue,
 canonical weak-origin identity, fresh copied output (nested enum/boolean and short
-prefix) through ABI v4, persistence through provider-owned byte buffers,
+prefix) through ABI 24, persistence through provider-owned byte buffers,
 restoration through a host-implemented factory adapter, promotion while live,
 and failed promotion after final object release. All assertions execute in
 release/abort builds. Normal completion crosses calls in both directions; panic
@@ -1476,7 +1470,7 @@ An ordinary runtime build must produce its host
 rlib; no COM runtime shared library is deployed. One temporary shared target
 cache avoids retaining one copy per package and is removed after verification. The gate also builds a fresh consumer
 with `build.rs`, generates an interface and executes its checked COM call. Runtime
-and descriptor discovery and core admission follow the [current version table](#abi-identities-and-versions).
+and native admission follow the [current version table](#abi-identities-and-versions).
 No-default and alloc-only facade checks cover the portable feature boundary. CI runs this same gate.
 
 The unpublished `neocogi-com-tests` package at `tests/com` owns integration
@@ -1526,7 +1520,7 @@ Miri, sanitizers, compiler floor and extracted archives are distinct scopes.
 Dated runs and old specifications remain retrievable in Git, not as competing
 normative files. Validation owns procedures;
 review history owns recorded dispositions.
-No historical test counts are promoted to acceptance for this ABI-v4 candidate.
+No historical test counts are promoted to acceptance for the current ABI candidate.
 
 ## Related contracts
 

@@ -101,8 +101,7 @@ fn inspection_and_registration_share_admission_without_sharing_publication() {
         if expected.is_ok() {
             let owned = owned.unwrap();
             let (acquire, dependencies): (NcAcquirePluginFactory, _) = callback.unwrap();
-            assert_eq!(owned.description_abi_version, NC_PLUGIN_DESCRIPTOR_ABI_VERSION);
-            assert_eq!(owned.core_abi_version, NC_COM_CORE_ABI_VERSION);
+            assert_eq!(owned.abi_version, NC_COM_ABI_VERSION);
             assert_eq!(owned.plugin_id, descriptors::CASES[case].plugin_id);
             assert_eq!(owned.qualified_name, "nc.tests.inspection.fixture");
             assert_eq!(owned.plugin_version, "2.3.4");

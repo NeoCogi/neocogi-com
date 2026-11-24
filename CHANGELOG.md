@@ -1,13 +1,15 @@
 # Changelog
 
-Development uses provisional **[ABI v4](docs/abi-v4.md#abi-identities-and-versions)**.
+Development uses provisional **[ABI 24](docs/abi.md#abi-identities-and-versions)**.
 Entries below record development; later entries can supersede older implementation details.
 Historical draft numbers do not define additional supported COM baselines.
 
 ## 0.5.0-wip-alpha.1 (development)
 
-- Select ABI v4 with core generation 23, runtime and descriptor family 4, and
-  discovery symbol `nc_get_plugin_descriptor_v4`.
+- Select one native ABI version, 24, for the host bundle and plugin descriptor.
+  Export the stable `nc_get_plugin_descriptor` getter and reject older binaries
+  before reading complete records. Inspector JSON uses one `abi_version` field
+  in schema 10.
 - Declare shared ownership for persistence factories and snapshot roots. The
   Rust snapshot API takes `&ComPtr<IUnknown>`. Existing NCB-v1 documents retain
   their encoding.

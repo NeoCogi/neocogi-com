@@ -307,7 +307,7 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> ComPtr<T, M> {
     ///
     /// # Safety
     /// A present pair transfers an actual shared reference with readable matching
-    /// lifecycle storage under this core ABI; no common allocation header is assumed.
+    /// lifecycle storage under this native ABI; no common allocation header is assumed.
     /// This checks interface identity, not the provider's ownership implementation.
     /// Even a wrong typed identity must be releasable through its selected table.
     /// The raw caller establishes threading mode M. Null shapes need no dereference.
@@ -654,7 +654,7 @@ pub mod raw {
     ///
     /// # Safety
     /// Present object/table pairs must have readable common prefixes under the
-    /// current core ABI. Validation cannot establish arbitrary pointer validity.
+    /// current native ABI. Validation cannot establish arbitrary pointer validity.
     #[doc(hidden)]
     #[inline(never)]
     pub unsafe fn __nc_validate_iunknown_interface(raw: ComRaw<IUnknown>, expected: &NcInterfaceId) -> Result<(), crate::NcStatus> {
@@ -679,7 +679,7 @@ pub mod raw {
     /// Validates T's exact contract through the common table prefix.
     ///
     /// # Safety
-    /// Present pairs must have a readable common prefix for this core ABI.
+    /// Present pairs must have a readable common prefix for this native ABI.
     #[inline(always)]
     pub unsafe fn validate_interface<T: ComInterface + ?Sized>(raw: ComRaw<T>) -> Result<(), crate::NcStatus> {
         // SAFETY: the interface trait certifies the common table prefix.

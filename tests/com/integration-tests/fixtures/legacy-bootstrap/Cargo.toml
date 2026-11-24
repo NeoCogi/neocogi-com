@@ -16,6 +16,7 @@ current = []
 legacy-symbol = []
 legacy-v2-symbol = []
 legacy-v3-symbol = []
+legacy-v4-symbol = []
 dynamic-plugin = []
 
 [dependencies]

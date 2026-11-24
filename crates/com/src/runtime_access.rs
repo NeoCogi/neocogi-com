@@ -6,7 +6,7 @@
 
 use core::fmt;
 
-use crate::{NC_COM_RUNTIME_ABI_VERSION, NcDebugApiV4, NcHostApiV4, NcPersistenceApiV4, NcPluginApiV4, NcStatus, validate_host_api};
+use crate::{NC_COM_ABI_VERSION, NcDebugApi, NcHostApi, NcPersistenceApi, NcPluginApi, NcStatus, validate_host_api};
 
 /// Copyable access to the selected host's process-lived runtime services.
 ///
@@ -19,11 +19,11 @@ use crate::{NC_COM_RUNTIME_ABI_VERSION, NcDebugApiV4, NcHostApiV4, NcPersistence
 #[derive(Clone, Copy)]
 pub struct RuntimeHandle {
     /// Admitted plugin/catalog operations whose callbacks execute in the host.
-    pub(crate) runtime: &'static NcPluginApiV4,
+    pub(crate) runtime: &'static NcPluginApi,
     /// Diagnostics operations from the same immutable host service graph.
-    pub(crate) debug: &'static NcDebugApiV4,
+    pub(crate) debug: &'static NcDebugApi,
     /// Persistence operations retained by every context created through access.
-    pub(crate) persistence: &'static NcPersistenceApiV4,
+    pub(crate) persistence: &'static NcPersistenceApi,
 }
 
 impl RuntimeHandle {
@@ -43,7 +43,7 @@ impl RuntimeHandle {
     /// exclusive-borrow requirements. Checks cannot prove these obligations;
     /// a static outer record alone does not establish raw child lifetimes.
     #[doc(hidden)]
-    pub unsafe fn __from_host_api(host: *const NcHostApiV4) -> Result<Self, NcStatus> {
+    pub unsafe fn __from_host_api(host: *const NcHostApi) -> Result<Self, NcStatus> {
         // SAFETY: The caller supplies the validator's prefix/backing obligations.
         let status = unsafe { validate_host_api(host) };
         if status.is_err() {
@@ -62,14 +62,9 @@ impl RuntimeHandle {
         })
     }
 
-    /// Returns the admitted runtime family selected by [`NC_COM_RUNTIME_ABI_VERSION`].
-    pub const fn runtime_abi_version(&self) -> u32 {
-        NC_COM_RUNTIME_ABI_VERSION
-    }
-
-    /// Returns the core object/descriptor ABI admitted for these operations.
-    pub const fn core_abi_version(&self) -> u32 {
-        self.runtime.core_abi_version
+    /// Returns the admitted native ABI version for this host.
+    pub const fn abi_version(&self) -> u32 {
+        NC_COM_ABI_VERSION
     }
 }
 
@@ -77,8 +72,7 @@ impl fmt::Debug for RuntimeHandle {
     /// Describes admitted layouts without executing host callbacks or discovery.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("RuntimeHandle")
-            .field("runtime_abi_version", &self.runtime_abi_version())
-            .field("core_abi_version", &self.core_abi_version())
+            .field("abi_version", &self.abi_version())
             .field("runtime_table_bytes", &self.runtime.size)
             .field("debug_table_bytes", &self.debug.size)
             .field("persistence_table_bytes", &self.persistence.size)

@@ -23,7 +23,7 @@ The separate [host](../com-host) owns the runtime implementation. Its
 `#[neocogi_com_sdk::com_main]` entry receives a copyable handle and registers/acquires
 the provider. A dynamic provider uses the same host tables without importing
 runtime symbols or embedding an implementation. Core admission and discovery use
-the [current ABI versions](../../docs/abi-v4.md#abi-identities-and-versions).
+the [current ABI versions](../../docs/abi.md#abi-identities-and-versions).
 Deploy participants from one SDK release.
 
 From the repository root on Linux:
@@ -70,7 +70,7 @@ removes targets, and executes a relocated deployment. Its independent peer B
 publishes a host-visible marker and acquires A through supplied access. The host
 also checks that a conflicting descriptor leaves the shared catalog unchanged.
 The [static relocation test](../com-host/tests/build_modes.rs) covers the monolith.
-See [qualification](../../docs/abi-v4.md#independent-build-compatibility).
+See [qualification](../../docs/abi.md#independent-build-compatibility).
 
 The allocation probe executes 10,000 delivered notifications and 10,000 unobserved
 updates, checking that unobserved updates allocate nothing:

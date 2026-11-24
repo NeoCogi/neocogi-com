@@ -6,7 +6,7 @@ implementation of caller-owned persistence contexts. It contains
 no contract-module registry, native contract descriptions, or event seeding.
 Applications use `neocogi_com_sdk::RuntimeHandle`.
 
-Version `0.5.0-wip-alpha.1` uses **provisional ABI v4/core generation 23**.
+Version `0.5.0-wip-alpha.1` uses **provisional ABI 24**.
 Version `0.3.0` uses ABI v2/core generation 19. Deploy matching hosts and providers.
 
 ## Host implementation and shared SDK
@@ -29,7 +29,7 @@ loader and metadata utilities without initializing the plugin catalog.
 See [the role and dependency guide](https://github.com/NeoCogi/neocogi-com/blob/v0.4.0/docs/COM.md#hosts-callers-and-providers)
 for the complete graph and startup/call sequence.
 
-A provider dynamic library exports `nc_get_plugin_descriptor_v4`, lending an
+A provider dynamic library exports `nc_get_plugin_descriptor`, lending an
 immutable descriptor with plugin metadata, hard dependencies, full root factory
 IID/signature, threading, and bootstrap. The selected image must export the
 getter, which can be an explicit Apple reexport or Windows export forwarder.
@@ -74,9 +74,9 @@ The caller's original path remains in errors and first-registration provenance.
 Native inspection accepts UTF-16 paths; SDK path adapters require UTF-8. Paths
 and ABI identities do not authenticate native code: providers and their native
 dependencies must be trusted. See the
-[native loading contract](../../docs/abi-v4.md#runtime-and-global-registry).
+[native loading contract](../../docs/abi.md#runtime-and-global-registry).
 
-[Runtime ABI v4](../../docs/abi-v4.md#runtime-and-global-registry) has three C tables:
+[Runtime ABI 24](../../docs/abi.md#runtime-and-global-registry) has three C tables:
 complete plugin operations, diagnostics and persistence. Plugin lookup and
 enumeration share one projection containing identity, factory and dependencies. Loading
 returns a plugin GUID. Plugin inspection reports static origin or the first
@@ -85,7 +85,7 @@ registration, while conflicting descriptors are rejected. There is no module
 ID, module registry or module-to-plugin join. The limit is 1,024 distinct dynamic
 providers, excluding static registrations and repeats, and 64 active messengers.
 Plugin descriptor and core object generations remain independently versioned; see
-the [current ABI versions](../../docs/abi-v4.md#abi-identities-and-versions).
+the [current ABI versions](../../docs/abi.md#abi-identities-and-versions).
 
 ## Build and link
 
@@ -100,7 +100,7 @@ returns a safe `neocogi_com_sdk::RuntimeHandle`. It invokes no plugin, and repea
 calls use the same host. `com_main` calls this typed constructor, including with
 an explicit dependency/module path.
 `initialize_process()` lends the raw C description for service ABI callers. Its
-immutable `NcHostApiV4`, child tables, state and code remain process/instance-lived
+immutable `NcHostApi`, child tables, state and code remain process/instance-lived
 even after application main returns. The three existing C tables remain separate
 services. Callbacks execute here and reach this host's one private registry;
 nested provider acquisition forwards this canonical bundle.

@@ -1,6 +1,6 @@
-//! Legacy one-argument bootstrap and a separately built current positive control.
-//! The legacy descriptor has valid static storage and the exact current factory
-//! identity, but must be rejected using its prefix before its callback is read.
+//! Retired native getter layouts and a separately built current positive control.
+//! The default fixture returns the leading version from the original unversioned
+//! getter. Versioned exports model the later, retired discovery families.
 
 use neocogi_com_sdk::{persistence::IObjectChildrenAbi, NcStatus};
 #[cfg(feature = "current")]
@@ -47,9 +47,9 @@ mod legacy {
     /// It need not model published callback semantics: no callback may be read.
     #[repr(C)]
     struct LegacyDescriptor {
-        /// Current family for core rejection, or the older symbol's family.
+        /// Leading native version read by the host before other fields.
         description_abi_version: u32,
-        /// Prior core generation, incompatible with development core 23.
+        /// Second word of the historical test descriptor.
         core_abi_version: u32,
         /// Same plugin identity as the compatible control.
         plugin_id: NcGuid,
@@ -89,8 +89,11 @@ mod legacy {
             2
         } else if cfg!(feature = "legacy-v3-symbol") {
             3
+        } else if cfg!(feature = "legacy-v4-symbol") {
+            4
         } else {
-            neocogi_com::NC_PLUGIN_DESCRIPTOR_ABI_VERSION
+            // The early unversioned getter used 5 at offset zero.
+            5
         },
         core_abi_version: if cfg!(feature = "legacy-symbol") {
             18
@@ -98,8 +101,10 @@ mod legacy {
             19
         } else if cfg!(feature = "legacy-v3-symbol") {
             21
+        } else if cfg!(feature = "legacy-v4-symbol") {
+            23
         } else {
-            22
+            0
         },
         plugin_id: guid_from_qualified_name("nc.tests.legacy_bootstrap"),
         qualified_name: NcStaticUtf8::from_static("nc.tests.legacy_bootstrap"),
@@ -115,7 +120,7 @@ mod legacy {
     ///
     /// # Safety
     /// `out` must be null or writable for one native pointer. The host may read
-    /// only the prefix until it has admitted the legacy generation.
+    /// its leading version word to reject this fixture.
     #[cfg_attr(feature = "legacy-symbol", unsafe(export_name = "nc_get_plugin_descriptor_v1"))]
     #[cfg_attr(
         all(feature = "legacy-v2-symbol", not(feature = "legacy-symbol")),
@@ -127,7 +132,8 @@ mod legacy {
     )]
     #[cfg_attr(
         not(any(feature = "legacy-symbol", feature = "legacy-v2-symbol", feature = "legacy-v3-symbol")),
-        unsafe(export_name = "nc_get_plugin_descriptor_v4")
+        cfg_attr(feature = "legacy-v4-symbol", unsafe(export_name = "nc_get_plugin_descriptor_v4")),
+        cfg_attr(not(feature = "legacy-v4-symbol"), unsafe(export_name = "nc_get_plugin_descriptor"))
     )]
     unsafe extern "C" fn legacy_descriptor(out: *mut *const LegacyDescriptor) -> NcStatus {
         if out.is_null() {

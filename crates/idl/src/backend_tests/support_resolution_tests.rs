@@ -172,7 +172,7 @@ fn plugin_support_lookup_is_explicit_in_normal_and_printed_rust() {
         ("Some wrong arity", "fn Some() {}", false),
         (
             "Some wrong value",
-            r#"const fn Some(_: unsafe extern "C" fn(*const neocogi_com_sdk::NcHostApiV4, *mut neocogi_com_sdk::ComRaw<neocogi_com_sdk::IUnknown>) -> neocogi_com_sdk::NcStatus) -> Option<unsafe extern "C" fn(*const neocogi_com_sdk::NcHostApiV4, *mut neocogi_com_sdk::ComRaw<neocogi_com_sdk::IUnknown>) -> neocogi_com_sdk::NcStatus> { None }"#,
+            r#"const fn Some(_: unsafe extern "C" fn(*const neocogi_com_sdk::NcHostApi, *mut neocogi_com_sdk::ComRaw<neocogi_com_sdk::IUnknown>) -> neocogi_com_sdk::NcStatus) -> Option<unsafe extern "C" fn(*const neocogi_com_sdk::NcHostApi, *mut neocogi_com_sdk::ComRaw<neocogi_com_sdk::IUnknown>) -> neocogi_com_sdk::NcStatus> { None }"#,
             false,
         ),
         ("env wrong type", "macro_rules! env { ($key:literal) => { 99_u32 }; }", false),

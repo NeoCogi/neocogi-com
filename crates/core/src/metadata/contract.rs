@@ -20,18 +20,12 @@
 use crate::guid::NcGuid;
 use crate::signature::NcAbiDigest;
 
-/// Current WIP core compatibility generation for the ABI-v4 lifetime contract.
+/// Native ABI version shared by plugin descriptors, host services, and COM objects.
 ///
-/// ABI v4 is unreleased and not frozen; this identifies the current candidate.
-/// Layouts and callbacks may evolve before release freeze, with coherent
-/// generation/admission changes to reject incompatible binaries.
-///
-/// Generation 23 carries the originating status in serializer and deserializer
-/// failure slots. Shared persistence inputs use the declared backing contract
-/// established by core 22, and retain core 21's typed lifetime storage.
-/// Older cores are rejected before interpreting a complete descriptor or service graph.
-/// Runtime and descriptor discovery separately select family 4.
-pub const NC_COM_CORE_ABI_VERSION: u32 = 23;
+/// Advance this version when a change makes binaries built against the previous
+/// contract incompatible. Both sides check it before accessing complete records.
+/// This development ABI remains provisional until release freeze.
+pub const NC_COM_ABI_VERSION: u32 = 24;
 
 /// Stable identity for one COM interface ABI contract.
 ///

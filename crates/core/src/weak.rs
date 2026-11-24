@@ -195,7 +195,7 @@ unsafe impl<T: ComInterface + ?Sized> Sync for WeakComPtr<T, ThreadSafe> {}
 /// Source is a matching live object/table pair with the caller's threading capability.
 #[inline(never)]
 pub(crate) unsafe fn downgrade(source: ComRaw<IUnknown>) -> Result<NcSharedWeakRaw, NcStatus> {
-    // SAFETY: caller grants access to the current core ABI's common table prefix.
+    // SAFETY: caller grants access to the current native ABI's common table prefix.
     let operation = unsafe { (*source.vtable).downgrade }.ok_or(NC_E_NOINTERFACE)?;
     let mut out = NcSharedWeakRaw::null();
     // SAFETY: source remains strong-owned for this synchronous operation.

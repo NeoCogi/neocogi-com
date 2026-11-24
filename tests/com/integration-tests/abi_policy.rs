@@ -164,7 +164,7 @@ fn factory_bootstrap_transfers_the_exact_typed_root() {
 #[test]
 fn factory_plugin_metadata_has_no_repeated_root_contract() {
     let description = plugin_descriptor();
-    assert_eq!(description.description_abi_version, 4);
+    assert_eq!(description.abi_version, neocogi_com_sdk::NC_COM_ABI_VERSION);
     assert_eq!(description.root_factory, ValueFactoryAbi::INTERFACE_ID);
     assert_eq!(description.root_factory_threading, NC_ABI_THREADING_THREAD_LOCAL);
     // SAFETY: The macro-generated root and child tables are immutable statics.

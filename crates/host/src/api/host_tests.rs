@@ -3,15 +3,14 @@
 use core::{mem, ptr};
 
 use neocogi_com::{
-    ComRaw, IUnknown, NC_ABI_THREADING_THREAD_LOCAL, NC_COM_CORE_ABI_VERSION, NC_COM_RUNTIME_ABI_VERSION, NC_E_ABI_VERSION, NC_E_CLOSED, NC_E_POINTER, NC_OK,
-    NC_PLUGIN_DESCRIPTOR_ABI_VERSION, NcPersistenceApiV4, NcPluginDescriptor, NcPluginInfoV4, NcStaticUtf8, NcStatus, guid_from_qualified_name,
-    validate_host_api,
+    ComRaw, IUnknown, NC_ABI_THREADING_THREAD_LOCAL, NC_COM_ABI_VERSION, NC_E_ABI_VERSION, NC_E_CLOSED, NC_E_POINTER, NC_OK, NcHostApi, NcPluginDescriptor,
+    NcPluginInfo, NcStaticUtf8, NcStatus, guid_from_qualified_name, validate_host_api,
 };
 
-use super::{HOST_API, PERSISTENCE_API_V4, RUNTIME_API_V4};
+use super::HOST_API;
 
 /// Descriptor-only fixture; admission and lookup must never acquire a factory.
-unsafe extern "C" fn unused_acquisition(_host: *const neocogi_com::NcHostApiV4, out: *mut ComRaw<IUnknown>) -> NcStatus {
+unsafe extern "C" fn unused_acquisition(_host: *const neocogi_com::NcHostApi, out: *mut ComRaw<IUnknown>) -> NcStatus {
     if out.is_null() {
         return NC_E_POINTER;
     }
@@ -22,8 +21,7 @@ unsafe extern "C" fn unused_acquisition(_host: *const neocogi_com::NcHostApiV4, 
 
 /// Process-lived metadata with a distinct identity for shared-state observation.
 static DESCRIPTION: NcPluginDescriptor = NcPluginDescriptor {
-    description_abi_version: NC_PLUGIN_DESCRIPTOR_ABI_VERSION,
-    core_abi_version: NC_COM_CORE_ABI_VERSION,
+    abi_version: NC_COM_ABI_VERSION,
     plugin_id: guid_from_qualified_name("nc.tests.host_api.visibility"),
     qualified_name: NcStaticUtf8::from_static("nc.tests.host_api.visibility"),
     plugin_version: NcStaticUtf8::from_static("1.0.0"),
@@ -34,32 +32,16 @@ static DESCRIPTION: NcPluginDescriptor = NcPluginDescriptor {
     acquire: Some(unused_acquisition),
 };
 
-/// Copies a complete valid table into local storage for prefix-only rejection.
-fn persistence_with_core(core_abi_version: u32) -> NcPersistenceApiV4 {
-    NcPersistenceApiV4 {
-        size: mem::size_of::<NcPersistenceApiV4>(),
-        core_abi_version,
-        create_context: PERSISTENCE_API_V4.create_context,
-        destroy_context: PERSISTENCE_API_V4.destroy_context,
-        register_factory: PERSISTENCE_API_V4.register_factory,
-        snapshot: PERSISTENCE_API_V4.snapshot,
-        restore: PERSISTENCE_API_V4.restore,
-    }
-}
-
 #[test]
-fn initialized_host_tables_share_registration_and_separate_core_and_discovery() {
+fn initialized_host_tables_share_registration() {
     let first = crate::initialize_process();
     let second = crate::initialize_process();
-    assert_eq!(NC_COM_RUNTIME_ABI_VERSION, 4);
-    assert_eq!(NC_COM_CORE_ABI_VERSION, 23);
-    assert_eq!(NC_PLUGIN_DESCRIPTOR_ABI_VERSION, 4);
     // SAFETY: The producer guarantees complete immutable process-lived tables.
     assert_eq!(unsafe { validate_host_api(first) }, NC_OK);
     // SAFETY: The host supplies live tables and the descriptor's entire graph is static.
     let status = unsafe { ((*first.runtime).register_plugin_descriptor)(&DESCRIPTION) };
     assert_eq!(status, NC_OK);
-    let mut info = mem::MaybeUninit::<NcPluginInfoV4>::uninit();
+    let mut info = mem::MaybeUninit::<NcPluginInfo>::uninit();
     // SAFETY: A second access description refers to the same host state and gets one output.
     let status = unsafe { ((*second.runtime).plugin_info)(DESCRIPTION.plugin_id, info.as_mut_ptr()) };
     assert_eq!(status, NC_OK);
@@ -80,15 +62,11 @@ fn host_admission_rejects_null_and_short_outer_prefixes() {
 }
 
 #[test]
-fn host_admission_checks_versions_before_following_children() {
+fn host_admission_checks_the_abi_before_following_children() {
     let mut host = HOST_API;
     host.runtime = ptr::null();
-    host.runtime_abi_version += 1;
-    // SAFETY: This complete immutable local record has an unsupported version.
-    assert_eq!(unsafe { validate_host_api(&host) }, NC_E_ABI_VERSION);
-    host.runtime_abi_version = NC_COM_RUNTIME_ABI_VERSION;
-    host.core_abi_version += 1;
-    // SAFETY: Unsupported core also rejects before following null children.
+    host.abi_version += 1;
+    // SAFETY: The unsupported ABI version rejects before following null children.
     assert_eq!(unsafe { validate_host_api(&host) }, NC_E_ABI_VERSION);
 }
 
@@ -124,19 +102,44 @@ fn host_admission_reads_only_available_child_prefixes() {
     }
 }
 
+/// A bundle advertising the old v4 layout stops at its version fields.
 #[test]
-fn host_admission_rejects_inconsistent_service_core_versions() {
-    let runtime = neocogi_com::NcPluginApiV4 {
-        core_abi_version: NC_COM_CORE_ABI_VERSION + 1,
-        ..RUNTIME_API_V4
+fn host_admission_rejects_the_previous_host_prefix() {
+    #[repr(C)]
+    struct PreviousHostPrefix {
+        size: usize,
+        family: u32,
+        generation: u32,
+    }
+    let previous = PreviousHostPrefix {
+        size: mem::size_of::<usize>() * 4 + 8,
+        family: 4,
+        generation: 23,
     };
+    assert_eq!(previous.size, mem::size_of::<NcHostApi>());
+    // SAFETY: The legacy prefix is aligned and initialized through both version
+    // words. Its unsupported version requires no child fields to be present.
+    assert_eq!(unsafe { validate_host_api(ptr::from_ref(&previous).cast()) }, NC_E_ABI_VERSION);
+}
+
+/// Each service's fixed size excludes tables from other native ABI versions.
+#[test]
+fn host_admission_rejects_oversized_service_prefixes() {
     let mut host = HOST_API;
-    host.runtime = &runtime;
-    // SAFETY: Complete local table remains valid during this nonretaining check.
+    // SAFETY: The host supplies complete static children for all three services.
+    let old_runtime_size = unsafe { (*host.runtime).size } + mem::size_of::<usize>();
+    let old_persistence_size = unsafe { (*host.persistence).size } + mem::size_of::<usize>();
+    let oversized_debug_size = unsafe { (*host.debug).size } + mem::size_of::<usize>();
+
+    host.runtime = ptr::from_ref(&old_runtime_size).cast();
+    // SAFETY: The advertised wrong size rejects before any callback is read.
     assert_eq!(unsafe { validate_host_api(&host) }, NC_E_ABI_VERSION);
-    let persistence = persistence_with_core(NC_COM_CORE_ABI_VERSION + 1);
     host.runtime = HOST_API.runtime;
-    host.persistence = &persistence;
-    // SAFETY: Complete local table remains valid during this nonretaining check.
+    host.debug = ptr::from_ref(&oversized_debug_size).cast();
+    // SAFETY: The advertised wrong size rejects before any callback is read.
+    assert_eq!(unsafe { validate_host_api(&host) }, NC_E_ABI_VERSION);
+    host.debug = HOST_API.debug;
+    host.persistence = ptr::from_ref(&old_persistence_size).cast();
+    // SAFETY: The advertised wrong size rejects before any callback is read.
     assert_eq!(unsafe { validate_host_api(&host) }, NC_E_ABI_VERSION);
 }

@@ -70,14 +70,13 @@ mod tests {
     /// Registry fixtures use the same complete validation as production records.
     const fn description(name: &'static str) -> NcPluginDescriptor {
         /// Publication and lookup must never invoke this entrypoint.
-        unsafe extern "C" fn acquire(_host: *const neocogi_com::NcHostApiV4, out: *mut neocogi_com::ComRaw<IUnknown>) -> neocogi_com::NcStatus {
+        unsafe extern "C" fn acquire(_host: *const neocogi_com::NcHostApi, out: *mut neocogi_com::ComRaw<IUnknown>) -> neocogi_com::NcStatus {
             // SAFETY: the descriptor ABI grants one writable output on invocation.
             unsafe { out.write(neocogi_com::ComRaw::null()) };
             NC_E_CLOSED
         }
         NcPluginDescriptor {
-            description_abi_version: neocogi_com::NC_PLUGIN_DESCRIPTOR_ABI_VERSION,
-            core_abi_version: neocogi_com::NC_COM_CORE_ABI_VERSION,
+            abi_version: neocogi_com::NC_COM_ABI_VERSION,
             plugin_id: neocogi_com::guid_from_qualified_name(name),
             qualified_name: NcStaticUtf8::from_static(name),
             plugin_version: NcStaticUtf8::from_static("1.0.0"),

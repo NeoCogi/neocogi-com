@@ -11,7 +11,7 @@ use std::vec::Vec;
 
 use crate::{
     ComInterface, ComPtr, IUnknown, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG, NC_E_NOT_FOUND, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER,
-    NC_ABI_THREADING_THREAD_LOCAL, NcDebugApiV4, NcPluginDescriptor, NcGuid, NcPluginApiV4, NcStatus, NcUtf8View, ThreadingModel, RuntimeHandle,
+    NC_ABI_THREADING_THREAD_LOCAL, NcDebugApi, NcPluginDescriptor, NcGuid, NcPluginApi, NcStatus, NcUtf8View, ThreadingModel, RuntimeHandle,
 };
 
 mod debug;
@@ -40,12 +40,12 @@ pub const NC_COM_RUNTIME_MAX_INSPECTION_TEXT_BYTES: usize = 1024 * 1024;
 
 impl RuntimeHandle {
     /// Borrows the admitted plugin operations without discovery or callbacks.
-    fn runtime_api(&self) -> &'static NcPluginApiV4 {
+    fn runtime_api(&self) -> &'static NcPluginApi {
         self.runtime
     }
 
     /// Borrows diagnostics from the same admitted host graph.
-    fn debug_api(&self) -> &'static NcDebugApiV4 {
+    fn debug_api(&self) -> &'static NcDebugApi {
         self.debug
     }
 
@@ -184,14 +184,14 @@ impl RuntimeHandle {
 
     /// Loads trusted plugin libraries sequentially.
     ///
-    /// ABI v4 performs no path discovery or recursive loading. Callers must
+    /// The runtime performs no path discovery or recursive loading. Callers must
     /// supply a dependency-first order, such as one produced by
     /// `neocogi-inspect plan`. Native libraries mapped as
     /// platform dependencies are not automatically registered as neocogi-com-sdk
     /// plugins.
     ///
     /// A later failure aborts the process rather than returning partial state.
-    /// Runtime ABI v4 intentionally has no transactional batch-loading call.
+    /// The runtime has no transactional batch-loading call.
     ///
     /// # Safety
     ///

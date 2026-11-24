@@ -6,7 +6,7 @@ use core::{
     slice,
 };
 use std::vec::Vec;
-use neocogi_com::{NcPersistenceApiV4, NcPersistenceContext};
+use neocogi_com::{NcPersistenceApi, NcPersistenceContext};
 use crate::{ComPtr, IUnknown, NcGuid, NcStatus, RuntimeHandle, NC_E_INVALID_ARG, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_OK};
 use super::{IPersistenceFactoryAbi, Limits};
 
@@ -21,7 +21,7 @@ pub struct FactoryRegistry {
     /// Unique context owner, never exposed as a dereferenceable Rust value.
     context: NonNull<NcPersistenceContext>,
     /// Checked immutable table retained for the context's complete lifetime.
-    api: &'static NcPersistenceApiV4,
+    api: &'static NcPersistenceApi,
 }
 
 impl FactoryRegistry {

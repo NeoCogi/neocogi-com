@@ -102,7 +102,7 @@ pub struct SourceMapping {
 /// Versioned provenance sidecar emitted beside one generated `.rs` file.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct RustSourceMap {
-    /// NeoCogi build-sidecar schema version; currently two, independent of COM ABI v4.
+    /// NeoCogi build-sidecar schema version; currently two, independent of the native ABI version.
     pub schema: u32,
     /// Exact logical IDL module being generated.
     pub module: String,

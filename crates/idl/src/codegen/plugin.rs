@@ -198,8 +198,7 @@ pub fn expand_plugin(args: PluginArgs, input: ItemFn) -> Result<proc_macro2::Tok
 
         /// Immutable plugin metadata consumed by the host runtime.
         static #descriptor_name: #nc::NcPluginDescriptor = #nc::NcPluginDescriptor {
-            description_abi_version: #nc::NC_PLUGIN_DESCRIPTOR_ABI_VERSION,
-            core_abi_version: #nc::NC_COM_CORE_ABI_VERSION,
+            abi_version: #nc::NC_COM_ABI_VERSION,
             plugin_id: #plugin_id,
             qualified_name: #nc::NcStaticUtf8::from_static(#name),
             plugin_version: #nc::NcStaticUtf8::from_static(#version),
@@ -218,7 +217,7 @@ pub fn expand_plugin(args: PluginArgs, input: ItemFn) -> Result<proc_macro2::Tok
         /// with concurrent host entrypoints and documented per-context ownership.
         /// `out` must be null or writable for one raw COM pair. The helper clears
         /// usable storage before host admission or provider code and transfers only success.
-        unsafe extern "C" fn #adapter(#host: *const #nc::NcHostApiV4, #output: *mut #nc::ComRaw<#nc::IUnknown>) -> #nc::NcStatus {
+        unsafe extern "C" fn #adapter(#host: *const #nc::NcHostApi, #output: *mut #nc::ComRaw<#nc::IUnknown>) -> #nc::NcStatus {
             // SAFETY: forwarded output obligations; the typed function fixes the
             // exact interface and threading used by the descriptor above.
             unsafe {

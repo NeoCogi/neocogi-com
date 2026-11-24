@@ -9,7 +9,7 @@ use core::ffi::c_void;
 use super::NcUtf8View;
 use crate::{NcPluginDescriptor, NcGuid, NcInterfaceId, NcStatus};
 
-/// Maximum number of distinct dynamically registered plugins in runtime ABI v4.
+/// Maximum number of distinct dynamically registered plugins in the host.
 /// Repeated loads consume no slot. Static registrations and inspection-only
 /// pinned opens are outside this limit and remain live until process exit.
 pub const NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS: usize = 1_024;
@@ -18,12 +18,12 @@ pub const NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS: usize = 1_024;
 /// `plugin` and reachable pointers are borrowed only during this callback and
 /// must not be retained. `user_data` is passed through unchanged. The callback
 /// must not unwind; its status is returned unchanged by the runtime.
-pub type NcInspectPluginDescriptorCallbackV4 = unsafe extern "C" fn(plugin: *const NcPluginDescriptor, user_data: *mut c_void) -> NcStatus;
+pub type NcInspectPluginDescriptorCallback = unsafe extern "C" fn(plugin: *const NcPluginDescriptor, user_data: *mut c_void) -> NcStatus;
 
 /// Exact contract of the one root factory, without acquiring a live reference.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct NcFactoryInfoV4 {
+pub struct NcFactoryInfo {
     /// Exact IID and full ABI signature, retained for the process lifetime.
     pub interface: NcInterfaceId,
     /// Valid `NcAbiThreadingMode` raw value declared by the factory.
@@ -38,7 +38,7 @@ pub struct NcFactoryInfoV4 {
 /// this record; its referenced storage survives catalog growth and lock release.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct NcPluginInfoV4 {
+pub struct NcPluginInfo {
     /// Stable plugin identity used for lookup and factory acquisition.
     pub plugin_id: NcGuid,
     /// Qualified plugin name in immutable descriptor storage.
@@ -49,7 +49,7 @@ pub struct NcPluginInfoV4 {
     /// This is provenance, not a file that callers need to reopen.
     pub library_path: NcUtf8View,
     /// The plugin's single root factory contract.
-    pub factory: NcFactoryInfoV4,
+    pub factory: NcFactoryInfo,
     /// Immutable dependency descriptors in declared order, borrowed directly
     /// from the registered plugin's original description without a projection copy.
     /// May be null when `dependency_count` is zero; otherwise readable for exactly
@@ -65,12 +65,12 @@ mod tests {
     #[test]
     #[cfg(target_pointer_width = "64")]
     fn complete_plugin_view_has_explicit_c_layout() {
-        assert_eq!(core::mem::size_of::<NcFactoryInfoV4>(), 32);
-        assert_eq!(core::mem::offset_of!(NcFactoryInfoV4, threading), 24);
-        assert_eq!(core::mem::size_of::<NcPluginInfoV4>(), 112);
-        assert_eq!(core::mem::offset_of!(NcPluginInfoV4, library_path), 48);
-        assert_eq!(core::mem::offset_of!(NcPluginInfoV4, factory), 64);
-        assert_eq!(core::mem::offset_of!(NcPluginInfoV4, dependencies), 96);
-        assert_eq!(core::mem::offset_of!(NcPluginInfoV4, dependency_count), 104);
+        assert_eq!(core::mem::size_of::<NcFactoryInfo>(), 32);
+        assert_eq!(core::mem::offset_of!(NcFactoryInfo, threading), 24);
+        assert_eq!(core::mem::size_of::<NcPluginInfo>(), 112);
+        assert_eq!(core::mem::offset_of!(NcPluginInfo, library_path), 48);
+        assert_eq!(core::mem::offset_of!(NcPluginInfo, factory), 64);
+        assert_eq!(core::mem::offset_of!(NcPluginInfo, dependencies), 96);
+        assert_eq!(core::mem::offset_of!(NcPluginInfo, dependency_count), 104);
     }
 }

@@ -1,10 +1,10 @@
 //! Portable ABI contracts and typed interface pointers for NeoCogi COM.
 //!
 //! This crate contains the small C-shaped binary contract shared by hosts and
-//! plugins: status codes, GUIDs, `IUnknown`, descriptor metadata, versioned
-//! runtime table layouts, common read-only bytes/string raw interfaces, and ABI version
-//! constants. Higher-level Rust ergonomics and allocation-backed objects live in `neocogi-com-sdk`;
-//! process-global dynamic loading and registry state live in `neocogi-com-host`.
+//! plugins: status codes, GUIDs, `IUnknown`, descriptor metadata, host service
+//! tables, read-only byte/string interfaces, and one native ABI version.
+//! Allocation-backed objects live in `neocogi-com-sdk`. Process-global loading
+//! and registry state live in `neocogi-com-host`.
 //!
 //! Descriptor metadata supports runtime validation and inspection. It exposes
 //! explicit diagnostic method records and nominal aggregate identities, but not
@@ -19,11 +19,9 @@
 //! explicit `neocogi-com-serialization` crate. Wire layouts and application
 //! storage remain separate.
 //!
-//! SDK 0.5.0-wip-alpha.1 uses ABI v4 while that ABI is WORK IN PROGRESS (WIP).
-//! [`NC_COM_CORE_ABI_VERSION`] selects core generation 23.
-//! Runtime and plugin discovery use family 4. Layouts and callbacks may evolve
-//! before release freeze. Keep generation/admission checks coherent to reject
-//! incompatible binaries, use matching source revisions and require exact signatures.
+//! SDK 0.5.0-wip-alpha.1 uses ABI 24, which is WORK IN PROGRESS (WIP).
+//! Advance the native ABI version for incompatible changes and rebuild all
+//! participants together.
 
 #![no_std]
 #![deny(missing_docs)]
@@ -101,7 +99,7 @@ pub use metadata::{
     NC_ABI_PASSING_BORROWED_VALUE, NC_ABI_PASSING_OPTIONAL_COM_REF, NC_ABI_PASSING_VALUE, NC_ABI_PASSING_VOID, NC_ABI_RECEIVER_MUTABLE, NC_ABI_RECEIVER_SHARED,
     NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE, NC_ABI_TYPE_AGGREGATE, NC_ABI_TYPE_BOOL, NC_ABI_TYPE_F32, NC_ABI_TYPE_F64, NC_ABI_TYPE_I8,
     NC_ABI_TYPE_I16, NC_ABI_TYPE_I32, NC_ABI_TYPE_I64, NC_ABI_TYPE_INTERFACE, NC_ABI_TYPE_ISIZE, NC_ABI_TYPE_NC_GUID, NC_ABI_TYPE_NC_STATUS, NC_ABI_TYPE_U8,
-    NC_ABI_TYPE_U16, NC_ABI_TYPE_U32, NC_ABI_TYPE_U64, NC_ABI_TYPE_USIZE, NC_ABI_TYPE_VOID, NC_COM_CORE_ABI_VERSION, NC_DESCRIPTOR_QUALIFIED_NAME_MAX_LEN,
+    NC_ABI_TYPE_U16, NC_ABI_TYPE_U32, NC_ABI_TYPE_U64, NC_ABI_TYPE_USIZE, NC_ABI_TYPE_VOID, NC_COM_ABI_VERSION, NC_DESCRIPTOR_QUALIFIED_NAME_MAX_LEN,
     NC_DESCRIPTOR_VERSION_MAX_LEN, NC_DESCRIPTOR_RUST_PATH_MAX_LEN, NcRustPathError, validate_rust_path, NcAbiPassing, NcAbiPassingDescriptor, NcAbiReceiver,
     NcAbiThreadingMode, NcAbiType, NcAbiTypeDescriptor, NcInterfaceDescriptor, NcInterfaceId, NcMethodDescriptor, NcMethodParamDescriptor,
     NcMethodReturnDescriptor, NcPluginDependencyDescriptor, NcQualifiedNameError, NcStaticUtf8, NcVersionTextError, validate_qualified_name,
@@ -113,11 +111,10 @@ pub use object::{
 pub use raw_handle::ComRaw;
 pub use ptr::{ComMut, ComPtr, ComRef, ThreadLocal, ThreadSafe, ThreadingModel, raw};
 pub use runtime_abi::{
-    NcPersistenceApiV4, NcPersistenceContext, NcPersistenceLimitsV4, NcPersistenceWriteBytesV4, NC_COM_RUNTIME_ABI_VERSION,
-    NC_COM_RUNTIME_MAX_ACTIVE_DEBUG_MESSENGERS, NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS, NC_DEBUG_SEVERITY_ALL, NC_DEBUG_SEVERITY_ERROR, NC_DEBUG_SEVERITY_INFO,
-    NC_DEBUG_SEVERITY_WARNING, NC_DEBUG_TYPE_ALL, NC_DEBUG_TYPE_PLUGIN, NC_DEBUG_TYPE_RUNTIME, NC_DEBUG_TYPE_VALIDATION, NcDebugApiV4, NcDebugCallbackV4,
-    NcDebugMessageV4, NcDebugMessengerCreateInfoV4, NcInspectPluginDescriptorCallbackV4, NcFactoryInfoV4, NcPluginInfoV4, NcPluginApiV4, NcUtf8View,
-    NcHostApiV4, validate_host_api,
+    NcPersistenceApi, NcPersistenceContext, NcPersistenceLimits, NcPersistenceWriteBytes, NC_COM_RUNTIME_MAX_ACTIVE_DEBUG_MESSENGERS,
+    NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS, NC_DEBUG_SEVERITY_ALL, NC_DEBUG_SEVERITY_ERROR, NC_DEBUG_SEVERITY_INFO, NC_DEBUG_SEVERITY_WARNING, NC_DEBUG_TYPE_ALL,
+    NC_DEBUG_TYPE_PLUGIN, NC_DEBUG_TYPE_RUNTIME, NC_DEBUG_TYPE_VALIDATION, NcDebugApi, NcDebugCallback, NcDebugMessage, NcDebugMessengerCreateInfo,
+    NcInspectPluginDescriptorCallback, NcFactoryInfo, NcPluginInfo, NcPluginApi, NcUtf8View, NcHostApi, validate_host_api,
 };
 pub use status::{
     NC_E_ABI_VERSION, NC_E_BUSY, NC_E_CLOSED, NC_E_DROPPED, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG, NC_E_INVALID_TAG, NC_E_LOAD_FAILED, NC_E_NOINTERFACE,
@@ -127,8 +124,8 @@ pub use status::{
 #[doc(hidden)]
 pub use metadata::{ComInterfaceTableEntry, __nc_interface_chain, __nc_object_interface_count, __nc_interface_table, __nc_interface_vtables};
 pub use plugin_descriptor::{
-    NC_PLUGIN_DESCRIPTOR_ABI_VERSION, NC_GET_PLUGIN_DESCRIPTOR_SYMBOL, NcAcquirePluginFactory, NcPluginDescriptor, NcGetPluginDescriptor, write_plugin_root,
-    return_plugin_descriptor, validate_plugin_descriptor,
+    NC_GET_PLUGIN_DESCRIPTOR_SYMBOL, NcAcquirePluginFactory, NcPluginDescriptor, NcGetPluginDescriptor, write_plugin_root, return_plugin_descriptor,
+    validate_plugin_descriptor,
 };
 
 pub use value_buffer::{EncodedInput, DecodedInput};

@@ -11,7 +11,7 @@ pub fn acquisition_count() -> usize {
 }
 
 /// The first deliberate acquisition returns CLOSED; any earlier implicit entry changes that result.
-unsafe extern "C" fn acquire(_host: *const neocogi_com::NcHostApiV4, out: *mut ComRaw<IUnknown>) -> NcStatus {
+unsafe extern "C" fn acquire(_host: *const neocogi_com::NcHostApi, out: *mut ComRaw<IUnknown>) -> NcStatus {
     if out.is_null() {
         return NC_E_POINTER;
     }
@@ -41,8 +41,7 @@ static DUPLICATES: [NcPluginDependencyDescriptor; 2] = [DEPENDENCIES[0], DEPENDE
 static INVALID_TEXT: [u8; 1] = [0xFF];
 /// Common valid metadata; no bootstrap or catalog state is needed to inspect it.
 const BASE: NcPluginDescriptor = NcPluginDescriptor {
-    description_abi_version: NC_PLUGIN_DESCRIPTOR_ABI_VERSION,
-    core_abi_version: NC_COM_CORE_ABI_VERSION,
+    abi_version: NC_COM_ABI_VERSION,
     plugin_id: guid_from_qualified_name("nc.tests.inspection.fixture"),
     qualified_name: NcStaticUtf8::from_static("nc.tests.inspection.fixture"),
     plugin_version: NcStaticUtf8::from_static("2.3.4"),
@@ -82,7 +81,7 @@ pub static CASES: [NcPluginDescriptor; 10] = [
         ..BASE
     },
     NcPluginDescriptor {
-        core_abi_version: NC_COM_CORE_ABI_VERSION - 1,
+        abi_version: NC_COM_ABI_VERSION - 1,
         ..BASE
     },
     NcPluginDescriptor {

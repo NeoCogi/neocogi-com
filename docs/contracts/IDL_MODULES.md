@@ -198,7 +198,7 @@ later codec limit is not such a bound. The current owner/check inventory is:
 The inventory is a maintained ownership/validation map, not a proof from a text
 search that every possible Rust call graph is bounded. Runtime logical budgets,
 format framing, compiler expression height, nominal graph length and rustc trait
-proof recursion are separate. No ABI/core generation, IDL-v14 fingerprint,
+proof recursion are separate. No native ABI version, IDL-v14 fingerprint,
 NCB-v1 byte, callback ordering or caller-limit policy changes follow from this
 traversal repair. Windows CI runs the native small-caller selections explicitly;
 a Linux result alone is not evidence of Windows execution.
@@ -361,9 +361,8 @@ described above.
 Interfaces have no implementation-role discriminator in their canonical encoding.
 Canonical encoding v15 contains ordinary value and callable-interface contracts;
 IDL has no event-reference slots. Rebuild affected contracts, providers and hosts
-together, including built-in persistence bindings. Nominal IDs, core generation 23,
-source-graph schema and the host-owned runtime registry are separate contracts;
-runtime discovery uses ABI v4. Closed generic interfaces work as object
+together, including built-in persistence bindings. Nominal IDs, the native ABI version, source-graph schema and the host-owned
+runtime registry are separate contracts. Closed generic interfaces work as object
 contracts and plugin roots; open templates have no callable ABI.
 
 Generic values can nest and recurse through explicit sequences:
@@ -782,8 +781,7 @@ UUID overrides remain errors.
 
 Generated nominal IDs and signatures change: rebuild contracts, providers and
 hosts together. Compiler encoding v15 records the versionless contract; COM
-discovery uses ABI v2 for SDK 0.3.0, ABI v3 for SDK 0.4.0, and ABI v4/core
-generation 23 on this development branch. V15 adds callable passing modes after binding and specialization.
+discovery uses ABI v2 for SDK 0.3.0, ABI v3 for SDK 0.4.0, and ABI 24 on this development branch. V15 adds callable passing modes after binding and specialization.
 
 Generated values and interface markers carry a hidden Rust binding proof. A
 consumer checks the actual selected Rust type, including a type reached through
@@ -1126,7 +1124,7 @@ parses its own source once to select its `links` owner and dependency records,
 then uses that parsed module in resolution. The raw source record is still
 checked during incoming graph merges. Source graph schema 7
 requires providers with this namespace and rejects older sidecars. Runtime and
-plugin discovery and the core baseline follow the [ABI version table](../abi-v4.md#abi-identities-and-versions); source routes do not change
+plugin discovery and the core baseline follow the [ABI version table](../abi.md#abi-identities-and-versions); source routes do not change
 the [canonical signature encoding](#canonical-signatures).
 
 ### Diagnostics
@@ -1240,9 +1238,9 @@ Ordinary interface methods own parameterized object construction; there are no
 IDL `class` or `factory` roles, constructor registries or erased argument bags.
 
 Hard provider requirements can be listed as `dependencies = [PLUGIN_ID]`.
-There is no `contracts` list. Plugin descriptor ABI v4 contains the full factory
+There is no `contracts` list. Plugin descriptor ABI 24 contains the full factory
 identity, threading capability, bootstrap pointer, plugin metadata, and provider
-IDs. Its native getter is `nc_get_plugin_descriptor_v4`.
+IDs. Its native getter is `nc_get_plugin_descriptor`.
 
 Dynamic loading validates and registers one plugin atomically. Providers must
 already be registered; registration invokes neither factories nor dependency
@@ -1288,7 +1286,7 @@ ordinary interface methods. Use interface `IID`, `INTERFACE_ID` and
 `INTERFACE_DESCRIPTOR`. Low-level
 handwritten `ComInterface` implementations must specify `type Threading`.
 Remove contract registration and `MODULE` imports, and rebuild against runtime
-ABI v4 and the versioned plugin descriptor getter. No legacy adapter retains the
+ABI 24 and the versioned plugin descriptor getter. No legacy adapter retains the
 removed runtime contract mechanism.
 
 ### Generated IDL metadata
@@ -1373,7 +1371,7 @@ budgeting. See [prepared output completion](COM_OUTPUT_COMPLETION.md) for an IDL
 example, enum limits, and real generated-call regressions.
 
 The provider threading guarantee is preserved for all three owner/observer
-wrappers. See the [current core ABI](../abi-v4.md) for lifetime and concurrency rules.
+wrappers. See the [current native ABI](../abi.md) for lifetime and concurrency rules.
 
 ## Interpreting generated names
 
@@ -1386,8 +1384,8 @@ wrappers. See the [current core ABI](../abi-v4.md) for lifetime and concurrency 
 
 Cargo ownership keys are never native library filenames. Specialization UUIDs
 are never ABI signatures. Generated comments keep the original logical module
-or closed type beside these names. Their spelling and build-sidecar schemas do
-not advance runtime or plugin descriptor discovery: both use family 4. See
+or closed type beside these names. Their spelling and build-sidecar schemas evolve independently of
+the native ABI version. See
 [generic name documentation](IDL_GENERIC_VALUES.md#reading-generated-specialization-names)
 and [source-map lookup](../guides/IDL_SOURCE_MAPS.md).
 

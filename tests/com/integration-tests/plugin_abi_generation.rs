@@ -1,4 +1,4 @@
-//! Real native admission rejects published/retired cores before callbacks.
+//! Native admission rejects older ABI records before calling acquisition.
 #![cfg(any(unix, windows))]
 
 use std::{
@@ -29,22 +29,22 @@ mod host_admission {
 struct RejectedHostPrefix {
     /// Advertised full record size; unsupported versions must still stop at the prefix.
     size: usize,
-    /// Supplied service family, independent from the core generation.
+    /// First historical version word.
     runtime: u32,
-    /// Object/descriptor generation selected by the caller.
+    /// Second historical version word.
     core: u32,
 }
 
-/// Retired host families/cores are rejected before children or authored code.
+/// Old host records are rejected before children or authored code.
 #[test]
 fn retired_host_prefixes_are_rejected_before_authored_acquisition() {
     use std::sync::atomic::Ordering;
-    use neocogi_com_sdk::{ComRaw, IUnknown, IUnknownVTable, NcHostApiV4, NC_E_CLOSED};
+    use neocogi_com_sdk::{ComRaw, IUnknown, IUnknownVTable, NcHostApi, NC_E_CLOSED};
     let acquire = host_admission::plugin_descriptor().acquire.unwrap();
     host_admission::CALLS.store(0, Ordering::SeqCst);
-    for (runtime, core) in [(1, 18), (2, 19), (3, 21), (3, 22), (4, 21), (4, 22)] {
+    for (runtime, core) in [(1, 18), (2, 19), (3, 21), (3, 22), (4, 21), (4, 22), (4, 23)] {
         let prefix = RejectedHostPrefix {
-            size: core::mem::size_of::<NcHostApiV4>(),
+            size: core::mem::size_of::<NcHostApi>(),
             runtime,
             core,
         };
@@ -169,7 +169,7 @@ fn retired_bootstrap_is_rejected_before_its_callback() {
     assert_eq!(std::fs::read(marker).unwrap(), b"current", "current callback must actually execute");
 }
 
-/// Family 4 never falls back to an ABI v1 getter, even before reading metadata.
+/// Native lookup never falls back to an ABI v1 getter.
 #[test]
 fn abi_v1_discovery_is_rejected_without_bootstrap() {
     let legacy = provider(Some("legacy-symbol"));
@@ -189,7 +189,7 @@ fn abi_v2_discovery_is_rejected_without_bootstrap() {
     assert!(!marker.exists(), "ABI-v2 bootstrap must never execute");
 }
 
-/// A provider exposing only family 3 cannot enter family 4 discovery.
+/// Native lookup never falls back to an ABI v3 getter.
 #[test]
 fn abi_v3_discovery_is_rejected_without_bootstrap() {
     let legacy = provider(Some("legacy-v3-symbol"));
@@ -199,20 +199,30 @@ fn abi_v3_discovery_is_rejected_without_bootstrap() {
     assert!(!marker.exists(), "the ABI-v3 acquisition callback must remain uncalled");
 }
 
+/// The former WIP ABI v4 getter remains a distinct, retired export.
+#[test]
+fn abi_v4_discovery_is_rejected_without_bootstrap() {
+    let legacy = provider(Some("legacy-v4-symbol"));
+    let marker = legacy.path().join("v4-bootstrap.marker");
+    let inspected = child("v4-symbol", legacy.path(), &marker);
+    assert!(inspected.status.success(), "{}", String::from_utf8_lossy(&inspected.stderr));
+    assert!(!marker.exists(), "the ABI-v4 acquisition callback must remain uncalled");
+}
+
 /// Child entry: the current control makes real calls after admission.
 #[test]
 fn generation_child() {
     let Ok(mode) = std::env::var(MODE) else { return };
     let path = PathBuf::from(std::env::var_os(LIBRARY).expect("provider path"));
-    if matches!(mode.as_str(), "v1-symbol" | "v2-symbol" | "v3-symbol") {
+    if matches!(mode.as_str(), "v1-symbol" | "v2-symbol" | "v3-symbol" | "v4-symbol") {
         // SAFETY: Parent supplies a trusted fixture exposing only the old getter.
-        let error = unsafe { neocogi_com_host::inspect_plugin_library(path) }.expect_err("retired getter must be absent from family 4");
+        let error = unsafe { neocogi_com_host::inspect_plugin_library(path) }.expect_err("retired getter must not be used");
         assert_eq!(error.kind(), neocogi_com_host::PluginLoadErrorKind::FindSymbol);
         return;
     }
     if mode == "inspect" {
         // SAFETY: Parent built immutable legacy metadata with a readable prefix.
-        let error = unsafe { neocogi_com_host::inspect_plugin_library(path) }.expect_err("legacy core must be rejected");
+        let error = unsafe { neocogi_com_host::inspect_plugin_library(path) }.expect_err("legacy ABI must be rejected");
         assert_eq!(error.status(), Some(NC_E_ABI_VERSION));
         assert_eq!(error.kind(), neocogi_com_host::PluginLoadErrorKind::Metadata);
         return;

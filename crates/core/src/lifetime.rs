@@ -1,7 +1,7 @@
 //! Shared and boxed lifetime algorithms over distinct C allocation headers.
 //!
-//! WIP ABI v4: these headers and callbacks are provisional, not frozen.
-//! See [`crate::NC_COM_CORE_ABI_VERSION`] for the current candidate generation.
+//! Development ABI: these headers and callbacks are provisional, not frozen.
+//! See [`crate::NC_COM_ABI_VERSION`] for the current native ABI version.
 //!
 //! Shared strong counts contain only counts. Boxed owner/access bits belong to
 //! their own header. Construction and each ABI ownership contract establish the
@@ -496,7 +496,7 @@ impl NcBoxedLifetimeState {
         if control.is_null() {
             return;
         }
-        // SAFETY: the caller transfers a valid boxed owner in the current core ABI.
+        // SAFETY: the caller transfers a valid boxed owner in the current native ABI.
         let header = unsafe { &*control };
         let previous = header.owner_and_borrows.fetch_and(!BOX_OWNER, Ordering::AcqRel);
         assert!(previous & BOX_OWNER != 0, "exclusive owner released twice");

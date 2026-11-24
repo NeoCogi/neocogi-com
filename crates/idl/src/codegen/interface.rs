@@ -45,7 +45,7 @@ impl InterfaceVTablePrefix {
 /// Separately emitted contract and provider support for built-in interfaces.
 ///
 /// Core owns the ABI and safe wrappers. The facade owns generated object thunks,
-/// whose borrow gates and concrete object storage must not enter the core ABI.
+/// whose borrow gates and concrete object storage must not enter the native ABI.
 pub struct InterfaceExpansion {
     /// Traits, markers, wrappers and metadata, using only allocation-free core types.
     pub abi: proc_macro2::TokenStream,

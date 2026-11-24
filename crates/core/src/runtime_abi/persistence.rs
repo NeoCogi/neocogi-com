@@ -18,7 +18,7 @@ pub struct NcPersistenceContext {
 /// Fixed C representation of the complete persistence resource policy.
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
-pub struct NcPersistenceLimitsV4 {
+pub struct NcPersistenceLimits {
     /// Maximum encoded document bytes and aggregate captured provider state.
     pub bytes: usize,
     /// Maximum binary elements or fields in an individual container.
@@ -39,12 +39,12 @@ pub struct NcPersistenceLimitsV4 {
 /// it into its own allocator, must not unwind, and returns a failure status if
 /// it cannot accept the document. The runtime calls it exactly once on success
 /// and never retains `user_data`. A failed capture does not call it at all.
-pub type NcPersistenceWriteBytesV4 = unsafe extern "C" fn(user_data: *mut c_void, bytes: *const u8, len: usize) -> NcStatus;
+pub type NcPersistenceWriteBytes = unsafe extern "C" fn(user_data: *mut c_void, bytes: *const u8, len: usize) -> NcStatus;
 
 /// Size-prefixed persistence table admitted through the host API description.
 ///
-/// The v4 host checks this table's size and [`crate::NC_COM_CORE_ABI_VERSION`]
-/// during admission. Callers still owe the host API's backing and lifetime
+/// The host bundle supplies the native ABI version and admission checks this
+/// table's size. Callers still owe the host API's backing and lifetime
 /// guarantees. The application must explicitly
 /// register or load `nc.serialization` in this host's catalog before snapshot
 /// or restore. Each operation acquires its root and requests named `ncb`;
@@ -61,11 +61,9 @@ pub type NcPersistenceWriteBytesV4 = unsafe extern "C" fn(user_data: *mut c_void
 /// registered plugin descriptor. NCB-v1 bytes and the table layout do
 /// not depend on how the application supplies that provider.
 #[repr(C)]
-pub struct NcPersistenceApiV4 {
+pub struct NcPersistenceApi {
     /// Available table bytes, including this prefix.
     pub size: usize,
-    /// Core interface ABI accepted by the operations below.
-    pub core_abi_version: u32,
     /// Creates one empty, thread-local context; `out` must be writable.
     /// Failure clears the output. Successful ownership ends at `destroy_context`.
     /// Does not require or register a serialization provider.
@@ -83,8 +81,8 @@ pub struct NcPersistenceApiV4 {
     /// selection. Provider/selection failure never calls the byte callback.
     pub snapshot: unsafe extern "C" fn(
         object: crate::ComRaw<IUnknown>,
-        limits: NcPersistenceLimitsV4,
-        write: Option<NcPersistenceWriteBytesV4>,
+        limits: NcPersistenceLimits,
+        write: Option<NcPersistenceWriteBytes>,
         user_data: *mut c_void,
     ) -> NcStatus,
     /// Restores a complete tree using a shared borrow of a live context.
@@ -99,13 +97,13 @@ pub struct NcPersistenceApiV4 {
         context: *const NcPersistenceContext,
         bytes: *const u8,
         len: usize,
-        limits: NcPersistenceLimitsV4,
+        limits: NcPersistenceLimits,
         out: *mut crate::ComRaw<IUnknown>,
     ) -> NcStatus,
 }
 
 #[cfg(feature = "alloc")]
-impl From<crate::persistence::Limits> for NcPersistenceLimitsV4 {
+impl From<crate::persistence::Limits> for NcPersistenceLimits {
     /// Lowers every local limit explicitly instead of depending on Rust layout.
     fn from(limits: crate::persistence::Limits) -> Self {
         Self {
@@ -120,9 +118,9 @@ impl From<crate::persistence::Limits> for NcPersistenceLimitsV4 {
 }
 
 #[cfg(feature = "alloc")]
-impl From<NcPersistenceLimitsV4> for crate::persistence::Limits {
+impl From<NcPersistenceLimits> for crate::persistence::Limits {
     /// Reconstructs the local policy without changing any caller-selected budget.
-    fn from(limits: NcPersistenceLimitsV4) -> Self {
+    fn from(limits: NcPersistenceLimits) -> Self {
         Self {
             binary: crate::serialization::Limits {
                 bytes: limits.bytes,

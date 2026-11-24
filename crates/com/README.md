@@ -5,7 +5,7 @@ component ABI. It provides typed COM pointers, generated interface/object
 support, typed plugin roots, and optional API wrappers for
 host-supplied runtime services.
 
-The `0.5.0-wip-alpha.1` SDK uses **provisional ABI v4/core generation 23**.
+The `0.5.0-wip-alpha.1` SDK uses **provisional ABI 24**.
 Published 0.3.0 uses ABI v2/core generation 19.
 
 The [standalone walkthrough](https://github.com/NeoCogi/neocogi-com/blob/v0.4.0/examples/getting-started/README.md)
@@ -38,7 +38,7 @@ only their shared contract and SDK features, independently of plugin deployment.
 Public cross-library contracts should be authored as Rust-like `.ncidl`
 modules. See [IDL contract modules](https://github.com/NeoCogi/neocogi-com/blob/v0.4.0/docs/contracts/IDL_MODULES.md) for their
 source, crate, signature, and tooling model. The
-[current core ABI specification](../../docs/abi-v4.md) defines the binary boundary.
+[current native ABI specification](../../docs/abi.md) defines the binary boundary.
 
 ## Contracts and concrete objects
 
@@ -230,13 +230,13 @@ fn acquire_root(_runtime: neocogi_com_sdk::RuntimeHandle) -> Result<neocogi_com_
 acquisition function owns initialization and its return supplies the root identity.
 
 `#[plugin]` produces `plugin_descriptor() -> &'static NcPluginDescriptor` and
-exports `nc_get_plugin_descriptor_v4` when the provider's `dynamic-plugin` feature
+exports `nc_get_plugin_descriptor` when the provider's `dynamic-plugin` feature
 is enabled. A root can be any closed interface; no IDL construction role is required.
 
 | Value | Producer and use | Ownership |
 | --- | --- | --- |
 | `NcPluginDescriptor` | Provider input to validation, registration or unregistered inspection. Includes the bootstrap function. | Borrows immutable assembly metadata and code; copying it does not retain the library. |
-| `NcPluginInfoV4` / `PluginInfo` | Runtime output from registered lookup/enumeration. Includes first registration origin. | Raw views live for the process; the facade owns text, paths and GUID copies while retaining the process-lived signature view. |
+| `NcPluginInfo` / `PluginInfo` | Runtime output from registered lookup/enumeration. Includes first registration origin. | Raw views live for the process; the facade owns text, paths and GUID copies while retaining the process-lived signature view. |
 | `ComPtr<FactoryAbi>` | Result of typed `acquire_plugin_root`. Used to call product construction methods. | Owns one COM reference, released when dropped. |
 
 Reading either metadata record does not acquire a factory. Registration retains
@@ -255,7 +255,7 @@ let factory = runtime.acquire_plugin_root::<my_contracts::UiFactoryAbi>(
 let button = factory.create_button()?;
 ```
 
-`load_plugin_library` requires `nc_get_plugin_descriptor_v4`, validates
+`load_plugin_library` requires `nc_get_plugin_descriptor`, validates
 plugin metadata and hard dependencies, and registers the plugin atomically.
 Acquisition compares the exact factory signature before invoking bootstrap.
 Unconnected contract revisions can coexist; incompatible calls fail with
@@ -270,7 +270,7 @@ release version, static/dynamic origin, single `FactoryInfo` and hard dependency
 GUIDs. `RuntimeHandle::plugins()` returns these complete owned records in registration
 order, without separate factory or dependency queries. Repeated provider loads reuse the
 first registration and origin; conflicting providers are rejected. See
-[runtime ABI v4](../../docs/abi-v4.md#runtime-and-global-registry).
+[runtime ABI 24](../../docs/abi.md#runtime-and-global-registry).
 
 Inspection is a separate operation that can report errors without registering
 or acquiring a plugin factory. Its fallible result does not make live loading optional.
@@ -282,7 +282,7 @@ Windows module reuse/redirection. Deploy private dependencies beside the DLL.
 Later provider-issued loads and delay loads have their own search policy.
 The SDK requires UTF-8 paths and preserves the original spelling as provenance.
 Both the provider and its native dependencies remain trusted code; see the
-[loading contract](../../docs/abi-v4.md#runtime-and-global-registry).
+[loading contract](../../docs/abi.md#runtime-and-global-registry).
 
 For static assemblies, register the descriptor before using the same typed
 acquisition method:

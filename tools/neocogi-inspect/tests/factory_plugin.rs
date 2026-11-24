@@ -119,7 +119,7 @@ fn assert_native_output_paths(inspector: &Path, plugin: &Path, intended: &Path, 
             let artifact: serde_json::Value = serde_json::from_slice(&std::fs::read(intended).unwrap()).expect("command-specific output JSON");
             match command {
                 "dump" => {
-                    assert_eq!(artifact["schema_version"], 9);
+                    assert_eq!(artifact["schema_version"], 10);
                     assert_eq!(artifact["plugin"]["name"], "nc.examples.factory_plugin_component");
                 }
                 "plan" => {
@@ -438,8 +438,8 @@ fn inspects_a_standalone_plugin_and_its_exact_factory_signature() {
         .expect("failed to inspect relocated plugin");
     assert_success("standalone plugin inspection", &output);
     let artifact: serde_json::Value = serde_json::from_slice(&output.stdout).expect("inspection JSON");
-    assert_eq!(artifact["schema_version"], 9);
-    assert_eq!(artifact["description_abi_version"], 4);
+    assert_eq!(artifact["schema_version"], 10);
+    assert_eq!(artifact["abi_version"], neocogi_com::NC_COM_ABI_VERSION);
     assert_eq!(artifact["plugin"]["name"], "nc.examples.factory_plugin_component");
     let factory = &artifact["factory"];
     assert_eq!(factory["root_factory_signature"].as_str().unwrap().len(), 64);

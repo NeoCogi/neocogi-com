@@ -9,7 +9,7 @@ use std::{
 };
 
 use neocogi_com_host::{PluginLoadErrorKind, inspect_plugin_library};
-use neocogi_com_sdk::{NC_DEBUG_SEVERITY_ERROR, NC_DEBUG_TYPE_PLUGIN, NC_E_DROPPED, NC_E_LOAD_FAILED, NcDebugMessageV4, NcDebugMessengerCreateInfoV4, PluginOrigin};
+use neocogi_com_sdk::{NC_DEBUG_SEVERITY_ERROR, NC_DEBUG_TYPE_PLUGIN, NC_E_DROPPED, NC_E_LOAD_FAILED, NcDebugMessage, NcDebugMessengerCreateInfo, PluginOrigin};
 
 /// Supplies an isolated native fixture or selects the ordinary parent setup.
 const FIXTURE_PATH: &str = "NC_COM_TEST_GETTER_ORIGIN";
@@ -152,7 +152,7 @@ unsafe fn admit_forwarded_export(directory: &Path, runtime: neocogi_com_sdk::Run
     };
 
     let path = native_path(directory, "forwarded");
-    // SAFETY: the trusted facade explicitly exports the real versioned getter.
+    // SAFETY: the trusted facade explicitly exports the descriptor getter.
     let metadata = unsafe { inspect_plugin_library(&path) }.unwrap();
     // SAFETY: inspecting the same trusted facade admits the static descriptor.
     let (id, acquire) = unsafe { runtime.with_plugin_library_descriptor(&path, |descriptor| Ok((descriptor.plugin_id, descriptor.acquire.unwrap()))) }.unwrap();
@@ -185,8 +185,8 @@ unsafe fn admit_forwarded_export(directory: &Path, runtime: neocogi_com_sdk::Run
 /// Checks the public mandatory-load boundary without terminating the parent.
 fn reject_live_load(path: &Path) {
     let runtime = neocogi_com_host::initialize_runtime();
-    let info = NcDebugMessengerCreateInfoV4 {
-        size: size_of::<NcDebugMessengerCreateInfoV4>(),
+    let info = NcDebugMessengerCreateInfo {
+        size: size_of::<NcDebugMessengerCreateInfo>(),
         severity_mask: NC_DEBUG_SEVERITY_ERROR,
         value_type_mask: NC_DEBUG_TYPE_PLUGIN,
         callback: Some(observe_rejected_load),
@@ -201,7 +201,7 @@ fn reject_live_load(path: &Path) {
 }
 
 /// Observes the committed catalog at the error callback before mandatory abort.
-unsafe extern "C" fn observe_rejected_load(_: u32, _: u32, message: *const NcDebugMessageV4, _: *mut c_void) {
+unsafe extern "C" fn observe_rejected_load(_: u32, _: u32, message: *const NcDebugMessage, _: *mut c_void) {
     // SAFETY: the debug callback receives one readable message for this call.
     if unsafe { (*message).status } == NC_E_LOAD_FAILED && neocogi_com_host::initialize_runtime().plugins().is_ok_and(|plugins| plugins.is_empty()) {
         let _ = writeln!(std::io::stderr().lock(), "catalog empty at rejection");
@@ -234,7 +234,7 @@ fn build_native(root: &Path, name: &str, define: Option<&str>, forward: bool) {
     if forward && cfg!(windows) {
         fs::write(
             &export,
-            format!("EXPORTS\n    nc_get_plugin_descriptor_v4={FORWARD_TARGET}.nc_get_plugin_descriptor_v4\n"),
+            format!("EXPORTS\n    nc_get_plugin_descriptor={FORWARD_TARGET}.nc_get_plugin_descriptor\n"),
         )
         .unwrap();
     }

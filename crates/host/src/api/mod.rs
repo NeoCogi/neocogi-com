@@ -1,4 +1,4 @@
-//! Assembly of runtime ABI v4 operations and shared C callback utilities.
+//! Assembly of host runtime operations and shared C callback utilities.
 //!
 //! The host lends one immutable service graph to application and provider code.
 //! Operation callbacks remain private function pointers and reach this host's
@@ -10,8 +10,8 @@ use std::path::Path;
 
 use crate::debug;
 use neocogi_com::{
-    NC_COM_CORE_ABI_VERSION, NC_DEBUG_SEVERITY_ERROR, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG, NC_E_POINTER, NC_OK, NcDebugApiV4, NcDebugMessageV4,
-    NcPluginApiV4, NcStatus, NcUtf8View,
+    NC_COM_ABI_VERSION, NC_DEBUG_SEVERITY_ERROR, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG, NC_E_POINTER, NC_OK, NcDebugApi, NcDebugMessage, NcPluginApi,
+    NcStatus, NcUtf8View,
 };
 
 #[cfg(test)]
@@ -19,15 +19,14 @@ mod host_tests;
 mod inspection;
 mod persistence;
 mod runtime;
-use persistence::PERSISTENCE_API_V4;
+use persistence::PERSISTENCE_API;
 
 use inspection::{inspect_plugin_library_utf8, plugin_count, plugin_info, plugin_infos};
 use runtime::{acquire_factory_plugin, load_plugin_library_utf8, register_plugin_descriptor};
 
 /// Immutable runtime-operation table supplied by the host API description.
-pub(super) static RUNTIME_API_V4: NcPluginApiV4 = NcPluginApiV4 {
-    size: mem::size_of::<NcPluginApiV4>(),
-    core_abi_version: NC_COM_CORE_ABI_VERSION,
+pub(super) static RUNTIME_API: NcPluginApi = NcPluginApi {
+    size: mem::size_of::<NcPluginApi>(),
 
     register_plugin_descriptor,
     load_plugin_library_utf8,
@@ -39,8 +38,8 @@ pub(super) static RUNTIME_API_V4: NcPluginApiV4 = NcPluginApiV4 {
 };
 
 /// Immutable debug-messenger table supplied by the host API description.
-pub(super) static DEBUG_API_V4: NcDebugApiV4 = NcDebugApiV4 {
-    size: mem::size_of::<NcDebugApiV4>(),
+pub(super) static DEBUG_API: NcDebugApi = NcDebugApi {
+    size: mem::size_of::<NcDebugApi>(),
     create_messenger: debug::create_messenger,
     destroy_messenger: debug::destroy_messenger,
 };
@@ -48,13 +47,13 @@ pub(super) static DEBUG_API_V4: NcDebugApiV4 = NcDebugApiV4 {
 /// Canonical immutable access description of this implementation's services.
 /// No owned container or registry address crosses the ABI: callbacks execute in
 /// the host and reach its private singleton. All backing survives main's return.
-pub(crate) static HOST_API: neocogi_com::NcHostApiV4 = neocogi_com::NcHostApiV4 {
-    size: mem::size_of::<neocogi_com::NcHostApiV4>(),
-    runtime_abi_version: neocogi_com::NC_COM_RUNTIME_ABI_VERSION,
-    core_abi_version: NC_COM_CORE_ABI_VERSION,
-    runtime: &RUNTIME_API_V4,
-    debug: &DEBUG_API_V4,
-    persistence: &PERSISTENCE_API_V4,
+pub(crate) static HOST_API: neocogi_com::NcHostApi = neocogi_com::NcHostApi {
+    size: mem::size_of::<neocogi_com::NcHostApi>(),
+    abi_version: NC_COM_ABI_VERSION,
+    reserved: 0,
+    runtime: &RUNTIME_API,
+    debug: &DEBUG_API,
+    persistence: &PERSISTENCE_API,
 };
 
 /// Validates a borrowed ABI UTF-8 path and returns a call-scoped `Path` view.
@@ -113,7 +112,7 @@ unsafe fn copy_to_out<T: Copy>(items: impl ExactSizeIterator<Item = T>, out: *mu
 fn emit_error(value_type: u32, status: NcStatus, text: &str) {
     // Debug dispatch is synchronous, so this borrowed text remains valid for
     // every callback and need not be copied into runtime-owned storage.
-    let message = NcDebugMessageV4::new(status, NcUtf8View { data: text.as_ptr(), len: text.len() });
+    let message = NcDebugMessage::new(status, NcUtf8View { data: text.as_ptr(), len: text.len() });
     crate::state::RuntimeState::global().debug().emit(NC_DEBUG_SEVERITY_ERROR, value_type, &message);
 }
 
@@ -123,13 +122,13 @@ mod tests {
     use super::*;
     use core::ffi::c_void;
     use core::sync::atomic::{AtomicI32, Ordering};
-    use neocogi_com::{NC_DEBUG_SEVERITY_ERROR, NC_DEBUG_TYPE_VALIDATION, NC_E_NOT_FOUND, NcDebugMessengerCreateInfoV4, NcGuid, NcPluginDescriptor};
+    use neocogi_com::{NC_DEBUG_SEVERITY_ERROR, NC_DEBUG_TYPE_VALIDATION, NC_E_NOT_FOUND, NcDebugMessengerCreateInfo, NcGuid, NcPluginDescriptor};
 
     unsafe extern "C" fn accept_inspected_descriptor(_plugin: *const NcPluginDescriptor, _user_data: *mut c_void) -> NcStatus {
         NC_OK
     }
 
-    unsafe extern "C" fn record_debug_status(_severity: u32, _value_type: u32, message: *const NcDebugMessageV4, user_data: *mut c_void) {
+    unsafe extern "C" fn record_debug_status(_severity: u32, _value_type: u32, message: *const NcDebugMessage, user_data: *mut c_void) {
         if message.is_null() || user_data.is_null() {
             return;
         }
@@ -140,10 +139,11 @@ mod tests {
         unsafe { &*user_data.cast::<AtomicI32>() }.store(status, Ordering::SeqCst);
     }
 
-    /// Runtime family 4 and core generation 23 identify separate contracts.
+    /// The host advertises the same ABI as plugin descriptors.
     #[test]
-    fn host_runtime_uses_family_two() {
-        assert_eq!(crate::initialize_process().runtime_abi_version, 4);
+    fn host_advertises_the_native_abi() {
+        assert_eq!(crate::initialize_process().abi_version, NC_COM_ABI_VERSION);
+        assert_eq!(crate::initialize_process().reserved, 0);
     }
 
     #[test]
@@ -152,11 +152,9 @@ mod tests {
         let debug = unsafe { &*crate::initialize_process().debug };
         let persistence = unsafe { &*crate::initialize_process().persistence };
 
-        assert_eq!(persistence.size, mem::size_of::<neocogi_com::NcPersistenceApiV4>());
-        assert_eq!(persistence.core_abi_version, NC_COM_CORE_ABI_VERSION);
-        assert_eq!(runtime.size, mem::size_of::<NcPluginApiV4>());
-        assert_eq!(runtime.core_abi_version, NC_COM_CORE_ABI_VERSION);
-        assert_eq!(debug.size, mem::size_of::<NcDebugApiV4>());
+        assert_eq!(persistence.size, mem::size_of::<neocogi_com::NcPersistenceApi>());
+        assert_eq!(runtime.size, mem::size_of::<NcPluginApi>());
+        assert_eq!(debug.size, mem::size_of::<NcDebugApi>());
     }
 
     #[test]
@@ -164,7 +162,7 @@ mod tests {
         let api = unsafe { &*crate::initialize_process().runtime };
         let count = unsafe { (api.plugin_count)() };
         let mut out_len = usize::MAX;
-        let mut values = Vec::<neocogi_com::NcPluginInfoV4>::with_capacity(count);
+        let mut values = Vec::<neocogi_com::NcPluginInfo>::with_capacity(count);
         let status = unsafe { (api.plugin_infos)(values.as_mut_ptr(), count, &mut out_len) };
         assert_eq!(status, NC_OK);
         assert_eq!(out_len, count);
@@ -231,11 +229,11 @@ mod tests {
     #[test]
     fn descriptor_inspection_validates_callback_and_path() {
         assert_eq!(
-            unsafe { (RUNTIME_API_V4.inspect_plugin_library_utf8)(ptr::null(), 0, None, ptr::null_mut()) },
+            unsafe { (RUNTIME_API.inspect_plugin_library_utf8)(ptr::null(), 0, None, ptr::null_mut()) },
             NC_E_POINTER
         );
         assert_eq!(
-            unsafe { (RUNTIME_API_V4.inspect_plugin_library_utf8)(ptr::null(), 0, Some(accept_inspected_descriptor), ptr::null_mut(),) },
+            unsafe { (RUNTIME_API.inspect_plugin_library_utf8)(ptr::null(), 0, Some(accept_inspected_descriptor), ptr::null_mut(),) },
             NC_E_INVALID_ARG
         );
     }
@@ -243,8 +241,8 @@ mod tests {
     #[test]
     fn debug_messenger_observes_runtime_validation_failure() {
         let observed = AtomicI32::new(0);
-        let create_info = NcDebugMessengerCreateInfoV4 {
-            size: mem::size_of::<NcDebugMessengerCreateInfoV4>(),
+        let create_info = NcDebugMessengerCreateInfo {
+            size: mem::size_of::<NcDebugMessengerCreateInfo>(),
             severity_mask: NC_DEBUG_SEVERITY_ERROR,
             value_type_mask: NC_DEBUG_TYPE_VALIDATION,
             callback: Some(record_debug_status),
@@ -264,7 +262,7 @@ mod tests {
     #[test]
     fn complete_plugin_lookup_validates_pointer_and_unknown_id() {
         assert_eq!(unsafe { plugin_info(NcGuid::nil(), ptr::null_mut()) }, NC_E_POINTER);
-        let mut info = core::mem::MaybeUninit::<neocogi_com::NcPluginInfoV4>::uninit();
+        let mut info = core::mem::MaybeUninit::<neocogi_com::NcPluginInfo>::uninit();
         assert_eq!(unsafe { plugin_info(NcGuid::nil(), info.as_mut_ptr()) }, NC_E_NOT_FOUND);
     }
 }

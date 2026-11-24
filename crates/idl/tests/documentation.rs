@@ -13,54 +13,24 @@ fn example<'a>(document: &'a str, label: &str) -> &'a str {
     body.split_once("\n```").expect("example has a closing fence").0
 }
 
-/// The current checkout carries only the ABI specification selected by its runtime.
+/// Documentation and the compiler use the same native ABI authority.
 #[test]
-fn current_abi_specification_matches_the_runtime_generation() {
-    let directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs");
-    let mut specifications = fs::read_dir(&directory)
-        .unwrap()
-        .map(|entry| entry.unwrap().path())
-        .filter(|path| {
-            path.file_name().is_some_and(|name| name.to_string_lossy().starts_with("abi-")) && path.extension().is_some_and(|extension| extension == "md")
-        })
-        .collect::<Vec<_>>();
-    specifications.sort();
-    assert_eq!(specifications, [directory.join("abi-v4.md")]);
-    let document = include_str!("../../../docs/abi-v4.md");
-    assert!(document.starts_with("# COM ABI v4 (WIP)\n"));
-    // Compare the documented authorities to code, rather than separately
-    // asserting two hardcoded numbers that can contradict each other.
-    for (name, constant, version) in [
-        ("Core ABI", "NC_COM_CORE_ABI_VERSION", neocogi_com::NC_COM_CORE_ABI_VERSION),
-        ("Runtime ABI", "NC_COM_RUNTIME_ABI_VERSION", neocogi_com::NC_COM_RUNTIME_ABI_VERSION),
-        (
-            "Plugin descriptor ABI",
-            "NC_PLUGIN_DESCRIPTOR_ABI_VERSION",
-            neocogi_com::NC_PLUGIN_DESCRIPTOR_ABI_VERSION,
-        ),
-    ] {
-        let expected = format!("| {name} | {constant} == {version};");
-        let prefix = format!("| {name} | ");
-        let rows = document.lines().filter(|line| line.starts_with(&prefix)).collect::<Vec<_>>();
-        assert_eq!(rows.len(), 1, "one current {name} row must remain documented");
-        assert!(rows[0].starts_with(&expected), "the {name} row must match {constant}");
-    }
-    let migration = include_str!("../../../docs/guides/ABI_V4_MIGRATION.md");
-    let expected = format!("| Core generation | 21 | {} |", neocogi_com::NC_COM_CORE_ABI_VERSION);
-    assert!(
-        migration.lines().any(|line| line == expected),
-        "the provider migration table must use the current core generation"
-    );
-    let expected = format!("| Runtime and descriptor families | 3 | {} |", neocogi_com::NC_COM_RUNTIME_ABI_VERSION);
-    assert_eq!(neocogi_com::NC_COM_RUNTIME_ABI_VERSION, neocogi_com::NC_PLUGIN_DESCRIPTOR_ABI_VERSION);
-    assert!(
-        migration.lines().any(|line| line == expected),
-        "the provider migration table must use the current discovery family"
-    );
+fn current_abi_specification_matches_the_runtime_version() {
+    let document = include_str!("../../../docs/abi.md");
+    let version = neocogi_com::NC_COM_ABI_VERSION;
+    assert!(document.starts_with(&format!("# COM ABI {version} (WIP)\n")));
+    let row = format!("| Native ABI | NC_COM_ABI_VERSION == {version};");
+    assert_eq!(document.lines().filter(|line| line.starts_with("| Native ABI | ")).count(), 1);
+    assert!(document.lines().any(|line| line.starts_with(&row)));
+    let getter = format!("| Native getter | `{}`;", neocogi_com::NC_GET_PLUGIN_DESCRIPTOR_SYMBOL);
+    assert!(document.lines().any(|line| line.starts_with(&getter)));
+
+    let migration = include_str!("../../../docs/guides/ABI_MIGRATION.md");
+    let native_abi = format!("| Native ABI | v3/core 21 | {version} |");
+    assert!(migration.lines().any(|line| line == native_abi));
 }
 
 /// Current guidance consumes the actual compiler encoding and Cargo name policy.
-/// Runtime/descriptor family 4 remains independent from the IDL encoding revision.
 #[test]
 fn authoring_guides_match_current_encoding_and_module_mangling() {
     let domain = std::str::from_utf8(neocogi_idl::MODULE_ABI_ENCODING_DOMAIN).unwrap().trim_end_matches('\0');
@@ -72,8 +42,6 @@ fn authoring_guides_match_current_encoding_and_module_mangling() {
     let setup = include_str!("../README.md");
     let links = setup.lines().find_map(|line| line.strip_prefix("links = ")).unwrap().trim_matches('"');
     assert_eq!(links, neocogi_idl::cargo::contract_links_name("example.widgets"));
-    assert_eq!(neocogi_com::NC_COM_RUNTIME_ABI_VERSION, 4);
-    assert_eq!(neocogi_com::NC_PLUGIN_DESCRIPTOR_ABI_VERSION, 4);
     for keyword in ["class", "factory"] {
         let invalid = format!("{keyword} Removed {{}}");
         assert!(neocogi_idl::parse_module(Path::new("example/removed.ncidl"), &invalid).is_err());
@@ -198,7 +166,7 @@ fn active_guides_do_not_reintroduce_retired_protocol_prescriptions() {
 /// be imported by an independent consumer merely because callbacks use the C ABI.
 #[test]
 fn provider_lifetime_prefix_guide_executes_with_private_helpers() {
-    let guide = include_str!("../../../docs/guides/ABI_V4_MIGRATION.md");
+    let guide = include_str!("../../../docs/guides/ABI_MIGRATION.md");
     let contract = neocogi_idl::parse_module(Path::new("proof/lifetime.ncidl"), "interface Probe { fn value(&self) -> Result<u32>; }").unwrap();
     let graph = neocogi_idl::resolve_modules(vec![contract]).unwrap();
     let bindings = neocogi_idl::generate_rust(&graph, "proof.lifetime").unwrap();

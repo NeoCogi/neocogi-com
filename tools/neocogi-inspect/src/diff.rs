@@ -16,13 +16,7 @@ pub(crate) fn diff_inspections(old: &InspectionArtifact, new: &InspectionArtifac
     push_changed(&mut differences, "target.triple", &old.target.triple, &new.target.triple);
     push_changed(&mut differences, "target.pointer_width", old.target.pointer_width, new.target.pointer_width);
     push_changed(&mut differences, "target.endianness", &old.target.endianness, &new.target.endianness);
-    push_changed(&mut differences, "core_abi_version", old.core_abi_version, new.core_abi_version);
-    push_changed(
-        &mut differences,
-        "description_abi_version",
-        old.description_abi_version,
-        new.description_abi_version,
-    );
+    push_changed(&mut differences, "abi_version", old.abi_version, new.abi_version);
     diff_plugin(&mut differences, &old.plugin, &new.plugin);
     diff_factory(&mut differences, &old.factory, &new.factory);
     differences

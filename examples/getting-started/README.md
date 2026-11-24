@@ -7,7 +7,7 @@ and a unit method that invalidates the optional value.
 
 For ABI v2, use the [0.3.0 walkthrough](https://github.com/NeoCogi/neocogi-com/blob/v0.3.0/examples/getting-started/README.md).
 This directory uses development SDK `0.5.0-wip-alpha.1` with the
-[WIP ABI](../../docs/abi-v4.md#abi-identities-and-versions). Each project compiles
+[WIP ABI](../../docs/abi.md#abi-identities-and-versions). Each project compiles
 the same IDL into its own Rust bindings. The application selects the static host;
 the plugin receives that host through its bootstrap.
 

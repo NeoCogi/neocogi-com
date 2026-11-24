@@ -1,10 +1,11 @@
 //! Execution evidence shared by the workspace and standalone native-C gates.
 
-/// Independently authored C callable protocol and fixed-array wire cases.
+/// Required independent C checks for the host, callable slots, and array wires.
 pub const NATIVE_C_CASES: &[&str] = &[
     "callable_slots::native_c_consumes_owned_optional_and_scoped_slots",
     "callable_slots::generated_callers_validate_native_c_result_protocols",
     "fixed_arrays::native_c_calls_portable_fixed_array_wires",
+    "host_abi::plain_c_forwards_host_access_to_the_typed_bootstrap",
 ];
 
 /// Checks a named success after the caller has verified the child exited successfully.

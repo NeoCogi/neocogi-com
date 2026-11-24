@@ -22,7 +22,7 @@ EXPORT int nc_origin_uses_import(void) { return nc_origin_anchor(); }
 /* A deliberately failing getter with the real signature. Its status proves
    discovery reached this image's code before metadata validation. */
 struct NcPluginDescriptor;
-EXPORT int32_t nc_get_plugin_descriptor_v4(const struct NcPluginDescriptor **out) {
+EXPORT int32_t nc_get_plugin_descriptor(const struct NcPluginDescriptor **out) {
     *out = 0;
     return nc_origin_anchor() == 7 ? -14 : -4;
 }

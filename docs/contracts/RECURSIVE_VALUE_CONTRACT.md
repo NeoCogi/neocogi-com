@@ -14,7 +14,7 @@ alive. It can be stored recursively in borrowed aggregates or returned directly;
 its wire is `NcSharedWeakRaw`. Acquisition validates shared ownership and the exact
 interface, then retains a weak token without promotion. Expired tokens remain
 valid transport values. Weak fields have distinct design metadata and do not
-acquire copied-buffer or persistence capability. See [development ABI](../abi-v4.md#shared-weak-result-and-value-transport).
+acquire copied-buffer or persistence capability. See [development ABI](../abi.md#shared-weak-result-and-value-transport).
 
 A value consists of scalar leaves or recursively composed aggregates: records,
 tagged enum alternatives, fixed arrays, and sequences. `Option<T>` is a bundled
@@ -405,7 +405,7 @@ that claims ownership has been restored.
 External native adapters must explicitly implement the generated contract's
 checked wire semantics. Native C layout alone does not prove restricted field
 validity. IDL owns no native packing, alignment, or external-field mode. See the
-[current ABI entrypoint](../abi-v4.md) for binary versions.
+[current ABI entrypoint](../abi.md) for binary versions.
 
 ## Current IDL spelling and supported use sites
 
@@ -449,7 +449,7 @@ exact tag. An interface's `IDL_INTERFACE.values` contains the definitions reache
 through its ordinary methods and required projections. Object references remain
 capabilities; their additional methods have separate interface metadata.
 
-The runtime's [plugin inspection](../abi-v4.md#runtime-and-global-registry)
+The runtime's [plugin inspection](../abi.md#runtime-and-global-registry)
 reads plugin and root-factory descriptors. Source-level value definitions remain
 local static metadata. An application that transports an introspection graph
 must define its own COM contract and validate the received graph.

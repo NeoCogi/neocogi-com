@@ -28,8 +28,7 @@ pub(crate) fn render_text(inspection: &PluginInspection) -> String {
     writeln!(out, "plugin: {}", inspection.qualified_name).unwrap();
     writeln!(out, "  id: {}", inspection.plugin_id).unwrap();
     writeln!(out, "  version: {}", inspection.plugin_version).unwrap();
-    writeln!(out, "  description_abi_version: {}", inspection.description_abi_version).unwrap();
-    writeln!(out, "  core_abi_version: {}", inspection.core_abi_version).unwrap();
+    writeln!(out, "  abi_version: {}", inspection.abi_version).unwrap();
     writeln!(out, "  dependencies:").unwrap();
     if inspection.dependencies.is_empty() {
         writeln!(out, "    (none)").unwrap();
@@ -112,8 +111,7 @@ mod tests {
     /// Constructs a minimal inspected factory plugin for rendering tests.
     fn inspection_with_thread_safe_factory() -> PluginInspection {
         PluginInspection {
-            description_abi_version: neocogi_com::NC_PLUGIN_DESCRIPTOR_ABI_VERSION,
-            core_abi_version: 7,
+            abi_version: neocogi_com::NC_COM_ABI_VERSION,
             plugin_id: NcGuid::from_fields(1, 2, 3, [4; 8]),
             qualified_name: "nc.tests.inspect".to_string(),
             plugin_version: "1.0.0".to_string(),

@@ -7,8 +7,8 @@
 
 use core::{mem, ptr};
 
-use super::{NC_COM_RUNTIME_ABI_VERSION, NcDebugApiV4, NcPersistenceApiV4, NcPluginApiV4};
-use crate::{NC_COM_CORE_ABI_VERSION, NC_E_ABI_VERSION, NC_E_POINTER, NC_OK, NcStatus};
+use super::{NcDebugApi, NcPersistenceApi, NcPluginApi};
+use crate::{NC_COM_ABI_VERSION, NC_E_ABI_VERSION, NC_E_POINTER, NC_OK, NcStatus};
 
 /// Immutable C description supplied by the host when acquiring a plugin factory.
 ///
@@ -18,126 +18,83 @@ use crate::{NC_COM_CORE_ABI_VERSION, NC_E_ABI_VERSION, NC_E_POINTER, NC_OK, NcSt
 /// lifetime, including after an authored application main returns. Host entrypoints
 /// support concurrent access. Caller-owned persistence contexts remain subject
 /// to their own thread-local and exclusive-borrow operation contracts.
-///
-/// WIP ABI v4/core generation 23 selects the current layout and callbacks,
-/// which remain provisional until release freeze. Use matching source revisions;
-/// discovery family 4 and incompatible-generation rejection remain separate checks.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct NcHostApiV4 {
+pub struct NcHostApi {
     /// Available record bytes, including the size/version prefix.
     pub size: usize,
-    /// RuntimeHandle table family; must equal [`NC_COM_RUNTIME_ABI_VERSION`].
-    pub runtime_abi_version: u32,
-    /// Core object/descriptor ABI understood by the supplied implementation.
-    pub core_abi_version: u32,
+    /// Native ABI version of the complete service graph.
+    pub abi_version: u32,
+    /// Reserved. Producers initialize this word to zero. Current readers ignore it.
+    ///
+    /// Legacy readers load both words before rejecting the new ABI version.
+    /// A field here keeps that second read out of structure padding.
+    pub reserved: u32,
     /// Required immutable plugin/catalog operation table in the host.
-    pub runtime: *const NcPluginApiV4,
+    pub runtime: *const NcPluginApi,
     /// Required immutable diagnostics operation table in the same host.
-    pub debug: *const NcDebugApiV4,
+    pub debug: *const NcDebugApi,
     /// Required immutable caller-owned persistence operation table in that host.
     /// Its presence does not guarantee a serialization provider; see
-    /// [`NcPersistenceApiV4`] for the application's explicit registration duty.
-    pub persistence: *const NcPersistenceApiV4,
+    /// [`NcPersistenceApi`] for the application's explicit registration duty.
+    pub persistence: *const NcPersistenceApi,
 }
 
 // SAFETY: Sharing the record exposes only const raw pointers. Dereferencing them
 // still requires the documented backing/immutability/callable-code obligations;
 // no safe operation on this record mutates or dereferences foreign storage.
-unsafe impl Sync for NcHostApiV4 {}
+unsafe impl Sync for NcHostApi {}
 
 /// Checks the host record and required table prefixes without invoking code.
 ///
-/// Null pointers return `NC_E_POINTER`; short records or unsupported runtime/core
-/// versions return `NC_E_ABI_VERSION`. No full table reference is constructed
-/// before admission. Success proves neither lifetime nor common ownership.
+/// Null required pointers return `NC_E_POINTER`. An unsupported ABI version or a
+/// record of the wrong size returns `NC_E_ABI_VERSION`.
 ///
 /// # Safety
-///
 /// A nonnull host pointer is aligned and readable for its leading `usize`. If
-/// its size includes the current record, its version prefix is readable. Only
-/// supported versions require the complete immutable current host record. Each
-/// nonnull child is aligned and readable for its size prefix; a sufficiently
-/// large core-versioned child also has a readable core-version field. Matching
-/// supported children describe valid current tables. This validator retains no
-/// pointer, so backing need only survive this call; adopting process-lived access
-/// additionally requires the complete immutable coherent graph for that lifetime.
-pub unsafe fn validate_host_api(host: *const NcHostApiV4) -> NcStatus {
+/// its size matches the current record, the version immediately after the
+/// size is readable. The current version requires the complete immutable host
+/// record. Each nonnull child is aligned and readable for its leading size.
+/// Children declaring the current table sizes have that complete layout and
+/// belong to the same host. Adoption additionally requires process-lived
+/// immutable backing for all three tables and their callback code.
+pub unsafe fn validate_host_api(host: *const NcHostApi) -> NcStatus {
     // SAFETY: The caller guarantees the readable size prefix of a nonnull host.
     let status = unsafe { validate_size(host) };
     if status.is_err() {
         return status;
     }
-    // Read only version fields before borrowing a supported complete layout.
-    // SAFETY: A sufficient advertised size grants this stable version prefix.
-    let (runtime_version, core_version) = unsafe {
-        (
-            ptr::addr_of!((*host).runtime_abi_version).read(),
-            ptr::addr_of!((*host).core_abi_version).read(),
-        )
-    };
-    if runtime_version != NC_COM_RUNTIME_ABI_VERSION || core_version != NC_COM_CORE_ABI_VERSION {
+    // SAFETY: The advertised complete size grants the stable version prefix.
+    if unsafe { ptr::addr_of!((*host).abi_version).read() } != NC_COM_ABI_VERSION {
         return NC_E_ABI_VERSION;
     }
-    // SAFETY: Supported versions and size now grant the complete host record.
+    // SAFETY: The size and supported version grant the complete host record.
     let host = unsafe { &*host };
-    // SAFETY: The caller grants each reachable table's documented prefix.
-    let status = unsafe { validate_core_table(host.runtime) };
+    // SAFETY: The caller grants each reachable table's documented size prefix.
+    let status = unsafe { validate_size(host.runtime) };
     if status.is_err() {
         return status;
     }
-    // Diagnostics has only a byte-size prefix, versioned by the outer record.
-    // SAFETY: The caller grants the debug table's size prefix.
+    // SAFETY: Same size prefix contract for the diagnostics service.
     let status = unsafe { validate_size(host.debug) };
     if status.is_err() {
         return status;
     }
-    // SAFETY: The caller grants the persistence table's size/core prefix.
-    unsafe { validate_core_table(host.persistence) }
+    // SAFETY: Same size prefix contract for the persistence service.
+    unsafe { validate_size(host.persistence) }
 }
 
-/// Checks a required table's size without interpreting any function pointers.
+/// Checks a required record size without interpreting other fields.
 ///
 /// # Safety
-/// Nonnull storage is aligned and readable for one leading `usize`; all callers
-/// use records whose first C field is that prefix.
+/// Nonnull storage is aligned and readable for its leading `usize`.
 unsafe fn validate_size<T>(table: *const T) -> NcStatus {
     if table.is_null() {
         return NC_E_POINTER;
     }
-    // SAFETY: The checked nonnull pointer has the caller-provided size prefix.
-    if unsafe { table.cast::<usize>().read() } < mem::size_of::<T>() {
-        NC_E_ABI_VERSION
-    } else {
-        NC_OK
+    // SAFETY: The caller supplies the aligned, initialized size prefix.
+    if unsafe { table.cast::<usize>().read() } != mem::size_of::<T>() {
+        return NC_E_ABI_VERSION;
     }
-}
-
-/// Shared stable prefix of plugin/catalog and persistence operation tables.
-#[repr(C)]
-struct CoreTablePrefix {
-    /// Advertised complete table size.
-    size: usize,
-    /// Core object ABI understood by that table's callbacks.
-    core_abi_version: u32,
-}
-
-/// Checks size and core generation before any complete table borrow.
-///
-/// # Safety
-/// Nonnull storage has a readable leading size. A sufficiently large table has
-/// the `CoreTablePrefix` fields; callers pass only tables with this C prefix.
-unsafe fn validate_core_table<T>(table: *const T) -> NcStatus {
-    // SAFETY: Forwarded readable leading-size obligation.
-    let status = unsafe { validate_size(table) };
-    if status.is_err() {
-        return status;
-    }
-    let prefix = table.cast::<CoreTablePrefix>();
-    // SAFETY: The caller grants this stable field after the advertised-size check.
-    if unsafe { ptr::addr_of!((*prefix).core_abi_version).read() } != NC_COM_CORE_ABI_VERSION {
-        NC_E_ABI_VERSION
-    } else {
-        NC_OK
-    }
+    NC_OK
 }

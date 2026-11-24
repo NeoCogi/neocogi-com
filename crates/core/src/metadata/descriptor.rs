@@ -261,13 +261,13 @@ pub struct NcPluginDependencyDescriptor {
 mod tests {
     use crate::{NC_ABI_RECEIVER_MUTABLE, NC_ABI_RECEIVER_SHARED, NcAbiReceiver, NcGuid};
     use crate::{
-        NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE, NC_COM_CORE_ABI_VERSION, NcAbiDigest, NcAbiThreadingMode, NcInterfaceDescriptor,
-        NcInterfaceId, NcPluginDependencyDescriptor,
+        NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE, NC_COM_ABI_VERSION, NcAbiDigest, NcAbiThreadingMode, NcInterfaceDescriptor, NcInterfaceId,
+        NcPluginDependencyDescriptor,
     };
 
     #[test]
     fn core_abi_identity_is_stable() {
-        assert_eq!(NC_COM_CORE_ABI_VERSION, 23);
+        assert_eq!(NC_COM_ABI_VERSION, 24);
     }
 
     #[test]

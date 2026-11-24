@@ -66,7 +66,7 @@ a Rust reference; conflicting or reentrant access returns `NC_E_BUSY`. Shared
 objects keep their method borrow state separate from strong counting. Exclusive
 objects combine owner presence and reader/writer admission in one atomic word.
 The ABI implementation contains the necessary `UnsafeCell`; semantic state stays
-in ordinary fields. See the [current ABI](../abi-v4.md) for layouts,
+in ordinary fields. See the [current ABI](../abi.md) for layouts,
 ownership transfer and the limits of concurrent Drop.
 
 ## Independent-build compatibility
@@ -90,12 +90,12 @@ are diagnosed and fatal; typed acquisition mismatches return statuses. Successfu
 loaded libraries stay mapped for process lifetime, including retained weak storage.
 
 Dynamic and static assemblies use the same typed acquisition. Dynamic builds export
-`nc_get_plugin_descriptor_v4`; monoliths register the same provider's Rust
+`nc_get_plugin_descriptor`; monoliths register the same provider's Rust
 descriptor and link the runtime statically. Independent compiler versions and
-build flags are supported when the target C ABI, core generation and exact contract
-signatures agree. The [compatibility matrix](../abi-v4.md#independent-build-compatibility)
-records actual cross-build verification. The [current contract index](../abi-v4.md)
-separates core ABI generation from discovery versions and IDL hash encoding.
+build flags are supported when the target C ABI, native ABI version and exact contract
+signatures agree. The [compatibility matrix](../abi.md#independent-build-compatibility)
+records actual cross-build verification. The [current contract index](../abi.md)
+lists the native ABI version and the independent IDL hash encoding.
 
 Inspection exposes plugin identity, dependencies, threading and the exact root
 factory contract. `neocogi-inspect` reads provider metadata without acquiring a

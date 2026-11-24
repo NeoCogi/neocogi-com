@@ -94,7 +94,7 @@ reference; acquiring an existing service and constructing a provider are both va
 
 `plugin_descriptor()` lends static metadata without acquiring an object. The
 provider declares a `dynamic-plugin = []` feature to enable the generated
-`nc_get_plugin_descriptor_v4` export in a DLL. Static compositions leave that
+`nc_get_plugin_descriptor` export in a DLL. Static compositions leave that
 feature disabled and register the accessor directly. Define one root per plugin
 crate. Provider methods perform parameterized construction with ordinary typed
 arguments. No bootstrap traits, object role markers or constructor tables exist.
@@ -145,4 +145,4 @@ Executable package tests own their fixtures and ask Cargo for the actual core
 and facade package locations. They also run against extracted SDK archives;
 `cargo xtask packages` supplies the matching SDK offline and
 checks all shipped test targets. Checkout-only integration suites remain in
-repository CI. See [archive validation](../../docs/abi-v4.md#published-archive-validation).
+repository CI. See [archive validation](../../docs/abi.md#published-archive-validation).

@@ -15,9 +15,9 @@ use crate::state::RuntimeState;
 ///
 /// # Safety
 ///
-/// `plugin` must be null or point to a complete immutable descriptor whose
-/// strings, signature bytes, dependency table, and code remain live for the
-/// process-wide registration lifetime.
+/// A nonnull pointer must supply its aligned, readable ABI version word.
+/// For the current ABI, the aligned descriptor, strings, signature bytes,
+/// dependency table, and code remain live and immutable for the process.
 pub(crate) unsafe fn prepare_factory_plugin(plugin: *const NcPluginDescriptor, origin: PluginOrigin) -> Result<RegisteredPlugin, NcStatus> {
     // SAFETY: The caller provides the descriptor and every referenced lifetime.
     let descriptor = unsafe { ValidatedPluginDescriptor::new(plugin) }?;
@@ -29,8 +29,8 @@ impl RuntimeState {
     ///
     /// # Safety
     ///
-    /// The descriptor and everything it references must remain readable and
-    /// callable for the process-wide registry lifetime.
+    /// The pointer must satisfy [`prepare_factory_plugin`]'s prefix and
+    /// process-wide lifetime requirements.
     pub(crate) unsafe fn register_plugin_descriptor(&self, plugin: *const NcPluginDescriptor) -> NcStatus {
         // SAFETY: The caller supplies the immutable metadata and code lifetime.
         let batch = match unsafe { prepare_factory_plugin(plugin, PluginOrigin::Static) } {
@@ -69,20 +69,19 @@ impl PluginRegistry {
 mod tests {
     use core::ptr;
     use neocogi_com::{
-        IUnknown, NC_ABI_THREADING_THREAD_LOCAL, NC_COM_CORE_ABI_VERSION, NC_PLUGIN_DESCRIPTOR_ABI_VERSION, NC_E_NOT_FOUND, NcAbiDigest, NcInterfaceId,
+        IUnknown, NC_ABI_THREADING_THREAD_LOCAL, NC_COM_ABI_VERSION, NC_E_ABI_VERSION, NC_E_NOT_FOUND, NcAbiDigest, NcInterfaceId,
         NcPluginDependencyDescriptor, NcStaticUtf8, guid_from_qualified_name,
     };
     use super::*;
 
     /// Metadata-only fixture: registration must never call the bootstrap.
-    unsafe extern "C" fn acquire_stub(_host: *const neocogi_com::NcHostApiV4, _out: *mut neocogi_com::ComRaw<IUnknown>) -> NcStatus {
+    unsafe extern "C" fn acquire_stub(_host: *const neocogi_com::NcHostApi, _out: *mut neocogi_com::ComRaw<IUnknown>) -> NcStatus {
         panic!("registration must not invoke plugin code")
     }
 
     /// Self-contained plugin description with no contract-module dependencies.
     static PLUGIN: NcPluginDescriptor = NcPluginDescriptor {
-        description_abi_version: NC_PLUGIN_DESCRIPTOR_ABI_VERSION,
-        core_abi_version: NC_COM_CORE_ABI_VERSION,
+        abi_version: NC_COM_ABI_VERSION,
         plugin_id: guid_from_qualified_name("nc.tests.factory_plugin"),
         qualified_name: NcStaticUtf8::from_static("nc.tests.factory_plugin"),
         plugin_version: NcStaticUtf8::from_static("1.0.0"),
@@ -156,6 +155,17 @@ mod tests {
         assert_eq!(catalog.len(), 1);
         assert_eq!(catalog.dynamic_count(), 0);
         assert!(matches!(catalog.plugin(PLUGIN.plugin_id).unwrap().origin, PluginOrigin::Static));
+    }
+
+    /// A retired descriptor prefix must be rejected before catalog publication.
+    #[test]
+    fn static_registration_rejects_the_retired_descriptor_prefix() {
+        let runtime = RuntimeState::new();
+        let previous_abi = [4_u32, 23];
+        // SAFETY: The old descriptor grants aligned, initialized version storage.
+        // Unsupported versions need no descriptor body or process-lived backing.
+        assert_eq!(unsafe { runtime.register_plugin_descriptor(previous_abi.as_ptr().cast()) }, NC_E_ABI_VERSION);
+        assert_eq!(runtime.read_catalog().len(), 0);
     }
 
     /// A missing provider must leave both plugin and name indexes unchanged.

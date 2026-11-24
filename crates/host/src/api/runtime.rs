@@ -20,8 +20,8 @@ use super::{emit_error, path_from_utf8};
 /// Validates and atomically registers one plugin descriptor.
 pub(super) unsafe extern "C" fn register_plugin_descriptor(plugin: *const NcPluginDescriptor) -> NcStatus {
     let runtime = RuntimeState::global();
-    // SAFETY: The caller supplies the plugin and referenced metadata lifetime
-    // required by process-wide registration.
+    // SAFETY: The caller promises a readable version prefix and, for the
+    // current ABI, the complete process-lived metadata and code.
     let status = unsafe { runtime.register_plugin_descriptor(plugin) };
     if status.is_err() {
         emit_error(NC_DEBUG_TYPE_VALIDATION, status, "interface plugin registration failed");

@@ -13,16 +13,17 @@ impl ValidatedPluginDescriptor {
     /// Validates one process-lived raw descriptor before inspection or catalog publication.
     ///
     /// # Safety
-    /// A nonnull pointer and every referenced buffer/function must be readable,
-    /// immutable and valid for the process lifetime. Native opening must already
-    /// pin its mapping, including on validation or later publication failure.
+    /// A nonnull pointer must grant an aligned, readable first `u32`. For the
+    /// current ABI version, the complete aligned descriptor and its reachable
+    /// buffers and code must remain valid for the process lifetime. Native
+    /// opening already pins the mapping, including on validation failure.
     pub(crate) unsafe fn new(description: *const NcPluginDescriptor) -> Result<Self, NcStatus> {
         // SAFETY: the caller supplies raw readability and reachable lifetimes.
         let status = unsafe { validate_plugin_descriptor(description) };
         if status.is_err() {
             return Err(status);
         }
-        // SAFETY: validation rejected null; the caller promises process lifetime.
+        // SAFETY: Validation matched the ABI and the caller grants process lifetime.
         Ok(Self { description: unsafe { &*description } })
     }
 

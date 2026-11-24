@@ -668,7 +668,9 @@ fn safety(runner: &Runner) -> Result<Value> {
             (
                 words(&["-p", "neocogi-com-host", "--lib"]),
                 vec![
-                    "api::host_tests::host_admission_checks_versions_before_following_children",
+                    "api::host_tests::host_admission_checks_the_abi_before_following_children",
+                    "api::host_tests::host_admission_rejects_oversized_service_prefixes",
+                    "factory_registration::tests::static_registration_rejects_the_retired_descriptor_prefix",
                     "loader::plan::tests::orders_dependencies_before_dependents_deterministically",
                 ],
             ),

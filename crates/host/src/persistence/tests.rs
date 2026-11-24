@@ -269,8 +269,8 @@ unsafe extern "C" fn receive_snapshot(data: *mut core::ffi::c_void, bytes: *cons
 /// ABI admission and recipe registration do not require a codec. Supplying one
 /// after failed calls recovers the same context without replacing its recipes.
 #[test]
-fn provider_registration_recovers_existing_context_through_abi_v4() {
-    if isolated("provider_registration_recovers_existing_context_through_abi_v4") {
+fn provider_registration_recovers_existing_context_through_raw_api() {
+    if isolated("provider_registration_recovers_existing_context_through_raw_api") {
         return;
     }
     let host = crate::initialize_process();

@@ -48,7 +48,7 @@ pub unsafe fn format_abi_signature(signature: NcAbiDigest) -> String {
 ///
 /// # Safety
 ///
-/// Every pointer transitively reached through `method` must satisfy the current core ABI's
+/// Every pointer transitively reached through `method` must satisfy the current native ABI's
 /// descriptor contract for the duration of this call. In particular, a
 /// non-empty method or parameter name must point to its declared number of
 /// readable bytes, and nonzero `param_count` requires `params` to point to that

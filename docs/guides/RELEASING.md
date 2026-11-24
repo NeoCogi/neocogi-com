@@ -29,12 +29,12 @@ The compatibility rule is separate from Cargo versions. SDK `0.3.0` uses ABI
 v2 with runtime and descriptor family 2, core generation 19, and
 `nc_get_plugin_descriptor_v2`. SDK `0.4.0` uses provisional ABI v3 with runtime
 and descriptor family 3, core generation 21, and
-`nc_get_plugin_descriptor_v3`. The development candidate uses provisional ABI
-v4 with family 4, core generation 23, and `nc_get_plugin_descriptor_v4`.
+`nc_get_plugin_descriptor_v3`. The development candidate uses one provisional native ABI
+version, 24, with the stable `nc_get_plugin_descriptor` export.
 Deploy hosts, providers and generated bindings from one SDK revision. Current
 hosts reject older libraries before acquisition. Interface signatures, IDL encoding
 and NCB persistence format have their own authorities in the
-[development ABI contract](../abi-v4.md).
+[development ABI contract](../abi.md).
 
 
 Prepare a user-facing changelog entry with features, migration instructions,
@@ -63,8 +63,8 @@ This release does not promise Rust dependency compatibility with the published
 `0.2.0` SDK. Move downstream UI and platform compositions to the new COM cohort
 together; do not combine COM Rust types from different package versions. ABI
 family 2, core generation 19, IDL encoding v14 and NCB-v1 bytes retain their
-independent authorities in that published release. The ABI v4 persistence input contract
-uses the [current discovery and core versions](../abi-v4.md#abi-identities-and-versions)
+independent authorities in that published release. The development ABI persistence input contract
+uses the [current native ABI](../abi.md#abi-identities-and-versions)
 alongside IDL v15 callable slot signatures and the existing NCB-v1 format.
 
 Merge the candidate to master and push for native CI before publication. Publish

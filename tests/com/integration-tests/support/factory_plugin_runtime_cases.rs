@@ -258,7 +258,7 @@ mod failed_root {
         assert!(rejected.is_null());
         assert_eq!(CALLED.load(Ordering::SeqCst), 0);
         let mut incompatible = *neocogi_com_host::initialize_process();
-        incompatible.runtime_abi_version += 1;
+        incompatible.abi_version += 1;
         // SAFETY: Readable unsupported prefix; all child tables remain static.
         assert_eq!(unsafe { acquire(&incompatible, &mut rejected) }, neocogi_com_sdk::NC_E_ABI_VERSION);
         assert!(rejected.is_null());

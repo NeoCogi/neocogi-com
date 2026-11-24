@@ -2,12 +2,12 @@
 //! distinctive error, proving retained code executes even after the file vanishes.
 
 use neocogi_com::{
-    ComRaw, IUnknown, NC_ABI_THREADING_THREAD_LOCAL, NC_COM_CORE_ABI_VERSION, NC_E_CLOSED, NC_E_POINTER, NC_PLUGIN_DESCRIPTOR_ABI_VERSION, NC_OK,
+    ComRaw, IUnknown, NC_ABI_THREADING_THREAD_LOCAL, NC_COM_ABI_VERSION, NC_E_CLOSED, NC_E_POINTER, NC_OK,
     NcPluginDescriptor, NcStaticUtf8, NcStatus, guid_from_qualified_name,
 };
 
 /// This test does not construct an object; successful lookup reaches this code.
-unsafe extern "C" fn acquire(_host: *const neocogi_com::NcHostApiV4, out: *mut ComRaw<IUnknown>) -> NcStatus {
+unsafe extern "C" fn acquire(_host: *const neocogi_com::NcHostApi, out: *mut ComRaw<IUnknown>) -> NcStatus {
     if out.is_null() {
         return NC_E_POINTER;
     }
@@ -18,8 +18,7 @@ unsafe extern "C" fn acquire(_host: *const neocogi_com::NcHostApiV4, out: *mut C
 
 /// Process-lifetime immutable provider metadata owned by this mapping.
 static DESCRIPTION: NcPluginDescriptor = NcPluginDescriptor {
-    description_abi_version: NC_PLUGIN_DESCRIPTOR_ABI_VERSION,
-    core_abi_version: NC_COM_CORE_ABI_VERSION,
+    abi_version: NC_COM_ABI_VERSION,
     plugin_id: guid_from_qualified_name("nc.tests.provenance"),
     qualified_name: NcStaticUtf8::from_static("nc.tests.provenance"),
     plugin_version: NcStaticUtf8::from_static("1.0.0"),
@@ -35,7 +34,7 @@ static DESCRIPTION: NcPluginDescriptor = NcPluginDescriptor {
 /// # Safety
 /// `out` must be null or writable for one descriptor pointer.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn nc_get_plugin_descriptor_v4(out: *mut *const NcPluginDescriptor) -> NcStatus {
+pub unsafe extern "C" fn nc_get_plugin_descriptor(out: *mut *const NcPluginDescriptor) -> NcStatus {
     if out.is_null() {
         return NC_E_POINTER;
     }

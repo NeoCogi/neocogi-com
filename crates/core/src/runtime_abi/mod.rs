@@ -1,33 +1,24 @@
 //! Versioned ABI tables supplied by the host's process-global runtime owner.
 //!
 //! This module groups plugin operations, diagnostics and persistence contracts while keeping their `repr(C)` layouts in the allocation-free
-//! core crate. Every table begins with a byte size checked by consumers. This
-//! runtime-family-4 discovery uses the separately checked core generation to
-//! select compatible layouts. ABI v4 is WIP and not frozen; rebuild all roles
-//! from matching source revisions and keep incompatible binaries rejected.
+//! core crate. The host bundle carries the shared native ABI version. Each
+//! service table starts with its byte size and belongs to that same bundle.
 
 mod debug;
 mod host;
 mod persistence;
 mod plugin;
 mod runtime;
-pub use persistence::{NcPersistenceApiV4, NcPersistenceContext, NcPersistenceLimitsV4, NcPersistenceWriteBytesV4};
+pub use persistence::{NcPersistenceApi, NcPersistenceContext, NcPersistenceLimits, NcPersistenceWriteBytes};
 
 pub use debug::{
     NC_COM_RUNTIME_MAX_ACTIVE_DEBUG_MESSENGERS, NC_DEBUG_SEVERITY_ALL, NC_DEBUG_SEVERITY_ERROR, NC_DEBUG_SEVERITY_INFO, NC_DEBUG_SEVERITY_WARNING,
-    NC_DEBUG_TYPE_ALL, NC_DEBUG_TYPE_PLUGIN, NC_DEBUG_TYPE_RUNTIME, NC_DEBUG_TYPE_VALIDATION, NcDebugApiV4, NcDebugCallbackV4, NcDebugMessageV4,
-    NcDebugMessengerCreateInfoV4,
+    NC_DEBUG_TYPE_ALL, NC_DEBUG_TYPE_PLUGIN, NC_DEBUG_TYPE_RUNTIME, NC_DEBUG_TYPE_VALIDATION, NcDebugApi, NcDebugCallback, NcDebugMessage,
+    NcDebugMessengerCreateInfo,
 };
-pub use plugin::{NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS, NcFactoryInfoV4, NcInspectPluginDescriptorCallbackV4, NcPluginInfoV4};
-pub use runtime::NcPluginApiV4;
-pub use host::{NcHostApiV4, validate_host_api};
-
-/// Supplied host-service family for WIP ABI v4; not a finalized release contract.
-///
-/// The host and provider must agree on this family and the separately checked
-/// core generation before interpreting child tables or calling code. ABI v1
-/// tables are rejected; there are no aliases or automatic adapters.
-pub const NC_COM_RUNTIME_ABI_VERSION: u32 = 4;
+pub use plugin::{NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS, NcFactoryInfo, NcInspectPluginDescriptorCallback, NcPluginInfo};
+pub use runtime::NcPluginApi;
+pub use host::{NcHostApi, validate_host_api};
 
 /// Borrowed immutable UTF-8 bytes owned by the runtime.
 ///

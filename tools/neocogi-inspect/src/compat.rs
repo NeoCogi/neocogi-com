@@ -33,17 +33,10 @@ pub(crate) fn check_compatibility(old: &InspectionArtifact, new: &InspectionArti
         report.breaking.push(format!("plugin identity changed: {} -> {}", old.plugin.id, new.plugin.id));
         return report;
     }
-    if old.description_abi_version != new.description_abi_version {
-        report.breaking.push(format!(
-            "descriptor ABI version changed: {} -> {}",
-            old.description_abi_version, new.description_abi_version
-        ));
-        return report;
-    }
-    if old.core_abi_version != new.core_abi_version {
+    if old.abi_version != new.abi_version {
         report
             .breaking
-            .push(format!("core ABI version changed: {} -> {}", old.core_abi_version, new.core_abi_version));
+            .push(format!("native ABI version changed: {} -> {}", old.abi_version, new.abi_version));
         return report;
     }
     if old.target != new.target {
@@ -213,7 +206,7 @@ mod tests {
         assert!(!check_compatibility(&old, &new).is_compatible());
 
         let mut new = old.clone();
-        new.core_abi_version += 1;
+        new.abi_version += 1;
         assert!(!check_compatibility(&old, &new).is_compatible());
 
         let mut new = old.clone();

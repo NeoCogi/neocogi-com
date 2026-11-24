@@ -1,9 +1,9 @@
 # NeoCogi COM
 
-Development SDK `0.5.0-wip-alpha.1` uses **ABI v4 (WIP)**. See the
-[current ABI versions](docs/abi-v4.md#abi-identities-and-versions). Its layouts,
+Development SDK `0.5.0-wip-alpha.1` uses **ABI 24 (WIP)**. See the
+[current ABI versions](docs/abi.md#abi-identities-and-versions). Its layouts,
 callbacks and ownership contracts are provisional and may change before release;
-ABI v4 is not frozen.
+ABI 24 is not frozen.
 Published 0.3.0 packages retain ABI v2/core generation 19; use their release-tag
 documentation for that contract.
 
@@ -43,9 +43,9 @@ every provider. Native providers, including the serialization plugin, can be
 loaded from shared libraries.
 The [Rust API renames](docs/COM.md#rust-names-in-040) are
 recorded with migration names. The lifetime-policy split introduces distinct
-shared and boxed headers in ABI v3. The current ABI v4 candidate uses those
+shared and boxed headers in ABI v3. The current ABI 24 candidate uses those
 headers and declares shared ownership explicitly for persistence inputs.
-See the [provider migration guide](docs/guides/ABI_V4_MIGRATION.md) when adopting it.
+See the [provider migration guide](docs/guides/ABI_MIGRATION.md) when adopting it.
 
 A **host** is the final application that owns one runtime implementation. An
 **interface caller** calls a COM interface; a **provider** implements one. These
@@ -96,7 +96,7 @@ a downstream consumer using only those extracted packages. Install that compiler
 registry inputs; run `cargo fetch --locked` first on a fresh machine.
 
 Read the [component guide](docs/COM.md),
-[ABI specification](docs/abi-v4.md),
+[ABI specification](docs/abi.md),
 [IDL reference](docs/contracts/IDL_MODULES.md), and
 [dynamic/static example](examples/com-plugin/README.md).
 

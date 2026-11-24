@@ -175,8 +175,7 @@ mod tests {
 
     fn plugin(id: u32, dependencies: &[u32]) -> PluginInspection {
         PluginInspection {
-            description_abi_version: neocogi_com::NC_PLUGIN_DESCRIPTOR_ABI_VERSION,
-            core_abi_version: 7,
+            abi_version: neocogi_com::NC_COM_ABI_VERSION,
             plugin_id: guid(id),
             qualified_name: format!("nc.tests.plugin{id}"),
             plugin_version: "1.0.0".to_string(),

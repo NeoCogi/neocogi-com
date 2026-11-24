@@ -13,8 +13,8 @@ use serde::{Deserialize, Serialize};
 
 /// Stable document-family identifier, separate from the native descriptor ABI.
 pub(crate) const SCHEMA: &str = "neocogi-com.inspection";
-/// Current strict JSON shape; removing runtime contract graphs changed version 8.
-pub(crate) const SCHEMA_VERSION: u32 = 9;
+/// Current strict JSON shape with one native ABI version field.
+pub(crate) const SCHEMA_VERSION: u32 = 10;
 /// Tool identity recorded in every serialized inspection.
 const PRODUCER: &str = "neocogi-inspect";
 
@@ -38,10 +38,8 @@ pub(crate) struct InspectionArtifact {
     pub(crate) producer: ArtifactProducer,
     /// Native platform assumptions under which inspection succeeded.
     pub(crate) target: ArtifactTarget,
-    /// Version of the plugin descriptor layout.
-    pub(crate) description_abi_version: u32,
-    /// Version of the object ABI used by this plugin.
-    pub(crate) core_abi_version: u32,
+    /// Native ABI version that the inspected plugin advertised.
+    pub(crate) abi_version: u32,
     /// Deployable provider identity and its hard dependencies.
     pub(crate) plugin: ArtifactPlugin,
     /// Exact root factory identity, signature, and threading promise.
@@ -172,8 +170,7 @@ impl From<&PluginInspection> for InspectionArtifact {
                     ArtifactEndianness::Big
                 },
             },
-            description_abi_version: value.description_abi_version,
-            core_abi_version: value.core_abi_version,
+            abi_version: value.abi_version,
             plugin: ArtifactPlugin {
                 id: value.plugin_id.to_string(),
                 name: value.qualified_name.clone(),
@@ -240,14 +237,8 @@ impl InspectionArtifact {
         if !matches!(self.target.pointer_width, 32 | 64) {
             return Err(ArtifactValidationError::new("target.pointer_width", "pointer width must be 32 or 64"));
         }
-        if self.description_abi_version == 0 {
-            return Err(ArtifactValidationError::new(
-                "description_abi_version",
-                "descriptor ABI version must not be zero",
-            ));
-        }
-        if self.core_abi_version == 0 {
-            return Err(ArtifactValidationError::new("core_abi_version", "core ABI version must not be zero"));
+        if self.abi_version == 0 {
+            return Err(ArtifactValidationError::new("abi_version", "native ABI version must not be zero"));
         }
         Ok(())
     }
@@ -351,8 +342,7 @@ pub(crate) fn sample_artifact() -> InspectionArtifact {
             pointer_width: 64,
             endianness: ArtifactEndianness::Little,
         },
-        description_abi_version: neocogi_com::NC_PLUGIN_DESCRIPTOR_ABI_VERSION,
-        core_abi_version: neocogi_com::NC_COM_CORE_ABI_VERSION,
+        abi_version: neocogi_com::NC_COM_ABI_VERSION,
         plugin: ArtifactPlugin {
             id: guid_from_qualified_name(plugin_name).to_string(),
             name: plugin_name.to_string(),
@@ -421,14 +411,14 @@ mod tests {
         assert!(artifact.validate().unwrap_err().to_string().contains("schema_version"));
 
         let mut artifact = sample_artifact();
-        artifact.core_abi_version = 0;
-        assert!(artifact.validate().unwrap_err().to_string().contains("core_abi_version"));
+        artifact.abi_version = 0;
+        assert!(artifact.validate().unwrap_err().to_string().contains("abi_version"));
     }
 
     #[test]
-    fn accepts_nonzero_historical_core_versions_for_comparison() {
+    fn accepts_other_nonzero_abi_versions_for_comparison() {
         let mut artifact = sample_artifact();
-        artifact.core_abi_version += 1;
+        artifact.abi_version += 1;
         artifact.validate().unwrap();
     }
 }

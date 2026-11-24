@@ -7,7 +7,7 @@ use neocogi_com_sdk::*;
 /// Counts bootstrap calls so metadata operations cannot silently acquire objects.
 static ACQUIRES: AtomicUsize = AtomicUsize::new(0);
 /// Returns a distinctive ordinary acquisition error without transferring ownership.
-unsafe extern "C" fn acquire(_host: *const neocogi_com_sdk::NcHostApiV4, out: *mut ComRaw<IUnknown>) -> NcStatus {
+unsafe extern "C" fn acquire(_host: *const neocogi_com_sdk::NcHostApi, out: *mut ComRaw<IUnknown>) -> NcStatus {
     unsafe { out.write(ComRaw::null()) };
     ACQUIRES.fetch_add(1, Ordering::SeqCst);
     NC_E_CLOSED
@@ -15,8 +15,7 @@ unsafe extern "C" fn acquire(_host: *const neocogi_com_sdk::NcHostApiV4, out: *m
 /// Allocates immutable process-lifetime metadata, mirroring a pinned descriptor.
 fn description(name: &'static str, dependencies: &'static [NcPluginDependencyDescriptor]) -> &'static NcPluginDescriptor {
     Box::leak(Box::new(NcPluginDescriptor {
-        description_abi_version: NC_PLUGIN_DESCRIPTOR_ABI_VERSION,
-        core_abi_version: NC_COM_CORE_ABI_VERSION,
+        abi_version: NC_COM_ABI_VERSION,
         plugin_id: guid_from_qualified_name(name),
         qualified_name: NcStaticUtf8::from_static(name),
         plugin_version: NcStaticUtf8::from_static("0.1.0"),
@@ -32,7 +31,7 @@ fn description(name: &'static str, dependencies: &'static [NcPluginDependencyDes
 #[test]
 fn complete_records_are_coherent_owned_and_stable_across_growth() {
     let runtime = crate::host_runtime();
-    assert_eq!(runtime.runtime_abi_version(), 4);
+    assert_eq!(runtime.abi_version(), NC_COM_ABI_VERSION);
     let api = unsafe { &*neocogi_com_host::initialize_process().runtime };
     let mut len = usize::MAX;
     assert_eq!(unsafe { (api.plugin_infos)(ptr::null_mut(), 0, &mut len) }, NC_OK);
@@ -59,7 +58,7 @@ fn complete_records_are_coherent_owned_and_stable_across_growth() {
         runtime.register_plugin_descriptor(consumer).unwrap();
     }
     assert_eq!(unsafe { (api.plugin_count)() }, 3);
-    let mut raw = MaybeUninit::<NcPluginInfoV4>::uninit();
+    let mut raw = MaybeUninit::<NcPluginInfo>::uninit();
     assert_eq!(unsafe { (api.plugin_info)(consumer.plugin_id, raw.as_mut_ptr()) }, NC_OK);
     let saved = unsafe { raw.assume_init() };
     assert_eq!(saved.dependencies, deps.as_ptr());

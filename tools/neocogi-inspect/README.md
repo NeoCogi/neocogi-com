@@ -1,12 +1,12 @@
 # neocogi-inspect
 
-Reads an actual plugin's `nc_get_plugin_descriptor_v4` export without
+Reads an actual plugin's `nc_get_plugin_descriptor` export without
 registering or activating its factory. It copies plugin identity/version, hard
-dependencies, descriptor/core ABI versions, and full factory IID/signature and
+dependencies, the native ABI version, and full factory IID/signature and
 threading capability. There are no contract libraries or module graphs to load.
 Opened libraries remain pinned until the short-lived process exits.
 
-This checkout inspects WIP ABI v4/core 23. Build it from the same SDK revision
+This checkout inspects WIP ABI 24. Build it from the same SDK revision
 as the provider with `cargo build -p neocogi-inspect`.
 
 Version `0.4.0` inspects providers using
@@ -40,9 +40,9 @@ neocogi-inspect diff old.nccom.json new.nccom.json --compat
 Pass values to `--output` / `-o` and `--format` / `-f` as separate arguments.
 Output files use the exact supplied native path.
 
-Inspection JSON uses strict schema 9. Live inspection checks descriptor and core
-compatibility against the [current WIP ABI identities](../../docs/abi-v4.md#abi-identities-and-versions).
-Saved artifacts record both ABI versions; `diff` compares those recorded values.
+Inspection JSON uses strict schema 10. Live inspection checks the
+[current native ABI](../../docs/abi.md#abi-identities-and-versions).
+Saved artifacts record one `abi_version` field that `diff` compares.
 Unknown fields and unsupported schema versions are rejected. The artifact records
 the plugin and its root factory. Source-level method and value definitions belong
 to [local IDL metadata](https://docs.rs/neocogi-com-sdk/0.4.0/neocogi_com_sdk/idl_metadata/index.html).
@@ -66,7 +66,7 @@ Native inspection failures also preserve the loader phase, path, platform or
 validation detail and any ABI status in both profiles.
 
 Inspection maps trusted native code and can execute platform loader initializers.
-The selected native image must export the versioned getter. Windows export
+The selected native image must export `nc_get_plugin_descriptor`. Windows export
 forwarders and Apple reexports count. A getter available only through an
 ordinary native import fails in `FindSymbol`.
 Inspection never calls the factory bootstrap or recursively locates provider plugins.
@@ -78,6 +78,6 @@ loads and delay loads follow the provider's own policy. This is
 executable inspection, not a sandbox or publisher authentication. Successfully
 opened mappings stay pinned until the inspector exits; inspection errors remain
 recoverable. See the
-[native loading contract](../../docs/abi-v4.md#runtime-and-global-registry).
+[native loading contract](../../docs/abi.md#runtime-and-global-registry).
 The [sample plugin](https://github.com/NeoCogi/neocogi-com/blob/v0.4.0/examples/com-plugin/README.md) can be built and
 inspected with ordinary Cargo, without the assembly driver.

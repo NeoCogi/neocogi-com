@@ -16,10 +16,8 @@ use super::{PluginLoadError, open_plugin_descriptor};
 /// Owned metadata extracted without constructing a plugin's root factory.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PluginInspection {
-    /// Plugin descriptor generation validated before reading its fields.
-    pub description_abi_version: u32,
-    /// Core object ABI generation understood by the plugin.
-    pub core_abi_version: u32,
+    /// Native ABI version validated before copying metadata.
+    pub abi_version: u32,
     /// Stable plugin identifier derived from its normative name.
     pub plugin_id: NcGuid,
     /// Normative plugin name copied out of native storage.
@@ -58,8 +56,7 @@ pub unsafe fn inspect_plugin_library(path: impl AsRef<Path>) -> Result<PluginIns
     let descriptor = unsafe { open_plugin_descriptor(path) }?;
     let plugin = descriptor.get();
     Ok(PluginInspection {
-        description_abi_version: plugin.description_abi_version,
-        core_abi_version: plugin.core_abi_version,
+        abi_version: plugin.abi_version,
         plugin_id: descriptor.id(),
         qualified_name: descriptor.qualified_name().to_owned(),
         plugin_version: descriptor.version().to_owned(),
