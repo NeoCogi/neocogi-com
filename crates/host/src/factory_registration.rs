@@ -15,7 +15,8 @@ use crate::state::RuntimeState;
 ///
 /// # Safety
 ///
-/// A nonnull pointer must supply its aligned, readable ABI version word.
+/// The pointer meets [`neocogi_com::validate_plugin_descriptor`]'s readable header
+/// requirements.
 /// For the current ABI, the aligned descriptor, strings, signature bytes,
 /// dependency table, and code remain live and immutable for the process.
 pub(crate) unsafe fn prepare_factory_plugin(plugin: *const NcPluginDescriptor, origin: PluginOrigin) -> Result<RegisteredPlugin, NcStatus> {
@@ -69,7 +70,7 @@ impl PluginRegistry {
 mod tests {
     use core::ptr;
     use neocogi_com::{
-        IUnknown, NC_ABI_THREADING_THREAD_LOCAL, NC_COM_ABI_VERSION, NC_E_ABI_VERSION, NC_E_NOT_FOUND, NcAbiDigest, NcInterfaceId,
+        IUnknown, NC_ABI_THREADING_THREAD_LOCAL, NC_COM_ABI_MAGIC, NC_COM_ABI_VERSION, NC_E_ABI_VERSION, NC_E_NOT_FOUND, NcAbiDigest, NcInterfaceId,
         NcPluginDependencyDescriptor, NcStaticUtf8, guid_from_qualified_name,
     };
     use super::*;
@@ -81,6 +82,7 @@ mod tests {
 
     /// Self-contained plugin description with no contract-module dependencies.
     static PLUGIN: NcPluginDescriptor = NcPluginDescriptor {
+        abi_magic: NC_COM_ABI_MAGIC,
         abi_version: NC_COM_ABI_VERSION,
         plugin_id: guid_from_qualified_name("nc.tests.factory_plugin"),
         qualified_name: NcStaticUtf8::from_static("nc.tests.factory_plugin"),

@@ -781,7 +781,7 @@ UUID overrides remain errors.
 
 Generated nominal IDs and signatures change: rebuild contracts, providers and
 hosts together. Compiler encoding v15 records the versionless contract; COM
-discovery uses ABI v2 for SDK 0.3.0, ABI v3 for SDK 0.4.0, and ABI 24 on this development branch. V15 adds callable passing modes after binding and specialization.
+discovery uses ABI v2 for SDK 0.3.0, ABI v3 for SDK 0.4.0, and ABI v4 on this development branch. V15 adds callable passing modes after binding and specialization.
 
 Generated values and interface markers carry a hidden Rust binding proof. A
 consumer checks the actual selected Rust type, including a type reached through
@@ -1238,7 +1238,7 @@ Ordinary interface methods own parameterized object construction; there are no
 IDL `class` or `factory` roles, constructor registries or erased argument bags.
 
 Hard provider requirements can be listed as `dependencies = [PLUGIN_ID]`.
-There is no `contracts` list. Plugin descriptor ABI 24 contains the full factory
+There is no `contracts` list. Plugin descriptor ABI v4 contains the full factory
 identity, threading capability, bootstrap pointer, plugin metadata, and provider
 IDs. Its native getter is `nc_get_plugin_descriptor`.
 
@@ -1273,8 +1273,9 @@ for owned values and `std` where required by local code.
 - `neocogi-idl` owns source discovery, graph exchange, and Rust generation.
 - Each consumer’s build script generates its selected IDL; Cargo builds applications/plugins.
   Its IDL tools can inspect complete source declarations without shipping them.
-- `neocogi-inspect` reads plugin/dependency/factory metadata as inspection schema
-  9. It compares exact factory signatures and plans provider load order.
+- `neocogi-inspect` reads plugin, dependency and factory metadata in
+  [inspection schema 10](../../tools/neocogi-inspect/README.md). It compares exact
+  factory signatures and plans provider load order.
 
 Use `interface` for public capabilities, required projections and typed object
 construction methods. Remove former `class` and `factory` keywords; their names,
@@ -1286,7 +1287,7 @@ ordinary interface methods. Use interface `IID`, `INTERFACE_ID` and
 `INTERFACE_DESCRIPTOR`. Low-level
 handwritten `ComInterface` implementations must specify `type Threading`.
 Remove contract registration and `MODULE` imports, and rebuild against runtime
-ABI 24 and the versioned plugin descriptor getter. No legacy adapter retains the
+ABI v4 and the stable `nc_get_plugin_descriptor` getter. No legacy adapter retains the
 removed runtime contract mechanism.
 
 ### Generated IDL metadata

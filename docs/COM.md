@@ -5,11 +5,11 @@ through an explicit C-shaped ABI. Rust-like IDL is the source of public contract
 truth; generated COM interfaces carry calls, and plugins expose one typed root
 factory.
 
-SDK 0.5.0-wip-alpha.1 uses **WIP [ABI 24](abi.md)** with the
+SDK 0.5.0-wip-alpha.1 uses **WIP [ABI v4](abi.md)** with the
 [current ABI versions](abi.md#abi-identities-and-versions). Its layouts and
 callbacks are provisional and not frozen. Published 0.3.0 uses ABI v2/core
 generation 19. Rebuild hosts, providers and generated bindings together when
-adopting ABI 24.
+adopting ABI v4.
 Follow the [provider migration guide](guides/ABI_MIGRATION.md) for discovery and persistence changes.
 
 ## Rust names in 0.4.0

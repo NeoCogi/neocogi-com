@@ -1,6 +1,6 @@
 //! Retired native getter layouts and a separately built current positive control.
-//! The default fixture returns the leading version from the original unversioned
-//! getter. Versioned exports model the later, retired discovery families.
+//! The stable getter fixtures use historical unmarked versions. Versioned
+//! exports model the retired discovery families.
 
 use neocogi_com_sdk::{persistence::IObjectChildrenAbi, NcStatus};
 #[cfg(feature = "current")]
@@ -50,6 +50,12 @@ mod legacy {
         /// Leading native version read by the host before other fields.
         description_abi_version: u32,
         /// Second word of the historical test descriptor.
+        #[cfg(any(
+            feature = "legacy-symbol",
+            feature = "legacy-v2-symbol",
+            feature = "legacy-v3-symbol",
+            feature = "legacy-v4-symbol"
+        ))]
         core_abi_version: u32,
         /// Same plugin identity as the compatible control.
         plugin_id: NcGuid,
@@ -91,10 +97,18 @@ mod legacy {
             3
         } else if cfg!(feature = "legacy-v4-symbol") {
             4
+        } else if cfg!(feature = "legacy-unified") {
+            24
         } else {
-            // The early unversioned getter used 5 at offset zero.
-            5
+            // An early unversioned getter used 4 at offset zero.
+            4
         },
+        #[cfg(any(
+            feature = "legacy-symbol",
+            feature = "legacy-v2-symbol",
+            feature = "legacy-v3-symbol",
+            feature = "legacy-v4-symbol"
+        ))]
         core_abi_version: if cfg!(feature = "legacy-symbol") {
             18
         } else if cfg!(feature = "legacy-v2-symbol") {
@@ -120,7 +134,7 @@ mod legacy {
     ///
     /// # Safety
     /// `out` must be null or writable for one native pointer. The host may read
-    /// its leading version word to reject this fixture.
+    /// the leading word to reject this fixture.
     #[cfg_attr(feature = "legacy-symbol", unsafe(export_name = "nc_get_plugin_descriptor_v1"))]
     #[cfg_attr(
         all(feature = "legacy-v2-symbol", not(feature = "legacy-symbol")),

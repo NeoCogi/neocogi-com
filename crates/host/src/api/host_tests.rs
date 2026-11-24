@@ -3,8 +3,8 @@
 use core::{mem, ptr};
 
 use neocogi_com::{
-    ComRaw, IUnknown, NC_ABI_THREADING_THREAD_LOCAL, NC_COM_ABI_VERSION, NC_E_ABI_VERSION, NC_E_CLOSED, NC_E_POINTER, NC_OK, NcHostApi, NcPluginDescriptor,
-    NcPluginInfo, NcStaticUtf8, NcStatus, guid_from_qualified_name, validate_host_api,
+    ComRaw, IUnknown, NC_ABI_THREADING_THREAD_LOCAL, NC_COM_ABI_MAGIC, NC_COM_ABI_VERSION, NC_E_ABI_VERSION, NC_E_CLOSED, NC_E_POINTER, NC_OK, NcHostApi,
+    NcPluginDescriptor, NcPluginInfo, NcStaticUtf8, NcStatus, guid_from_qualified_name, validate_host_api,
 };
 
 use super::HOST_API;
@@ -21,6 +21,7 @@ unsafe extern "C" fn unused_acquisition(_host: *const neocogi_com::NcHostApi, ou
 
 /// Process-lived metadata with a distinct identity for shared-state observation.
 static DESCRIPTION: NcPluginDescriptor = NcPluginDescriptor {
+    abi_magic: NC_COM_ABI_MAGIC,
     abi_version: NC_COM_ABI_VERSION,
     plugin_id: guid_from_qualified_name("nc.tests.host_api.visibility"),
     qualified_name: NcStaticUtf8::from_static("nc.tests.host_api.visibility"),
@@ -102,24 +103,22 @@ fn host_admission_reads_only_available_child_prefixes() {
     }
 }
 
-/// A bundle advertising the old v4 layout stops at its version fields.
+/// Unmarked layouts need only the first word after the size.
 #[test]
-fn host_admission_rejects_the_previous_host_prefix() {
+fn host_admission_rejects_unmarked_prefixes() {
     #[repr(C)]
-    struct PreviousHostPrefix {
+    struct UnmarkedPrefix {
         size: usize,
-        family: u32,
-        generation: u32,
+        first_word: u32,
     }
-    let previous = PreviousHostPrefix {
-        size: mem::size_of::<usize>() * 4 + 8,
-        family: 4,
-        generation: 23,
-    };
-    assert_eq!(previous.size, mem::size_of::<NcHostApi>());
-    // SAFETY: The legacy prefix is aligned and initialized through both version
-    // words. Its unsupported version requires no child fields to be present.
-    assert_eq!(unsafe { validate_host_api(ptr::from_ref(&previous).cast()) }, NC_E_ABI_VERSION);
+    for first_word in [4, 24] {
+        let prefix = UnmarkedPrefix {
+            size: mem::size_of::<NcHostApi>(),
+            first_word,
+        };
+        // SAFETY: The size and the unrecognized first word are readable.
+        assert_eq!(unsafe { validate_host_api(ptr::from_ref(&prefix).cast()) }, NC_E_ABI_VERSION);
+    }
 }
 
 /// Each service's fixed size excludes tables from other native ABI versions.

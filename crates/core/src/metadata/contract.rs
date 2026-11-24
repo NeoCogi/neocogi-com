@@ -25,7 +25,13 @@ use crate::signature::NcAbiDigest;
 /// Advance this version when a change makes binaries built against the previous
 /// contract incompatible. Both sides check it before accessing complete records.
 /// This development ABI remains provisional until release freeze.
-pub const NC_COM_ABI_VERSION: u32 = 24;
+pub const NC_COM_ABI_VERSION: u32 = 4;
+
+/// Fixed marker before the version in native plugin descriptors and host APIs.
+///
+/// Older layouts start with an unmarked version. This marker distinguishes the
+/// header before the reader consults the version. It stays fixed across versions.
+pub const NC_COM_ABI_MAGIC: u32 = 0x4e43_4f4d;
 
 /// Stable identity for one COM interface ABI contract.
 ///

@@ -111,8 +111,8 @@ fn host_entry_rejects_safe_modules_returning_unverified_raw_tables() {
                 use neocogi_com_sdk::{{NcHostApi, NcPluginApi}};
                 static HOST: NcHostApi = NcHostApi {{
                     size: core::mem::size_of::<NcHostApi>(),
+                    abi_magic: neocogi_com_sdk::NC_COM_ABI_MAGIC,
                     abi_version: neocogi_com_sdk::NC_COM_ABI_VERSION,
-                    reserved: 0,
                     runtime: core::ptr::NonNull::<NcPluginApi>::dangling().as_ptr(),
                     debug: core::ptr::null(),
                     persistence: core::ptr::null(),

@@ -200,6 +200,7 @@ mod tests {
 
     /// Minimal validated registry record used only by resolution tests.
     static DESCRIPTION: NcPluginDescriptor = NcPluginDescriptor {
+        abi_magic: neocogi_com::NC_COM_ABI_MAGIC,
         abi_version: neocogi_com::NC_COM_ABI_VERSION,
         plugin_id: guid_from_qualified_name("nc.tests.acquisition"),
         qualified_name: NcStaticUtf8::from_static("nc.tests.acquisition"),

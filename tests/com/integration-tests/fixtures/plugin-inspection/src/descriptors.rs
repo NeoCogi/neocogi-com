@@ -41,6 +41,7 @@ static DUPLICATES: [NcPluginDependencyDescriptor; 2] = [DEPENDENCIES[0], DEPENDE
 static INVALID_TEXT: [u8; 1] = [0xFF];
 /// Common valid metadata; no bootstrap or catalog state is needed to inspect it.
 const BASE: NcPluginDescriptor = NcPluginDescriptor {
+    abi_magic: NC_COM_ABI_MAGIC,
     abi_version: NC_COM_ABI_VERSION,
     plugin_id: guid_from_qualified_name("nc.tests.inspection.fixture"),
     qualified_name: NcStaticUtf8::from_static("nc.tests.inspection.fixture"),

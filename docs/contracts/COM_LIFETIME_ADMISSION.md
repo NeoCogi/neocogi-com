@@ -1,9 +1,9 @@
 # Typed lifetime contracts
 
-ABI 24 uses the three-word lifetime headers and four-word `NcObjectTypeInfo`
+ABI v4 uses the three-word lifetime headers and four-word `NcObjectTypeInfo`
 from ABI v3/core 21. Core 21 removed runtime allocation-policy discrimination
 and reduced `NcObjectTypeInfo` from five pointer-width words to four. Rebuild
-hosts and providers using the same ABI generation. [Current ABI authorities](../abi.md#abi-identities-and-versions)
+hosts and providers using the same ABI version. [Current ABI authorities](../abi.md#abi-identities-and-versions)
 
 ## Ownership is a precondition
 

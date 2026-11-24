@@ -156,7 +156,7 @@ pub(crate) unsafe fn open_plugin_descriptor(path: &Path) -> Result<ValidatedPlug
     let get = unsafe { module.get_plugin_descriptor(path)? };
     // SAFETY: the mapping keeps the descriptor and all referenced storage alive.
     let raw = unsafe { plugin_descriptor_from_entrypoint(get, path)? };
-    // SAFETY: The getter lends a readable ABI version word. A matching version
+    // SAFETY: The getter lends a readable ABI header. A matching header
     // also grants complete immutable process-lived metadata and callable code.
     unsafe { ValidatedPluginDescriptor::new(raw) }
         .map_err(|status| PluginLoadError::new(PluginLoadErrorKind::Metadata, path, Some(status), "invalid plugin descriptor"))

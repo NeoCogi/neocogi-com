@@ -1,6 +1,6 @@
-# COM ABI 24 (WIP)
+# COM ABI v4 (WIP)
 
-**SDK 0.5.0-wip-alpha.1 uses ABI 24 while the ABI is WORK IN PROGRESS (WIP).**
+**SDK 0.5.0-wip-alpha.1 uses ABI v4 while the ABI is WORK IN PROGRESS (WIP).**
 
 One native ABI version covers the shared layouts, callback signatures and
 ownership contracts. Hosts and plugins require an exact version match.
@@ -10,8 +10,9 @@ rebuild hosts, providers and generated consumers from the same source revision.
 Published SDK 0.4.0 uses [ABI v3/core 21](https://github.com/NeoCogi/neocogi-com/blob/v0.4.0/docs/abi-v3.md).
 Published SDK 0.3.0 uses [ABI v2/core 19](https://github.com/NeoCogi/neocogi-com/blob/v0.3.0/docs/abi-v2.md).
 The [ABI v1 specification](https://github.com/NeoCogi/neocogi-com/blob/v0.1.0/docs/abi-v1.md)
-is available at its release tag. ABI 24 also rejects the superseded ABI v4/core
-23 candidate. No fallback symbols, aliases or adapters admit older binaries.
+is available at its release tag. Current admission rejects the earlier
+ABI v4/core 23 and ABI 24 drafts. No fallback symbols, aliases or adapters admit
+older binaries.
 
 The persistence service borrows shared-owned roots and factories. Construction
 and declared ownership establish the matching lifetime header. Serialization
@@ -26,8 +27,8 @@ Opening an image may still execute its initializers and descriptor getter.
 
 | Identity or version | Current authority and purpose |
 | --- | --- |
-| Native ABI | NC_COM_ABI_VERSION == 24; checked in the plugin descriptor and host bundle |
-| Native getter | `nc_get_plugin_descriptor`; fixed C signature and leading descriptor version |
+| Native ABI | NC_COM_ABI_VERSION == 4; checked in the plugin descriptor and host bundle |
+| Native getter | `nc_get_plugin_descriptor`; fixed C signature and descriptor header |
 | Interface contract | IID plus exact 32-byte ABI signature; checked for a particular interface |
 | IDL fingerprint encoding | MODULE_ABI_ENCODING_DOMAIN; canonical encoding v15 with directional callable slots |
 | NCB format | Version 1; independent of live object ownership and lifetime layout |
@@ -236,7 +237,7 @@ The public static constructor makes digest width a compile-time obligation:
 
 ```rust
 use neocogi_com_sdk::{NcAbiDigest, NC_COM_ABI_VERSION};
-assert_eq!(NC_COM_ABI_VERSION, 24);
+assert_eq!(NC_COM_ABI_VERSION, 4);
 static FIRST: [u8; 32] = [7; 32];
 static SECOND: [u8; 32] = [7; 32];
 let a = NcAbiDigest::from_static(&FIRST);
@@ -351,7 +352,7 @@ one private cold non-unwinding failure path preserves fail-stop exhaustion for
 ordinary Rust weak clones. destroy_value/deallocate remain C callbacks because
 final cleanup can execute in the allocating provider's binary.
 
-ABI 24 retains the three-word headers and four-word provider type
+ABI v4 retains the three-word headers and four-word provider type
 information introduced in ABI v3/core 21. Admission rejects older versions
 before interpreting callbacks or object storage.
 
@@ -598,15 +599,15 @@ Built-in data interfaces exercise shared ownership and checked native calls:
 
 ```rust
 use neocogi_com_sdk::{INcBytesAbi, ComBytesExt, ComStringExt, IUnknown, NcString};
-let text = NcString::from_utf8_str("ABI 24");
+let text = NcString::from_utf8_str("ABI v4");
 let another = text.clone();
 let bytes = text.query::<INcBytesAbi>().unwrap();
-assert_eq!(bytes.to_vec().unwrap(), b"ABI 24");
-assert_eq!(another.to_string().unwrap(), "ABI 24");
+assert_eq!(bytes.to_vec().unwrap(), b"ABI v4");
+assert_eq!(another.to_string().unwrap(), "ABI v4");
 let identity = text.query::<IUnknown>().unwrap();
 assert!(identity.as_com_ref().same_object(bytes.as_com_ref()));
 drop(text); // Other strong owners still retain the immutable value.
-assert_eq!(another.to_string().unwrap(), "ABI 24");
+assert_eq!(another.to_string().unwrap(), "ABI v4");
 ```
 
 
@@ -765,7 +766,7 @@ Unix checks its byte path before dlopen. Both report the existing OpenLibrary
 phase. The facade's UTF-8 path adapter retains its invalid-argument rejection.
 Successfully opened native mappings remain process-pinned.
 
-Before invoking the versioned descriptor getter, native loading and inspection
+Before invoking the stable descriptor getter, native loading and inspection
 require the selected image to export it. An ordinary import of a library that
 exports the getter is insufficient and fails in `FindSymbol`. Windows PE export
 forwarders and Apple Mach-O reexports are explicit exports of the selected image.
@@ -843,16 +844,18 @@ The accessor and native export return metadata without registration or acquisiti
 | Factory acquisition | `RuntimeHandle::acquire_plugin_root` checks the exact contract and returns one COM owner. |
 
 The stable getter takes a pointer to one descriptor-pointer output slot and
-returns `NcStatus`. The returned record starts with a C `uint32_t abi_version`
-at offset zero. A consumer reads only that word until it matches
-`NC_COM_ABI_VERSION`. The matched descriptor must have the complete native
-layout and immutable backing. Static registration checks the same leading word.
+returns `NcStatus`. The descriptor starts with C fields `uint32_t abi_magic`
+and `uint32_t abi_version` at byte offsets 0 and 4. The consumer reads the
+version only after the first word matches `NC_COM_ABI_MAGIC` (`0x4e434f4d`).
+The version must equal `NC_COM_ABI_VERSION` before the consumer reads the
+complete immutable descriptor. Static registration checks the same header.
 Interface IID/signature and threading checks additionally select the exact
 callable contract.
 
-The former versioned exports are no longer discovery entry points. Older
-unversioned exports used the same C call shape and a lower leading version,
-so the same prefix check rejects them before using the rest of the record.
+The marker is fixed across ABI versions. It distinguishes this header from
+older layouts that put a version in the first word, including a layout that
+used the same getter and the first word `4`. Discovery uses the stable
+getter name exclusively.
 
 The provider owns the descriptor's storage and code. Static registration requires
 the entire graph to remain immutable for the process lifetime, including referenced
@@ -918,19 +921,17 @@ Rust entry, returning an admitted `RuntimeHandle` from its existing singleton wi
 provider calls. It owns unsafe adoption of the complete static graph; safe
 startup never promotes a raw record returned by an arbitrary module. The separate
 `initialize_process()` lends the immutable C description for ABI bootstrap:
-`NcHostApi` starts with the byte size (`size_t`), native ABI version
-(`uint32_t`), and a reserved `uint32_t` initialized to zero. The reserved word
-gives legacy validators an initialized byte range for their former second
-version read. Current admission ignores it. The three following pointers select
-the runtime, debug and persistence tables. The complete graph and callback code
+`NcHostApi` starts with the byte size (`size_t`), followed by the fixed
+`abi_magic` and native `abi_version` (`uint32_t` each). The following three
+pointers select the runtime, debug and persistence tables. The complete graph and callback code
 remain process/instance-lived, including after main returns. Copying the
 description copies access to the same registry.
 
-`validate_host_api` requires the exact host size and the current ABI version
-before reading child pointers. It requires all three child sizes to match their
-respective table layouts. Each child belongs to the same immutable host graph
-and carries its byte size as its first field. An unsupported version or a
-wrong size returns `NC_E_ABI_VERSION`; a required null pointer returns
+`validate_host_api` checks the exact host size, then the marker, then the
+current ABI version before reading child pointers. The three child sizes must
+match their respective table layouts. Each child belongs to the same immutable host graph
+and carries its byte size as its first field. An unrecognized marker, unsupported
+version, or wrong size returns `NC_E_ABI_VERSION`. A required null pointer returns
 `NC_E_POINTER`. The checks invoke no callbacks and retain nothing. The unsafe
 caller guarantees readable backing and callable code. Adoption additionally
 requires those guarantees for the entire process lifetime.
@@ -1187,7 +1188,7 @@ Supplying a provider later permits retry using the same live context.
 The explicit application dependency introduced in COM `0.3.0` changed deployment
 requirements from `0.2.0`, whose host embedded NCB. That provider-selection change
 retained ABI v2/core generation 19. The shared persistence input contract uses
-ABI 24. Provider selection and NCB-v1 bytes keep their
+ABI v4. Provider selection and NCB-v1 bytes keep their
 existing contracts. An incompatible change to a shared layout, callback or guaranteed calling or
 ownership behavior must advance the native ABI version before old callers can invoke it.
 
@@ -1231,8 +1232,8 @@ See the [native guide](guides/COM_NATIVE.md).
 
 ## Independent-build compatibility
 
-The interoperability contract is a matching target C ABI, current core/runtime
-ABI generation, and exact generated contract signatures. Independently selected
+The interoperability contract is a matching target C ABI, native ABI version,
+and exact generated contract signatures. Independently selected
 Rust compilers, optimization, LTO and panic settings must not leak private Rust
 layout or allocator ownership across that boundary. This does not promise that
 old contract revisions or different architectures are interchangeable.
@@ -1352,7 +1353,7 @@ execution. A cancelled run or detached JSON is insufficient evidence.
 The independent sample exercises typed factory construction, inherited interface
 calls, exclusive mutation, domain notifications delivered into the host's concrete queue,
 canonical weak-origin identity, fresh copied output (nested enum/boolean and short
-prefix) through ABI 24, persistence through provider-owned byte buffers,
+prefix) through ABI v4, persistence through provider-owned byte buffers,
 restoration through a host-implemented factory adapter, promotion while live,
 and failed promotion after final object release. All assertions execute in
 release/abort builds. Normal completion crosses calls in both directions; panic

@@ -1,19 +1,21 @@
-# Migrate a provider to WIP ABI 24
+# Migrate a provider to WIP ABI v4
 
-SDK `0.5.0-wip-alpha.1` uses [ABI 24](../abi.md). The
+SDK `0.5.0-wip-alpha.1` uses [ABI v4](../abi.md). The
 [0.4.0 release](https://github.com/NeoCogi/neocogi-com/blob/v0.4.0/docs/abi-v3.md)
 uses ABI v3/core generation 21. SDK `0.3.0` uses ABI v2/core generation 19.
 
 | Boundary | SDK 0.4.0 | Development SDK |
 | --- | --- | --- |
-| Native ABI | v3/core 21 | 24 |
+| Native ABI | v3/core 21 | v4 |
 | Plugin discovery | `nc_get_plugin_descriptor_v3` | `nc_get_plugin_descriptor` |
 | Service and metadata records | `NcHostApiV3`, `NcPluginApiV3`, other `V3` records | `NcHostApi`, `NcPluginApi`, and other unsuffixed records |
 
 Rebuild the host, providers, compiler and generated bindings from the same SDK
-revision. The plugin descriptor and host bundle both carry `abi_version`.
-The generated adapter checks it before interpreting service tables or acquiring
-factories. Exact interface IID and signature checks still apply.
+revision. The plugin descriptor and host bundle both carry `abi_magic` followed
+by `abi_version`. Initialize them with `NC_COM_ABI_MAGIC` and
+`NC_COM_ABI_VERSION`. The runtime checks the marker and version before using
+provider metadata. The generated adapter checks the same fields before using
+host tables or acquiring factories. Exact IID and signature checks still apply.
 
 The persistence service borrows shared-owned factory and snapshot-root pairs.
 Pass a `ComPtr<IPersistenceFactoryAbi>` to registry registration and a

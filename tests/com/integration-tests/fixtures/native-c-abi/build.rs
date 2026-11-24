@@ -11,6 +11,7 @@ fn main() {
 
     cc::Build::new()
         .file("native/caller.c")
+        .define("NC_COM_ABI_MAGIC", neocogi_com::NC_COM_ABI_MAGIC.to_string().as_str())
         .define("NC_COM_ABI_VERSION", neocogi_com::NC_COM_ABI_VERSION.to_string().as_str())
         .std("c11")
         .warnings(true)

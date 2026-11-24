@@ -8,7 +8,7 @@
 use core::{mem, ptr};
 
 use super::{NcDebugApi, NcPersistenceApi, NcPluginApi};
-use crate::{NC_COM_ABI_VERSION, NC_E_ABI_VERSION, NC_E_POINTER, NC_OK, NcStatus};
+use crate::{NC_COM_ABI_MAGIC, NC_COM_ABI_VERSION, NC_E_ABI_VERSION, NC_E_POINTER, NC_OK, NcStatus};
 
 /// Immutable C description supplied by the host when acquiring a plugin factory.
 ///
@@ -21,15 +21,12 @@ use crate::{NC_COM_ABI_VERSION, NC_E_ABI_VERSION, NC_E_POINTER, NC_OK, NcStatus}
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct NcHostApi {
-    /// Available record bytes, including the size/version prefix.
+    /// Available record bytes, including the ABI header.
     pub size: usize,
+    /// Fixed header marker checked before reading the native ABI version.
+    pub abi_magic: u32,
     /// Native ABI version of the complete service graph.
     pub abi_version: u32,
-    /// Reserved. Producers initialize this word to zero. Current readers ignore it.
-    ///
-    /// Legacy readers load both words before rejecting the new ABI version.
-    /// A field here keeps that second read out of structure padding.
-    pub reserved: u32,
     /// Required immutable plugin/catalog operation table in the host.
     pub runtime: *const NcPluginApi,
     /// Required immutable diagnostics operation table in the same host.
@@ -47,14 +44,15 @@ unsafe impl Sync for NcHostApi {}
 
 /// Checks the host record and required table prefixes without invoking code.
 ///
-/// Null required pointers return `NC_E_POINTER`. An unsupported ABI version or a
-/// record of the wrong size returns `NC_E_ABI_VERSION`.
+/// Null required pointers return `NC_E_POINTER`. An unsupported ABI header or
+/// a record of the wrong size returns `NC_E_ABI_VERSION`.
 ///
 /// # Safety
 /// A nonnull host pointer is aligned and readable for its leading `usize`. If
-/// its size matches the current record, the version immediately after the
-/// size is readable. The current version requires the complete immutable host
-/// record. Each nonnull child is aligned and readable for its leading size.
+/// its size matches the current record, the marker word after the size is
+/// readable. A matching marker requires the following version word to be
+/// readable. A matching version requires the complete immutable host record.
+/// Each nonnull child is aligned and readable for its leading size.
 /// Children declaring the current table sizes have that complete layout and
 /// belong to the same host. Adoption additionally requires process-lived
 /// immutable backing for all three tables and their callback code.
@@ -64,11 +62,11 @@ pub unsafe fn validate_host_api(host: *const NcHostApi) -> NcStatus {
     if status.is_err() {
         return status;
     }
-    // SAFETY: The advertised complete size grants the stable version prefix.
-    if unsafe { ptr::addr_of!((*host).abi_version).read() } != NC_COM_ABI_VERSION {
+    // SAFETY: The exact size grants the marker word. The marker grants the version.
+    if unsafe { ptr::addr_of!((*host).abi_magic).read() } != NC_COM_ABI_MAGIC || unsafe { ptr::addr_of!((*host).abi_version).read() } != NC_COM_ABI_VERSION {
         return NC_E_ABI_VERSION;
     }
-    // SAFETY: The size and supported version grant the complete host record.
+    // SAFETY: The exact size and supported header grant the complete host record.
     let host = unsafe { &*host };
     // SAFETY: The caller grants each reachable table's documented size prefix.
     let status = unsafe { validate_size(host.runtime) };

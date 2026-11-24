@@ -7,12 +7,12 @@
 //! constructor frame is present in this ABI.
 
 use crate::{
-    ComInterface, ComPtr, IUnknown, NC_COM_ABI_VERSION, NC_E_ABI_VERSION, NC_E_INVALID_ARG, NC_E_POINTER, NC_OK, NcAbiThreadingMode, NcInterfaceId, NcGuid,
-    NcPluginDependencyDescriptor, NcStaticUtf8, NcStatus, guid_from_qualified_name, validate_qualified_name, validate_version_text,
+    ComInterface, ComPtr, IUnknown, NC_COM_ABI_MAGIC, NC_COM_ABI_VERSION, NC_E_ABI_VERSION, NC_E_INVALID_ARG, NC_E_POINTER, NC_OK, NcAbiThreadingMode,
+    NcInterfaceId, NcGuid, NcPluginDependencyDescriptor, NcStaticUtf8, NcStatus, guid_from_qualified_name, validate_qualified_name, validate_version_text,
 };
 
-/// Stable native getter symbol. Its C signature and the leading descriptor
-/// version word remain readable across native ABI versions.
+/// Stable native getter symbol. Its C signature and the descriptor header
+/// remain readable across native ABI versions.
 pub const NC_GET_PLUGIN_DESCRIPTOR_SYMBOL: &str = "nc_get_plugin_descriptor";
 
 /// Fixed bootstrap operation that transfers one owned root factory reference.
@@ -95,7 +95,9 @@ pub unsafe fn write_plugin_root<T: ComInterface>(
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct NcPluginDescriptor {
-    /// Native ABI version, read before any other field.
+    /// Fixed header marker, checked before reading the native ABI version.
+    pub abi_magic: u32,
+    /// Native ABI version, checked before reading plugin metadata.
     pub abi_version: u32,
     /// Stable plugin identity derived from `qualified_name`.
     pub plugin_id: NcGuid,
@@ -137,7 +139,7 @@ impl NcPluginDescriptor {
 /// Getter exported by one plugin shared library.
 ///
 /// The symbol and C signature are fixed across native ABI versions. A successful
-/// getter lends immutable metadata beginning with a C `uint32_t` ABI version.
+/// getter lends immutable metadata beginning with the native ABI header.
 /// Calling the getter neither registers the plugin nor acquires a factory. A usable
 /// output slot is cleared before fallible work and remains null on failure.
 /// Null output returns [`NC_E_POINTER`]; validation failures return their status.
@@ -157,18 +159,19 @@ pub type NcGetPluginDescriptor = unsafe extern "C" fn(out: *mut *const NcPluginD
 ///
 /// # Safety
 ///
-/// `plugin` must be null or point to an aligned readable leading `u32` ABI
-/// version. For the current version, the complete aligned record, its tables,
+/// `plugin` must be null or supply an aligned, readable leading `u32`. If it
+/// matches [`NC_COM_ABI_MAGIC`], the following `u32` version must be readable
+/// too. For the current version, the complete aligned record, its tables,
 /// strings and any present 32-byte digests must be readable for this call.
 pub unsafe fn validate_plugin_descriptor(plugin: *const NcPluginDescriptor) -> NcStatus {
     if plugin.is_null() {
         return NC_E_POINTER;
     }
-    // SAFETY: The caller grants an aligned, readable ABI version field.
-    if unsafe { plugin.cast::<u32>().read() } != NC_COM_ABI_VERSION {
+    // SAFETY: The caller grants the first word and, if marked, the version word.
+    if unsafe { plugin.cast::<u32>().read() } != NC_COM_ABI_MAGIC || unsafe { (&raw const (*plugin).abi_version).read() } != NC_COM_ABI_VERSION {
         return NC_E_ABI_VERSION;
     }
-    // SAFETY: A matching version grants the complete record and valid backing.
+    // SAFETY: A matching header grants the complete record and valid backing.
     let plugin = unsafe { &*plugin };
     // SAFETY: The caller guarantees both static text views remain readable.
     let Ok(name) = (unsafe { plugin.qualified_name.as_str() }) else {
@@ -273,6 +276,7 @@ mod tests {
 
     /// Complete plugin descriptor fixture with no plugin dependencies.
     static VALID_PLUGIN: NcPluginDescriptor = NcPluginDescriptor {
+        abi_magic: NC_COM_ABI_MAGIC,
         abi_version: NC_COM_ABI_VERSION,
         plugin_id: guid_from_qualified_name("nc.tests.factory_plugin"),
         qualified_name: NcStaticUtf8::from_static("nc.tests.factory_plugin"),
@@ -326,12 +330,15 @@ mod tests {
     /// without a complete descriptor borrow, signature read or bootstrap access.
     #[test]
     fn rejects_unsupported_versions_from_the_prefix_alone() {
-        assert_eq!(core::mem::offset_of!(NcPluginDescriptor, abi_version), 0);
-        assert_eq!(core::mem::offset_of!(NcPluginDescriptor, plugin_id), 4);
-        for version in [0_u32, 1, 2, 3, 4, 5, 18, 19, 21, 22, 23, u32::MAX] {
-            // SAFETY: Only the readable version field is promised for an
-            // unsupported ABI. No trailing record exists here.
-            assert_eq!(unsafe { validate_plugin_descriptor((&raw const version).cast()) }, NC_E_ABI_VERSION);
+        assert_eq!(core::mem::offset_of!(NcPluginDescriptor, abi_magic), 0);
+        assert_eq!(core::mem::offset_of!(NcPluginDescriptor, abi_version), 4);
+        for unmarked in [0_u32, 1, 2, 3, 4, 5, 18, 19, 21, 22, 23, 24, u32::MAX] {
+            // SAFETY: An unrecognized first word requires no trailing storage.
+            assert_eq!(unsafe { validate_plugin_descriptor(ptr::from_ref(&unmarked).cast()) }, NC_E_ABI_VERSION);
+        }
+        for header in [[4, 23], [NC_COM_ABI_MAGIC, 3], [NC_COM_ABI_MAGIC, 24]] {
+            // SAFETY: Each prefix holds both words. Neither header grants metadata.
+            assert_eq!(unsafe { validate_plugin_descriptor(header.as_ptr().cast()) }, NC_E_ABI_VERSION);
         }
     }
 
@@ -342,19 +349,19 @@ mod tests {
         {
             assert_eq!(core::mem::size_of::<NcPluginDescriptor>(), 112);
             assert_eq!(core::mem::align_of::<NcPluginDescriptor>(), 8);
-            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, plugin_id), 4);
+            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, plugin_id), 8);
             assert_eq!(core::mem::offset_of!(NcPluginDescriptor, dependencies), 64);
             assert_eq!(core::mem::offset_of!(NcPluginDescriptor, root_factory), 72);
             assert_eq!(core::mem::offset_of!(NcPluginDescriptor, acquire), 104);
         }
         #[cfg(target_pointer_width = "32")]
         {
-            assert_eq!(core::mem::size_of::<NcPluginDescriptor>(), 72);
+            assert_eq!(core::mem::size_of::<NcPluginDescriptor>(), 76);
             assert_eq!(core::mem::align_of::<NcPluginDescriptor>(), 4);
-            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, plugin_id), 4);
-            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, dependencies), 40);
-            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, root_factory), 44);
-            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, acquire), 68);
+            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, plugin_id), 8);
+            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, dependencies), 44);
+            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, root_factory), 48);
+            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, acquire), 72);
         }
     }
 }

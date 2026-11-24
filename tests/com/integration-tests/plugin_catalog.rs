@@ -15,6 +15,7 @@ unsafe extern "C" fn acquire(_host: *const neocogi_com_sdk::NcHostApi, out: *mut
 /// Allocates immutable process-lifetime metadata, mirroring a pinned descriptor.
 fn description(name: &'static str, dependencies: &'static [NcPluginDependencyDescriptor]) -> &'static NcPluginDescriptor {
     Box::leak(Box::new(NcPluginDescriptor {
+        abi_magic: NC_COM_ABI_MAGIC,
         abi_version: NC_COM_ABI_VERSION,
         plugin_id: guid_from_qualified_name(name),
         qualified_name: NcStaticUtf8::from_static(name),

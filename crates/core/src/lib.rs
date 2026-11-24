@@ -19,7 +19,7 @@
 //! explicit `neocogi-com-serialization` crate. Wire layouts and application
 //! storage remain separate.
 //!
-//! SDK 0.5.0-wip-alpha.1 uses ABI 24, which is WORK IN PROGRESS (WIP).
+//! SDK 0.5.0-wip-alpha.1 uses ABI v4, which is WORK IN PROGRESS (WIP).
 //! Advance the native ABI version for incompatible changes and rebuild all
 //! participants together.
 
@@ -99,11 +99,11 @@ pub use metadata::{
     NC_ABI_PASSING_BORROWED_VALUE, NC_ABI_PASSING_OPTIONAL_COM_REF, NC_ABI_PASSING_VALUE, NC_ABI_PASSING_VOID, NC_ABI_RECEIVER_MUTABLE, NC_ABI_RECEIVER_SHARED,
     NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE, NC_ABI_TYPE_AGGREGATE, NC_ABI_TYPE_BOOL, NC_ABI_TYPE_F32, NC_ABI_TYPE_F64, NC_ABI_TYPE_I8,
     NC_ABI_TYPE_I16, NC_ABI_TYPE_I32, NC_ABI_TYPE_I64, NC_ABI_TYPE_INTERFACE, NC_ABI_TYPE_ISIZE, NC_ABI_TYPE_NC_GUID, NC_ABI_TYPE_NC_STATUS, NC_ABI_TYPE_U8,
-    NC_ABI_TYPE_U16, NC_ABI_TYPE_U32, NC_ABI_TYPE_U64, NC_ABI_TYPE_USIZE, NC_ABI_TYPE_VOID, NC_COM_ABI_VERSION, NC_DESCRIPTOR_QUALIFIED_NAME_MAX_LEN,
-    NC_DESCRIPTOR_VERSION_MAX_LEN, NC_DESCRIPTOR_RUST_PATH_MAX_LEN, NcRustPathError, validate_rust_path, NcAbiPassing, NcAbiPassingDescriptor, NcAbiReceiver,
-    NcAbiThreadingMode, NcAbiType, NcAbiTypeDescriptor, NcInterfaceDescriptor, NcInterfaceId, NcMethodDescriptor, NcMethodParamDescriptor,
-    NcMethodReturnDescriptor, NcPluginDependencyDescriptor, NcQualifiedNameError, NcStaticUtf8, NcVersionTextError, validate_qualified_name,
-    validate_version_text,
+    NC_ABI_TYPE_U16, NC_ABI_TYPE_U32, NC_ABI_TYPE_U64, NC_ABI_TYPE_USIZE, NC_ABI_TYPE_VOID, NC_COM_ABI_MAGIC, NC_COM_ABI_VERSION,
+    NC_DESCRIPTOR_QUALIFIED_NAME_MAX_LEN, NC_DESCRIPTOR_VERSION_MAX_LEN, NC_DESCRIPTOR_RUST_PATH_MAX_LEN, NcRustPathError, validate_rust_path, NcAbiPassing,
+    NcAbiPassingDescriptor, NcAbiReceiver, NcAbiThreadingMode, NcAbiType, NcAbiTypeDescriptor, NcInterfaceDescriptor, NcInterfaceId, NcMethodDescriptor,
+    NcMethodParamDescriptor, NcMethodReturnDescriptor, NcPluginDependencyDescriptor, NcQualifiedNameError, NcStaticUtf8, NcVersionTextError,
+    validate_qualified_name, validate_version_text,
 };
 pub use object::{
     __nc_find_interface, __ComSupportsInterfaceThreading, ComInterface, IID_IUNKNOWN, IUNKNOWN_INTERFACE_ID, IUNKNOWN_QUALIFIED_NAME, IUnknown, IUnknownVTable,

@@ -18,10 +18,10 @@ pub struct NcPluginApi {
     /// Size of this table in bytes.
     pub size: usize,
     /// Validates and atomically registers one plugin and its hard provider IDs.
-    /// A nonnull descriptor supplies an aligned, readable version word. For
-    /// the current ABI, the complete immutable descriptor graph and bootstrap
-    /// code must remain live for the process lifetime. Null returns
-    /// `NC_E_POINTER`. Unsupported versions, invalid descriptors, missing
+    /// The pointer must meet [`crate::validate_plugin_descriptor`]'s readable
+    /// header requirements. For the current ABI, the complete immutable descriptor
+    /// graph and bootstrap code must remain live for the process lifetime.
+    /// Null returns `NC_E_POINTER`. Unsupported headers, invalid descriptors, missing
     /// dependencies and conflicting identities return validation statuses.
     pub register_plugin_descriptor: unsafe extern "C" fn(plugin: *const NcPluginDescriptor) -> NcStatus,
     /// Loads and registers one trusted factory plugin, returning its stable GUID.

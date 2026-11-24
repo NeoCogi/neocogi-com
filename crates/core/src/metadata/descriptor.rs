@@ -266,8 +266,8 @@ mod tests {
     };
 
     #[test]
-    fn core_abi_identity_is_stable() {
-        assert_eq!(NC_COM_ABI_VERSION, 24);
+    fn native_abi_version_is_v4() {
+        assert_eq!(NC_COM_ABI_VERSION, 4);
     }
 
     #[test]

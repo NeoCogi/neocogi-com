@@ -10,8 +10,8 @@ use std::path::Path;
 
 use crate::debug;
 use neocogi_com::{
-    NC_COM_ABI_VERSION, NC_DEBUG_SEVERITY_ERROR, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG, NC_E_POINTER, NC_OK, NcDebugApi, NcDebugMessage, NcPluginApi,
-    NcStatus, NcUtf8View,
+    NC_COM_ABI_MAGIC, NC_COM_ABI_VERSION, NC_DEBUG_SEVERITY_ERROR, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG, NC_E_POINTER, NC_OK, NcDebugApi, NcDebugMessage,
+    NcPluginApi, NcStatus, NcUtf8View,
 };
 
 #[cfg(test)]
@@ -49,8 +49,8 @@ pub(super) static DEBUG_API: NcDebugApi = NcDebugApi {
 /// the host and reach its private singleton. All backing survives main's return.
 pub(crate) static HOST_API: neocogi_com::NcHostApi = neocogi_com::NcHostApi {
     size: mem::size_of::<neocogi_com::NcHostApi>(),
+    abi_magic: NC_COM_ABI_MAGIC,
     abi_version: NC_COM_ABI_VERSION,
-    reserved: 0,
     runtime: &RUNTIME_API,
     debug: &DEBUG_API,
     persistence: &PERSISTENCE_API,
@@ -143,7 +143,7 @@ mod tests {
     #[test]
     fn host_advertises_the_native_abi() {
         assert_eq!(crate::initialize_process().abi_version, NC_COM_ABI_VERSION);
-        assert_eq!(crate::initialize_process().reserved, 0);
+        assert_eq!(crate::initialize_process().abi_magic, NC_COM_ABI_MAGIC);
     }
 
     #[test]

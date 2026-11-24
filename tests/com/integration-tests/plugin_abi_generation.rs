@@ -29,31 +29,28 @@ mod host_admission {
 struct RejectedHostPrefix {
     /// Advertised full record size; unsupported versions must still stop at the prefix.
     size: usize,
-    /// First historical version word.
-    runtime: u32,
-    /// Second historical version word.
-    core: u32,
+    /// ABI header words, including historical version pairs.
+    words: [u32; 2],
 }
 
 /// Old host records are rejected before children or authored code.
 #[test]
 fn retired_host_prefixes_are_rejected_before_authored_acquisition() {
     use std::sync::atomic::Ordering;
-    use neocogi_com_sdk::{ComRaw, IUnknown, IUnknownVTable, NcHostApi, NC_E_CLOSED};
+    use neocogi_com_sdk::{ComRaw, IUnknown, IUnknownVTable, NcHostApi, NC_COM_ABI_MAGIC, NC_E_CLOSED};
     let acquire = host_admission::plugin_descriptor().acquire.unwrap();
     host_admission::CALLS.store(0, Ordering::SeqCst);
-    for (runtime, core) in [(1, 18), (2, 19), (3, 21), (3, 22), (4, 21), (4, 22), (4, 23)] {
+    for words in [[1, 18], [2, 19], [3, 21], [3, 22], [4, 21], [4, 22], [4, 23], [24, 0], [NC_COM_ABI_MAGIC, 24]] {
         let prefix = RejectedHostPrefix {
             size: core::mem::size_of::<NcHostApi>(),
-            runtime,
-            core,
+            words,
         };
         // Non-owning sentinels make clearing both raw output words observable.
         let mut output = ComRaw::<IUnknown> {
             object: core::ptr::NonNull::<u8>::dangling().as_ptr().cast(),
             vtable: core::ptr::NonNull::<IUnknownVTable>::dangling().as_ptr(),
         };
-        // SAFETY: An unsupported host needs only its aligned readable version
+        // SAFETY: An unsupported host needs only its aligned readable ABI
         // prefix. Output is writable storage; its old pointer bits are never read.
         let status = unsafe { acquire(core::ptr::from_ref(&prefix).cast(), &mut output) };
         assert_eq!(status, NC_E_ABI_VERSION);
@@ -142,28 +139,31 @@ fn child(mode: &str, stage: &Path, marker: &Path) -> Output {
 /// The old signature cannot pass merely by advertising a matching factory IID.
 #[test]
 fn retired_bootstrap_is_rejected_before_its_callback() {
-    let legacy = provider(None);
     let current = provider(Some("current,dynamic-plugin"));
-    let marker = legacy.path().join("bootstrap.marker");
-    let inspection = child("inspect", legacy.path(), &marker);
-    assert!(inspection.status.success(), "{}", String::from_utf8_lossy(&inspection.stderr));
-    assert!(!marker.exists(), "inspection invoked the retired callback");
-    let load = child("load", legacy.path(), &marker);
-    let detail = String::from_utf8_lossy(&load.stderr);
-    assert!(
-        !load.status.success() && load.status.code() != Some(RETURNED),
-        "required load returned: {detail}"
-    );
-    #[cfg(unix)]
-    {
-        use std::os::unix::process::ExitStatusExt;
-        assert_eq!(load.status.signal(), Some(6), "wrong failure: {detail}");
+    for features in [None, Some("legacy-unified")] {
+        let legacy = provider(features);
+        let marker = legacy.path().join("bootstrap.marker");
+        let inspection = child("inspect", legacy.path(), &marker);
+        assert!(inspection.status.success(), "{}", String::from_utf8_lossy(&inspection.stderr));
+        assert!(!marker.exists(), "inspection invoked the retired callback");
+        let load = child("load", legacy.path(), &marker);
+        let detail = String::from_utf8_lossy(&load.stderr);
+        assert!(
+            !load.status.success() && load.status.code() != Some(RETURNED),
+            "required load returned: {detail}"
+        );
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::ExitStatusExt;
+            assert_eq!(load.status.signal(), Some(6), "wrong failure: {detail}");
+        }
+        assert!(
+            detail.contains("fatal neocogi-com-sdk plugin load failure:") && detail.contains("NC_E_ABI_VERSION"),
+            "wrong rejection: {detail}"
+        );
+        assert!(!marker.exists(), "mandatory loading invoked the retired callback");
     }
-    assert!(
-        detail.contains("fatal neocogi-com-sdk plugin load failure:") && detail.contains("NC_E_ABI_VERSION"),
-        "wrong rejection: {detail}"
-    );
-    assert!(!marker.exists(), "mandatory loading invoked the retired callback");
+    let marker = current.path().join("bootstrap.marker");
     let accepted = child("current", current.path(), &marker);
     assert!(accepted.status.success(), "{}", String::from_utf8_lossy(&accepted.stderr));
     assert_eq!(std::fs::read(marker).unwrap(), b"current", "current callback must actually execute");

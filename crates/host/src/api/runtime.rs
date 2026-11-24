@@ -20,7 +20,7 @@ use super::{emit_error, path_from_utf8};
 /// Validates and atomically registers one plugin descriptor.
 pub(super) unsafe extern "C" fn register_plugin_descriptor(plugin: *const NcPluginDescriptor) -> NcStatus {
     let runtime = RuntimeState::global();
-    // SAFETY: The caller promises a readable version prefix and, for the
+    // SAFETY: The caller promises a readable ABI header and, for the
     // current ABI, the complete process-lived metadata and code.
     let status = unsafe { runtime.register_plugin_descriptor(plugin) };
     if status.is_err() {

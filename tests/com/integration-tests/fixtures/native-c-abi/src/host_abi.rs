@@ -58,8 +58,8 @@ static PERSISTENCE: NcPersistenceApi = NcPersistenceApi {
 };
 static HOST: NcHostApi = NcHostApi {
     size: size_of::<NcHostApi>(),
+    abi_magic: NC_COM_ABI_MAGIC,
     abi_version: NC_COM_ABI_VERSION,
-    reserved: 0,
     runtime: &RUNTIME,
     debug: &DEBUG,
     persistence: &PERSISTENCE,
@@ -77,12 +77,7 @@ fn acquire_root(runtime: RuntimeHandle) -> Result<ComPtr<IUnknown>, NcStatus> {
 
 unsafe extern "C" {
     /// Reads independently declared C records and calls the generated adapter.
-    fn nc_c_exercise_host_bootstrap(
-        host: *const NcHostApi,
-        plugin: *const NcPluginDescriptor,
-        expected: NcStatus,
-        incompatible: NcStatus,
-    ) -> i32;
+    fn nc_c_exercise_host_bootstrap(host: *const NcHostApi, plugin: *const NcPluginDescriptor, expected: NcStatus, incompatible: NcStatus) -> i32;
 }
 
 /// The C caller passes one complete host bundle and one retired version prefix.
@@ -90,6 +85,9 @@ unsafe extern "C" {
 fn plain_c_forwards_host_access_to_the_typed_bootstrap() {
     // SAFETY: Both C and Rust borrow the complete static records. The C caller
     // also supplies an aligned, readable version prefix for the retired ABI.
-    assert_eq!(unsafe { nc_c_exercise_host_bootstrap(ptr::from_ref(&HOST), plugin_descriptor(), NC_E_CLOSED, NC_E_ABI_VERSION) }, 1);
+    assert_eq!(
+        unsafe { nc_c_exercise_host_bootstrap(ptr::from_ref(&HOST), plugin_descriptor(), NC_E_CLOSED, NC_E_ABI_VERSION) },
+        1
+    );
     assert_eq!(ACQUISITIONS.load(core::sync::atomic::Ordering::Relaxed), 1);
 }

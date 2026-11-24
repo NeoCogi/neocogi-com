@@ -5,7 +5,7 @@ component ABI. It provides typed COM pointers, generated interface/object
 support, typed plugin roots, and optional API wrappers for
 host-supplied runtime services.
 
-The `0.5.0-wip-alpha.1` SDK uses **provisional ABI 24**.
+The `0.5.0-wip-alpha.1` SDK uses **provisional ABI v4**.
 Published 0.3.0 uses ABI v2/core generation 19.
 
 The [standalone walkthrough](https://github.com/NeoCogi/neocogi-com/blob/v0.4.0/examples/getting-started/README.md)
@@ -270,7 +270,7 @@ release version, static/dynamic origin, single `FactoryInfo` and hard dependency
 GUIDs. `RuntimeHandle::plugins()` returns these complete owned records in registration
 order, without separate factory or dependency queries. Repeated provider loads reuse the
 first registration and origin; conflicting providers are rejected. See
-[runtime ABI 24](../../docs/abi.md#runtime-and-global-registry).
+[runtime ABI v4](../../docs/abi.md#runtime-and-global-registry).
 
 Inspection is a separate operation that can report errors without registering
 or acquiring a plugin factory. Its fallible result does not make live loading optional.

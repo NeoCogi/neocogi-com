@@ -18,7 +18,7 @@ fn example<'a>(document: &'a str, label: &str) -> &'a str {
 fn current_abi_specification_matches_the_runtime_version() {
     let document = include_str!("../../../docs/abi.md");
     let version = neocogi_com::NC_COM_ABI_VERSION;
-    assert!(document.starts_with(&format!("# COM ABI {version} (WIP)\n")));
+    assert!(document.starts_with(&format!("# COM ABI v{version} (WIP)\n")));
     let row = format!("| Native ABI | NC_COM_ABI_VERSION == {version};");
     assert_eq!(document.lines().filter(|line| line.starts_with("| Native ABI | ")).count(), 1);
     assert!(document.lines().any(|line| line.starts_with(&row)));
@@ -26,7 +26,7 @@ fn current_abi_specification_matches_the_runtime_version() {
     assert!(document.lines().any(|line| line.starts_with(&getter)));
 
     let migration = include_str!("../../../docs/guides/ABI_MIGRATION.md");
-    let native_abi = format!("| Native ABI | v3/core 21 | {version} |");
+    let native_abi = format!("| Native ABI | v3/core 21 | v{version} |");
     assert!(migration.lines().any(|line| line == native_abi));
 }
 

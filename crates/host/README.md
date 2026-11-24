@@ -6,7 +6,7 @@ implementation of caller-owned persistence contexts. It contains
 no contract-module registry, native contract descriptions, or event seeding.
 Applications use `neocogi_com_sdk::RuntimeHandle`.
 
-Version `0.5.0-wip-alpha.1` uses **provisional ABI 24**.
+Version `0.5.0-wip-alpha.1` uses **provisional ABI v4**.
 Version `0.3.0` uses ABI v2/core generation 19. Deploy matching hosts and providers.
 
 ## Host implementation and shared SDK
@@ -76,7 +76,7 @@ and ABI identities do not authenticate native code: providers and their native
 dependencies must be trusted. See the
 [native loading contract](../../docs/abi.md#runtime-and-global-registry).
 
-[Runtime ABI 24](../../docs/abi.md#runtime-and-global-registry) has three C tables:
+[Runtime ABI v4](../../docs/abi.md#runtime-and-global-registry) has three C tables:
 complete plugin operations, diagnostics and persistence. Plugin lookup and
 enumeration share one projection containing identity, factory and dependencies. Loading
 returns a plugin GUID. Plugin inspection reports static origin or the first
@@ -84,8 +84,8 @@ library path; native handles remain private. The same descriptor reuses its
 registration, while conflicting descriptors are rejected. There is no module
 ID, module registry or module-to-plugin join. The limit is 1,024 distinct dynamic
 providers, excluding static registrations and repeats, and 64 active messengers.
-Plugin descriptor and core object generations remain independently versioned; see
-the [current ABI versions](../../docs/abi.md#abi-identities-and-versions).
+The plugin descriptor and host bundle use the same
+[native ABI version](../../docs/abi.md#abi-identities-and-versions).
 
 ## Build and link
 

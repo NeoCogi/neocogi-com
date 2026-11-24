@@ -76,6 +76,7 @@ mod tests {
             NC_E_CLOSED
         }
         NcPluginDescriptor {
+            abi_magic: neocogi_com::NC_COM_ABI_MAGIC,
             abi_version: neocogi_com::NC_COM_ABI_VERSION,
             plugin_id: neocogi_com::guid_from_qualified_name(name),
             qualified_name: NcStaticUtf8::from_static(name),

@@ -198,6 +198,7 @@ pub fn expand_plugin(args: PluginArgs, input: ItemFn) -> Result<proc_macro2::Tok
 
         /// Immutable plugin metadata consumed by the host runtime.
         static #descriptor_name: #nc::NcPluginDescriptor = #nc::NcPluginDescriptor {
+            abi_magic: #nc::NC_COM_ABI_MAGIC,
             abi_version: #nc::NC_COM_ABI_VERSION,
             plugin_id: #plugin_id,
             qualified_name: #nc::NcStaticUtf8::from_static(#name),

@@ -82,7 +82,7 @@ typedef struct NcDebugApiPrefix {
 typedef struct NcPersistenceApi NcPersistenceApi;
 typedef struct NcHostApi {
     size_t size;
-    uint32_t abi_version, reserved;
+    uint32_t abi_magic, abi_version;
     const NcPluginApi *runtime;
     const NcDebugApiPrefix *debug;
     const NcPersistenceApi *persistence;
@@ -91,7 +91,7 @@ typedef struct NcHostApi {
 typedef NcStatus (*NcAcquirePluginFactory)(const NcHostApi *, IUnknown *);
 
 typedef struct NcPluginDescriptor {
-    uint32_t abi_version;
+    uint32_t abi_magic, abi_version;
     NcGuid plugin_id;
     NcStaticUtf8 qualified_name, plugin_version;
     uint32_t dependency_count;
@@ -101,12 +101,10 @@ typedef struct NcPluginDescriptor {
     NcAcquirePluginFactory acquire;
 } NcPluginDescriptor;
 
-_Static_assert(offsetof(NcPluginDescriptor, abi_version) == 0, "descriptor version prefix");
-_Static_assert(offsetof(NcPluginDescriptor, plugin_id) + offsetof(NcGuid, data1) == 4,
-    "legacy descriptor readers see initialized GUID storage at byte four");
-_Static_assert(offsetof(NcHostApi, abi_version) == sizeof(size_t), "host version prefix");
-_Static_assert(offsetof(NcHostApi, reserved) == sizeof(size_t) + sizeof(uint32_t),
-    "legacy host readers see the initialized reserved word");
+_Static_assert(offsetof(NcPluginDescriptor, abi_magic) == 0, "descriptor marker prefix");
+_Static_assert(offsetof(NcPluginDescriptor, abi_version) == 4, "descriptor version");
+_Static_assert(offsetof(NcHostApi, abi_magic) == sizeof(size_t), "host marker prefix");
+_Static_assert(offsetof(NcHostApi, abi_version) == sizeof(size_t) + sizeof(uint32_t), "host version");
 _Static_assert(sizeof(NcHostApi) == (sizeof(void *) == 8 ? 40 : 24), "host C layout");
 
 /* A raw borrowed/owned capability; ownership follows the enclosing operation. */
@@ -255,7 +253,8 @@ typedef struct NativeAbiLayouts {
     size_t runtime_size, runtime_plugin_infos_offset;
     size_t plugin_info_size, plugin_factory_offset, plugin_dependencies_offset, plugin_dependency_count_offset;
     size_t debug_first_function_offset;
-    size_t host_size, host_abi_version_offset, host_reserved_offset;
+    size_t descriptor_size, descriptor_plugin_id_offset, descriptor_acquire_offset;
+    size_t host_size, host_abi_magic_offset, host_abi_version_offset;
     size_t host_runtime_offset, host_debug_offset, host_persistence_offset;
     size_t aggregate_size;
     size_t aggregate_align;
@@ -322,9 +321,12 @@ int32_t nc_c_validate_abi_layouts(const NativeAbiLayouts *layouts) {
         layouts->plugin_dependencies_offset == offsetof(NcPluginInfo, dependencies) &&
         layouts->plugin_dependency_count_offset == offsetof(NcPluginInfo, dependency_count) &&
         layouts->debug_first_function_offset == offsetof(NcDebugApiPrefix, create_messenger) &&
+        layouts->descriptor_size == sizeof(NcPluginDescriptor) &&
+        layouts->descriptor_plugin_id_offset == offsetof(NcPluginDescriptor, plugin_id) &&
+        layouts->descriptor_acquire_offset == offsetof(NcPluginDescriptor, acquire) &&
         layouts->host_size == sizeof(NcHostApi) &&
+        layouts->host_abi_magic_offset == offsetof(NcHostApi, abi_magic) &&
         layouts->host_abi_version_offset == offsetof(NcHostApi, abi_version) &&
-        layouts->host_reserved_offset == offsetof(NcHostApi, reserved) &&
         layouts->host_runtime_offset == offsetof(NcHostApi, runtime) &&
         layouts->host_debug_offset == offsetof(NcHostApi, debug) &&
         layouts->host_persistence_offset == offsetof(NcHostApi, persistence) &&
@@ -608,9 +610,10 @@ int32_t nc_c_exercise_choice_output(void *object, NativeChoiceOutput output,
 /* Use C's independently declared layouts to call the generated acquisition adapter. */
 int32_t nc_c_exercise_host_bootstrap(const NcHostApi *host, const NcPluginDescriptor *plugin,
                                     NcStatus expected, NcStatus incompatible) {
-    if (!host || host->size != sizeof(*host) || host->abi_version != NC_COM_ABI_VERSION ||
-        host->reserved != 0 || !host->runtime || !host->debug || !host->persistence) return 0;
-    if (!plugin || plugin->abi_version != host->abi_version || !plugin->acquire) return 0;
+    if (!host || host->size != sizeof(*host) || host->abi_magic != NC_COM_ABI_MAGIC ||
+        host->abi_version != NC_COM_ABI_VERSION || !host->runtime || !host->debug || !host->persistence) return 0;
+    if (!plugin || plugin->abi_magic != NC_COM_ABI_MAGIC ||
+        plugin->abi_version != NC_COM_ABI_VERSION || !plugin->acquire) return 0;
 
     IUnknown out = {0};
     NcStatus status = plugin->acquire(host, &out);
