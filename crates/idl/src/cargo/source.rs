@@ -66,9 +66,10 @@ impl ModuleSources {
     }
 
     /// Parses the loaded text using file or directory module identity semantics.
+    /// The error retains the selected path and the original parser failure.
     pub fn parse(&self) -> Result<crate::Module, BuildError> {
         let module_path = self.module_path();
-        if module_path.extension().and_then(|extension| extension.to_str()) == Some("ncidl") {
+        let parsed = if module_path.extension().and_then(|extension| extension.to_str()) == Some("ncidl") {
             if self.sources.len() != 1 {
                 return Err(BuildError::Idl(format!(
                     "single-file IDL module {:?} contains {} source records",
@@ -79,17 +80,14 @@ impl ModuleSources {
             // A file module has exactly one source record by construction and by
             // validation of dependency graph records above.
             let source = self.sources.values().next().expect("single-file source count was checked");
-            return parse_module(module_path, source).map_err(|source| BuildError::Idl(source.to_string()));
-        }
-
-        // Borrow the owned paths and text only for the duration of parsing. The
-        // parser canonicalizes portable path order independently as a safeguard.
-        let parts = self
-            .sources
-            .iter()
-            .map(|(path, source)| ModuleSource { path: Path::new(path), text: source })
-            .collect::<Vec<_>>();
-        parse_module_parts(module_path, &parts).map_err(|source| BuildError::Idl(source.to_string()))
+            parse_module(module_path, source)
+        } else {
+            // The parser borrows the loaded parts and owns any diagnostic labels
+            // it returns after the syntax worker finishes.
+            let parts = self.parts().map(|(path, text)| ModuleSource { path, text }).collect::<Vec<_>>();
+            parse_module_parts(module_path, &parts)
+        };
+        parsed.map_err(|source| BuildError::Parse { path: module_path.to_owned(), source })
     }
 
     /// Loads one explicitly selected legacy source file.
@@ -180,11 +178,53 @@ fn path_text(path: &Path) -> Result<String, BuildError> {
 mod tests {
     //! Filesystem-focused coverage for the source ownership boundary.
 
-    use std::{fs, path::Path};
+    use std::{error::Error, fs, path::Path};
 
     use tempfile::tempdir;
 
-    use super::ModuleSources;
+    use super::{BuildError, ModuleSources};
+    use crate::ParseError;
+
+    /// The parser's two exact source labels survive both loader paths and can
+    /// be inspected after the loaded source records are dropped.
+    #[test]
+    fn duplicate_declaration_retains_parser_diagnostic() {
+        let temporary = tempdir().unwrap();
+        let root = temporary.path();
+        let first = "interface Repeated {}\n";
+        let second = "/// The other declaration.\ninterface Repeated {}\n";
+        let combined = format!("{first}{second}");
+        fs::write(root.join("single.ncidl"), &combined).unwrap();
+        fs::create_dir(root.join("split")).unwrap();
+        fs::write(root.join("split/a.ncidl"), first).unwrap();
+        fs::write(root.join("split/b.ncidl"), second).unwrap();
+
+        for (module, labels) in [
+            ("single.ncidl", [("single.ncidl", 3, combined.as_str()), ("single.ncidl", 1, combined.as_str())]),
+            ("split", [("split/b.ncidl", 2, second), ("split/a.ncidl", 1, first)]),
+        ] {
+            let error = ModuleSources::load(root, Path::new(module)).unwrap().parse().unwrap_err();
+            let BuildError::Parse {
+                path,
+                source: ParseError::Source(diagnostic),
+            } = &error
+            else {
+                panic!("expected an authored parser diagnostic: {error:?}");
+            };
+            assert_eq!(path, Path::new(module));
+            assert!(error.source().unwrap().is::<ParseError>());
+            assert_eq!(error.to_string(), diagnostic.to_string());
+            assert_eq!(diagnostic.code, "EIDL010");
+            assert_eq!(diagnostic.labels.len(), 2);
+            for (label, (path, line, text)) in diagnostic.labels.iter().zip(labels) {
+                assert_eq!(label.span.path(), path);
+                assert_eq!(label.span.start().line, line);
+                let source = label.source().unwrap();
+                assert_eq!(source.path(), path);
+                assert_eq!(source.text(), text);
+            }
+        }
+    }
 
     /// Confirms recursive discovery ignores unrelated files and preserves a stable
     /// path order while treating nested directories as organizational source parts.

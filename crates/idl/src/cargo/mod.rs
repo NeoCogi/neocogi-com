@@ -326,12 +326,19 @@ pub enum BuildError {
         /// Original JSON codec failure.
         source: serde_json::Error,
     },
+    /// The parser could not admit one authored source module.
+    Parse {
+        /// File or directory selected by the source loader.
+        path: PathBuf,
+        /// Owned parser error, including its source labels or worker failure.
+        source: crate::ParseError,
+    },
     /// Bundled admission or semantic resolution rejected the module graph.
     Resolve(
         /// Typed graph failure, retaining the parser and operating-system cause.
         crate::ModuleGraphError,
     ),
-    /// Parsing or generation rejected the module graph.
+    /// Source selection, graph loading, or generation rejected the request.
     Idl(
         /// Complete source-level diagnostic.
         String,
@@ -351,6 +358,11 @@ impl fmt::Display for BuildError {
             }
             Self::Io { operation, path, source } => write!(formatter, "failed to {operation} {}: {source}", path.display()),
             Self::Json { operation, path, source } => write!(formatter, "failed to {operation} {}: {source}", path.display()),
+            Self::Parse {
+                path,
+                source: source @ crate::ParseError::Worker(_),
+            } => write!(formatter, "{}: {source}", path.display()),
+            Self::Parse { source, .. } => source.fmt(formatter),
             Self::Resolve(source) => source.fmt(formatter),
             Self::Idl(message) => formatter.write_str(message),
         }
@@ -358,11 +370,12 @@ impl fmt::Display for BuildError {
 }
 
 impl std::error::Error for BuildError {
-    /// Retains concrete I/O and JSON causes for build tooling.
+    /// Exposes the original typed cause for build tooling.
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Io { source, .. } => Some(source),
             Self::Json { source, .. } => Some(source),
+            Self::Parse { source, .. } => Some(source),
             Self::Resolve(source) => Some(source),
             _ => None,
         }

@@ -67,6 +67,12 @@ are generated solely to satisfy that lint; other downstream warnings stay checke
 
 ## Shared sources in consuming crates
 
+Both Cargo builders return `BuildError::Parse` with the selected source path
+and original `ParseError` when an authored module cannot be parsed. Build
+tooling can read the parser's source labels or follow the error chain to the
+worker's I/O error. Bundled source admission remains part of
+`BuildError::Resolve`.
+
 Keep authoritative `.ncidl` files in namespace trees owned by their subsystems. Each application or
 library can generate its own bindings from that tree during its ordinary build:
 

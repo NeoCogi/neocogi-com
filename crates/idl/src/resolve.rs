@@ -1619,23 +1619,32 @@ fn validate_parameter(parameter: &crate::Parameter, entries: &[ModuleEntry], val
         ParameterPassing::SharedLoan { optional: false } | ParameterPassing::BorrowedText | ParameterPassing::BorrowedValue => Ok(()),
         ParameterPassing::InputBuffer | ParameterPassing::OutputBuffer => validate_value_type(payload, entries, values, context, span),
         ParameterPassing::Copied => match ty {
-            IdlType::Named(name) => match resolve_named_or_str(name, entries)? {
-                ResolvedName::Symbol(symbol) if symbol.kind == SymbolKind::Value => validate_value_type(ty, entries, values, context, span),
-                ResolvedName::Symbol(symbol) => Err(kind_mismatch_error(
-                    symbol,
-                    entries,
-                    span,
-                    format!("{context} must borrow interface values with &"),
-                    format!("{} values require an explicit borrow", symbol.kind.description()),
-                    "borrow the object type with `&`",
-                )),
-                ResolvedName::Str => Err(source_error(
-                    "EIDL061",
-                    span,
-                    format!("{context} must borrow str as &str"),
-                    "unsized string parameter",
-                )),
-            },
+            IdlType::Named(name) if name.is_str() => Err(source_error(
+                "EIDL061",
+                span,
+                format!("{context} must borrow str as &str"),
+                "unsized string parameter",
+            )),
+            IdlType::Named(name) if builtin_object(name).is_some() => Err(source_error(
+                "EIDL060",
+                span,
+                format!("{context} must borrow interface values with &"),
+                "borrow the built-in interface with `&`",
+            )),
+            IdlType::Named(name) => {
+                let symbol = resolve_named(name, entries)?;
+                match symbol.kind {
+                    SymbolKind::Value => validate_value_type(ty, entries, values, context, span),
+                    SymbolKind::Interface => Err(kind_mismatch_error(
+                        symbol,
+                        entries,
+                        span,
+                        format!("{context} must borrow interface values with &"),
+                        format!("{} values require an explicit borrow", symbol.kind.description()),
+                        "borrow the object type with `&`",
+                    )),
+                }
+            }
             _ => validate_value_type(ty, entries, values, context, span),
         },
         ParameterPassing::Invalid => {
@@ -1693,23 +1702,6 @@ fn validate_result(method: &Method, entries: &[ModuleEntry], values: &crate::Val
             Err(source_error("EIDL062", span, message, label))
         }
         ReturnPassing::Unresolved => unreachable!("closed results have a passing classification"),
-    }
-}
-
-/// Named resolution result including the borrowed-only str built-in.
-enum ResolvedName {
-    /// The built-in unsized UTF-8 string view.
-    Str,
-    /// One local or imported declaration.
-    Symbol(Symbol),
-}
-
-/// Resolves a path while recognizing the unsized str built-in.
-fn resolve_named_or_str(name: &NamedType, entries: &[ModuleEntry]) -> Result<ResolvedName, ResolutionError> {
-    if name.is_str() {
-        Ok(ResolvedName::Str)
-    } else {
-        resolve_named(name, entries).map(ResolvedName::Symbol)
     }
 }
 

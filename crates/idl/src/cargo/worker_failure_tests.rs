@@ -1,38 +1,60 @@
 //! Unit-test children exercise real Cargo build admission without production controls.
-use std::{error::Error, fs, io, path::PathBuf, process::Command};
+use std::{
+    error::Error,
+    fs, io,
+    path::{Path, PathBuf},
+    process::Command,
+};
 use crate::{ModuleGraphError, ParseError, syntax::failure};
-use super::{BuildError, Module, contract_links_name, test_support::snapshot};
+use super::{BuildError, Module, SharedSources, contract_links_name, test_support::snapshot};
 
-/// Selects one private child; never read by an ordinary IDL dependency build.
+/// Selects one private child. Ordinary IDL dependency builds never read it.
 const CASE: &str = "NEOCOGI_IDL_UNIT_BUILD_FAILURE";
 /// Libtest name plus a marker prevent a zero-test child from satisfying acceptance.
-const TEST: &str = "cargo::worker_failure_tests::bundled_worker_failure_preserves_artifacts_and_metadata";
+const TEST: &str = "cargo::worker_failure_tests::worker_failures_preserve_artifacts_and_metadata";
 /// Written only after the child has checked the typed failure and unchanged files.
-const OBSERVED: &str = "observed bundled worker rejection";
+const OBSERVED: &str = "observed parser worker rejection";
 
-/// The local module is parsed once before bundled admission and output writes.
+/// Both Cargo builders retain the first authored worker failure. Packaged
+/// builds reuse that parse, so worker two still admits the bundled source.
 #[test]
-fn bundled_worker_failure_preserves_artifacts_and_metadata() {
-    if let Ok(source) = std::env::var(CASE) {
+fn worker_failures_preserve_artifacts_and_metadata() {
+    if let Ok(selection) = std::env::var(CASE) {
+        let (case, source) = selection.split_once(':').unwrap();
         let output = PathBuf::from(std::env::var_os("OUT_DIR").unwrap());
         let before = snapshot(&output);
-        // The admitted local parse is moved into the resolver. Worker #2 must
-        // therefore be the bundled parse for both file and directory sources.
-        let _denial = failure::after(1);
-        let builder = match source.as_str() {
-            "proof/build.ncidl" => Module::new("idl", source),
-            "proof/build" => Module::directory("idl", source),
-            _ => panic!("unknown unit-test source case"),
+        let bundled = case == "bundled-packaged";
+        let _denial = failure::after(usize::from(bundled));
+        let error = match case {
+            "authored-shared" => SharedSources::new("idl").module("proof.build", "fixture::bindings").build().unwrap_err(),
+            "authored-packaged" | "bundled-packaged" => {
+                let builder = if source.ends_with(".ncidl") {
+                    Module::new("idl", source)
+                } else {
+                    Module::directory("idl", source)
+                };
+                builder.build().unwrap_err()
+            }
+            _ => panic!("unknown worker failure fixture {case}"),
         };
-        let error = builder.build().unwrap_err();
-        let BuildError::Resolve(ModuleGraphError::BundledSource(ParseError::Worker(cause))) = &error else {
-            panic!("failure occurred outside bundled admission: {error:?}")
+        let cause = error.source().expect("the build error retains its typed cause");
+        let parse = match &error {
+            BuildError::Resolve(ModuleGraphError::BundledSource(ParseError::Worker(_))) if bundled => {
+                assert!(error.to_string().contains("bundled neocogi.lang"));
+                assert!(cause.is::<ModuleGraphError>());
+                cause.source().unwrap()
+            }
+            BuildError::Parse { path, source: ParseError::Worker(_) } if !bundled => {
+                assert_eq!(path, Path::new(source));
+                assert!(error.to_string().contains(&path.display().to_string()));
+                cause
+            }
+            _ => panic!("failure occurred in the wrong admission phase: {error:?}"),
         };
-        assert_eq!(cause.kind(), io::ErrorKind::WouldBlock);
-        let graph = error.source().expect("build keeps graph cause");
-        let parse = graph.source().expect("graph keeps parser cause");
-        assert!(parse.source().unwrap().to_string().contains("test denied syntax worker start"));
-        assert!(error.to_string().contains("bundled neocogi.lang"));
+        assert!(parse.is::<ParseError>());
+        let worker = parse.source().unwrap().downcast_ref::<io::Error>().unwrap();
+        assert_eq!(worker.kind(), io::ErrorKind::WouldBlock);
+        assert!(worker.to_string().contains("test denied syntax worker start"));
         assert_eq!(snapshot(&output), before);
         println!("{OBSERVED}");
         return;
@@ -60,19 +82,21 @@ fn bundled_worker_failure_preserves_artifacts_and_metadata() {
                 }
             }
             let before = snapshot(&output);
-            let result = Command::new(std::env::current_exe().unwrap())
-                .args(["--exact", TEST, "--nocapture", "--test-threads=1"])
-                .env(CASE, relative)
-                .env("CARGO_MANIFEST_DIR", fixture.path())
-                .env("OUT_DIR", &output)
-                .env("CARGO_MANIFEST_LINKS", contract_links_name("proof.build"))
-                .output()
-                .unwrap();
-            let stdout = String::from_utf8_lossy(&result.stdout);
-            assert!(result.status.success(), "{stdout}\n{}", String::from_utf8_lossy(&result.stderr));
-            assert!(stdout.contains(OBSERVED), "child must execute its admission assertions: {stdout}");
-            assert!(!stdout.contains("cargo::metadata="), "failed admission advertised success: {stdout}");
-            assert_eq!(snapshot(&output), before);
+            for case in ["authored-packaged", "authored-shared", "bundled-packaged"] {
+                let result = Command::new(std::env::current_exe().unwrap())
+                    .args(["--exact", TEST, "--nocapture", "--test-threads=1"])
+                    .env(CASE, format!("{case}:{relative}"))
+                    .env("CARGO_MANIFEST_DIR", fixture.path())
+                    .env("OUT_DIR", &output)
+                    .env("CARGO_MANIFEST_LINKS", contract_links_name("proof.build"))
+                    .output()
+                    .unwrap();
+                let stdout = String::from_utf8_lossy(&result.stdout);
+                assert!(result.status.success(), "{case}: {stdout}\n{}", String::from_utf8_lossy(&result.stderr));
+                assert!(stdout.contains(OBSERVED), "child must execute its admission assertions: {stdout}");
+                assert!(!stdout.contains("cargo::metadata="), "failed admission advertised success: {stdout}");
+                assert_eq!(snapshot(&output), before);
+            }
         }
     }
 }
@@ -81,7 +105,6 @@ fn bundled_worker_failure_preserves_artifacts_and_metadata() {
 #[test]
 fn packaged_builder_rejects_a_conflicting_local_record_from_a_dependency() {
     use std::collections::BTreeMap;
-    use std::path::Path;
     use super::{GRAPH_SCHEMA, GraphModule, GraphRecord, ModuleSources, dependency_graph_variable};
 
     const SELECT: &str = "NEOCOGI_IDL_LOCAL_RECORD_CONFLICT";

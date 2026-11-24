@@ -14,10 +14,34 @@ fn builtins_accept_explicit_object_ownership() {
     assert!(resolves(
         "interface IFactory { fn load(&self, bytes: &INcBytes, owner: &IUnknown, kind: Guid) -> Result<ComPtr<IUnknown>>; fn save(&self) -> Result<ComPtr<INcBytes>>; }"
     ));
-    assert!(!resolves("interface IWrong { fn take(&self, value: IUnknown) -> Result<()>; }"));
     assert!(resolves("struct Owned { value: ComPtr<INcBytes> }"));
     assert!(!resolves("interface IUnknown {}"));
     assert!(!resolves("interface INcBytes {}"));
+}
+
+/// Built-in object names are bound intrinsics, so report their missing borrow
+/// directly at the use.
+#[test]
+fn bare_builtin_object_inputs_point_to_the_missing_borrow() {
+    for name in ["IUnknown", "INcBytes", "INcString"] {
+        let source = format!("interface IWrong {{ fn take(&self, value: {name}) -> Result<()>; }}");
+        let module = parse_module(Path::new("test/builtins.ncidl"), &source).unwrap();
+        let neocogi_idl::ModuleGraphError::Resolution(error) = resolve_modules(vec![module]).unwrap_err() else {
+            panic!("expected a type resolution error");
+        };
+        let [diagnostic] = error.diagnostics.as_slice() else {
+            panic!("expected one diagnostic for {name}");
+        };
+        assert_eq!(diagnostic.code, "EIDL060");
+        assert!(diagnostic.message.contains("must borrow interface values with &"));
+        let [label] = diagnostic.labels.as_slice() else {
+            panic!("a built-in interface has no authored declaration");
+        };
+        let start = label.span.start().column - 1;
+        let end = label.span.end().column - 1;
+        assert_eq!(&source[start..end], name);
+        assert!(resolves(&format!("interface IValid {{ fn take(&self, value: &{name}) -> Result<()>; }}")));
+    }
 }
 
 /// Ownership is explicit at every field depth and at the successful result slot.
