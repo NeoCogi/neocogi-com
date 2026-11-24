@@ -12,7 +12,7 @@ use crate::{
         require_named_execution, require_tests, words,
     },
     native_fixture::require_native_c_execution,
-    packages::PUBLISHED,
+    packages::{PUBLISHED, require_exact_sdk_dependencies},
     process::{Result, Runner, sources},
 };
 
@@ -277,11 +277,12 @@ pub(crate) fn workspace(runner: &Runner) -> Result<()> {
     }
     let root: toml::Value = toml::from_str(&fs::read_to_string(runner.root.join("Cargo.toml"))?)?;
     let version = root["workspace"]["package"]["version"].as_str().ok_or("missing workspace version")?;
-    for package in published {
+    for package in &published {
         if package["version"] != version || !PUBLISHED.iter().any(|(name, _)| package["name"] == *name) {
             return Err("published package version or inventory mismatch".into());
         }
     }
+    require_exact_sdk_dependencies(published, version)?;
     // Package roles are a dependency invariant, not just naming convention.
     // Host-dependent integration tests belong to tests/com, keeping the SDK
     // independently testable and avoiding a development-only dependency cycle.

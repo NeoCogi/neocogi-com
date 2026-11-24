@@ -8,7 +8,8 @@ separate release actions; preparation and local dry-runs upload nothing.
 
 Finish implementation, documentation, examples and compatibility changes first.
 Keep the eight SDK packages on one version and their internal dependency requirements
-exact. The authoritative package inventory is `PUBLISHED` in
+exact. Workspace qualification checks Cargo's declared requirements, and archive
+qualification checks the normalized manifests actually shipped. The authoritative package inventory is `PUBLISHED` in
 [packages.rs](../../tools/xtask/src/packages.rs).
 
 The optional host shim was published with alpha.1. The current cohort links

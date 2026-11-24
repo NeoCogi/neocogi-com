@@ -21,6 +21,31 @@ pub(crate) const PUBLISHED: &[(&str, &str)] = &[
     ("neocogi-com-host", "crates/host"),
     ("neocogi-inspect", "tools/neocogi-inspect"),
 ];
+
+/// Validates requirements independently of the graph Cargo happened to resolve.
+pub(crate) fn require_exact_sdk_dependencies<'a>(packages: impl IntoIterator<Item = &'a serde_json::Value>, version: &str) -> Result<()> {
+    let expected = format!("={version}");
+    let published = |name: &str| PUBLISHED.iter().any(|(package, _)| *package == name);
+    for package in packages {
+        let owner = package["name"].as_str().ok_or("missing Cargo package name")?;
+        if !published(owner) {
+            continue;
+        }
+        let dependencies = package["dependencies"].as_array().ok_or("missing Cargo dependency declarations")?;
+        for dependency in dependencies {
+            // Cargo reports both the canonical package name and any local rename.
+            let name = dependency["name"].as_str().ok_or("missing Cargo dependency name")?;
+            if published(name) {
+                let requirement = dependency["req"].as_str().ok_or("missing Cargo dependency requirement")?;
+                if requirement != expected {
+                    return Err(format!("{owner} requires {name} {requirement:?}, expected exact SDK requirement {expected:?}").into());
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Validate and extract this package's single archive prefix without an external tar.
 /// Only regular source files/directories are inputs to Cargo; links are rejected.
 pub(crate) fn extract(archive: &Path, destination: &Path, prefix: &str) -> Result<()> {
@@ -378,6 +403,14 @@ pub(crate) fn run(runner: &Runner) -> Result<()> {
             }
         }
         consumers(&runner.root, root, version)?;
+        // These manifests are Cargo's normalized archive inputs, before any
+        // build resolves their dependencies through the extracted patches.
+        let graph: serde_json::Value = serde_json::from_str(&verification.read(
+            "rustup",
+            words(&["run", "stable", "cargo", "metadata", "--offline", "--no-deps", "--format-version", "1"]),
+        )?)?;
+        let packages = graph["packages"].as_array().ok_or("missing extracted Cargo packages")?;
+        require_exact_sdk_dependencies(packages, version)?;
         crate::process::copy_tree(&runner.root.join("examples/getting-started"), &root.join("getting-started"))?;
         verification.env.insert("RUSTUP_TOOLCHAIN".into(), "1.85.0".into());
         for (package, _) in PUBLISHED {
@@ -422,6 +455,43 @@ pub(crate) fn run(runner: &Runner) -> Result<()> {
 mod tests {
     use super::*;
     use std::io::Write;
+
+    /// Cargo-normalized declarations retain version policy across aliases and targets.
+    #[test]
+    fn sdk_dependency_requirements_are_checked_without_resolution() -> Result<()> {
+        let root = tempfile::tempdir()?;
+        fs::create_dir(root.path().join("src"))?;
+        fs::write(root.path().join("src/lib.rs"), "")?;
+        let runner = Runner::new(root.path().into());
+        for (table, dependency) in [
+            ("dependencies", "neocogi-com"),
+            ("build-dependencies", "neocogi-com"),
+            ("dev-dependencies", "neocogi-com"),
+            ("target.'cfg(windows)'.dependencies", "renamed = { package = 'neocogi-com', optional = true,"),
+        ] {
+            for requirement in ["=0.5.0-wip-alpha.1", "0.5.0-wip-alpha.1", "^0.5.0-wip-alpha.1", "*", "=0.4.0"] {
+                let entry = if dependency == "neocogi-com" {
+                    format!("{dependency} = '{requirement}'")
+                } else {
+                    format!("{dependency} version = '{requirement}' }}")
+                };
+                fs::write(
+                    root.path().join("Cargo.toml"),
+                    format!("[package]\nname = 'neocogi-idl'\nversion = '0.5.0-wip-alpha.1'\n[{table}]\n{entry}\nserde = '*'\n"),
+                )?;
+                let graph: serde_json::Value = serde_json::from_str(&runner.read(
+                    "rustup", words(&["run", "stable", "cargo", "metadata", "--offline", "--no-deps", "--format-version", "1"]),
+                )?)?;
+                let result = require_exact_sdk_dependencies(graph["packages"].as_array().unwrap(), "0.5.0-wip-alpha.1");
+                if requirement == "=0.5.0-wip-alpha.1" {
+                    result?;
+                } else {
+                    assert!(result.unwrap_err().to_string().contains("neocogi-idl requires neocogi-com"));
+                }
+            }
+        }
+        Ok(())
+    }
 
     /// Cached Cargo artifacts still require exact ownership and a non-test role.
     #[test]
