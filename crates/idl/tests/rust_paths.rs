@@ -77,7 +77,7 @@ fn rust_locations_only_change_import_paths() {
     ] {
         let wording = generated
             .lines()
-            .find(|line| line.contains("- `source` borrows "))
+            .find(|line| line.contains("- `source` is a required shared loan"))
             .expect("borrow documentation");
         assert!(wording.contains(&format!("`{supplying_abi}`")), "{wording}");
     }

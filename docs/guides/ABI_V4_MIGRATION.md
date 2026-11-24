@@ -24,3 +24,26 @@ Persisted NCB-v1 documents keep their encoding.
 
 Link `neocogi-com-host` and forward its supplied `RuntimeHandle` to nested
 providers. Register or load `nc.serialization` before snapshot and restore.
+
+## Compose a native interface prefix
+
+Concrete COM storage selects its lifetime policy at construction. For a
+handwritten method table over SDK-managed storage, copy the prefix selected by
+the implementing type and install the exact interface identity.
+
+<!-- checked-example: lifetime-prefix -->
+```rust
+use neocogi_com_sdk::{ComObject, IUnknownVTable, NcInterfaceId};
+
+pub const fn interface_prefix<T: ComObject>(id: &'static NcInterfaceId) -> IUnknownVTable {
+    IUnknownVTable {
+        interface_id: id,
+        ..*T::UNKNOWN_VTABLE
+    }
+}
+```
+
+Pair the prefix with the complete method table and matching allocation. The
+prefix copy leaves ownership unchanged. Generated providers use the same
+construction. C lifecycle adapters stay private to core and are called through
+the selected table.

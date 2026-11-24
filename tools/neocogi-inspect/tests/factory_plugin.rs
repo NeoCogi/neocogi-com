@@ -616,7 +616,7 @@ fn generated_root_threading_change_is_context_for_a_breaking_digest() {
     let target = prepare_calculator_workspace(root);
     let source = root.join("host/src/main.rs");
     let old = std::fs::read_to_string(&source).unwrap();
-    let expected = r#"    let calculator = runtime
+    let expected = r#"    let mut calculator = runtime
         .acquire_plugin_root::<contracts::CalculatorAbi>(plugin)
         .expect("compatible calculator factory");"#;
     assert!(old.contains(expected));
@@ -630,7 +630,7 @@ fn generated_root_threading_change_is_context_for_a_breaking_digest() {
         println!("observed exact contract rejection");
         return;
     }
-    let calculator = root.expect("compatible calculator factory");"#,
+    let mut calculator = root.expect("compatible calculator factory");"#,
         ),
     )
     .unwrap();

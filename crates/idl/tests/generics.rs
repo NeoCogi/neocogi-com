@@ -364,8 +364,8 @@ fn parameter_renames_preserve_cross_module_calls_and_event_adapters() {
                 }}
             }}
             let receiver = Queue::from_value(Queue);
-            let producer_view = receiver.query::<producer::{receiver}Abi>().unwrap();
-            producer_view.as_com_ref().accept(neocogi_com_sdk::NcValueRef::new(&value).unwrap()).unwrap();
+            let mut producer_view = receiver.query::<producer::{receiver}Abi>().unwrap();
+            producer_view.as_com_mut().accept(neocogi_com_sdk::NcValueRef::new(&value).unwrap()).unwrap();
             let descriptor = producer::ReceiverAbi::IDL_INTERFACE;
             assert!(descriptor.values.iter().any(|value| value.qualified_name == producer::{node}::IDL_TYPE.qualified_name));
             assert_eq!(producer::{node}::IDL_TYPE.qualified_name, consumer::{node}::IDL_TYPE.qualified_name);
