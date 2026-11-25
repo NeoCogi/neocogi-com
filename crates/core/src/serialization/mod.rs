@@ -52,8 +52,20 @@ impl<'a> Serializer<'a> {
     }
     /// Writes one root and commits the session only after its complete success.
     pub fn serialize<T: ComSerialize + ?Sized>(&mut self, value: &T) -> Result<(), NcStatus> {
+        self.write_root(value, true)
+    }
+    /// Writes one root for the SDK's owning document driver.
+    ///
+    /// With reporting disabled, the driver must discard its exclusive session
+    /// on error. Explicit error reporting by the value still works as usual.
+    #[doc(hidden)]
+    pub fn write_root<T: ComSerialize + ?Sized>(&mut self, value: &T, report_failure: bool) -> Result<(), NcStatus> {
         if let Err(status) = value.com_serialize(self) {
-            return Err(self.fail(status, "invalid persistent value"));
+            return Err(if report_failure {
+                self.fail(status, "invalid persistent value")
+            } else {
+                status.normalize_error()
+            });
         }
         self.interface.finish()
     }
