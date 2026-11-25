@@ -628,6 +628,7 @@ fn interface_plan(
         },
         bases,
         inherited_projections: ancestry.iter().filter_map(|row| row.parent).collect(),
+        scoped_prefixes: interface_metadata::scoped_prefixes(graph, module, declaration)?,
         methods,
     };
     Ok(plan)

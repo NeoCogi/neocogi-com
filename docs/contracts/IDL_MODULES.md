@@ -320,6 +320,13 @@ use neocogi_com_sdk::ComStringExt;
 let text = CatalogAbi::with_tooltip(live_source, |loan| loan.to_string());
 ```
 
+The helper accepts a live `ComRef` of its declaring marker or a derived marker
+whose first-base path reaches it. Every step in that path uses the complete
+physical vtable prefix. The helper dispatches with the original object and table
+and holds the existing receiver admission through the visitor. Secondary bases
+use their separately queried interface. The generated Rust proof also checks
+the exact declaring marker type through imported and specialized parents.
+
 An explicit `Result<Option<&I>>` projects the same native continuation as
 `Result<Option<R>, NcStatus>` at the caller, where `R` is the visitor's result
 type. Write-only buffer parameters and mutable receivers are excluded from the

@@ -37,6 +37,23 @@ pub unsafe trait ComRustInterface: ComInterface + Sized {
     fn __nc_wrapper_mut<M: ThreadingModel>(pointer: &mut ComInterfacePointer<Self, M>) -> &mut Self::Wrapper<M>;
 }
 
+/// Certifies a declaring interface as a physical vtable prefix of this marker.
+///
+/// The IID selects a witness. The associated marker supplies exact Rust type
+/// equality, independently of a native interface's nominal UUID. Generated
+/// scoped helpers keep the actual live loan and use only this table prefix.
+///
+/// # Safety
+/// `Base` must be this marker or an ancestor reached solely through first-base
+/// edges. Its complete vtable must start at offset zero of this marker's table,
+/// with the same object address and compatible call admission. This proof grants
+/// no ownership transfer or separately queried base-interface identity.
+#[doc(hidden)]
+pub unsafe trait __NcScopedPrefix<const IID: u128>: ComInterface {
+    /// Exact declaring marker selected through a checked first-base path.
+    type Base: ComInterface;
+}
+
 /// Opaque borrowed object/table pointer for generated Rust interface methods.
 ///
 /// This type has no public constructor, Clone, Copy, or ownership conversion.

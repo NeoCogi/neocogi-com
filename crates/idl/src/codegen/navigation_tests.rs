@@ -53,6 +53,7 @@ fn typed_interface_and_value_names_keep_their_supplied_identifier_spans() {
         threading: crate::codegen::InterfaceThreading::Local,
         bases: Vec::new(),
         inherited_projections: Vec::new(),
+        scoped_prefixes: Vec::new(),
         methods: vec![method],
     };
     let parts = crate::codegen::expand_interface_parts(plan).unwrap();

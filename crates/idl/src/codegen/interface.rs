@@ -98,6 +98,7 @@ fn expand_parts(plan: InterfacePlan, dispatch: ProviderDispatch, nc: &syn::Path)
         threading: requirement,
         bases: interface_paths,
         inherited_projections,
+        scoped_prefixes,
         mut methods,
     } = plan;
     let declarations = methods.iter().map(|method| super::method_declaration_with_path(method, nc));
@@ -693,8 +694,29 @@ fn expand_parts(plan: InterfacePlan, dispatch: ProviderDispatch, nc: &syn::Path)
     };
     let scoped_methods = methods
         .iter()
-        .filter_map(|method| scoped_result::marker_method(nc, method, &mut names))
+        .filter_map(|method| scoped_result::marker_method(nc, method, id, &mut names))
         .collect::<Vec<_>>();
+    let mut scoped_witnesses = Vec::new();
+    if !scoped_methods.is_empty() {
+        let iid = proc_macro2::Literal::u128_unsuffixed(u128::from_be_bytes(id.to_uuid_bytes()));
+        scoped_witnesses.push(quote! {
+            // SAFETY: The declaring marker uses its own complete table.
+            unsafe impl #nc::__NcScopedPrefix<#iid> for #abi_ident { type Base = Self; }
+        });
+    }
+    if let Some(base) = base {
+        let base_abi = generated_path(base, Companion::Abi);
+        for prefix in scoped_prefixes {
+            let iid = proc_macro2::Literal::u128_unsuffixed(u128::from_be_bytes(prefix.to_uuid_bytes()));
+            scoped_witnesses.push(quote! {
+                // SAFETY: Every hop follows the checked first-base physical table.
+                // The immediate parent supplies the exact declaring Rust marker.
+                unsafe impl #nc::__NcScopedPrefix<#iid> for #abi_ident {
+                    type Base = <#base_abi as #nc::__NcScopedPrefix<#iid>>::Base;
+                }
+            });
+        }
+    }
     let scoped_impl = if scoped_methods.is_empty() {
         quote! {}
     } else {
@@ -783,6 +805,7 @@ fn expand_parts(plan: InterfacePlan, dispatch: ProviderDispatch, nc: &syn::Path)
 
         #wrapper_base
         #scoped_impl
+        #(#scoped_witnesses)*
         };
 
         impl #abi_ident {

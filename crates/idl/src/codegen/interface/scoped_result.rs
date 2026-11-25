@@ -40,8 +40,8 @@ pub(super) fn success_arm(nc: &Path, value: &Ident, context: &Ident, callback: &
     }
 }
 
-/// Emits a shared-only scoped getter on the exact live interface marker.
-pub(super) fn marker_method(nc: &Path, method: &AbiMethod, names: &mut PrivateNames) -> Option<TokenStream> {
+/// Emits a shared-only scoped getter accepting its proven physical prefix.
+pub(super) fn marker_method(nc: &Path, method: &AbiMethod, declaring_id: neocogi_com::NcGuid, names: &mut PrivateNames) -> Option<TokenStream> {
     let AbiReturnKind::ScopedLoan { interface_ty, mode_ty } = &method.ok.kind else {
         return None;
     };
@@ -60,6 +60,8 @@ pub(super) fn marker_method(nc: &Path, method: &AbiMethod, names: &mut PrivateNa
     let context = names.binding("__nc_scoped_context");
     let callback = names.binding("__nc_scoped_callback");
     let pair = names.binding("__nc_scoped_pair");
+    let table = names.binding("__nc_scoped_table");
+    let iid = proc_macro2::Literal::u128_unsuffixed(u128::from_be_bytes(declaring_id.to_uuid_bytes()));
     let arguments = method.args.iter().map(|argument| {
         let binding = &argument.binding;
         let ty = &argument.rust_ty;
@@ -71,14 +73,15 @@ pub(super) fn marker_method(nc: &Path, method: &AbiMethod, names: &mut PrivateNa
     let checked = quote! {
         #(#preparation)*
         let #pair = #source.as_raw();
-        // SAFETY: The exact live receiver and prepared inputs last through this
-        // synchronous call. The raw slot admits the receiver and lends its result
+        let #table = #pair.vtable.cast::<<Self as #nc::ComInterface>::VTable>();
+        // SAFETY: The live receiver, proven first-base prefix and prepared inputs
+        // last through this synchronous call. The raw slot admits the receiver and lends its result
         // through the installed continuation on the calling thread.
         unsafe {
             #nc::__nc_with_scoped_result::<#interface_ty, #mode, #result>(
                 #visit,
                 |#context, #callback| {
-                    ((*#pair.vtable).#method_ident)(
+                    ((*#table).#method_ident)(
                         #pair.object,
                         #(#wire_arguments,)*
                         #context,
@@ -122,7 +125,7 @@ pub(super) fn marker_method(nc: &Path, method: &AbiMethod, names: &mut PrivateNa
         /// non-unwinding C callback boundary.
         #[allow(non_camel_case_types, reason = "Generated type parameters can need a numeric hygiene suffix.")]
         pub fn #helper<#source_mode: #nc::ThreadingModel, #result>(
-            #source: #nc::ComRef<'_, Self, #source_mode>,
+            #source: #nc::ComRef<'_, impl #nc::__NcScopedPrefix<#iid, Base = Self>, #source_mode>,
             #(#arguments,)*
             #visit: impl for<#loan> ::core::ops::FnOnce(#nc::ComRef<#loan, #interface_ty, #mode>) -> #result,
         ) -> #return_ty {

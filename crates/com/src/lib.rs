@@ -198,3 +198,7 @@ pub use neocogi_com::NcOutputBuffer;
 
 #[doc(hidden)]
 pub use neocogi_com::{NcScopedResultCallback, __nc_with_scoped_result};
+
+/// Compile-time physical-prefix witnesses for generated scoped getter helpers.
+#[doc(hidden)]
+pub use neocogi_com::__NcScopedPrefix;

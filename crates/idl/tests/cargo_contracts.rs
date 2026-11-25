@@ -137,7 +137,7 @@ fn imported_generics_use_typed_routes_through_direct_providers() {
             r#"
             struct Fixed { count: u32 }
             interface Service { fn read(&self) -> Result<Fixed>; }
-            interface Common { fn common(&self) -> Result<u32>; }
+            interface Common { fn common(&self) -> Result<u32>; fn observe(&self) -> Option<&Service>; }
         "#,
         ),
         (
@@ -268,8 +268,11 @@ use bridge::{{Branch, BranchAbi, Common, CommonAbi, Fixed, Service, ServiceAbi, 
 use neocogi_com_sdk::{{com_object, ComRef, NcStatus}};
 #[com_object(Service)] struct Source;
 impl Service for Source {{ fn read(&self) -> Result<Fixed, NcStatus> {{ Ok(Fixed {{ count: 40 }}) }} }}
-#[com_object(Client)] struct Controller;
-impl Common for Controller {{ fn common(&self) -> Result<u32, NcStatus> {{ Ok(11) }} }}
+#[com_object(Client)] struct Controller {{ source: neocogi_com_sdk::ComPtr<ServiceAbi> }}
+impl Common for Controller {{
+    fn common(&self) -> Result<u32, NcStatus> {{ Ok(11) }}
+    fn observe(&self) -> Option<ComRef<'_, ServiceAbi>> {{ Some(self.source.as_com_ref()) }}
+}}
 impl Tail for Controller {{ fn tail(&self) -> Result<u32, NcStatus> {{ Ok(29) }} }}
 impl Branch for Controller {{}}
 impl {reader} for Controller {{
@@ -285,9 +288,10 @@ impl Client for Controller {{
 }}
 #[test] fn transitive_values_and_interfaces_call() {{
     let source = Source::from_value(Source).query::<ServiceAbi>().unwrap();
-    let controller = Controller::from_value(Controller).query::<ClientAbi>().unwrap();
+    let controller = Controller::from_value(Controller {{ source: source.clone() }}).query::<ClientAbi>().unwrap();
     assert_eq!(controller.read(source.as_com_ref(), 2).unwrap(), Fixed {{ count: 42 }});
     assert_eq!(controller.common(), Ok(11));
+    assert_eq!(CommonAbi::with_observe(controller.as_com_ref(), |source| source.read().unwrap().count), Some(40));
     assert_eq!(controller.query::<TailAbi>().unwrap().tail(), Ok(29));
     assert_eq!(controller.query::<BranchAbi>().unwrap().common(), Ok(11));
     assert_eq!(ClientAbi::INTERFACE_CHAIN[3..].iter().map(|row| row.interface_id).collect::<Vec<_>>(), [

@@ -86,3 +86,27 @@ fn record_identity<'a>(seen: &mut HashMap<neocogi_com::NcGuid, &'a DeclarationId
         ))),
     }
 }
+
+/// Lists scoped getter declarers reachable only through physical first-base edges.
+/// Queryable secondary branches are excluded at every level of the walk.
+pub(super) fn scoped_prefixes(graph: &Generation<'_>, module: &ResolvedModule, declaration: &Declaration) -> Result<Vec<neocogi_com::NcGuid>, GenerateError> {
+    let DeclarationKind::Interface(interface) = &declaration.kind else {
+        return Err(GenerateError::new("scoped prefix target is not an interface"));
+    };
+    let mut prefixes = Vec::new();
+    let mut next = interface.bases.first().map(|base| resolve(graph, module, base)).transpose()?;
+    while let Some(parent) = next {
+        let DeclarationKind::Interface(interface) = &parent.declaration.kind else {
+            return Err(GenerateError::new("scoped prefix target is not an interface"));
+        };
+        if interface
+            .methods
+            .iter()
+            .any(|method| method.return_passing == crate::model::ReturnPassing::ScopedLoan)
+        {
+            prefixes.push(parent.identity.id);
+        }
+        next = interface.bases.first().map(|base| resolve(graph, parent.module, base)).transpose()?;
+    }
+    Ok(prefixes)
+}

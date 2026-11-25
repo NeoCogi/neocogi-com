@@ -336,14 +336,21 @@ fn native_compatible_projection_changes_reach_transitive_rust_imports() {
     }
 }
 
-/// A generated scoped helper requires an exact live lender and cannot yield
-/// the loan to its caller. A boxed provider can lend its exact base safely.
+/// Independent bindings exercise scoped dispatch through live first-base loans.
+/// Unrelated or secondary projections, weak sources and escaping loans fail.
 #[test]
-fn scoped_marker_requires_an_exact_live_lender_and_a_scoped_visitor() {
+fn scoped_marker_requires_a_live_first_base_lender_and_a_scoped_visitor() {
     let contract = "
-        interface Loan {}
-        interface Base { fn tooltip(&self) -> Option<&Loan>; }
-        interface Derived: Base {}
+        interface Loan { fn value(&self) -> Result<u32>; }
+        interface Base {
+            fn tooltip(&self, visible: bool) -> Option<&Loan>;
+            fn checked(&self, state: u32) -> Result<Option<&Loan>>;
+            fn update(&mut self) -> Result<()>;
+        }
+        interface Derived: Base { fn with_tooltip(&self) -> Result<u32>; }
+        interface Unrelated {}
+        interface Middle: Unrelated + Base {}
+        interface Secondary: Middle {}
     ";
     let fixture = Fixture::new("binding-scoped-live-source", contract, contract);
     fixture.select("");
@@ -351,32 +358,120 @@ fn scoped_marker_requires_an_exact_live_lender_and_a_scoped_visitor() {
         contract,
         "interface Service {}",
         "binding_helper::selected",
-        "pub use binding_helper::selected::*;",
+        r#"
+        use binding_helper::selected::*;
+        pub use binding_helper::selected::DerivedAbi;
+        use neocogi_com_sdk::{com_object, ComPtr, ComRef, LocalCom, NcStatus, NC_E_CLOSED};
+
+        #[com_object(Loan)] struct Tip;
+        impl Loan for Tip {
+            fn value(&self) -> Result<u32, NcStatus> { Ok(23) }
+        }
+        #[com_object(Derived)] pub struct Probe(ComPtr<LoanAbi>);
+        impl Base for Probe {
+            fn tooltip(&self, visible: bool) -> Option<ComRef<'_, LoanAbi>> {
+                visible.then(|| self.0.as_com_ref())
+            }
+            fn checked(&self, state: u32) -> Result<Option<ComRef<'_, LoanAbi>>, NcStatus> {
+                if state == 2 { return Err(NC_E_CLOSED); }
+                Ok(self.tooltip(state == 1))
+            }
+            fn update(&mut self) -> Result<(), NcStatus> { Ok(()) }
+        }
+        impl Derived for Probe {
+            fn with_tooltip(&self) -> Result<u32, NcStatus> { Ok(47) }
+        }
+        pub fn local() -> LocalCom<Probe> {
+            Probe::into_local(Probe(Tip::from_value(Tip).query().unwrap()))
+        }
+        "#,
     );
-    let imports = "
-        use binding_provider::{BaseAbi, DerivedAbi, LoanAbi};
-        use neocogi_com_sdk::{ComBox, ComRef, WeakComBox};
-    ";
+    // The caller binds the same contracts independently from the provider crate.
+    fixture.write("src/value.rs", &crate::generate_rust(&graph(contract, None), "proof.value").unwrap());
     fixture.write(
         "src/lib.rs",
-        &format!(
-            "{imports}
-            pub fn accepts(owner: &ComBox<DerivedAbi>) -> Option<()> {{
-                BaseAbi::with_tooltip(owner.query_ref::<BaseAbi>().unwrap(), |_| ())
-            }}"
-        ),
+        r#"
+        mod value;
+        use value::{BaseAbi, DerivedAbi};
+        use std::{ffi::c_void, sync::atomic::{AtomicUsize, Ordering::Relaxed}};
+        use neocogi_com_sdk::{ComRaw, ComRef, IUnknown, NcStatus, NcInterfaceId, NC_E_BUSY, NC_E_CLOSED, lifetime::SHARED_UNKNOWN_VTABLE};
+
+        static QUERIES: AtomicUsize = AtomicUsize::new(0);
+        static RETAINS: AtomicUsize = AtomicUsize::new(0);
+        unsafe extern "C" fn query(object: *mut c_void, id: *const NcInterfaceId, out: *mut ComRaw<IUnknown>) -> NcStatus {
+            QUERIES.fetch_add(1, Relaxed);
+            // SAFETY: The copied prefix preserves the real shared allocation and call contract.
+            unsafe { (SHARED_UNKNOWN_VTABLE.query_interface)(object, id, out) }
+        }
+        unsafe extern "C" fn retain(object: *mut c_void) -> u32 {
+            RETAINS.fetch_add(1, Relaxed);
+            // SAFETY: The copied prefix preserves the real shared allocation.
+            unsafe { (SHARED_UNKNOWN_VTABLE.add_ref)(object) }
+        }
+
+        #[test] fn scoped_calls() {
+            let local = binding_provider::local();
+            let base = local.query::<BaseAbi>().unwrap();
+            let derived = local.query::<DerivedAbi>().unwrap();
+            let mut writer = derived.clone();
+            assert_eq!(BaseAbi::with_tooltip::<neocogi_com_sdk::ThreadLocal, _>(base.as_com_ref(), true, |tip| tip.value()), Some(Ok(23)));
+
+            let raw = derived.as_raw();
+            // SAFETY: The live exact table contains only copyable C slot data.
+            let mut table = unsafe { raw.vtable.read() };
+            table.base.unknown.query_interface = query;
+            table.base.unknown.add_ref = retain;
+            // SAFETY: The original owner and copied exact table outlive this live loan.
+            let source = unsafe { ComRef::<DerivedAbi>::from_raw_borrowed(ComRaw { object: raw.object, vtable: &table }) }.unwrap();
+
+            assert_eq!(BaseAbi::with_tooltip(source, true, |tip| {
+                assert_eq!(source.with_tooltip(), Ok(47));
+                assert_eq!(writer.update(), Err(NC_E_BUSY));
+                tip.value()
+            }), Some(Ok(23)));
+            assert_eq!(writer.update(), Ok(()));
+            assert_eq!(BaseAbi::with_tooltip(source, false, |_| panic!("unexpected direct delivery")), None::<()>);
+            assert_eq!(BaseAbi::with_checked(source, 0, |_| panic!("unexpected checked delivery")), Ok(None::<()>));
+            assert_eq!(BaseAbi::with_checked(source, 1, |tip| tip.value()), Ok(Some(Ok(23))));
+            assert_eq!(BaseAbi::with_checked(source, 2, |_| panic!("unexpected failed delivery")), Err::<Option<()>, _>(NC_E_CLOSED));
+
+            // A live writer makes the real provider thunk return a raw status.
+            let _active_writer = local.try_borrow_mut().unwrap();
+            assert_eq!(BaseAbi::with_tooltip(source, true, |_| panic!("busy direct delivery")), None::<()>);
+            assert_eq!(BaseAbi::with_checked(source, 1, |_| panic!("busy checked delivery")), Err::<Option<()>, _>(NC_E_BUSY));
+            assert_eq!(QUERIES.load(Relaxed), 0);
+            assert_eq!(RETAINS.load(Relaxed), 0);
+        }
+        "#,
     );
-    let result = fixture.cargo("check");
+    let result = fixture.cargo("test");
     assert!(result.status.success(), "{}", String::from_utf8_lossy(&result.stderr));
+    assert!(String::from_utf8_lossy(&result.stdout).contains("scoped_calls ... ok"));
+    let imports = "
+        mod value;
+        use value::{BaseAbi, LoanAbi, UnrelatedAbi, SecondaryAbi};
+        use neocogi_com_sdk::{ComRef, WeakComBox};
+    ";
     for (declaration, error) in [
         (
-            "pub fn reject(source: ComRef<'_, DerivedAbi>) { BaseAbi::with_tooltip(source, |_| ()); }",
+            "pub fn reject(source: ComRef<'_, SecondaryAbi>) { BaseAbi::with_tooltip(source, true, |_| ()); }",
+            "__NcScopedPrefix",
+        ),
+        (
+            "pub fn reject(source: ComRef<'_, UnrelatedAbi>) { BaseAbi::with_tooltip(source, true, |_| ()); }",
+            "__NcScopedPrefix",
+        ),
+        (
+            "pub fn reject(source: ComRef<'_, binding_provider::DerivedAbi>) { BaseAbi::with_tooltip(source, true, |_| ()); }",
+            "E0271",
+        ),
+        (
+            "pub fn reject(source: WeakComBox<BaseAbi>) { BaseAbi::with_tooltip(source, true, |_| ()); }",
             "E0308",
         ),
-        ("pub fn reject(source: WeakComBox<BaseAbi>) { BaseAbi::with_tooltip(source, |_| ()); }", "E0308"),
         (
             "pub fn escape(source: ComRef<'_, BaseAbi>) -> Option<ComRef<'static, LoanAbi>> {
-             BaseAbi::with_tooltip(source, |loan| loan)
+             BaseAbi::with_tooltip(source, true, |loan| loan)
          }",
             "lifetime may not live long enough",
         ),

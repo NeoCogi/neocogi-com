@@ -177,6 +177,8 @@ pub struct InterfacePlan {
     pub bases: Vec<syn::Path>,
     /// Inherited projections in first-supplier order. The owning interface is implicit.
     pub inherited_projections: Vec<ParentProjection>,
+    /// Scoped getter declarers on the physical first-base path, nearest first.
+    pub scoped_prefixes: Vec<neocogi_com::NcGuid>,
     /// One authoritative ownership/wire plan for traits, calls and descriptions.
     pub methods: Vec<AbiMethod>,
 }

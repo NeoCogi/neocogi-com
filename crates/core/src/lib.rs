@@ -83,7 +83,7 @@ pub use value::{
 #[cfg(feature = "alloc")]
 pub use value::{ValueSequenceKeepAlive, encode_value_buffer, decode_value_buffer};
 pub use buffer::{NcCopyFromBufferOffset};
-pub use rust_interface::{ComRustInterface, ComInterfacePointer};
+pub use rust_interface::{ComRustInterface, ComInterfacePointer, __NcScopedPrefix};
 pub use data::{IID_INC_BYTES, IID_INC_STRING, INcBytesAbi, INcBytesVTable, INcStringAbi, INcStringVTable, QUALIFIED_NAME_INC_BYTES, QUALIFIED_NAME_INC_STRING};
 pub use serialize::ComSerialize;
 pub use deserialize::ComDeserialize;

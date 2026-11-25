@@ -145,6 +145,13 @@ owned base projection still requires checked `QueryInterface`. A retained boxed
 weak wrapper may outlive the value, so provider entry admits liveness before
 access and reports expiration through the existing status contract.
 
+A scoped getter's declaring ABI marker supplies a Rust helper accepting the
+same physical first-base inheritance path from a live `ComRef`. A hidden unsafe
+Rust witness certifies the offset-zero prefix and exact declaring marker. The
+helper casts the borrowed table pointer for dispatch, preserves its object
+address and threading marker, and uses the existing synchronous guarded visitor.
+Its native slot, ownership, status and lifetime rules follow the declaration.
+
 The former `ComClientInterface`, `NcClientPointer`, associated `Client<M>` and
 `IFooClient` names have been replaced without compatibility aliases. This is a
 Rust source/generated-name change. C layouts, vtable slots, exact IID/signatures,
