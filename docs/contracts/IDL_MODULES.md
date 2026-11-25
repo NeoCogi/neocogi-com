@@ -671,8 +671,10 @@ Inline cycles, including `Option<Self>`, fail resolution. Explicit sequences
 permit finite recursive trees. Named references in the resolved type graph do
 not expand indefinitely. Unsupported copied method positions fail at the IDL
 source; ownership-bearing values use borrowed named-value parameters. `Option<T>` is
-an ordinary enum and is copied when its payload is copied. Recursively copied arrays support direct
-arguments/results and buffer elements.
+an ordinary enum and is copied when its payload is copied. Recursively copied
+arrays support direct arguments, results, and buffer elements. Every fixed
+array reachable through a live value wire must have positive length. Zero-length
+arrays remain available for local values and stored NCB sequences.
 
 Conversions share cumulative byte, value-count and depth budgets. Defaults are
 8 MiB, one million values, and 64 levels. Foreign callers must still provide
@@ -687,12 +689,16 @@ per-variant receiver setters or named-output relays. Application-private message
 callbacks, and queues stay inside the consuming binary. Message wire validation
 is shared by ordinary borrowed-message methods and typed stream delivery.
 
-Optional values use the ordinary bundled `Option<T>` enum. Copied payloads allow
-copied arguments/results; owned payloads require borrowing the complete enum.
-An optional object input is `&Option<ComPtr<Interface>>`, not `Option<&Interface>`.
-The former has an ordinary enum tag and retains a capability only when decoded;
-there is no IDL-specific nullable pointer lowering. See [generic values and
-collection ownership](IDL_GENERIC_VALUES.md) for the complete contract.
+In ordinary tagged value positions, the bundled `Option<T>` follows enum rules.
+Copied payloads allow copied arguments/results, and owned payloads require
+borrowing the complete enum. Root interface results follow their declared owner
+or scoped loan transfer contract.
+A method can borrow an entire tagged value with `&Option<ComPtr<I>>`.
+Decoding it into an owned value retains a present capability. At a method root,
+the bundled `Option<&I>` instead describes an optional interface input or a
+scoped result. To specialize such a slot, declare `Option<T>` at its root and
+supply `&I` as the argument. See [interface loans](#interface-loans-and-return-projections)
+and [generic value ownership](IDL_GENERIC_VALUES.md#copied-and-owned-optional-values).
 Regenerate contracts and rebuild consumers after signature changes; contract
 crates remain ordinary Rust dependencies without shared-library artifacts.
 

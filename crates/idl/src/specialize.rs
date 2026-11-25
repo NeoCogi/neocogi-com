@@ -182,26 +182,56 @@ impl Expansion {
         Ok(())
     }
 
-    /// Moves the admitted standard Option payload without cloning any subtree.
-    /// A similarly named application owned by a different module stays ordinary.
-    fn strip_standard_option(&self, ty: &mut IdlType, accepts: impl FnOnce(&IdlType) -> bool) -> bool {
-        let IdlType::Named(named) = ty else {
-            return false;
-        };
+    /// Reads the payload of the bundled Option application chosen by binding.
+    fn standard_option_payload<'a>(&self, named: &'a NamedType) -> Option<&'a IdlType> {
         let Binding::Application { template, .. } = &named.binding else {
-            return false;
+            return None;
         };
         if !crate::standard::is_optional_declaration(&self.originals[template.module].name, &template.name) {
-            return false;
+            return None;
         }
         let [payload] = named.arguments.as_slice() else {
             unreachable!("binding checked standard Option arity");
         };
-        if !accepts(payload) {
+        Some(payload)
+    }
+
+    /// Moves the admitted standard Option payload without cloning any subtree.
+    fn strip_standard_option(&self, ty: &mut IdlType, accepts: impl FnOnce(&IdlType) -> bool) -> bool {
+        let IdlType::Named(named) = ty else {
+            return false;
+        };
+        if !self.standard_option_payload(named).is_some_and(accepts) {
             return false;
         }
         *ty = named.arguments.pop().expect("a verified standard Option payload");
         true
+    }
+
+    /// Identifies the interface contract selected for a borrowed target.
+    fn is_interface_target(&self, name: &NamedType) -> Result<bool, ResolutionError> {
+        Ok(!name.is_str() && (crate::resolve::builtin_object(name).is_some() || matches!(self.declaration(name)?.1.kind, DeclarationKind::Interface(_))))
+    }
+
+    /// Explains the method slot spelling before an argument application becomes a stored enum.
+    fn reject_optional_loan_argument(&self, name: &NamedType) -> Result<(), ResolutionError> {
+        let Some(IdlType::Borrowed(target)) = self.standard_option_payload(name) else {
+            return Ok(());
+        };
+        let IdlType::Named(target) = target.as_ref() else {
+            return Ok(());
+        };
+        if !self.is_interface_target(target)? {
+            return Ok(());
+        }
+        Err(ResolutionError {
+            diagnostics: vec![
+                Diagnostic::new("EIDL102", "an optional interface loan cannot be used as a generic value argument")
+                    .primary(&name.span, "optional loan wrapped here")
+                    .note("put the bundled Option<T> at the method input or scoped result root and specialize T with &I")
+                    .note("use Option<ComPtr<I>> when the value needs to store an owned interface reference"),
+            ],
+        })
     }
 
     /// Selects the semantic input once from its already-bound source owner.
@@ -213,7 +243,7 @@ impl Expansion {
             IdlType::Borrowed(target) => match target.as_ref() {
                 IdlType::Named(name) if name.is_str() => ParameterPassing::BorrowedText,
                 IdlType::Named(name) => {
-                    if crate::resolve::builtin_object(name).is_some() || matches!(self.declaration(name)?.1.kind, DeclarationKind::Interface(_)) {
+                    if self.is_interface_target(name)? {
                         ParameterPassing::SharedLoan { optional: false }
                     } else {
                         ParameterPassing::BorrowedValue
@@ -335,6 +365,7 @@ impl Expansion {
         match ty {
             IdlType::Named(name) => {
                 if matches!(name.binding, Binding::Application { .. }) {
+                    self.reject_optional_loan_argument(name)?;
                     let request = self.budget.copy_named(name, at.child(), span)?;
                     let closed = self.instantiate(target, request, depth + 1, at.child())?;
                     self.budget.key(closed.binding.projection().expect("materialized argument"), span)?;

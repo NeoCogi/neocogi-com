@@ -118,6 +118,74 @@ fn optional_slot_resolution_preserves_shadowing_and_closes_after_substitution() 
     );
 }
 
+/// A retained generic argument cannot carry the bundled optional-loan wrapper.
+#[test]
+fn wrapped_generic_loans_report_the_argument_using_bound_option_identity() {
+    for (import, argument) in [
+        ("", "ComPtr<ILookup<Option<&INcString>>>"),
+        ("use neocogi.lang::Option;", "Phantom<Option<&ILoan>>"),
+        ("", "Phantom<Vec<neocogi::lang::Option<&ILoan>>>"),
+    ] {
+        let source = format!(
+            "{import}\ninterface ILoan {{}}\ninterface ILookup<T> {{ fn get(&self) -> Result<T>; }}
+             struct Phantom<T> {{ n: u32 }}\nstruct Use {{ value: {argument} }}"
+        );
+        let ModuleGraphError::Resolution(error) = resolve(&source).unwrap_err() else {
+            panic!("expected a resolution diagnostic: {source}");
+        };
+        let [diagnostic] = error.diagnostics.as_slice() else {
+            panic!("expected one argument diagnostic: {error}");
+        };
+        assert_eq!(diagnostic.code, "EIDL102", "{error}");
+        assert_eq!(diagnostic.labels[0].span.path(), "proof/loans.ncidl");
+        assert_eq!(diagnostic.labels[0].span.start().line, 5);
+        assert!(error.to_string().contains("specialize T with &I"), "{error}");
+    }
+    for argument in ["Option<&str>", "Option<&mut ILoan>", "Option<ComBox<ILoan>>"] {
+        let source = format!("interface ILoan {{}} struct Phantom<T> {{ n: u32 }} struct Use {{ field: Phantom<{argument}> }}");
+        let error = resolve(&source).unwrap_err().to_string();
+        assert!(!error.contains("EIDL102"), "{error}");
+    }
+    let shadowed = "interface ILoan {} enum Option<T> { Empty, Some(T) }
+        struct Phantom<T> { n: u32 } struct Use { field: Phantom<Option<&ILoan>> }";
+    assert!(!resolve(shadowed).unwrap_err().to_string().contains("EIDL102"));
+}
+
+/// Imported templates still resolve the bundled option after transitive substitution.
+#[test]
+fn transitive_specialization_keeps_optional_loan_slots() {
+    let leaf = parse_module(
+        Path::new("proof/leaf.ncidl"),
+        "use neocogi.lang::Option;
+        interface ILookup<T> {
+            fn read(&self, value: Option<T>) -> Result<Option<T>>;
+        }",
+    )
+    .unwrap();
+    let bridge = parse_module(
+        Path::new("proof/bridge.ncidl"),
+        "extern proof.leaf; use proof.leaf::ILookup; interface IWrapped<T>: ILookup<T> {}",
+    )
+    .unwrap();
+    let consumer = parse_module(
+        Path::new("proof/loans.ncidl"),
+        "extern proof.bridge; use proof.bridge::IWrapped; struct Root { lookup: ComPtr<IWrapped<&INcString>> }",
+    )
+    .unwrap();
+    let graph = resolve_modules(vec![leaf, bridge, consumer]).unwrap();
+    let instance = graph
+        .module("proof.loans")
+        .unwrap()
+        .source
+        .declarations()
+        .iter()
+        .find(|decl| decl.specialization.as_ref().is_some_and(|origin| origin.template.segments == ["ILookup"]))
+        .unwrap();
+    let method = &methods(&graph, &instance.name)[0];
+    assert_eq!(method.parameters[0].passing, ParameterPassing::SharedLoan { optional: true });
+    assert_eq!(method.return_passing, ReturnPassing::ScopedLoan);
+}
+
 /// The admitted subset leaves no escaping borrow or lost consuming owner.
 #[test]
 fn invalid_direct_and_scoped_forms_reject_before_generation() {
@@ -140,13 +208,11 @@ fn invalid_direct_and_scoped_forms_reject_before_generation() {
         "interface IService { fn accept(&self, child: ComBox<INcString>); }",
         "interface IService<T> { fn get(&self, child: T) -> Option<ComPtr<INcString>>; }
          struct Use { value: ComPtr<IService<ComBox<INcString>>> }",
-        "interface IService<T> { fn get(&self) -> Result<T>; }
-         struct Use { value: ComPtr<IService<Option<&INcString>>> }",
         "enum Option<T> { Empty, Some(T) } interface IService { fn get(&self) -> Result<Option<&INcString>>; }",
         "struct Store { value: Option<&INcString> }",
     ] {
         let error = resolve(source).expect_err(source).to_string();
-        assert!(!error.contains("EIDL099"), "{source}: {error}");
+        assert!(!error.contains("EIDL099") && !error.contains("EIDL102"), "{source}: {error}");
     }
 }
 

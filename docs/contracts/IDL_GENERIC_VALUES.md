@@ -17,8 +17,8 @@ all consumers.
 | `Slice<T>` or `[T]` | Unsized sequence referent | Cannot be stored in a record; must be borrowed for a call |
 | `&Slice<T>` or `&[T]` | Readable call-scoped buffer | Elements must support recursively checked copied transport |
 | `&mut Slice<T>` or `&mut [T]` | Fresh output-only call-scoped storage | Checked wire encoding writes directly; the caller validates only the reported prefix. Old values are not input. |
-| `Array<T, N>` or `[T; N]` | Inline fixed-length collection | Copied arguments/results/fields/buffers when `T` is recursively copied |
-| `Option<T>` | An ordinary enum from `neocogi.lang` | Follows exactly the same rules as any other generic enum |
+| `Array<T, N>` or `[T; N]` | Inline fixed-length collection | Copied fields when `T` is recursively copied. Live copied slots and buffers also require positive lengths throughout the reachable value. |
+| `Option<T>` | An ordinary enum from `neocogi.lang` | Ordinary value positions follow the generic enum rules. Method-root interface loans and optional shared-owner results use the optional call-slot contract. |
 
 `N` is a nonnegative integer literal fitting u32. This does not introduce user
 const parameters or arbitrary const expressions. `Array<T, N>` and `[T; N]`
@@ -99,12 +99,18 @@ other methods borrow the complete enum through `NcValueRef` for the synchronous
 call. `to_owned()` validates the selected payload and acquires its independent
 storage/reference before the producer's guard expires.
 
-`Option<&I>` is rejected because ordinary value fields cannot store a borrowed
-capability. Write `&Option<ComPtr<I>>`: the outer `&` is the call borrow, and
-`ComPtr<I>` states what an acquired payload owns. Absence is the `None` tag, not
-a nullable interface argument. A malformed tag is rejected before reading a
-payload; `Some` requires a valid present COM capability. `Rc<RefCell<...>>` and
-`Arc<RwLock<...>>` are not part of this boundary.
+A stored option holds an owned value such as `Option<ComPtr<I>>`. In
+`&Option<ComPtr<I>>`, the outer borrow lends the complete tagged enum for the
+call. `None` is the enum's absence tag. A malformed tag is rejected before
+reading a payload, and `Some` requires a valid present capability.
+
+At a method root, the bundled `Option<&I>` describes an optional shared
+interface input or a scoped result. For example, declare a method parameter as
+`Option<T>` or a result as `Result<Option<T>>`, then specialize `T` with `&I`.
+Passing the whole `Option<&I>` as a generic value argument takes the ordinary
+enum path, which requires an owned payload even in phantom arguments. The
+[interface loan contract](IDL_MODULES.md#interface-loans-and-return-projections)
+defines how the provider lends the value.
 
 Generated concrete names retain the deterministic specialization suffix.
 Copied and owned payload enums both use their native generated Rust type.
