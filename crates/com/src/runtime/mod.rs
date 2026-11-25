@@ -6,6 +6,7 @@
 //! into caller-owned values, while service owners retain their creation table.
 
 use std::fmt;
+use std::io::Write;
 use std::path::Path;
 use std::vec::Vec;
 
@@ -213,7 +214,7 @@ impl RuntimeHandle {
 
 /// Reports an unrecoverable plugin-loading failure and aborts the process.
 fn fatal_plugin_load(detail: impl fmt::Display) -> ! {
-    eprintln!("fatal neocogi-com-sdk plugin load failure: {detail}");
+    let _ = writeln!(std::io::stderr().lock(), "fatal neocogi-com-sdk plugin load failure: {detail}");
     std::process::abort()
 }
 

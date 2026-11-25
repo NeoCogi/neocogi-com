@@ -164,6 +164,14 @@ fn floor_semantics(runner: &Runner) -> Result<()> {
             vec!["shared_provider_minimum_is_independent_of_class_mode"],
         ),
     ];
+    // This SDK-local regression needs unwinding enabled to distinguish a caught
+    // print panic from the required abort. The floor uses ordinary stable std.
+    #[cfg(target_os = "linux")]
+    rows.push((
+        "neocogi-com-tests",
+        "plugin_load_failure",
+        vec!["mandatory_plugin_load_failures_abort_when_stderr_refuses_output"],
+    ));
     for (name, sentinel) in ABI_TESTS
         .iter()
         .filter(|(name, _)| matches!(*name, "checked_values" | "array_construction" | "output_buffers" | "output_completion"))

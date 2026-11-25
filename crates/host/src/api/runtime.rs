@@ -14,6 +14,7 @@ use neocogi_com::{
 use crate::factory_acquisition;
 use crate::loader::PluginLoadErrorKind;
 use crate::state::RuntimeState;
+use std::io::Write;
 
 use super::{emit_error, path_from_utf8};
 
@@ -53,8 +54,11 @@ pub(super) unsafe extern "C" fn load_plugin_library_utf8(path: *const u8, path_l
         }
         Err(error) => {
             let status = error.status().unwrap_or_else(|| load_error_status(error.kind()));
-            eprintln!("fatal neocogi-com-sdk plugin load failure: {error}");
-            emit_error(NC_DEBUG_TYPE_PLUGIN, status, &error.to_string());
+            let detail = error.to_string();
+            emit_error(NC_DEBUG_TYPE_PLUGIN, status, &detail);
+            // The callback may use stderr itself. Lock only after delivery and
+            // preserve mandatory abort even when the console refuses the write.
+            let _ = writeln!(std::io::stderr().lock(), "fatal neocogi-com-sdk plugin load failure: {detail}");
             // Required plugin loading is fail-fatal. An opened library has
             // already been pinned by the loader, so aborting here cannot race
             // an unload of code reached by loader hooks or the entrypoint.

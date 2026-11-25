@@ -1110,6 +1110,12 @@ opened, the mapping is pinned even if validation or the visitor later fails.
 | Registered metadata | `None` for missing Rust lookup; raw `NC_E_NOT_FOUND`; copy/allocation errors remain statuses. |
 | Unregistered inspection | Recoverable loader/validation/visitor status. Callback status is returned unchanged by C; Rust visitor errors are normalized. |
 
+A required native loading failure delivers its typed plugin error event
+synchronously before attempting the console diagnostic. Console writes are best
+effort and the process explicitly aborts even if stderr refuses output. The SDK
+applies the same console and abort policy to local path conversion and failed
+raw argument statuses. The host takes its stderr lock after the debug callback.
+
 ## Verification boundaries
 
 The regression suites check complete lookup/enumeration agreement, dependency
