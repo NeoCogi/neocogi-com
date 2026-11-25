@@ -1,6 +1,6 @@
 //! Deterministic Rust binding generation from a resolved IDL graph.
 
-use std::fmt;
+use std::{fmt, io};
 
 use crate::{
     IdlType, Declaration, DeclarationKind, EnumNames, EnumRepr, Method, NamedType, Receiver, ResolvedDeclaration, ResolvedModule, ResolvedModules, Threading,
@@ -22,28 +22,80 @@ pub use paths::RustModulePaths;
 pub(crate) use paths::RustPath;
 use selection::named_rust_type;
 
-/// Failure to select a module or lower one validated IDL construct to Rust.
-#[derive(Clone, Debug, Eq, PartialEq)]
+/// Failure to start generation or emit Rust bindings for a resolved module.
+#[derive(Debug)]
 pub struct GenerateError {
+    /// Diagnostic or original worker-start error.
+    kind: GenerateErrorKind,
+}
+
+/// Separates a compiler diagnostic from failure to start the syntax worker.
+#[derive(Debug)]
+enum GenerateErrorKind {
     /// Concrete unsupported or internally inconsistent generation condition.
-    message: String,
+    Message(String),
+    /// Operating-system refusal to start this generation phase's worker.
+    Worker {
+        /// Generation phase that requested the worker.
+        phase: GeneratePhase,
+        /// Original startup error returned by the thread builder.
+        source: io::Error,
+    },
+}
+
+/// Independent entry points that lower and format generated Rust on a worker.
+#[derive(Debug)]
+enum GeneratePhase {
+    /// Ordinary bindings, with or without a returned source map.
+    Bindings,
+    /// Built-in interface and provider halves.
+    Bootstrap,
+    /// Serialization adapters with caller-owned session storage.
+    ScopedSerialization,
 }
 
 impl GenerateError {
     /// Creates one generator diagnostic without exposing mutable error state.
     fn new(message: impl Into<String>) -> Self {
-        Self { message: message.into() }
+        Self {
+            kind: GenerateErrorKind::Message(message.into()),
+        }
     }
 }
 
 impl fmt::Display for GenerateError {
     /// Writes the generator's actionable diagnostic.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(&self.message)
+        match &self.kind {
+            GenerateErrorKind::Message(message) => formatter.write_str(message),
+            GenerateErrorKind::Worker { phase, source } => {
+                let worker = match phase {
+                    GeneratePhase::Bindings => "generated-Rust syntax",
+                    GeneratePhase::Bootstrap => "bootstrap syntax",
+                    GeneratePhase::ScopedSerialization => "scoped serialization",
+                };
+                write!(formatter, "cannot start {worker} worker: {source}")
+            }
+        }
     }
 }
 
-impl std::error::Error for GenerateError {}
+impl std::error::Error for GenerateError {
+    /// Exposes the original operating-system error for a failed startup.
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match &self.kind {
+            GenerateErrorKind::Message(_) => None,
+            GenerateErrorKind::Worker { source, .. } => Some(source),
+        }
+    }
+}
+
+/// Adapts startup errors before returning the worker's own compiler result.
+fn with_generation_worker<T: Send>(phase: GeneratePhase, generate: impl FnOnce() -> Result<T, GenerateError> + Send) -> Result<T, GenerateError> {
+    crate::syntax::with_syntax_stack(generate).map_err(|source| GenerateError {
+        kind: GenerateErrorKind::Worker { phase, source },
+    })?
+}
 
 /// Generates complete Rust bindings for one module in a resolved graph.
 ///
@@ -83,8 +135,9 @@ pub fn generate_rust_with_paths_and_source_map(
             return Err(GenerateError::new(format!("Rust location names unknown IDL module {name:?}")));
         }
     }
-    crate::syntax::with_syntax_stack(|| generate_module(&mut Generation::new(graph, paths, crate::codegen::sdk_crate_path(None)), module_name))
-        .map_err(|error| GenerateError::new(format!("cannot start generated-Rust syntax worker: {error}")))?
+    with_generation_worker(GeneratePhase::Bindings, || {
+        generate_module(&mut Generation::new(graph, paths, crate::codegen::sdk_crate_path(None)), module_name)
+    })
 }
 
 /// One module emission over an immutable semantic graph and Rust locations.
@@ -128,8 +181,7 @@ pub struct BootstrapBindings {
 /// and open templates are outside this allocation-free core bootstrap contract.
 /// Each built-in half resolves generated support through its including crate.
 pub fn generate_bootstrap(graph: &ResolvedModules, module_name: &str) -> Result<BootstrapBindings, GenerateError> {
-    crate::syntax::with_syntax_stack(|| generate_bootstrap_inner(graph, module_name))
-        .map_err(|error| GenerateError::new(format!("cannot start generated-Rust syntax worker: {error}")))?
+    with_generation_worker(GeneratePhase::Bootstrap, || generate_bootstrap_inner(graph, module_name))
 }
 
 /// Keeps bootstrap lowering, formatting and syntax destruction on one worker.
@@ -155,7 +207,7 @@ fn generate_bootstrap_inner(graph: &ResolvedModules, module_name: &str) -> Resul
 /// They share the owned provider's exact ABI and wire validation, while borrowing
 /// stack-owned NCB buffers without allocating or allowing retained capabilities.
 pub fn generate_scoped_serialization_adapters(graph: &ResolvedModules, module_name: &str) -> Result<String, GenerateError> {
-    crate::syntax::with_syntax_stack(|| {
+    with_generation_worker(GeneratePhase::ScopedSerialization, || {
         let paths = RustModulePaths::default();
         let mut generation = Generation::new(graph, &paths, syn::parse_quote!(crate));
         let module = graph.module(module_name).ok_or_else(|| GenerateError::new("serialization module is absent"))?;
@@ -170,7 +222,6 @@ pub fn generate_scoped_serialization_adapters(graph: &ResolvedModules, module_na
         }
         Ok(output)
     })
-    .map_err(|error| GenerateError::new(format!("cannot start scoped serialization worker: {error}")))?
 }
 
 /// Emits one module after validating backend mappings against its semantic graph.

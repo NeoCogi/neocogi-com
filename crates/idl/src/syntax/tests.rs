@@ -40,7 +40,7 @@ fn worker_panic_keeps_its_original_message() {
     with_syntax_stack::<()>(|| panic!("original syntax panic")).unwrap();
 }
 
-/// File, multipart, normal and bootstrap entries classify their own startup failures.
+/// Parser and generator entries retain the original cause and identify their phase.
 #[test]
 fn parser_and_generator_failures_keep_their_phase() {
     let source = "interface Plain {}";
@@ -63,15 +63,26 @@ fn parser_and_generator_failures_keep_their_phase() {
         assert!(error.source().unwrap().to_string().contains("test denied syntax worker start"));
         assert!(matches!(error, ParseError::Worker(_)));
     }
-    for bootstrap in [false, true] {
+    /// A denied worker returns the original I/O error with the generator phase.
+    fn assert_worker_failure<T>(phase: &str, generate: impl FnOnce() -> Result<T, crate::GenerateError>) {
         let _denial = failure::after(0);
-        let error = if bootstrap {
-            crate::generate::generate_bootstrap(&graph, "proof.phases").err().unwrap()
-        } else {
-            crate::generate_rust(&graph, "proof.phases").unwrap_err()
-        };
-        assert!(error.to_string().contains("cannot start generated-Rust syntax worker"));
+        let error = generate().err().expect("worker startup was denied");
+        assert!(error.to_string().contains(phase), "{error}");
+        let source = error.source().unwrap().downcast_ref::<io::Error>().unwrap();
+        assert_eq!(source.kind(), io::ErrorKind::WouldBlock);
+        assert!(source.to_string().contains("test denied syntax worker start"));
     }
+    use crate::generate;
+    assert_worker_failure("generated-Rust syntax", || generate::generate_rust(&graph, "proof.phases"));
+    assert_worker_failure("generated-Rust syntax", || generate::generate_rust_with_source_map(&graph, "proof.phases"));
+    assert_worker_failure("bootstrap syntax", || generate::generate_bootstrap(&graph, "proof.phases"));
+    assert_worker_failure("scoped serialization", || {
+        generate::generate_scoped_serialization_adapters(&graph, "proof.phases")
+    });
+
+    let error = generate::generate_rust(&graph, "proof.absent").unwrap_err();
+    assert!(error.to_string().contains("no module"));
+    assert!(error.source().is_none());
 }
 
 /// Invalid path/part admission precedes syntax work and cannot consume its denial.

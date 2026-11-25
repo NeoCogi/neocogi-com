@@ -37,7 +37,7 @@ pub(super) fn generate_module_emission(
         .module(module_name)
         .ok_or_else(|| BuildError::Idl(format!("resolved graph lost module {module_name:?}")))?;
     let mut bindings = generate_rust_with_paths_and_source_map(resolved, module_name, paths)
-        .map_err(|source| BuildError::Idl(format!("cannot generate module {module_name:?}: {source}")))?;
+        .map_err(|source| BuildError::Generation { module: module_name.to_owned(), source })?;
     let generated_file = format!("{stem}.rs");
     let bindings_path = output_dir.join(&generated_file);
     // Cargo owns physical naming, while the pure generator supplies only its

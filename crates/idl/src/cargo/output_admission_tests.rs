@@ -1,6 +1,6 @@
 //! Isolated children exercise the public builders without mutating parent Cargo inputs.
 
-use std::{fs, path::Path, process::Command};
+use std::{error::Error, fs, io, path::Path, process::Command};
 use super::{
     BuildError, Module, SharedSources, contract_links_name,
     test_support::{seed_unrelated, snapshot},
@@ -128,7 +128,7 @@ fn child(test: &str, case: &str, builder: Builder, seeded: bool, reverse: bool, 
     if case != "path" {
         // A successful seed may advertise metadata; only the rejected invocation
         // is denied success. The marker also proves that invocation actually ran.
-        let rejected = if matches!(case, "budget" | "syntax" | "height") {
+        let rejected = if matches!(case, "budget" | "syntax" | "height" | "worker-first" | "worker-later") {
             stdout.split_once(&format!("begin {case} rejection")).expect("rejection marker").1
         } else {
             &stdout
@@ -153,14 +153,17 @@ fn complete_path_rejection_preserves_the_entire_output_tree() {
         let before = snapshot(&output);
         builder.sources(&root, "u32");
         let error = builder.build(&"z".repeat(1020), reverse).unwrap_err();
-        let BuildError::Idl(message) = error else {
+        let BuildError::Generation { module: actual, source } = &error else {
             panic!("wrong rejection phase: {error:?}")
         };
+        assert!(source.source().is_none(), "{error}");
+        let message = error.to_string();
         assert!(message.contains("invalid public Rust path"), "{message}");
         let module = match builder {
             Builder::Shared => "proof.z",
             Builder::File | Builder::Directory => "proof.a",
         };
+        assert_eq!(actual, module);
         assert!(message.contains(&format!("cannot generate module {module:?}")), "{message}");
         let suffix = match builder {
             Builder::Shared => "::LongValue",
@@ -192,46 +195,59 @@ fn complete_path_rejection_preserves_the_entire_output_tree() {
     }
 }
 
-/// Denies the second local generator rather than the earlier bundled-source parser.
+/// Both builders retain the I/O cause and preserve artifacts on generator denial.
 #[test]
-fn later_generation_worker_failure_preserves_the_entire_output_tree() {
-    if std::env::var(CASE).as_deref() == Ok("worker") {
+fn generation_worker_failure_preserves_the_entire_output_tree() {
+    if let Ok(case @ ("worker-first" | "worker-later")) = std::env::var(CASE).as_deref() {
+        let builder = Builder::child();
         let root = std::path::PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").unwrap());
         let output = std::path::PathBuf::from(std::env::var_os("OUT_DIR").unwrap());
-        Builder::Shared.sources(&root, "u64");
-        // SharedSources never emits packaged ownership metadata, including on
-        // this successful seed before the later rejected public invocation.
+        builder.sources(&root, "u64");
         if std::env::var("NEOCOGI_IDL_OUTPUT_SEEDED").unwrap() == "yes" {
-            Builder::Shared.build("proof::z", false).unwrap();
+            builder.build("proof::z", false).unwrap();
             seed_unrelated(&output);
         }
         let before = snapshot(&output);
-        Builder::Shared.sources(&root, "u32");
-        // Two authored parses, one bundled parse, first generator; deny the next.
-        let denial = failure::after(4);
-        let error = Builder::Shared.build("proof::z", false).unwrap_err();
+        builder.sources(&root, "u32");
+        println!("begin {case} rejection");
+        // Allow authored and bundled parsing, plus one generator for the later case.
+        let (allowed, expected) = match (builder, case) {
+            (Builder::Shared, "worker-later") => (4, "proof.z"),
+            (Builder::Shared, _) => (3, "proof.a"),
+            _ => (2, "proof.a"),
+        };
+        let denial = failure::after(allowed);
+        let error = builder.build("proof::z", false).unwrap_err();
         drop(denial);
-        let BuildError::Idl(message) = error else {
+        let BuildError::Generation { module, .. } = &error else {
             panic!("denied wrong phase: {error:?}")
         };
-        assert!(message.contains("cannot start generated-Rust syntax worker"), "{message}");
-        // An extra earlier worker must not silently move this regression to
-        // first-module generation while retaining the same generic error text.
-        assert!(message.contains("cannot generate module \"proof.z\""), "{message}");
-        assert!(message.contains("test denied syntax worker start"), "{message}");
+        assert_eq!(module, expected);
+        assert!(error.to_string().contains("cannot start generated-Rust syntax worker"), "{error}");
+        let generator = error.source().unwrap().downcast_ref::<crate::GenerateError>().unwrap();
+        let source = generator.source().unwrap().downcast_ref::<io::Error>().unwrap();
+        assert_eq!(source.kind(), io::ErrorKind::WouldBlock);
+        assert!(source.to_string().contains("test denied syntax worker start"), "{error}");
         assert_eq!(snapshot(&output), before);
         println!("{OBSERVED}");
         return;
     }
     for seeded in [false, true] {
-        child(
-            "cargo::output_admission_tests::later_generation_worker_failure_preserves_the_entire_output_tree",
-            "worker",
-            Builder::Shared,
-            seeded,
-            false,
-            false,
-        );
+        for (builder, case) in [
+            (Builder::File, "worker-first"),
+            (Builder::Directory, "worker-first"),
+            (Builder::Shared, "worker-first"),
+            (Builder::Shared, "worker-later"),
+        ] {
+            child(
+                "cargo::output_admission_tests::generation_worker_failure_preserves_the_entire_output_tree",
+                case,
+                builder,
+                seeded,
+                false,
+                false,
+            );
+        }
     }
 }
 

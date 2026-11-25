@@ -338,7 +338,14 @@ pub enum BuildError {
         /// Typed graph failure, retaining the parser and operating-system cause.
         crate::ModuleGraphError,
     ),
-    /// Source selection, graph loading, or generation rejected the request.
+    /// Rust generation rejected one resolved module.
+    Generation {
+        /// Logical name of the module selected for generation.
+        module: String,
+        /// Original generator error, including any worker-start cause.
+        source: crate::GenerateError,
+    },
+    /// Source selection, graph exchange, or publication preparation rejected the request.
     Idl(
         /// Complete source-level diagnostic.
         String,
@@ -364,6 +371,7 @@ impl fmt::Display for BuildError {
             } => write!(formatter, "{}: {source}", path.display()),
             Self::Parse { source, .. } => source.fmt(formatter),
             Self::Resolve(source) => source.fmt(formatter),
+            Self::Generation { module, source } => write!(formatter, "cannot generate module {module:?}: {source}"),
             Self::Idl(message) => formatter.write_str(message),
         }
     }
@@ -377,6 +385,7 @@ impl std::error::Error for BuildError {
             Self::Json { source, .. } => Some(source),
             Self::Parse { source, .. } => Some(source),
             Self::Resolve(source) => Some(source),
+            Self::Generation { source, .. } => Some(source),
             _ => None,
         }
     }

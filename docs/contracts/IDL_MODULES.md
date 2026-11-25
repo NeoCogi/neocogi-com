@@ -98,9 +98,13 @@ coordinates. Generation owns lowering, formatting, mapping and syntax destructio
 inside one worker per module or bootstrap call. Rust module paths retain validated
 identifier spellings and create token syntax only where needed. Original parser
 spans exist only during syntax admission; syntax trees and process-local spans
-never cross workers. Failure to start an IDL parser
-worker returns `ParseError::Worker`; generated-Rust worker failures return
-`GenerateError`. Neither publishes partial output. The public `resolve_modules`
+never cross workers. Failure to start an IDL parser worker returns
+`ParseError::Worker`. Rust binding, bootstrap, and scoped adapter generation
+report their phase in `GenerateError`. Both error types expose the original
+`std::io::Error` through `Error::source()`. Both Cargo builders wrap a generator
+failure in `BuildError::Generation` with the logical module name and the
+original generator error. These failures precede artifact publication.
+The public `resolve_modules`
 operation first admits the ordinary bundled `neocogi.lang` source. Its
 `ModuleGraphError::BundledSource(ParseError)` retains parser/worker failures,
 including their operating-system cause, rather than asserting that tested
