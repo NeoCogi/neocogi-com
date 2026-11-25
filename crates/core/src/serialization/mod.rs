@@ -301,6 +301,22 @@ pub struct SequenceReader<'a, 's> {
     remaining: usize,
 }
 impl SequenceReader<'_, '_> {
+    /// Collects admitted values fallibly, with at most 4 KiB of eager capacity.
+    /// The callback identifies a local reservation refusal separately from a
+    /// format provider returning the same status while reading an element.
+    #[cfg(feature = "alloc")]
+    pub(crate) fn read_vec<T: ComDeserialize>(&mut self, mut allocation_failed: impl FnMut() -> NcStatus) -> Result<alloc::vec::Vec<T>, NcStatus> {
+        let eager = 4096 / core::mem::size_of::<T>().max(1);
+        let mut values = alloc::vec::Vec::new();
+        values.try_reserve_exact(self.remaining().min(eager)).map_err(|_| allocation_failed())?;
+        while let Some(value) = self.read_next()? {
+            if values.len() == values.capacity() {
+                values.try_reserve(1).map_err(|_| allocation_failed())?;
+            }
+            values.push(value);
+        }
+        Ok(values)
+    }
     /// Acquires the next typed element, or None at a genuine collection end.
     pub fn read_next<T: ComDeserialize>(&mut self) -> Result<Option<T>, NcStatus> {
         self.read_next_with(T::com_deserialize)

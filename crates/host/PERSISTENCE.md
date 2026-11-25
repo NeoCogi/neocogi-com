@@ -123,8 +123,12 @@ Restore charges the root and each declared child count during decoding. Pending
 siblings count toward the object limit as soon as their sequence's binary count
 is admitted. An impossible count or path returns `NC_E_OUT_OF_RANGE` before
 reading the children or reserving their record storage. Child storage grows
-fallibly as child records complete. A refused host reservation returns
-`NC_E_OUT_OF_MEMORY` and discards the source without requesting a diagnostic.
+fallibly as child records complete. Decoded state uses fallible vector growth
+with at most 4 KiB of eager capacity. Refused host storage for decoded state,
+child records, constructed child owners, or the immutable child list returns
+`NC_E_OUT_OF_MEMORY`. A decode-time refusal discards the source without
+requesting a diagnostic. A reconstruction refusal releases the host's partial
+owners. The same context can retry after either failure.
 The selected format owns its input copy and binary limits for the document and
 provider-state bytes.
 The format COM ABI represents container and value-depth ceilings as `u32`.

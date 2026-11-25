@@ -7,7 +7,7 @@
 use core::{ffi::c_void, sync::atomic::AtomicU32};
 use neocogi_com_sdk::{
     ComInterface, ComPtr, ComRaw, IUnknown, IUnknownVTable, NcInterfaceId, NcStatus, __com_add_ref_count, __com_release_ref_count, NC_E_ABI_VERSION,
-    NC_E_NOINTERFACE, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_OK,
+    NC_E_NOINTERFACE, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_OK,
     persistence::{IObjectChildrenAbi, IObjectChildrenVTable},
 };
 
@@ -26,7 +26,14 @@ struct Children {
 pub(super) fn create(values: Vec<ComPtr<IUnknown>>) -> Result<ComPtr<IObjectChildrenAbi>, NcStatus> {
     // Reject a count that the u32 list contract cannot represent before publish.
     u32::try_from(values.len()).map_err(|_| NC_E_OUT_OF_RANGE)?;
-    let object = Box::into_raw(Box::new(Children { references: AtomicU32::new(1), values }));
+    // SAFETY: The nonzero concrete layout is allocated with the global allocator,
+    // matching the Box::from_raw in final Release. Values stay owned on refusal.
+    let object = unsafe { std::alloc::alloc(std::alloc::Layout::new::<Children>()) }.cast::<Children>();
+    if object.is_null() {
+        return Err(NC_E_OUT_OF_MEMORY);
+    }
+    // SAFETY: Fresh aligned storage is initialized once before publication.
+    unsafe { object.write(Children { references: AtomicU32::new(1), values }) };
     // SAFETY: This allocation is exclusively owned and not yet published.
     // Static vtables share this allocation; no interface fields need installation.
     unsafe {

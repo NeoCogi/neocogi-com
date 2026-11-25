@@ -33,6 +33,12 @@ fn retain_exhaustion_aborts_in_real_children_entrypoints() {
 /// Releasing the last list projection releases its child owners exactly once.
 #[test]
 fn final_list_release_drops_descendants_after_all_projections() {
+    // The integration allocator probe mirrors only this allocation's size and
+    // alignment. It never casts a pointer or assumes field offsets.
+    assert_eq!(
+        std::alloc::Layout::new::<Children>(),
+        std::alloc::Layout::new::<(AtomicU32, Vec<ComPtr<IUnknown>>)>()
+    );
     let child = create(Vec::new()).unwrap();
     let parent = create(vec![child.query::<IUnknown>().unwrap()]).unwrap();
     let clone = parent.clone();

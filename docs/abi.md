@@ -1191,8 +1191,10 @@ first failing operation's status, including codec failures.
 
 `restore_object_tree` clears its output and checks the input byte bound before
 codec selection. The object's count and ownership depth limits return
-`NC_E_OUT_OF_RANGE`. Refused child-record storage returns
-`NC_E_OUT_OF_MEMORY`. Restore maps codec failures to `NC_E_INVALID_ARG`.
+`NC_E_OUT_OF_RANGE`. Refused host storage for decoded state, child records,
+constructed child owners, or the immutable child list returns
+`NC_E_OUT_OF_MEMORY`. Restore maps codec failures to `NC_E_INVALID_ARG`,
+including failures originating in the codec's own allocation.
 Recipe validation begins after accepting the complete document and finishes
 before constructing any object. The same live context can retry after a failure.
 

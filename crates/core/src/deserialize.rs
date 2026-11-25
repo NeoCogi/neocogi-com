@@ -81,16 +81,7 @@ impl<T: ComDeserialize, const N: usize> ComDeserialize for [T; N] {
 impl<T: ComDeserialize> ComDeserialize for Vec<T> {
     /// Bounds eager capacity before acquiring elements, then grows with validated values.
     fn com_deserialize(reader: &mut Deserializer<'_>) -> Result<Self, NcStatus> {
-        reader.sequence(|sequence| {
-            // A count is not a size proof for large records. Retain the 4 KiB
-            // eager-capacity ceiling; the cursor already checked element limits.
-            let eager = 4096 / core::mem::size_of::<T>().max(1);
-            let mut values = Vec::with_capacity(sequence.remaining().min(eager));
-            while let Some(value) = sequence.read_next()? {
-                values.push(value);
-            }
-            Ok(values)
-        })
+        reader.sequence(|sequence| sequence.read_vec(|| crate::NC_E_OUT_OF_MEMORY))
     }
 }
 #[cfg(feature = "alloc")]

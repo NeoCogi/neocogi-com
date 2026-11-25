@@ -55,8 +55,8 @@ pub type NcPersistenceWriteBytes = unsafe extern "C" fn(user_data: *mut c_void, 
 /// named-format selection errors propagate. Save returns the first failing
 /// operation's status. Codec failures during restore map to
 /// [`crate::NC_E_INVALID_ARG`]. Restore's own object count and depth
-/// checks return [`crate::NC_E_OUT_OF_RANGE`], and refusal of its child-storage
-/// reservation returns [`crate::NC_E_OUT_OF_MEMORY`]. Neither provider absence nor a
+/// checks return [`crate::NC_E_OUT_OF_RANGE`], and refusal of its decoded-state,
+/// child-record, child-owner, or list storage returns [`crate::NC_E_OUT_OF_MEMORY`]. Neither provider absence nor a
 /// failed selection poisons a context: once the cause is resolved, the caller
 /// may retry with the same live context. This does not authorize replacing a
 /// registered plugin descriptor. NCB-v1 bytes and the table layout do

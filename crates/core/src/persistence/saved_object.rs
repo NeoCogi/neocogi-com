@@ -121,7 +121,7 @@ impl SavedObject {
     ///
     /// Consumes and releases the selected format's source, including on failure.
     /// Codec errors map to invalid argument. Local shape admission reports range,
-    /// and refusal of a local child-storage reservation reports out of memory.
+    /// and refusal of local state or child storage reports out of memory.
     /// The latter discards the source without requesting a provider diagnostic.
     #[doc(hidden)]
     pub fn decode_for_restore(mut source: ComBox<serialization::IDeserializerAbi>, limits: Limits) -> Result<Self, NcStatus> {
@@ -147,7 +147,16 @@ impl SavedObject {
             }
             let type_id = fields.read_next()?.ok_or(NC_E_INVALID_ARG)?;
             let schema_version = fields.read_next()?.ok_or(NC_E_INVALID_ARG)?;
-            let state = fields.read_next()?.ok_or(NC_E_INVALID_ARG)?;
+            let state = fields
+                .read_next_with(|reader| {
+                    reader.sequence(|sequence| {
+                        sequence.read_vec(|| match budget.as_deref_mut() {
+                            Some(budget) => budget.reject(NC_E_OUT_OF_MEMORY),
+                            None => NC_E_OUT_OF_MEMORY,
+                        })
+                    })
+                })?
+                .ok_or(NC_E_INVALID_ARG)?;
             let children = match budget {
                 Some(budget) => fields.read_next_with(|reader| budget.read_children(reader, depth))?,
                 None => fields.read_next()?,

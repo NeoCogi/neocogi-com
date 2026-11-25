@@ -125,18 +125,103 @@ fn restore_preserves_binary_count_rejection() {
     assert_eq!(counts.validated.load(Ordering::Relaxed), 0);
 }
 
-/// Local child reservation refusal returns through the real host table.
+/// Every host-owned restore allocation can fail without publishing a partial root.
 #[test]
-fn restore_reports_host_child_storage_allocation_refusal() {
-    let bytes = binary::to_vec(&record("root", vec![record("leaf", vec![])])).unwrap();
-    let (registry, counts) = registry();
-    let probe = allocation_probe::Probe::matching(std::alloc::Layout::new::<SavedObject>(), Some(1));
-    let outcome = registry.restore_object_tree(&bytes);
-    let report = probe.finish();
-    assert_eq!(outcome.err(), Some(neocogi_com_sdk::NC_E_OUT_OF_MEMORY));
-    assert_eq!(report.attempts, 1);
-    assert_eq!(report.denied, 1);
-    assert_eq!(counts.validated.load(Ordering::Relaxed), 0);
-    assert_eq!(counts.created.load(Ordering::Relaxed), 0);
-    assert!(registry.restore_object_tree(&bytes).is_ok());
+fn restore_allocations_fail_cleanly_and_allow_same_context_retry() {
+    use std::alloc::Layout;
+    use std::sync::atomic::AtomicU32;
+    use neocogi_com_sdk::{ComRaw, NC_E_OUT_OF_MEMORY, NC_OK};
+
+    let runtime = crate::host_runtime();
+    // Measure the actual Vec growth request used for collected child owners.
+    let mut capacity = Vec::<std::mem::MaybeUninit<ComPtr<IUnknown>>>::new();
+    capacity.try_reserve(1).unwrap();
+    let first_capacity = capacity.capacity();
+    capacity.resize_with(first_capacity, std::mem::MaybeUninit::uninit);
+    capacity.try_reserve(1).unwrap();
+    let next_capacity = capacity.capacity();
+    let siblings = first_capacity + 1;
+    assert!(siblings <= 8, "fixture recipe admits up to eight children");
+
+    let small = record(&"s".repeat(733), vec![]);
+    let large = record(&"l".repeat(6001), vec![]);
+    let parent = record("parent", (0..siblings).map(|_| record("leaf", vec![])).collect());
+    // The private owner-local list test verifies this mirror's allocation shape.
+    let list_layout = Layout::new::<(AtomicU32, Vec<ComPtr<IUnknown>>)>();
+    let list_ordinal = {
+        // Codec controls may share the header layout. On this healthy path the
+        // parent's list is the last matching request; counts below verify it.
+        let (registry, counts) = registry();
+        let bytes = binary::to_vec(&parent).unwrap();
+        let probe = allocation_probe::Probe::matching(list_layout, None);
+        let root = registry.restore_object_tree(&bytes);
+        let report = probe.finish();
+        assert_eq!(counts.created.load(Ordering::Relaxed), siblings + 1);
+        drop(root.unwrap());
+        assert_eq!(counts.live.load(Ordering::Relaxed), 0);
+        report.attempts
+    };
+    for (record, layout, ordinal, expected_created, expected_status) in [
+        (&small, Layout::array::<u8>(small.state.len()).unwrap(), 1, 0, NC_E_OUT_OF_MEMORY),
+        (&large, Layout::array::<u8>(4096).unwrap(), 1, 0, NC_E_OUT_OF_MEMORY),
+        (&large, Layout::array::<u8>(8192).unwrap(), 1, 0, NC_E_OUT_OF_MEMORY),
+        (&parent, Layout::new::<SavedObject>(), 1, 0, NC_E_OUT_OF_MEMORY),
+        (
+            &parent,
+            Layout::array::<ComPtr<IUnknown>>(next_capacity).unwrap(),
+            1,
+            siblings,
+            NC_E_OUT_OF_MEMORY,
+        ),
+        (&parent, list_layout, list_ordinal, siblings, NC_E_OUT_OF_MEMORY),
+        // The format's own input copy refusal keeps its codec-error translation.
+        (
+            &small,
+            Layout::array::<u8>(binary::to_vec(&small).unwrap().len()).unwrap(),
+            1,
+            0,
+            NC_E_INVALID_ARG,
+        ),
+    ] {
+        let bytes = binary::to_vec(record).unwrap();
+        let counts = Arc::new(Counts::default());
+        let factory = Factory::from_value(Factory { counts: counts.clone() })
+            .query::<IPersistenceFactoryAbi>()
+            .unwrap();
+        // SAFETY: The linked host owns a process-lived table.
+        let api = unsafe { &*neocogi_com_host::initialize_process().persistence };
+        let mut context = core::ptr::null_mut();
+        // SAFETY: The local context slot accepts the new exclusive context owner.
+        assert_eq!(unsafe { (api.create_context)(&mut context) }, NC_OK);
+        // SAFETY: This exact factory is shared-borrowed for registration.
+        assert_eq!(unsafe { (api.register_factory)(context, KIND, factory.as_raw()) }, NC_OK);
+        let mut out = ComRaw {
+            object: core::ptr::dangling_mut(),
+            vtable: core::ptr::dangling(),
+        };
+        let probe = allocation_probe::Probe::matching(layout, Some(ordinal));
+        // SAFETY: Context, input and exclusive output live for this synchronous call.
+        let status = unsafe { (api.restore_object_tree)(context, bytes.as_ptr(), bytes.len(), Limits::default().into(), &mut out) };
+        let report = probe.finish();
+        assert_eq!(report.denied, 1, "{layout:?}, request {ordinal}");
+        assert_eq!(status, expected_status, "{layout:?}, request {ordinal}");
+        assert!(out.is_null());
+        assert_eq!(counts.created.load(Ordering::Relaxed), expected_created, "{layout:?}, request {ordinal}");
+        assert_eq!(counts.live.load(Ordering::Relaxed), 0);
+        if expected_created == 0 {
+            assert_eq!(counts.validated.load(Ordering::Relaxed), 0);
+        }
+        // SAFETY: Retry uses the same live context after restoring allocation.
+        assert_eq!(
+            unsafe { (api.restore_object_tree)(context, bytes.as_ptr(), bytes.len(), Limits::default().into(), &mut out) },
+            NC_OK
+        );
+        // SAFETY: Successful restoration transfers exactly this root owner.
+        let root = unsafe { ComPtr::from_raw_owned(out) }.unwrap();
+        assert_eq!(save_object_tree(&runtime, &root).unwrap(), bytes);
+        drop(root);
+        assert_eq!(counts.live.load(Ordering::Relaxed), 0);
+        // SAFETY: Return the unique context after all calls have completed.
+        unsafe { (api.destroy_context)(context) };
+    }
 }

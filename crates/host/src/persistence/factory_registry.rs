@@ -1,7 +1,7 @@
 //! Caller-owned recipe registration and two-pass object reconstruction.
 
 use std::collections::BTreeMap;
-use neocogi_com_sdk::{ComPtr, IUnknown, NcCopyFromBufferOffset, NcGuid, NcStatus, NC_E_INVALID_ARG, NC_E_NOT_FOUND, NC_E_OUT_OF_RANGE};
+use neocogi_com_sdk::{ComPtr, IUnknown, NcCopyFromBufferOffset, NcGuid, NcStatus, NC_E_INVALID_ARG, NC_E_NOT_FOUND, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE};
 use neocogi_com_sdk::persistence::{IPersistenceFactoryAbi, Limits, SavedObject};
 
 /// An explicit set of context-bound factories selected by the application.
@@ -56,7 +56,12 @@ impl FactoryRegistry {
     fn construct(&self, record: &SavedObject) -> Result<ComPtr<IUnknown>, NcStatus> {
         // Collection drops already-built siblings on failure. The COM list then
         // owns all descendants until a successful parent adopts its chosen children.
-        let children = record.children.iter().map(|child| self.construct(child)).collect::<Result<Vec<_>, _>>()?;
+        let mut children = Vec::new();
+        for child in &record.children {
+            let child = self.construct(child)?;
+            children.try_reserve(1).map_err(|_| NC_E_OUT_OF_MEMORY)?;
+            children.push(child);
+        }
         let children = super::children::create(children)?;
         self.factories.get(&record.type_id).ok_or(NC_E_NOT_FOUND)?.restore(
             record.schema_version,
