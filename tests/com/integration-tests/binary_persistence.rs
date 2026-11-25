@@ -400,7 +400,10 @@ fn ncb_schema_messages_use_explicit_statuses() {
 /// The convenience API copies diagnostics for the failure actually returned to the caller.
 #[test]
 fn replaced_application_status_does_not_inherit_provider_diagnostics() {
-    use neocogi_com_sdk::{NC_E_INVALID_ARG, NC_E_NOT_FOUND, NcStatus, serialization::{Deserializer, Error, Format}};
+    use neocogi_com_sdk::{
+        NC_E_INVALID_ARG, NC_E_NOT_FOUND, NcStatus,
+        serialization::{Deserializer, Error, Format},
+    };
 
     /// The typed reader reports its own error after seeing the provider reject a bool.
     #[derive(Debug)]

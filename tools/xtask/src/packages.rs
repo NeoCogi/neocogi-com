@@ -480,7 +480,8 @@ mod tests {
                     format!("[package]\nname = 'neocogi-idl'\nversion = '0.5.0-wip-alpha.1'\n[{table}]\n{entry}\nserde = '*'\n"),
                 )?;
                 let graph: serde_json::Value = serde_json::from_str(&runner.read(
-                    "rustup", words(&["run", "stable", "cargo", "metadata", "--offline", "--no-deps", "--format-version", "1"]),
+                    "rustup",
+                    words(&["run", "stable", "cargo", "metadata", "--offline", "--no-deps", "--format-version", "1"]),
                 )?)?;
                 let result = require_exact_sdk_dependencies(graph["packages"].as_array().unwrap(), "0.5.0-wip-alpha.1");
                 if requirement == "=0.5.0-wip-alpha.1" {

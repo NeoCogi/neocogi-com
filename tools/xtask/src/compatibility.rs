@@ -484,7 +484,10 @@ fn ordinary_tests(runner: &Runner, build: Build, target: &Path, native: &str, sa
         let args = manifest_args(&runner.root, "test", "tests/com/integration-tests/fixtures/native-c-abi/Cargo.toml");
         let output = cargo(runner, build, target, &args, native, None, &[])?;
         require_native_c_execution(&output)?;
-        evidence.insert("native_c_abi".into(), json!({"required": NATIVE_C_CASES, "named_success": "passed", "complete": "passed"}));
+        evidence.insert(
+            "native_c_abi".into(),
+            json!({"required": NATIVE_C_CASES, "named_success": "passed", "complete": "passed"}),
+        );
     }
     Ok(evidence.into())
 }

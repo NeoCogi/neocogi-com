@@ -20,10 +20,10 @@ fn save_reservations_fail_cleanly_and_allow_retry() {
     // A frame has one typed owner followed by two u32 counters.
     type Frame = (ComPtr<IPersistableAbi>, u32, u32);
     let mut probe_stack = Vec::<MaybeUninit<Frame>>::new();
-    probe_stack.reserve(1);
+    probe_stack.try_reserve(1).unwrap();
     let initial = probe_stack.capacity();
     probe_stack.resize_with(initial, MaybeUninit::uninit);
-    probe_stack.reserve(1);
+    probe_stack.try_reserve(1).unwrap();
     let later = probe_stack.capacity();
     let mut tree = record(&"x".repeat(111), vec![]);
     for _ in 0..initial {

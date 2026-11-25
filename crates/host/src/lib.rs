@@ -37,12 +37,12 @@ mod api;
 mod debug;
 mod descriptor;
 mod factory_acquisition;
-mod plugin_registry;
 mod factory_registration;
 mod inspection;
 mod loader;
 mod native_library;
 mod persistence;
+mod plugin_registry;
 mod state;
 
 pub use loader::{
