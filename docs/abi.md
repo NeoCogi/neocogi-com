@@ -1,6 +1,6 @@
-# COM ABI v4 (WIP)
+# COM ABI v5 (WIP)
 
-**SDK 0.5.0-wip-alpha.1 uses ABI v4 while the ABI is WORK IN PROGRESS (WIP).**
+**SDK 0.5.0-wip-alpha.1 uses ABI v5 while the ABI is WORK IN PROGRESS (WIP).**
 
 One native ABI version covers the shared layouts, callback signatures and
 ownership contracts. Hosts and plugins require an exact version match.
@@ -11,7 +11,7 @@ Published SDK 0.4.0 uses [ABI v3/core 21](https://github.com/NeoCogi/neocogi-com
 Published SDK 0.3.0 uses [ABI v2/core 19](https://github.com/NeoCogi/neocogi-com/blob/v0.3.0/docs/abi-v2.md).
 The [ABI v1 specification](https://github.com/NeoCogi/neocogi-com/blob/v0.1.0/docs/abi-v1.md)
 is available at its release tag. Current admission rejects the earlier
-ABI v4/core 23 and ABI 24 drafts. No fallback symbols, aliases or adapters admit
+ABI v4/core 23, ABI 24, and marked ABI v4 drafts. No fallback symbols, aliases or adapters admit
 older binaries.
 
 The persistence service borrows shared-owned roots and factories. Construction
@@ -27,7 +27,7 @@ Opening an image may still execute its initializers and descriptor getter.
 
 | Identity or version | Current authority and purpose |
 | --- | --- |
-| Native ABI | NC_COM_ABI_VERSION == 4; checked in the plugin descriptor and host bundle |
+| Native ABI | NC_COM_ABI_VERSION == 5; checked in the plugin descriptor and host bundle |
 | Native getter | `nc_get_plugin_descriptor`; fixed C signature and descriptor header |
 | Interface contract | IID plus exact 32-byte ABI signature; checked for a particular interface |
 | IDL fingerprint encoding | MODULE_ABI_ENCODING_DOMAIN; canonical encoding v15 with directional callable slots |
@@ -237,7 +237,7 @@ The public static constructor makes digest width a compile-time obligation:
 
 ```rust
 use neocogi_com_sdk::{NcAbiDigest, NC_COM_ABI_VERSION};
-assert_eq!(NC_COM_ABI_VERSION, 4);
+assert_eq!(NC_COM_ABI_VERSION, 5);
 static FIRST: [u8; 32] = [7; 32];
 static SECOND: [u8; 32] = [7; 32];
 let a = NcAbiDigest::from_static(&FIRST);
@@ -352,7 +352,7 @@ one private cold non-unwinding failure path preserves fail-stop exhaustion for
 ordinary Rust weak clones. destroy_value/deallocate remain C callbacks because
 final cleanup can execute in the allocating provider's binary.
 
-ABI v4 retains the three-word headers and four-word provider type
+ABI v5 retains the three-word headers and four-word provider type
 information introduced in ABI v3/core 21. Admission rejects older versions
 before interpreting callbacks or object storage.
 
@@ -599,15 +599,15 @@ Built-in data interfaces exercise shared ownership and checked native calls:
 
 ```rust
 use neocogi_com_sdk::{INcBytesAbi, ComBytesExt, ComStringExt, IUnknown, NcString};
-let text = NcString::from_utf8_str("ABI v4");
+let text = NcString::from_utf8_str("ABI v5");
 let another = text.clone();
 let bytes = text.query::<INcBytesAbi>().unwrap();
-assert_eq!(bytes.to_vec().unwrap(), b"ABI v4");
-assert_eq!(another.to_string().unwrap(), "ABI v4");
+assert_eq!(bytes.to_vec().unwrap(), b"ABI v5");
+assert_eq!(another.to_string().unwrap(), "ABI v5");
 let identity = text.query::<IUnknown>().unwrap();
 assert!(identity.as_com_ref().same_object(bytes.as_com_ref()));
 drop(text); // Other strong owners still retain the immutable value.
-assert_eq!(another.to_string().unwrap(), "ABI v4");
+assert_eq!(another.to_string().unwrap(), "ABI v5");
 ```
 
 
@@ -1167,41 +1167,43 @@ record storage. Child-record storage grows as children complete. Saving produces
 an independent host-owned byte vector; its later delivery callback does not
 retain the codec objects. Provider and delivery callbacks run outside catalog locks.
 
-A missing provider returns `NC_E_NOT_FOUND`; root-acquisition and named-format
-selection errors propagate unchanged. Argument admission precedes selection:
-`restore_object_tree` clears its output and checks the input-byte bound first. `save_object_tree`
-validates the sink and exact root pair, charges the root traversal budget,
-then retains the root and traverses its owned children. The caller lends the
-shared root for the entire raw call. After a node reports its child count,
-saving checks the binary element limit and any required next depth, then
-charges every declared child slot, including pending siblings. A count or depth
-that exceeds policy returns `NC_E_OUT_OF_RANGE` before that node's `save_state`
-or child getters. Getter errors encountered earlier propagate unchanged.
-Restore's object shape rejection reports `NC_E_OUT_OF_RANGE`, and refusal of
-host child storage reports `NC_E_OUT_OF_MEMORY`. Codec failures continue to map to
-`NC_E_INVALID_ARG`. A conclusive object limit can precede a malformed unread
-child or a recipe failure. Recipe validation starts after complete document
-admission and finishes before construction. Selection
-failure emits no byte callback and runs no restore recipe callbacks. After
-selection, encoding/decoding errors retain their `NC_E_INVALID_ARG` mapping.
-Supplying a provider later permits retry using the same live context.
+A missing provider returns `NC_E_NOT_FOUND`. Root acquisition and named-format
+selection errors propagate. `save_object_tree` validates the sink and exact shared
+root, charges the root object budget, then retains it and opens the writer.
+All live-object getters run after writer creation. The application supplies a
+stable view of the complete tree through the synchronous call, including
+reentrant calls. The state buffer keeps the same length and contents through
+all chunk copies.
 
-The explicit application dependency introduced in COM `0.3.0` changed deployment
-requirements from `0.2.0`, whose host embedded NCB. That provider-selection change
-retained ABI v2/core generation 19. The shared persistence input contract uses
-ABI v4. Provider selection and NCB-v1 bytes keep their
-existing contracts. An incompatible change to a shared layout, callback or guaranteed calling or
-ownership behavior must advance the native ABI version before old callers can invoke it.
+The saver writes each node via the ordinary serializer as four positional
+values in NCB-v1 order: recipe UUID bytes, schema version, initialization byte
+sequence, and ordered children. It charges all declared child object slots
+before reading their parent's state or fetching children. The format enforces
+document bytes, element count, value count, and wire depth. A sequence with
+nonzero count requires room for its immediate element. The saver returns the
+first failing operation's status, including codec failures.
 
-`save_object_tree` calls `NcPersistenceWriteBytes` exactly once on success with the complete
-borrowed document; failure never calls it. The callback may copy bytes, must not
-unwind, and cannot retain the pointer. Temporary storage is destroyed in the
-runtime, so no Rust allocator ownership crosses the ABI. While saving, the host
-retains the canonical allocations of active ancestors. Repeated siblings are legal.
-Logical interface equality is not allocation identity. Validate the whole recipe
-before constructing objects and release partial restored owners on failure.
-NCB v1, live-call wire validation and application reconstruction remain distinct
-contracts; see [persistence](../crates/host/PERSISTENCE.md).
+`restore_object_tree` clears its output and checks the input byte bound before
+codec selection. The object's count and ownership depth limits return
+`NC_E_OUT_OF_RANGE`. Refused child-record storage returns
+`NC_E_OUT_OF_MEMORY`. Restore maps codec failures to `NC_E_INVALID_ARG`.
+Recipe validation begins after accepting the complete document and finishes
+before constructing any object. The same live context can retry after a failure.
+
+The previous marked ABI v4 saved the full tree before opening the codec. ABI v5
+opens the writer sooner, copies state in bounded chunks, and preserves the
+originating save status. The saved NCB-v1 representation uses the same count and
+value order. An incompatible layout or guaranteed calling or ownership behavior
+requires advancing the native ABI version.
+
+After successful encoding and output copy, `save_object_tree` calls
+`NcPersistenceWriteBytes` once with borrowed complete bytes. The callback may
+copy its input, must not unwind, and cannot retain that pointer. A pre-delivery
+failure makes no call. The sink's own error propagates after the attempt.
+While saving, the host retains the active ancestor allocations. It tests
+identity by allocation address. Repeated siblings can occur independently in
+the encoded tree. See [persistence](../crates/host/PERSISTENCE.md) for format
+limits, asset offsets, and cross-document validation boundaries.
 
 `NcDebugApi` separately owns callback messenger creation/destruction. At most
 64 messengers are live; callbacks execute outside runtime catalog locks. Final
@@ -1354,7 +1356,7 @@ execution. A cancelled run or detached JSON is insufficient evidence.
 The independent sample exercises typed factory construction, inherited interface
 calls, exclusive mutation, domain notifications delivered into the host's concrete queue,
 canonical weak-origin identity, fresh copied output (nested enum/boolean and short
-prefix) through ABI v4, persistence through provider-owned byte buffers,
+prefix) through ABI v5, persistence through provider-owned byte buffers,
 restoration through a host-implemented factory adapter, promotion while live,
 and failed promotion after final object release. All assertions execute in
 release/abort builds. Normal completion crosses calls in both directions; panic

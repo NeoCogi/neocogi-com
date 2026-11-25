@@ -46,9 +46,17 @@ impl Budget {
     fn new(limits: Limits) -> Self {
         Self { limits, remaining: limits.values }
     }
+    /// Checks whether a logical value can occupy the given level.
+    fn check_depth(&self, depth: usize) -> Result<(), NcStatus> {
+        if depth > self.limits.depth || depth > 128 {
+            return Err(NC_E_OUT_OF_RANGE);
+        }
+        Ok(())
+    }
     /// Opens one scalar or container before accepting its representation.
     fn enter(&mut self, depth: usize) -> Result<(), NcStatus> {
-        if depth > self.limits.depth || depth > 128 || self.remaining == 0 {
+        self.check_depth(depth)?;
+        if self.remaining == 0 {
             return Err(NC_E_OUT_OF_RANGE);
         }
         self.remaining -= 1;
@@ -162,7 +170,11 @@ impl Writer {
     }
     /// Opens an ordered collection after admitting its declared cardinality.
     fn ordered(&mut self, kind: Ordered, count: u32) -> Result<(), NcStatus> {
-        self.budget.enter(self.frames.len() + 1)?;
+        let depth = self.frames.len() + 1;
+        self.budget.enter(depth)?;
+        if kind == Ordered::Sequence && count != 0 {
+            self.budget.check_depth(depth + 1)?;
+        }
         let per_entry = if kind == Ordered::Map { 2 } else { 1 };
         self.budget.collection(count as usize, per_entry)?;
         let expected = (count as usize).checked_mul(per_entry).ok_or(NC_E_OUT_OF_RANGE)?;

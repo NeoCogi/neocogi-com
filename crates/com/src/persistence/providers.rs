@@ -315,7 +315,7 @@ const _: () = {
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
         }
-        /// Exports initialization data only: no receivers, runtime pointers or caches.
+        /// Exports initialization data without process-local resources. The returned length and contents stay stable throughout the save.
         /// IDL source: `neocogi/com/persistence/objects.ncidl:16:8` (module `neocogi.com.persistence`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.

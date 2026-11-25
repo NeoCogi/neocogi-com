@@ -280,7 +280,7 @@ impl IObjectChildrenAbi {
         105u8, 180u8, 17u8, 164u8, 206u8, 80u8, 9u8, 125u8,
     ];
 }
-/// Optional capability that supplies the data needed to save an owned object tree.
+/// Supplies data for an owned object tree. The application keeps the complete saved view stable throughout a synchronous save, including during reentry.
 /// IDL source: `neocogi/com/persistence/objects.ncidl:10:11` (module `neocogi.com.persistence`).
 pub trait IPersistable {
     /// Identifies the registered construction recipe, not this object instance.
@@ -291,7 +291,7 @@ pub trait IPersistable {
     fn schema_version(
         &self,
     ) -> ::core::result::Result<::core::primitive::u32, crate::NcStatus>;
-    /// Exports initialization data only: no receivers, runtime pointers or caches.
+    /// Exports initialization data without process-local resources. The returned length and contents stay stable throughout the save.
     /// IDL source: `neocogi/com/persistence/objects.ncidl:16:8` (module `neocogi.com.persistence`).
     fn save_state(
         &self,
@@ -353,7 +353,7 @@ pub struct IPersistableVTable {
         __nc_this: *mut ::core::ffi::c_void,
         __nc_out: *mut <::core::primitive::u32 as crate::ComValue>::AbiRepr,
     ) -> crate::NcStatus,
-    /// Exports initialization data only: no receivers, runtime pointers or caches.
+    /// Exports initialization data without process-local resources. The returned length and contents stay stable throughout the save.
     /// IDL source: `neocogi/com/persistence/objects.ncidl:16:8` (module `neocogi.com.persistence`).
     ///Raw COM ABI vtable slot for [`IPersistable::save_state`].
     ///
@@ -541,7 +541,7 @@ const _: () = {
             })?;
             ::core::result::Result::Ok(__nc_result_1)
         }
-        /// Exports initialization data only: no receivers, runtime pointers or caches.
+        /// Exports initialization data without process-local resources. The returned length and contents stay stable throughout the save.
         /// IDL source: `neocogi/com/persistence/objects.ncidl:16:8` (module `neocogi.com.persistence`).
         ///
         ///Calls [`IPersistable::save_state`] through the generated COM ABI vtable.

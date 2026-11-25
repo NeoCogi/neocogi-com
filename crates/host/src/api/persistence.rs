@@ -73,8 +73,8 @@ unsafe extern "C" fn register_factory(context: *mut NcPersistenceContext, id: Nc
 /// Delivers one completed document through a synchronous caller-owned byte sink.
 ///
 /// # Safety
-/// A present object borrows a shared root owner. The callback and its opaque data
-/// satisfy the declared byte-sink contract and must not unwind across the ABI.
+/// The root and byte sink satisfy the stable-view and lifetime requirements of
+/// [`NcPersistenceApi::save_object_tree`]. The sink must not unwind across the ABI.
 unsafe extern "C" fn save_object_tree(
     object: neocogi_com::ComRaw<IUnknown>,
     limits: NcPersistenceLimits,

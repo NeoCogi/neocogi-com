@@ -277,16 +277,12 @@ pub struct RecordFieldReader<'a, 's> {
 impl RecordFieldReader<'_, '_> {
     /// Requests one named field, returning None only for genuine absence.
     pub fn read_field<T: ComDeserialize>(&mut self, name: &str) -> Result<Option<T>, NcStatus> {
-        self.read_field_with(name, T::com_deserialize)
-    }
-    /// Reads the field under the same value scope while passing local context to its reader.
-    pub(crate) fn read_field_with<T>(&mut self, name: &str, read: impl FnOnce(&mut Deserializer<'_>) -> Result<T, NcStatus>) -> Result<Option<T>, NcStatus> {
         if self.reader.interface.field(text(name))? {
             if self.remaining == 0 {
                 return Err(self.error("unknown record fields"));
             }
             self.remaining -= 1;
-            self.reader.value(read).map(Some)
+            self.reader.read().map(Some)
         } else {
             Ok(None)
         }

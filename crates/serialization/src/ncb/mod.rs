@@ -160,10 +160,19 @@ impl Budget {
 
     /// Charges one value, using the protocol's current open depth.
     fn enter(&mut self, offset: usize, open_depth: usize) -> Result<(), Failure> {
-        if open_depth >= self.limits.depth || self.remaining == 0 {
+        self.check_depth(offset, open_depth)?;
+        if self.remaining == 0 {
             return Err(Failure::range(offset, "value or nesting limit"));
         }
         self.remaining -= 1;
+        Ok(())
+    }
+
+    /// Checks the configured depth before entering another value.
+    fn check_depth(&self, offset: usize, open_depth: usize) -> Result<(), Failure> {
+        if open_depth >= self.limits.depth {
+            return Err(Failure::range(offset, "value or nesting limit"));
+        }
         Ok(())
     }
 

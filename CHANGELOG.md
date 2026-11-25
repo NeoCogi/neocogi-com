@@ -1,11 +1,15 @@
 # Changelog
 
-Development uses provisional **[ABI v4](docs/abi.md#abi-identities-and-versions)**.
+Development uses provisional **[ABI v5](docs/abi.md#abi-identities-and-versions)**.
 Entries below record development; later entries can supersede older implementation details.
 Historical draft numbers do not define additional supported COM baselines.
 
 ## 0.5.0-wip-alpha.1 (development)
 
+- Save live trees through the ordinary serializer with an active-path stack and
+  bounded state copies. Use four positional values for each object and keep
+  the same NCB v1 bytes. ABI v5 opens the writer before object getters and
+  returns the originating save status.
 - Call the object persistence operations `save_object_tree` and
   `restore_object_tree`, and the serializable record `SavedObject`. These
   source names keep the ABI layout and NCB v1 bytes.

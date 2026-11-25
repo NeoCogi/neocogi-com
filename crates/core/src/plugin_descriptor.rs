@@ -336,7 +336,7 @@ mod tests {
             // SAFETY: An unrecognized first word requires no trailing storage.
             assert_eq!(unsafe { validate_plugin_descriptor(ptr::from_ref(&unmarked).cast()) }, NC_E_ABI_VERSION);
         }
-        for header in [[4, 23], [NC_COM_ABI_MAGIC, 3], [NC_COM_ABI_MAGIC, 24]] {
+        for header in [[4, 23], [NC_COM_ABI_MAGIC, 3], [NC_COM_ABI_MAGIC, 4], [NC_COM_ABI_MAGIC, 24]] {
             // SAFETY: Each prefix holds both words. Neither header grants metadata.
             assert_eq!(unsafe { validate_plugin_descriptor(header.as_ptr().cast()) }, NC_E_ABI_VERSION);
         }

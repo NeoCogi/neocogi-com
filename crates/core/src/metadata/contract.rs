@@ -25,7 +25,7 @@ use crate::abi_digest::NcAbiDigest;
 /// Advance this version when a change makes binaries built against the previous
 /// contract incompatible. Both sides check it before accessing complete records.
 /// This development ABI remains provisional until release freeze.
-pub const NC_COM_ABI_VERSION: u32 = 4;
+pub const NC_COM_ABI_VERSION: u32 = 5;
 
 /// Fixed marker before the version in native plugin descriptors and host APIs.
 ///

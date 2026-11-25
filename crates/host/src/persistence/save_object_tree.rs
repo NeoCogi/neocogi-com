@@ -1,176 +1,134 @@
-//! Bounded capture of semantic initialization trees, with owned-path cycle checks.
+//! Writes a live object tree through the SDK serializer.
 
 use neocogi_com::raw;
-use neocogi_com_sdk::{ComBytesExt, ComPtr, ComRaw, IUnknown, NcStatus, NC_E_INVALID_ARG, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE};
 use neocogi_com_sdk::persistence::{IPersistableAbi, Limits, SavedObject};
+use neocogi_com_sdk::serialization::Serializer;
+use neocogi_com_sdk::{ComBytesExt, ComPtr, ComRaw, ComSerialize, INcBytesAbi, IUnknown, NC_E_INVALID_ARG, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NcStatus};
 
-/// Exports a shared opt-in tree, detects ownership cycles, and bounds traversal.
-/// The root consumes one object slot after exact identity validation and
-/// before any retain, query or provider selection.
+/// Writes one complete document using the host's selected NCB writer.
 ///
 /// # Safety
-/// A present raw pair borrows a live shared root owner for this operation. Its
-/// common table must be readable and provide the matching lifecycle operations.
+/// The raw pair satisfies the shared-root and stable-view requirements of
+/// `NcPersistenceApi::save_object_tree`.
 pub(crate) unsafe fn save_object_tree_with_limits(object: ComRaw<IUnknown>, limits: Limits) -> Result<Vec<u8>, NcStatus> {
-    // SAFETY: The raw contract supplies a live shared lender. This checks only
-    // the shape and exact interface before the traversal budget is consumed.
+    // SAFETY: The caller lends the live pair under the raw save contract.
     unsafe { raw::validate_interface(object) }?;
-    let mut capture = ObjectTreeCapture::new(limits);
-    capture.charge_slots(1)?;
-    // SAFETY: The preceding check established exact identity, and the declared
-    // shared owner remains alive while AddRef acquires this root for traversal.
+    let remaining_after_root = limits.objects.checked_sub(1).ok_or(NC_E_OUT_OF_RANGE)?;
+    if limits.depth == 0 {
+        return Err(NC_E_OUT_OF_RANGE);
+    }
+    // SAFETY: The exact root was validated and its shared lender remains live.
     let root = unsafe { ComPtr::clone_from_raw(object) }.ok_or(NC_E_INVALID_ARG)?;
-    let record = capture.admitted_object(&root)?;
-    // Complete capture first so ownership, cycle and traversal-budget failures
-    // preserve their precedence over codec availability and format selection.
     let codec = super::ncb_format(limits.binary)?;
-    codec.format.serialize(&record).map_err(|_| NC_E_INVALID_ARG)
+    codec.format.serialize_status(&ObjectTree {
+        root: &root,
+        remaining_after_root,
+        max_object_depth: limits.depth,
+    })
 }
 
-/// Traversal state for one save, uniquely borrowed while collecting object data.
-struct ObjectTreeCapture {
-    /// Immutable caller policy used for every descendant.
-    limits: Limits,
-    /// Unclaimed slots after counting the root and all admitted child counts.
-    remaining: usize,
-    /// Aggregate provider-state byte budget left before final document encoding.
-    bytes_left: usize,
-    /// Identity along the active path. Each recursive frame borrows a live owner.
-    active: Vec<*mut core::ffi::c_void>,
-    /// Capacity requests made by the real traversal in a bounded test.
-    #[cfg(test)]
-    child_capacity_requests: Vec<usize>,
+/// A stable live view borrowed until the selected writer commits or fails.
+struct ObjectTree<'a> {
+    /// Exact shared root retained for the full write.
+    root: &'a ComPtr<IUnknown>,
+    /// Slots available for children after charging the root.
+    remaining_after_root: usize,
+    /// Maximum number of objects along an ownership path.
+    max_object_depth: usize,
 }
 
-impl ObjectTreeCapture {
-    /// Starts one traversal with the full caller policy and no retained owners.
-    fn new(limits: Limits) -> Self {
-        Self {
-            limits,
-            remaining: limits.objects,
-            bytes_left: limits.binary.bytes,
-            active: Vec::new(),
-            #[cfg(test)]
-            child_capacity_requests: Vec::new(),
-        }
-    }
+/// An open record whose child sequence is being written.
+struct SaveFrame {
+    /// Exact persistence projection retains the same allocation as the child owner.
+    node: ComPtr<IPersistableAbi>,
+    /// Declared children already charged to the object budget.
+    child_count: u32,
+    /// Next child to acquire in provider order.
+    next_child: u32,
+}
 
-    /// Charges entries at the next depth before acquiring them. Pending siblings
-    /// on every active ancestor have already been charged against this budget.
-    fn charge_slots(&mut self, count: usize) -> Result<(), NcStatus> {
-        if count != 0 && self.active.len() >= self.limits.depth {
-            return Err(NC_E_OUT_OF_RANGE);
-        }
-        self.remaining = self.remaining.checked_sub(count).ok_or(NC_E_OUT_OF_RANGE)?;
-        Ok(())
-    }
-
-    /// Captures one already-budgeted object, using the frame's owner to keep its
-    /// address valid across descendants and reject cycles through any projection.
-    fn admitted_object(&mut self, object: &ComPtr<IUnknown>) -> Result<SavedObject, NcStatus> {
-        let identity = object.as_raw().object;
-        if self.active.contains(&identity) {
-            return Err(NC_E_INVALID_ARG);
-        }
-        let value = object.query::<IPersistableAbi>()?;
-        self.active.push(identity);
-        let count = value.child_count()?;
-        if count as usize > self.limits.binary.elements {
-            return Err(NC_E_OUT_OF_RANGE);
-        }
-        self.charge_slots(count as usize)?;
-        let state = value.save_state()?;
-        // The SDK owns length/capacity admission and publishes initialized bytes
-        // only after a complete copy. Empty state needs no foreign copy call.
-        let state = state.to_vec_bounded(self.bytes_left.min(self.limits.binary.elements))?;
-        self.bytes_left -= state.len();
-        let mut children = Vec::new();
-        for index in 0..count {
-            let child = value.child(index)?;
-            let record = self.admitted_object(&child)?;
-            // Grow only for a completed child. Ancestors retain capacity
-            // proportional to their acquired children during descent.
-            if children.len() == children.capacity() {
-                let capacity = children.capacity().saturating_mul(2).max(1).min(count as usize);
-                #[cfg(test)]
-                self.child_capacity_requests.push(capacity);
-                children.try_reserve_exact(capacity - children.len()).map_err(|_| NC_E_OUT_OF_MEMORY)?;
+impl ComSerialize for ObjectTree<'_> {
+    fn com_serialize(&self, writer: &mut Serializer<'_>) -> Result<(), NcStatus> {
+        let mut frames = Vec::new();
+        let mut remaining = self.remaining_after_root;
+        let mut scratch = [0; 4096];
+        let result = (|| {
+            SavedObject::begin_write(writer)?;
+            frames.try_reserve(1).map_err(|_| NC_E_OUT_OF_MEMORY)?;
+            frames.push(self.write_node(writer, &mut scratch, self.root, 1, &mut remaining)?);
+            while let Some(parent) = frames.last() {
+                if parent.next_child == parent.child_count {
+                    SavedObject::end_write(writer)?;
+                    frames.pop();
+                    continue;
+                }
+                // The writer can refuse the child's mandatory prefix before
+                // the object provider gets a callback. Reserve just one frame.
+                SavedObject::begin_write(writer)?;
+                frames.try_reserve(1).map_err(|_| NC_E_OUT_OF_MEMORY)?;
+                let parent = frames.last_mut().expect("the open parent is still active");
+                let child = parent.node.child(parent.next_child)?;
+                parent.next_child += 1;
+                if frames.iter().any(|frame| frame.node.as_com_ref().same_object(child.as_com_ref())) {
+                    return Err(NC_E_INVALID_ARG);
+                }
+                let frame = self.write_node(writer, &mut scratch, &child, frames.len() + 1, &mut remaining)?;
+                frames.push(frame);
             }
-            children.push(record);
-        }
-        let result = SavedObject {
-            type_id: value.type_id()?.to_uuid_bytes(),
-            schema_version: value.schema_version()?,
-            state,
-            children,
-        };
-        // An error discards the traversal. On success, remove the ancestor so a
-        // later sibling can reference the same object without creating a cycle.
-        self.active.pop();
-        Ok(result)
+            Ok(())
+        })();
+        // On failure a child can still depend on one of its active parents.
+        // Release the deepest owner first, including during provider reentry.
+        while frames.pop().is_some() {}
+        result
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use neocogi_com_sdk::{INcBytesAbi, NC_E_NOT_FOUND, NcBytes, NcGuid};
-    use neocogi_com_sdk::persistence::{IPersistable, IPersistableVtblFor};
-
-    /// Ordinary COM provider with an advertised list and a possible getter failure.
-    #[neocogi_com_sdk::com_object(IPersistable)]
-    struct Node {
-        /// Admitted child count, including getters that may return failure.
-        count: u32,
-        /// Children with a successful getter at their authored index.
-        children: Vec<ComPtr<IUnknown>>,
+impl ObjectTree<'_> {
+    /// Fills the admitted prefix and charges all declared children before reading state.
+    fn write_node(
+        &self,
+        writer: &mut Serializer<'_>,
+        scratch: &mut [u8; 4096],
+        object: &ComPtr<IUnknown>,
+        depth: usize,
+        remaining: &mut usize,
+    ) -> Result<SaveFrame, NcStatus> {
+        let node = object.query::<IPersistableAbi>()?;
+        let child_count = node.child_count()?;
+        let count = usize::try_from(child_count).map_err(|_| NC_E_OUT_OF_RANGE)?;
+        if count != 0 && depth >= self.max_object_depth {
+            return Err(NC_E_OUT_OF_RANGE);
+        }
+        *remaining = remaining.checked_sub(count).ok_or(NC_E_OUT_OF_RANGE)?;
+        let type_id = node.type_id()?.to_uuid_bytes();
+        let schema_version = node.schema_version()?;
+        SavedObject::write_fields(
+            writer,
+            &type_id,
+            schema_version,
+            |writer| write_state(writer, &node.save_state()?, scratch),
+            count,
+        )?;
+        Ok(SaveFrame { node, child_count, next_child: 0 })
     }
+}
 
-    impl IPersistable for Node {
-        fn type_id(&self) -> Result<NcGuid, NcStatus> {
-            Ok(neocogi_com_sdk::guid_from_qualified_name("nc.tests.snapshot_capacity"))
+/// Writes one stable byte buffer in bounded chunks through the ordinary sequence API.
+fn write_state(writer: &mut Serializer<'_>, bytes: &ComPtr<INcBytesAbi>, scratch: &mut [u8; 4096]) -> Result<(), NcStatus> {
+    // Reject unrepresentable lengths without the serializer's diagnostic path.
+    let len = u32::try_from(bytes.len()?).map_err(|_| NC_E_OUT_OF_RANGE)?;
+    let len = usize::try_from(len).map_err(|_| NC_E_OUT_OF_RANGE)?;
+    writer.begin_sequence(len)?;
+    let mut offset = 0;
+    while offset < len {
+        let count = (len - offset).min(scratch.len());
+        let chunk = &mut scratch[..count];
+        bytes.copy_to(offset as u64, chunk)?;
+        for &byte in chunk.iter() {
+            writer.serialize_u8(byte)?;
         }
-
-        fn schema_version(&self) -> Result<u32, NcStatus> {
-            Ok(1)
-        }
-
-        fn save_state(&self) -> Result<ComPtr<INcBytesAbi>, NcStatus> {
-            Ok(NcBytes::from_vec(Vec::new()))
-        }
-
-        fn child_count(&self) -> Result<u32, NcStatus> {
-            Ok(self.count)
-        }
-
-        fn child(&self, index: u32) -> Result<ComPtr<IUnknown>, NcStatus> {
-            self.children.get(index as usize).cloned().ok_or(NC_E_NOT_FOUND)
-        }
+        offset += count;
     }
-
-    /// Lends a normal shared owner to the production capture path.
-    fn node(count: u32, children: Vec<ComPtr<IUnknown>>) -> ComPtr<IUnknown> {
-        Node::from_value(Node { count, children })
-    }
-
-    #[test]
-    fn only_completed_snapshot_children_request_slots() {
-        let leaf = node(0, Vec::new());
-        let inner = node(2, vec![leaf.clone()]);
-        let outer = node(3, vec![leaf, inner]);
-        let root = node(4, vec![outer]);
-        let mut capture = ObjectTreeCapture::new(Limits::default());
-        capture.charge_slots(1).unwrap();
-        assert_eq!(capture.admitted_object(&root), Err(NC_E_NOT_FOUND));
-        assert_eq!(capture.child_capacity_requests, [1, 1]);
-
-        let full = node(3, (0..3).map(|_| node(0, Vec::new())).collect());
-        let mut capture = ObjectTreeCapture::new(Limits::default());
-        capture.charge_slots(1).unwrap();
-        assert_eq!(capture.admitted_object(&full).unwrap().children.len(), 3);
-        // The allocator may provide extra capacity. Every request still stays
-        // within the admitted count, and no leaf requests child slots.
-        assert_eq!(capture.child_capacity_requests.first(), Some(&1));
-        assert!(capture.child_capacity_requests.iter().all(|&requested| requested <= 3));
-    }
+    writer.end_sequence()
 }

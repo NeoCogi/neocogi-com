@@ -19,13 +19,13 @@ pub struct NcPersistenceContext {
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub struct NcPersistenceLimits {
-    /// Maximum encoded document bytes and aggregate captured provider state.
+    /// Maximum encoded document bytes, including framing.
     pub bytes: usize,
     /// Maximum binary elements or fields in an individual container.
     pub elements: usize,
     /// Maximum binary value/container nesting.
     pub value_depth: usize,
-    /// Maximum total decoded binary values.
+    /// Maximum total encoded or decoded binary values.
     pub values: usize,
     /// Maximum objects across the complete initialization tree.
     pub objects: usize,
@@ -37,8 +37,8 @@ pub struct NcPersistenceLimits {
 ///
 /// The byte range is borrowed until this callback returns. The callback may copy
 /// it into its own allocator, must not unwind, and returns a failure status if
-/// it cannot accept the document. The runtime calls it exactly once on success
-/// and never retains `user_data`. A failed capture does not call it at all.
+/// it cannot accept the document. The runtime calls it once after successful
+/// encoding and output copy and never retains `user_data`.
 pub type NcPersistenceWriteBytes = unsafe extern "C" fn(user_data: *mut c_void, bytes: *const u8, len: usize) -> NcStatus;
 
 /// Size-prefixed persistence table admitted through the host API description.
@@ -52,8 +52,9 @@ pub type NcPersistenceWriteBytes = unsafe extern "C" fn(user_data: *mut c_void, 
 /// implicitly, and no embedded codec is used as a fallback.
 ///
 /// A missing provider returns [`crate::NC_E_NOT_FOUND`]. Root acquisition and
-/// named-format selection errors propagate. Codec encoding and decoding errors
-/// map to [`crate::NC_E_INVALID_ARG`]. Restore's own object count and depth
+/// named-format selection errors propagate. Save returns the first failing
+/// operation's status. Codec failures during restore map to
+/// [`crate::NC_E_INVALID_ARG`]. Restore's own object count and depth
 /// checks return [`crate::NC_E_OUT_OF_RANGE`], and refusal of its child-storage
 /// reservation returns [`crate::NC_E_OUT_OF_MEMORY`]. Neither provider absence nor a
 /// failed selection poisons a context: once the cause is resolved, the caller
@@ -77,8 +78,11 @@ pub struct NcPersistenceApi {
     pub register_factory: unsafe extern "C" fn(context: *mut NcPersistenceContext, id: NcGuid, factory: crate::ComRaw<IPersistenceFactoryAbi>) -> NcStatus,
     /// Borrows a live shared root and emits one complete document.
     /// The callback and its data must remain valid until this synchronous call ends.
+    /// The caller supplies a stable view of the complete tree throughout the call,
+    /// including through reentry and chunked state-buffer copies.
     /// Root shape, exact identity and budget precede retention and codec
-    /// selection. Provider/selection failure never calls the byte callback.
+    /// selection. The writer opens before any object-data getters. Failures
+    /// before delivery leave the byte callback untouched.
     pub save_object_tree: unsafe extern "C" fn(
         object: crate::ComRaw<IUnknown>,
         limits: NcPersistenceLimits,

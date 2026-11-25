@@ -52,7 +52,7 @@ enum Stage {
     State,
     /// Indexed child acquisition, permitting failure after earlier child completion.
     Child(usize),
-    /// Type identifier after child traversal.
+    /// Type identifier after the child count is admitted.
     Type,
     /// Schema version after type identification.
     Schema,
@@ -60,9 +60,12 @@ enum Stage {
     BytesLen,
     /// Failure while copying the admitted nested provider bytes.
     BytesCopy,
-    /// Foreign length content that cannot fit a Rust byte vector, despite a
-    /// permissive save limits. No copy or allocation may be attempted.
+    /// Foreign length beyond a sequence count even with permissive limits.
     BytesOversize,
+    /// State copy probe for a complete multi-chunk read.
+    ObserveChunks,
+    /// State copy probe that fails during the second chunk.
+    RefuseSecondChunk,
 }
 
 /// External observers use Cells because provider calls update counters through &self.
@@ -140,6 +143,8 @@ impl IPersistable for Node {
             Some(Stage::BytesLen) => failing_bytes(bytes, 0),
             Some(Stage::BytesCopy) => failing_bytes(bytes, 1),
             Some(Stage::BytesOversize) => failing_bytes(bytes, 2),
+            Some(Stage::ObserveChunks) => failing_bytes(bytes, 3),
+            Some(Stage::RefuseSecondChunk) => failing_bytes(bytes, 4),
             _ => bytes,
         })
     }
@@ -160,12 +165,19 @@ impl IPersistable for Node {
 // oversized length content; backing storage and every pointer remain valid.
 // They outlive every returned byte owner on this test thread; no registry or
 // production implementation participates in this test-only dispatch substitution.
+/// Exact raw byte copy slot used by the live NcBytes object.
+type CopyBytes = unsafe extern "C" fn(*mut core::ffi::c_void, u64, u64, *mut u8) -> NcStatus;
+
 thread_local! {
     /// Thread-confined immutable tables; each capture releases byte owners before
     /// thread teardown. OnceCell supplies stable addresses without a Send promise.
-    static BYTE_TABLES: std::cell::OnceCell<[neocogi_com_sdk::INcBytesVTable; 3]> = const { std::cell::OnceCell::new() };
+    static BYTE_TABLES: std::cell::OnceCell<[neocogi_com_sdk::INcBytesVTable; 5]> = const { std::cell::OnceCell::new() };
     /// Synchronous capture stays on this thread; independent tests cannot alter counts.
     static BYTE_ERRORS: Cell<[usize; 2]> = const { Cell::new([0, 0]) };
+    /// Real storage copy reused by the observed alternate views.
+    static ORIGINAL_COPY: Cell<Option<CopyBytes>> = const { Cell::new(None) };
+    /// The three requested ranges of an 8195-byte payload. Zero length is unused.
+    static COPY_RANGES: Cell<[(u64, u64); 3]> = const { Cell::new([(0, 0); 3]) };
 }
 
 /// Length rejection must stop before runtime allocates/copies provider state.
@@ -192,6 +204,42 @@ unsafe extern "C" fn reject_copy(_: *mut core::ffi::c_void, _: u64, _: u64, _: *
     NC_E_NOT_FOUND
 }
 
+/// Records the requested range before delegating to the real byte provider.
+/// # Safety
+/// The pair and output must satisfy the original NcBytes copy slot.
+unsafe extern "C" fn observe_copy(object: *mut core::ffi::c_void, offset: u64, len: u64, out: *mut u8) -> NcStatus {
+    let recorded = COPY_RANGES.with(|ranges| {
+        let mut entries = ranges.get();
+        let Some(slot) = entries.iter_mut().find(|(_, len)| *len == 0) else {
+            return false;
+        };
+        *slot = (offset, len);
+        ranges.set(entries);
+        true
+    });
+    if !recorded {
+        return NC_E_OUT_OF_RANGE;
+    }
+    // SAFETY: The test only changes the table and forwards the original contract.
+    unsafe { ORIGINAL_COPY.with(|copy| copy.get().unwrap()(object, offset, len, out)) }
+}
+
+/// Injects failure after the previous chunk was already delivered to the writer.
+/// # Safety
+/// The pair and output must satisfy the original NcBytes copy slot.
+unsafe extern "C" fn refuse_second_chunk(object: *mut core::ffi::c_void, offset: u64, len: u64, out: *mut u8) -> NcStatus {
+    if offset == 4096 {
+        COPY_RANGES.with(|ranges| {
+            let mut entries = ranges.get();
+            entries[1] = (offset, len);
+            ranges.set(entries);
+        });
+        return NC_E_NOT_FOUND;
+    }
+    // SAFETY: The unchanged request grants the original slot's backing.
+    unsafe { observe_copy(object, offset, len, out) }
+}
+
 /// Reports an unrepresentable foreign length through valid output storage.
 /// The test never grants a read/copy of that fictitious byte range: admission
 /// must reject the length before touching the real provider's byte payload.
@@ -204,7 +252,7 @@ unsafe extern "C" fn oversized_length(_: *mut core::ffi::c_void, out: *mut u64) 
         value.set(counts);
     });
     // SAFETY: The checked COM caller lends a live, writable length output.
-    unsafe { out.write(isize::MAX as u64 + 1) };
+    unsafe { out.write(u64::from(u32::MAX) + 1) };
     neocogi_com_sdk::NC_OK
 }
 
@@ -215,6 +263,7 @@ fn failing_bytes(owner: ComPtr<INcBytesAbi>, stage: usize) -> ComPtr<INcBytesAbi
         let tables = cell.get_or_init(|| {
             // SAFETY: this owned actual byte object protects its immutable static table.
             let original = unsafe { &*raw.vtable };
+            ORIGINAL_COPY.with(|copy| copy.set(Some(original.copy_to)));
             let table = |len, copy_to| neocogi_com_sdk::INcBytesVTable {
                 unknown: IUnknownVTable {
                     interface_id: original.unknown.interface_id,
@@ -231,6 +280,8 @@ fn failing_bytes(owner: ComPtr<INcBytesAbi>, stage: usize) -> ComPtr<INcBytesAbi
                 table(reject_length, original.copy_to),
                 table(original.len, reject_copy),
                 table(oversized_length, reject_copy),
+                table(original.len, observe_copy),
+                table(original.len, refuse_second_chunk),
             ]
         });
         &tables[stage] as *const _
@@ -242,8 +293,8 @@ fn failing_bytes(owner: ComPtr<INcBytesAbi>, stage: usize) -> ComPtr<INcBytesAbi
 
 /// Both real runtime entrypoints use the SDK byte-copy policy. Empty state still
 /// queries length but never calls copy_to; nonempty failures publish no document.
-/// Even permissive limits reject Rust-vector-unrepresentable lengths as range
-/// errors before allocation/copy. Provider owners are released on every outcome.
+/// Even permissive limits reject lengths outside the sequence count's width
+/// before copying. Provider owners are released on every outcome.
 #[test]
 fn snapshot_state_uses_the_sdk_bounded_copy_contract() {
     let defaults = Limits::default();
@@ -278,8 +329,7 @@ fn snapshot_state_uses_the_sdk_bounded_copy_contract() {
             let after = BYTE_ERRORS.with(Cell::get);
             assert_eq!(result.as_ref().err().copied(), expected, "{which:?} {fail:?} state={state_len}");
             assert_eq!([after[0] - before[0], after[1] - before[1]], byte_calls);
-            let completed = usize::from(expected.is_none());
-            assert_eq!(metrics.entries(), [1, 1, 0, completed, completed]);
+            assert_eq!(metrics.entries(), [1, 1, 0, 1, 1]);
             if let Ok(bytes) = result {
                 let record: SavedObject = binary::from_slice(&bytes).unwrap();
                 assert_eq!(record.state, vec![7; state_len]);
@@ -288,6 +338,34 @@ fn snapshot_state_uses_the_sdk_bounded_copy_contract() {
             drop(root);
             drop(local);
             assert_eq!(metrics.drops.get(), 1);
+        }
+    }
+}
+
+/// Chunk boundaries apply equally through the raw service and safe SDK.
+#[test]
+fn save_checks_chunk_offsets_and_discards_partial_writes() {
+    for entry in [Entry::Safe, Entry::Raw] {
+        for stage in [Stage::ObserveChunks, Stage::RefuseSecondChunk] {
+            let root: ComPtr<IUnknown> = Node::from_value(Node {
+                edges: vec![],
+                fail: Some(stage),
+                state_len: 8195,
+                metrics: Rc::new(Metrics::default()),
+                tag: 7,
+                keepalive: vec![],
+            });
+            COPY_RANGES.with(|ranges| ranges.set([(0, 0); 3]));
+            let result = entry.capture(&root, Limits::default());
+            let tail = if stage == Stage::ObserveChunks {
+                let restored = binary::from_slice::<SavedObject>(&result.unwrap()).unwrap();
+                assert_eq!(restored.state, vec![7; 8195]);
+                (8192, 3)
+            } else {
+                assert_eq!(result, Err(NC_E_NOT_FOUND));
+                (0, 0)
+            };
+            assert_eq!(COPY_RANGES.with(Cell::get), [(0, 4096), (4096, 4096), tail]);
         }
     }
 }
@@ -441,7 +519,7 @@ fn run_graph(
         drop(root);
         assert_eq!(result.as_ref().err().copied(), expected, "{name} {which:?}");
         if let Ok(bytes) = &result {
-            let record: SavedObject = binary::from_slice(bytes).unwrap();
+            let record: SavedObject = binary::from_slice_with_limits(bytes, limits.binary).unwrap();
             assert_eq!(record.children.len(), edges[0].len());
             if name == "repeated sibling" {
                 assert_eq!(record.children[0], record.children[1]);
@@ -493,7 +571,7 @@ fn retained_allocation_identity_through_actual_safe_and_raw_runtime() {
         let entries = match depth {
             0 => [0; 5],
             1 => [1, 0, 0, 0, 0],
-            _ => [1, 1, 1, 0, 0],
+            _ => [1, 1, 1, 1, 1],
         };
         run_graph(&format!("same-table self depth={depth}"), &[&[(0, false)]], None, 2, limits, status, &[entries]);
         run_graph(
@@ -513,7 +591,7 @@ fn retained_allocation_identity_through_actual_safe_and_raw_runtime() {
         2,
         defaults,
         Some(NC_E_INVALID_ARG),
-        &[[1, 1, 1, 0, 0]; 2],
+        &[[1, 1, 1, 1, 1]; 2],
     );
     run_graph(
         "strong cycle self",
@@ -522,7 +600,7 @@ fn retained_allocation_identity_through_actual_safe_and_raw_runtime() {
         2,
         defaults,
         Some(NC_E_INVALID_ARG),
-        &[[1, 1, 1, 0, 0]],
+        &[[1, 1, 1, 1, 1]],
     );
     run_graph(
         "strong cycle indirect",
@@ -531,7 +609,7 @@ fn retained_allocation_identity_through_actual_safe_and_raw_runtime() {
         2,
         defaults,
         Some(NC_E_INVALID_ARG),
-        &[[1, 1, 1, 0, 0]; 2],
+        &[[1, 1, 1, 1, 1]; 2],
     );
     run_graph(
         "alternate root canonical child",
@@ -540,14 +618,14 @@ fn retained_allocation_identity_through_actual_safe_and_raw_runtime() {
         2,
         Limits { depth: 2, ..defaults },
         Some(NC_E_INVALID_ARG),
-        &[[1, 1, 1, 0, 0]],
+        &[[1, 1, 1, 1, 1]],
     );
     for objects in [0, 1, 2] {
         let limits = Limits { objects, ..defaults };
         let (status, entries) = match objects {
             0 => (NC_E_OUT_OF_RANGE, [0; 5]),
             1 => (NC_E_OUT_OF_RANGE, [1, 0, 0, 0, 0]),
-            _ => (NC_E_INVALID_ARG, [1, 1, 1, 0, 0]),
+            _ => (NC_E_INVALID_ARG, [1, 1, 1, 1, 1]),
         };
         run_graph(
             &format!("duplicate-table self objects={objects}"),
@@ -561,12 +639,12 @@ fn retained_allocation_identity_through_actual_safe_and_raw_runtime() {
     }
     for (stage, entries) in [
         (Stage::Count, [[1, 0, 0, 0, 0], [0; 5], [0; 5]]),
-        (Stage::State, [[1, 1, 0, 0, 0], [0; 5], [0; 5]]),
-        (Stage::Child(1), [[1, 1, 2, 0, 0], completed_leaf, [0; 5]]),
-        (Stage::Type, [[1, 1, 2, 1, 0], completed_leaf, completed_leaf]),
-        (Stage::Schema, [[1, 1, 2, 1, 1], completed_leaf, completed_leaf]),
-        (Stage::BytesLen, [[1, 1, 0, 0, 0], [0; 5], [0; 5]]),
-        (Stage::BytesCopy, [[1, 1, 0, 0, 0], [0; 5], [0; 5]]),
+        (Stage::State, [[1, 1, 0, 1, 1], [0; 5], [0; 5]]),
+        (Stage::Child(1), [[1, 1, 2, 1, 1], completed_leaf, [0; 5]]),
+        (Stage::Type, [[1, 0, 0, 1, 0], [0; 5], [0; 5]]),
+        (Stage::Schema, [[1, 0, 0, 1, 1], [0; 5], [0; 5]]),
+        (Stage::BytesLen, [[1, 1, 0, 1, 1], [0; 5], [0; 5]]),
+        (Stage::BytesCopy, [[1, 1, 0, 1, 1], [0; 5], [0; 5]]),
     ] {
         run_graph(
             &format!("provider error {stage:?}"),
@@ -585,7 +663,7 @@ fn retained_allocation_identity_through_actual_safe_and_raw_runtime() {
         2,
         defaults,
         Some(NC_E_NOT_FOUND),
-        &[[1, 1, 1, 0, 0], [1, 1, 0, 0, 0]],
+        &[[1, 1, 1, 1, 1], [1, 1, 0, 1, 1]],
     );
     run_graph(
         "object budget before provider error",
@@ -614,17 +692,18 @@ fn retained_allocation_identity_through_actual_safe_and_raw_runtime() {
         Some(NC_E_OUT_OF_RANGE),
         &[[1, 0, 0, 0, 0], [0; 5]],
     );
+    let many_children = [(1, false); 17];
     run_graph(
         "count beyond element budget",
-        &[&[(1, false), (1, true)], &[]],
+        &[&many_children, &[]],
         None,
         2,
         Limits {
-            binary: binary::Limits { elements: 1, ..defaults.binary },
+            binary: binary::Limits { elements: 16, ..defaults.binary },
             ..defaults
         },
         Some(NC_E_OUT_OF_RANGE),
-        &[[1, 0, 0, 0, 0], [0; 5]],
+        &[[1, 1, 0, 1, 1], [0; 5]],
     );
     run_graph(
         "child depth before failing getter",
@@ -642,7 +721,7 @@ fn retained_allocation_identity_through_actual_safe_and_raw_runtime() {
         2,
         Limits { objects: 2, depth: 2, ..defaults },
         Some(NC_E_NOT_FOUND),
-        &[[1, 1, 1, 0, 0], [0; 5]],
+        &[[1, 1, 1, 1, 1], [0; 5]],
     );
     // After the first child advertises its grandchild, the root's pending second
     // child already accounts for the last slot. Neither getter may run.
@@ -654,7 +733,7 @@ fn retained_allocation_identity_through_actual_safe_and_raw_runtime() {
         2,
         Limits { objects: 3, depth: 3, ..defaults },
         Some(NC_E_OUT_OF_RANGE),
-        &[[1, 1, 1, 0, 0], [1, 0, 0, 0, 0], [0; 5], [0; 5]],
+        &[[1, 1, 1, 1, 1], [1, 0, 0, 0, 0], [0; 5], [0; 5]],
     );
     run_graph(
         "grandchild and pending sibling exactly fit",
@@ -675,7 +754,7 @@ fn retained_allocation_identity_through_actual_safe_and_raw_runtime() {
             ..defaults
         },
         Some(NC_E_OUT_OF_RANGE),
-        &[[1, 1, 0, 0, 0]],
+        &[[1, 1, 0, 1, 1]],
     );
     run_graph(
         "final codec budget",
@@ -686,8 +765,8 @@ fn retained_allocation_identity_through_actual_safe_and_raw_runtime() {
             binary: binary::Limits { values: 1, ..defaults.binary },
             ..defaults
         },
-        Some(NC_E_INVALID_ARG),
-        &[completed_leaf],
+        Some(NC_E_OUT_OF_RANGE),
+        &[[0; 5]],
     );
     for which in [Entry::Safe, Entry::Raw] {
         let local = Node::into_local(Node {
@@ -704,5 +783,26 @@ fn retained_allocation_identity_through_actual_safe_and_raw_runtime() {
         drop(mutable);
         assert!(which.capture(&root, defaults).is_ok());
         println!("local borrow {which:?}: BUSY while mutable, success after release");
+    }
+}
+
+/// The writer sees the child's known UUID prefix before the host fetches it.
+#[test]
+fn writer_rejects_an_impossible_child_before_acquisition() {
+    for (fits, value_depth) in [(31, 64), (63, 129)] {
+        let mut limits = Limits { depth: fits + 1, ..Limits::default() };
+        limits.binary.depth = value_depth;
+        for (len, expected_status) in [(fits, None), (fits + 1, Some(NC_E_OUT_OF_RANGE))] {
+            let edges = (0..len)
+                .map(|index| if index + 1 < len { vec![(index + 1, false)] } else { Vec::new() })
+                .collect::<Vec<_>>();
+            let edges = edges.iter().map(Vec::as_slice).collect::<Vec<_>>();
+            let mut entries = vec![[1, 1, 1, 1, 1]; fits];
+            entries[fits - 1][2] = 0;
+            if len > fits {
+                entries.push([0; 5]);
+            }
+            run_graph("writer depth boundary", &edges, None, 0, limits, expected_status, &entries);
+        }
     }
 }

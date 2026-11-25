@@ -3497,7 +3497,7 @@ const _: () = {
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
         }
-        /// Opens an ordered collection with its complete element count.
+        /// Opens a counted sequence. A nonempty sequence requires room for an immediate element in the writer's depth limit.
         /// IDL source: `neocogi/com/serialization/formats.ncidl:40:8` (module `neocogi.com.serialization`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.

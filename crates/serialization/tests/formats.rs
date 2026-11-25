@@ -137,6 +137,74 @@ fn byte_value_container_and_depth_limits_are_enforced() {
         }
     }
 }
+
+/// A counted sequence with children must admit their next level when it opens.
+#[test]
+fn nonempty_sequence_preflights_its_next_depth() {
+    use neocogi_com_sdk::NC_E_OUT_OF_RANGE;
+    let root = neocogi_com_serialization::factory();
+    for (name, _) in formats() {
+        let factory = root.format(NcCopyFromBufferOffset::new(0, name.as_bytes())).unwrap();
+        for depth in [2, 129] {
+            let format = Format::new(factory.clone(), Limits { depth, ..Limits::default() });
+            let ceiling = depth.min(128);
+            for count in [0, 1] {
+                let mut writer = format.serializer().unwrap();
+                let mut view = writer.as_com_mut();
+                for _ in 1..ceiling {
+                    view.begin_sequence(1).unwrap();
+                }
+                if count == 0 {
+                    view.begin_sequence(0).unwrap();
+                    for _ in 0..ceiling {
+                        view.end_sequence().unwrap();
+                    }
+                    view.finish().unwrap();
+                } else {
+                    assert_eq!(view.begin_sequence(1), Err(NC_E_OUT_OF_RANGE), "{name} at {depth}");
+                    assert_eq!(view.finish(), Err(NC_E_OUT_OF_RANGE), "{name} is terminal");
+                }
+            }
+        }
+    }
+}
+
+/// Saved objects use four positional values in both production formats.
+#[test]
+fn saved_object_reads_exact_arity_and_json_uses_positions() {
+    use neocogi_com_sdk::{NC_E_INVALID_ARG, persistence::SavedObject};
+    let value = SavedObject {
+        type_id: [7; 16],
+        schema_version: 2,
+        state: vec![42],
+        children: vec![],
+    };
+    for (name, format) in formats() {
+        let bytes = format.serialize(&value).unwrap();
+        assert_eq!(format.deserialize::<SavedObject>(&bytes).unwrap(), value);
+        for count in [3_u32, 5] {
+            let malformed = if name == "ncb" {
+                let mut prefix = b"NCB\x01".to_vec();
+                prefix.extend(count.to_le_bytes());
+                prefix
+            } else {
+                let slots = vec!["null"; count as usize].join(",");
+                format!("[{slots}]").into_bytes()
+            };
+            let failure = format.deserialize::<SavedObject>(&malformed).unwrap_err();
+            assert_eq!(failure.status, NC_E_INVALID_ARG);
+            assert_eq!(failure.message, "invalid sequence length");
+        }
+        if name == "json" {
+            assert_eq!(bytes, b"[[7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7],2,[42],[]]");
+        } else {
+            let mut expected = b"NCB\x01\x04\0\0\0\x10\0\0\0".to_vec();
+            expected.extend([7; 16]);
+            expected.extend(b"\x02\0\0\0\x01\0\0\0\x2a\0\0\0\0");
+            assert_eq!(bytes, expected);
+        }
+    }
+}
 /// Local typed defaults are applied only to genuinely absent fields.
 #[derive(Debug, Default, PartialEq, ComSerialize, ComDeserialize)]
 #[com_deserialize(default)]

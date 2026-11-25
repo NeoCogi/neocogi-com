@@ -25,19 +25,18 @@ external resources and undo unpublished topology on construction failure; this
 does not publish application objects atomically. Keep construction detached
 until the complete root and its application bindings have been accepted.
 
-`save_object_tree` queries the optional capability, checks owned-path cycles and tree
-limits, and obtains provider state through a bounded COM byte-buffer copy. The
-result is an NCB-v1 document, which the application may embed or save wherever
-its platform permits. Saving observes the provider's current persistent fields.
-It is not an automatic dump of arbitrary private COM implementation memory.
+`save_object_tree` opens the selected NCB writer, then reads the live tree as
+the ordinary serializer writes it. Each object is a sequence of exactly four
+values in order: recipe UUID bytes, schema version, initialization bytes, and
+ordered child objects. The host keeps the active ownership path to detect cycles
+and uses one 4 KiB buffer for state copies. It queries each state length once,
+checks its representability, and opens the state sequence before copying.
+An empty state causes zero copy calls. On success NCB emits the same v1 bytes.
 
-State copying uses the SDK's `ComBytesExt::to_vec_bounded` contract. The
-provider's length is checked before host-local allocation or copying; lengths
-above the selected limit or Rust vector capacity return `NC_E_OUT_OF_RANGE`.
-A successfully reported zero length yields empty state without calling the
-provider's `copy_to` method. Length-query errors still propagate for empty state;
-nonempty copy errors discard private storage and publish no saved document. A copy
-callback is therefore not an empty-state validation hook.
+The application supplies a stable view for the complete synchronous save.
+That includes recipe IDs, versions, state lengths and bytes, and ordered children
+through reentrant callbacks. An immutable view can be saved while the live model
+advances independently.
 
 The wire format and these APIs are experimental. The tests exercise recursive
 real COM objects, exact save and restore round trips, whole-tree preflight, bounded
@@ -74,7 +73,7 @@ Persistence is implemented in `neocogi-com-host` and called through
 `NcPersistenceApi`, supplied in the admitted host API description. Enable the
 facade's `runtime` feature for callers. The application links the host rlib and passes
 its access to registry creation and capture.
-WIP ABI v4 identifies the current table layouts and
+WIP ABI v5 identifies the current table layouts and
 calling/ownership contract; these remain provisional until release freeze.
 The explicit codec requirement adds no table field, callback, interface signature or NCB-v1
 wire change. COM `0.2.0` embedded the codec; applications upgrading must now
@@ -111,17 +110,15 @@ Neither direction exposes Rust container layout or transfers allocator ownership
 same `Limits`. Defaults allow 4,096 objects and at most 48 objects along a
 root-to-leaf path. The nested binary policy defaults to a 16 MiB document,
 65,536 elements/fields per container, 64 levels of value nesting, and 1,000,000
-decoded values. Binary nesting counts the encoded record/sequence structure,
-so it can be exhausted before the object-depth budget. Provider-state bytes
-and children also count toward binary container limits. Saving charges the root
-before retaining it. After a successful `child_count`, capture checks the binary
-element limit, the depth needed by a nonempty child list and the remaining object
-allowance. Each advertised child takes one slot immediately, including pending
-siblings. An impossible count or depth returns `NC_E_OUT_OF_RANGE` before
-calling that node's `save_state` or any child getter. Getter failures encountered
-before discovering an impossible shape keep their original status. Each child
-vector grows fallibly as records complete. Allocation failure during child
-growth returns `NC_E_OUT_OF_MEMORY`.
+logical values. Each format session honors the caller's document limits. A
+format may add stricter limits. The built-in NCB and JSON codecs enforce
+document bytes, total logical values, elements per container, and depth.
+They lack separate per-saved-object quotas, object offset tables, and
+cross-document links. The host charges each declared child slot, including
+pending siblings, before the node's state or child getters. The writer checks
+wire counts and depth as it opens the actual sequences. It may reject a child's
+required prefix before the host acquires that child.
+
 Restore charges the root and each declared child count during decoding. Pending
 siblings count toward the object limit as soon as their sequence's binary count
 is admitted. An impossible count or path returns `NC_E_OUT_OF_RANGE` before
@@ -142,26 +139,41 @@ versions they support and return their own validation errors. No factory
 constructor runs until the full preflight succeeds, although provider `validate`
 calls have already run.
 
-Cycles return `NC_E_INVALID_ARG`; explicit object/state traversal budget checks
-return `NC_E_OUT_OF_RANGE`. Codec failures are mapped to `NC_E_INVALID_ARG`,
-including codec limits, so callers must not assume every limit failure has one
-status. Application bindings and publication remain the caller's responsibility
-after a successful restore.
+Cycles return `NC_E_INVALID_ARG`. Saving checks the root and its object
+budget, retains it, and opens named NCB before reading object data. The first
+failed operation determines the save status, including codec range and allocation
+errors. A pre-delivery failure leaves the sink untouched. A sink that declines a
+complete document returns its own status after that one call.
 
-An unregistered serialization provider returns `NC_E_NOT_FOUND`; root acquisition
-and named-format selection errors propagate unchanged. They never trigger another
-format or an embedded implementation. ABI argument admission precedes selection,
-including restore's input-byte budget and cleared output. Saving completes its
-ownership, capability, cycle and capture-budget checks before selection. Restore
-selects and decodes before any recipe callback. Source creation and codec errors
-map to `NC_E_INVALID_ARG`. An earlier codec failure takes precedence over an
-object limit. An admitted count exceeding the object budget takes precedence over
-unread child bytes and any recipe failure.
+An unregistered serialization provider returns `NC_E_NOT_FOUND`. Root acquisition
+and named-format selection errors propagate. Restore checks the input-byte budget
+and clears its output before selection. It selects and fully decodes before any
+recipe callback. Codec errors during restore map to `NC_E_INVALID_ARG`. An earlier
+codec failure takes precedence over an object limit. An admitted count exceeding
+the object budget takes precedence over unread child bytes and recipe failures.
+
 Provider absence or selection failure does not invalidate a context or remove
 its registered recipes. Register/load a missing provider, or resolve a transient
 selection failure, then retry on the same live context. This does not permit
 replacing an already registered descriptor. Context creation and recipe
 registration never require codec availability.
+
+## Large assets and document relationships
+
+A format session has a single document budget. Applications coordinating several
+documents can cap their combined bytes, objects, values, and link work across
+the operation. A large texture can use an NCB manifest and separate page payloads
+in an asset file. A 16384 × 16384 RGBA8 texture is 1 GiB before mipmaps. Dividing
+it into smaller NCB sequences still charges all the pixel bytes and values to
+the same document.
+
+An asset loader that defines offsets checks the range with checked arithmetic
+and verifies that each offset identifies an admitted page or object boundary
+in its owning document. For cross-document links, resolve against an explicit
+set of admitted document versions and check target identity, type, and
+relationship rules before construction. Bound page payloads and decoded sizes
+independently of the manifest. The COM persistence document embeds its children
+as nested values and supplies a recipe GUID for construction.
 
 ## Rust access
 

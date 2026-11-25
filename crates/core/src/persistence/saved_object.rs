@@ -2,11 +2,12 @@
 
 use alloc::vec::Vec;
 use crate::{serialization, ComBox, ComDeserialize, ComSerialize, NC_E_INVALID_ARG, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NcStatus};
+use serialization::Serializer;
 
 /// Recipe, initialization bytes, and child records needed to rebuild one object.
 ///
 /// Authoring tools can construct this value and serialize it without a runtime.
-/// Serialization preserves the original NCB-v1 field order.
+/// Serializes as four positional values in NCB-v1 order.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SavedObject {
     /// Recipe UUID in canonical byte order, independent of object identity.
@@ -20,8 +21,10 @@ pub struct SavedObject {
 }
 
 impl SavedObject {
-    /// Count shared by the ordered encoder, decoder and virtual leaf measurement.
+    /// Number of positional values in an object record.
     const FIELD_COUNT: usize = 4;
+    /// Number of bytes in the canonical recipe UUID.
+    const RECIPE_ID_LEN: usize = 16;
     /// Creates a virtual leaf value for format-specific measurement before allocating state.
     /// UUID/revision contents have fixed widths, so zero placeholders give the
     /// exact shape for any recipe. State remains a sequence of byte values; it
@@ -31,26 +34,52 @@ impl SavedObject {
         LeafSize { state_bytes }
     }
 
-    /// Encodes the single authoritative field order for owned records and leaf
-    /// measurement. Abstracting only state serialization avoids a second envelope
-    /// schema or hardcoded framing/value overhead in document admission checks.
+    /// Opens the object and recipe UUID sequences before acquiring live data.
+    #[doc(hidden)]
+    pub fn begin_write(writer: &mut Serializer<'_>) -> Result<(), NcStatus> {
+        writer.begin_sequence(Self::FIELD_COUNT)?;
+        writer.begin_sequence(Self::RECIPE_ID_LEN)
+    }
+
+    /// Writes the recipe, version and state, then opens the ordered child list.
+    #[doc(hidden)]
+    pub fn write_fields(
+        writer: &mut Serializer<'_>,
+        type_id: &[u8; Self::RECIPE_ID_LEN],
+        schema_version: u32,
+        write_state: impl FnOnce(&mut Serializer<'_>) -> Result<(), NcStatus>,
+        child_count: usize,
+    ) -> Result<(), NcStatus> {
+        for &byte in type_id {
+            writer.serialize_u8(byte)?;
+        }
+        writer.end_sequence()?;
+        writer.serialize_u32(schema_version)?;
+        write_state(writer)?;
+        writer.begin_sequence(child_count)
+    }
+
+    /// Completes the child list and its enclosing object record.
+    #[doc(hidden)]
+    pub fn end_write(writer: &mut Serializer<'_>) -> Result<(), NcStatus> {
+        writer.end_sequence()?;
+        writer.end_sequence()
+    }
+
+    /// Uses the same writer as the live tree for owned values and measurements.
     fn serialize_fields<T: ComSerialize + ?Sized>(
-        serializer: &mut crate::serialization::Serializer<'_>,
-        type_id: &[u8; 16],
+        writer: &mut Serializer<'_>,
+        type_id: &[u8; Self::RECIPE_ID_LEN],
         schema_version: u32,
         state: &T,
         children: &[Self],
     ) -> Result<(), crate::NcStatus> {
-        serializer.begin_record(Self::FIELD_COUNT)?;
-        serializer.field("type_id")?;
-        type_id.com_serialize(serializer)?;
-        serializer.field("schema_version")?;
-        schema_version.com_serialize(serializer)?;
-        serializer.field("state")?;
-        state.com_serialize(serializer)?;
-        serializer.field("children")?;
-        children.com_serialize(serializer)?;
-        serializer.end_record()
+        Self::begin_write(writer)?;
+        Self::write_fields(writer, type_id, schema_version, |writer| state.com_serialize(writer), children.len())?;
+        for child in children {
+            child.com_serialize(writer)?;
+        }
+        Self::end_write(writer)
     }
 }
 
@@ -107,20 +136,23 @@ impl SavedObject {
             .map_err(|_| budget.rejected.unwrap_or(NC_E_INVALID_ARG))
     }
 
-    /// Supplies the same field order and names to authoring tools and host restore.
+    /// Reads the four positional values for both authoring and host restore.
     fn read_record(reader: &mut serialization::Deserializer<'_>, mut budget: Option<&mut RestoreBudget>, depth: usize) -> Result<Self, NcStatus> {
-        reader.record(Self::FIELD_COUNT, |fields| {
+        reader.sequence(|fields| {
+            if fields.remaining() != Self::FIELD_COUNT {
+                return Err(fields.error("invalid sequence length"));
+            }
             if let (1, Some(budget)) = (depth, budget.as_deref_mut()) {
                 budget.charge(1, 0)?;
             }
-            let type_id = fields.read_field("type_id")?.ok_or_else(|| fields.error("missing field"))?;
-            let schema_version = fields.read_field("schema_version")?.ok_or_else(|| fields.error("missing field"))?;
-            let state = fields.read_field("state")?.ok_or_else(|| fields.error("missing field"))?;
+            let type_id = fields.read_next()?.ok_or(NC_E_INVALID_ARG)?;
+            let schema_version = fields.read_next()?.ok_or(NC_E_INVALID_ARG)?;
+            let state = fields.read_next()?.ok_or(NC_E_INVALID_ARG)?;
             let children = match budget {
-                Some(budget) => fields.read_field_with("children", |reader| budget.read_children(reader, depth))?,
-                None => fields.read_field("children")?,
+                Some(budget) => fields.read_next_with(|reader| budget.read_children(reader, depth))?,
+                None => fields.read_next()?,
             }
-            .ok_or_else(|| fields.error("missing field"))?;
+            .ok_or(NC_E_INVALID_ARG)?;
             Ok(Self { type_id, schema_version, state, children })
         })
     }

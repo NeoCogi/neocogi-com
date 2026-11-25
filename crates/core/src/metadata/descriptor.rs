@@ -266,8 +266,8 @@ mod tests {
     };
 
     #[test]
-    fn native_abi_version_is_v4() {
-        assert_eq!(NC_COM_ABI_VERSION, 4);
+    fn native_abi_version_is_v5() {
+        assert_eq!(NC_COM_ABI_VERSION, 5);
     }
 
     #[test]

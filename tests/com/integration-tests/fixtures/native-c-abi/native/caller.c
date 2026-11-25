@@ -625,6 +625,11 @@ int32_t nc_c_exercise_host_bootstrap(const NcHostApi *host, const NcPluginDescri
         sizeof(NcHostApi), 4, 23
     };
     status = plugin->acquire((const NcHostApi *)&old_host, &out);
+    if (status != incompatible || out.object != NULL || out.vtable != NULL) return 0;
+    const struct { size_t size; uint32_t marker, version; } marked_v4_host = {
+        sizeof(NcHostApi), NC_COM_ABI_MAGIC, 4
+    };
+    status = plugin->acquire((const NcHostApi *)&marked_v4_host, &out);
     return status == incompatible && out.object == NULL && out.vtable == NULL;
 }
 

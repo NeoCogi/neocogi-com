@@ -1,10 +1,16 @@
 //! Isolated processes exercise provider selection through the real host C tables.
 
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use neocogi_com_sdk::{ComBox, ComPtr, ComRef, INcBytesAbi, IUnknown, NcBytes, NcCopyFromBufferOffset, NcGuid, NcStatus};
+use std::{
+    cell::Cell,
+    rc::Rc,
+    sync::atomic::{AtomicBool, AtomicUsize, Ordering},
+};
+use neocogi_com_sdk::{ComBox, ComBytesExt, ComPtr, ComRef, INcBytesAbi, IUnknown, NcBytes, NcCopyFromBufferOffset, NcGuid, NcStatus};
 use neocogi_com_sdk::persistence::*;
 use neocogi_com_sdk::persistence::Limits;
 use neocogi_com_sdk::serialization::*;
+
+mod stream_writer;
 
 /// Explicit semantic recipe, independent of the serialization plugin identity.
 const KIND: NcGuid = neocogi_com_sdk::guid_from_qualified_name("nc.tests.host.codec-delegation");
@@ -109,6 +115,16 @@ impl Drop for Selected {
 impl ISerializationFormat for Selected {
     fn create_serializer(&self, bytes: u64, elements: u32, depth: u32, values: u64) -> Result<ComBox<ISerializerAbi>, NcStatus> {
         retained();
+        let mode = stream_writer::MODE.with(Cell::get);
+        if mode != stream_writer::WriterMode::Production {
+            let binary = neocogi_com_sdk::serialization::Limits {
+                bytes: usize::try_from(bytes).map_err(|_| neocogi_com_sdk::NC_E_OUT_OF_RANGE)?,
+                elements: elements as usize,
+                depth: depth as usize,
+                values: usize::try_from(values).map_err(|_| neocogi_com_sdk::NC_E_OUT_OF_RANGE)?,
+            };
+            return stream_writer::Writer::create(mode, binary);
+        }
         neocogi_com_serialization::ncb::factory().create_serializer(bytes, elements, depth, values)
     }
     fn create_deserializer(
@@ -134,18 +150,32 @@ fn retained() {
     reenter_catalog(crate::initialize_runtime());
 }
 
-/// Fixed semantic leaf used by real capture and reconstruction calls.
+/// Frozen semantic leaf used by real save and reconstruction calls.
 #[neocogi_com_sdk::com_object(IPersistable)]
-struct Value;
+struct Value {
+    /// Frozen recipe version also determines the state payload.
+    revision: u32,
+    /// Optional live model that advances when the saved view is read.
+    live_revision: Option<Rc<Cell<u32>>>,
+}
+impl Value {
+    /// Makes a standalone immutable saved view of the given revision.
+    fn new(revision: u32) -> Self {
+        Self { revision, live_revision: None }
+    }
+}
 impl IPersistable for Value {
     fn type_id(&self) -> Result<NcGuid, NcStatus> {
         Ok(KIND)
     }
     fn schema_version(&self) -> Result<u32, NcStatus> {
-        Ok(1)
+        Ok(self.revision)
     }
     fn save_state(&self) -> Result<ComPtr<INcBytesAbi>, NcStatus> {
-        Ok(NcBytes::from_vec(vec![42]))
+        if let Some(live) = &self.live_revision {
+            live.set(2);
+        }
+        Ok(NcBytes::from_vec(vec![41 + self.revision as u8]))
     }
     fn child_count(&self) -> Result<u32, NcStatus> {
         Ok(0)
@@ -162,7 +192,7 @@ impl IPersistenceFactory for Factory {
     fn validate(&self, version: u32, state: NcCopyFromBufferOffset<'_, u8>, count: u32) -> Result<(), NcStatus> {
         VALIDATIONS.fetch_add(1, Ordering::Relaxed);
         retained();
-        if version == 1 && state.offset() == 0 && state.as_slice() == [42] && count == 0 {
+        if matches!((version, state.as_slice()), (1, [42]) | (2, [43])) && state.offset() == 0 && count == 0 {
             Ok(())
         } else {
             Err(neocogi_com_sdk::NC_E_INVALID_ARG)
@@ -170,7 +200,7 @@ impl IPersistenceFactory for Factory {
     }
     fn restore(&self, version: u32, state: NcCopyFromBufferOffset<'_, u8>, children: ComRef<'_, IObjectChildrenAbi>) -> Result<ComPtr<IUnknown>, NcStatus> {
         self.validate(version, state, children.count()?)?;
-        Value::from_value(Value).query()
+        Value::from_value(Value::new(version)).query()
     }
 }
 
@@ -192,14 +222,14 @@ fn registry(runtime: &neocogi_com_sdk::RuntimeHandle) -> FactoryRegistry {
     registry
 }
 
-/// Missing codec errors follow argument, ownership and capture-budget admission.
+/// Missing codec errors follow root admission and precede live getters.
 #[test]
 fn missing_provider_preserves_error_precedence() {
     if isolated("missing_provider_preserves_error_precedence") {
         return;
     }
     let runtime = crate::initialize_runtime();
-    let value = Value::from_value(Value);
+    let value = Value::from_value(Value::new(1));
     let registry = registry(&runtime);
     assert_eq!(save_object_tree(&runtime, &value), Err(neocogi_com_sdk::NC_E_NOT_FOUND));
     assert_eq!(registry.restore_object_tree(&bytes()).unwrap_err(), neocogi_com_sdk::NC_E_NOT_FOUND);
@@ -228,15 +258,12 @@ fn missing_provider_preserves_error_precedence() {
     );
     let mut limits = Limits::default();
     limits.binary.bytes = 0;
-    assert_eq!(save_object_tree_with_limits(&runtime, &value, limits), Err(neocogi_com_sdk::NC_E_OUT_OF_RANGE));
+    assert_eq!(save_object_tree_with_limits(&runtime, &value, limits), Err(neocogi_com_sdk::NC_E_NOT_FOUND));
     assert_eq!(
         registry.restore_object_tree_with_limits(&bytes(), limits).unwrap_err(),
         neocogi_com_sdk::NC_E_INVALID_ARG
     );
-    assert_eq!(
-        save_object_tree(&runtime, &Factory::from_value(Factory)),
-        Err(neocogi_com_sdk::NC_E_NOINTERFACE)
-    );
+    assert_eq!(save_object_tree(&runtime, &Factory::from_value(Factory)), Err(neocogi_com_sdk::NC_E_NOT_FOUND));
     assert_eq!(VALIDATIONS.load(Ordering::Relaxed), 0);
     assert!(runtime.plugins().unwrap().is_empty(), "persistence must never seed the catalog");
 }
@@ -287,7 +314,7 @@ fn provider_registration_recovers_existing_context_through_raw_api() {
     // SAFETY: The admitted persistence table remains mapped for the entire test.
     let api = unsafe { &*host.persistence };
     let runtime = crate::initialize_runtime();
-    let value: ComPtr<IUnknown> = Value::from_value(Value).query().unwrap();
+    let value: ComPtr<IUnknown> = Value::from_value(Value::new(1)).query().unwrap();
     let factory: ComPtr<IPersistenceFactoryAbi> = Factory::from_value(Factory).query().unwrap();
     let expected = bytes();
     let limits = Limits::default().into();
@@ -337,7 +364,7 @@ fn provider_registration_recovers_existing_context_through_raw_api() {
                 core::ptr::from_mut(&mut receipt).cast(),
             )
         },
-        neocogi_com_sdk::NC_E_INVALID_ARG
+        neocogi_com_sdk::NC_E_OUT_OF_RANGE
     );
     assert_eq!(SELECTIONS.load(Ordering::Relaxed), 1);
     assert_eq!((ROOTS.load(Ordering::Relaxed), FORMATS.load(Ordering::Relaxed)), (0, 0));
@@ -378,7 +405,7 @@ fn named_ncb_retains_capabilities_and_ignores_json_default() {
     let runtime = crate::initialize_runtime();
     // SAFETY: All descriptor metadata and callback code are linked process statics.
     unsafe { runtime.register_plugin_descriptor(plugin_descriptor()) }.unwrap();
-    let value = Value::from_value(Value);
+    let value = Value::from_value(Value::new(1));
     let registry = registry(&runtime);
     let saved = save_object_tree(&runtime, &value).unwrap();
     assert_eq!(saved, bytes(), "preserve the complete NCB-v1 envelope");
@@ -398,12 +425,11 @@ fn named_ncb_retains_capabilities_and_ignores_json_default() {
     drop(registry.restore_object_tree_with_limits(&saved, permissive).unwrap());
     let validations = VALIDATIONS.load(Ordering::Relaxed);
 
-    // The one-byte state fits capture's limit and the named factory is
-    // selected. The four-byte NCB header still cannot fit that limit.
+    // Writer creation rejects the byte cap before entering any live getter.
     let selections = SELECTIONS.load(Ordering::Relaxed);
     let mut short = Limits::default();
     short.binary.bytes = 3;
-    assert_eq!(save_object_tree_with_limits(&runtime, &value, short), Err(neocogi_com_sdk::NC_E_INVALID_ARG));
+    assert_eq!(save_object_tree_with_limits(&runtime, &value, short), Err(neocogi_com_sdk::NC_E_OUT_OF_RANGE));
     assert_eq!(SELECTIONS.load(Ordering::Relaxed), selections + 1);
     assert_eq!((ROOTS.load(Ordering::Relaxed), FORMATS.load(Ordering::Relaxed)), (0, 0));
 
@@ -429,7 +455,7 @@ fn format_selection_errors_have_no_fallback() {
     // SAFETY: All descriptor metadata and callback code are linked process statics.
     unsafe { runtime.register_plugin_descriptor(plugin_descriptor()) }.unwrap();
     let registry = registry(&runtime);
-    let value = Value::from_value(Value);
+    let value = Value::from_value(Value::new(1));
     for (mode, status) in [
         (1, neocogi_com_sdk::NC_E_NOINTERFACE),
         (2, neocogi_com_sdk::NC_E_BUSY),
@@ -450,4 +476,33 @@ fn format_selection_errors_have_no_fallback() {
     assert_eq!((ROOTS.load(Ordering::Relaxed), FORMATS.load(Ordering::Relaxed)), (0, 0));
     REFUSE_SOURCE.store(false, Ordering::Relaxed);
     assert!(registry.restore_object_tree(&bytes()).is_ok());
+}
+
+/// The application can save an immutable view even when its live model advances
+/// during a provider call. Both the old and new views reconstruct independently.
+#[test]
+fn frozen_view_restores_as_live_model_advances() {
+    if isolated("frozen_view_restores_as_live_model_advances") {
+        return;
+    }
+    let runtime = crate::initialize_runtime();
+    // SAFETY: The descriptor and all reachable callbacks are linked process statics.
+    unsafe { runtime.register_plugin_descriptor(plugin_descriptor()) }.unwrap();
+    let registry = registry(&runtime);
+    let live_revision = Rc::new(Cell::new(1));
+    let first = Value::from_value(Value {
+        revision: live_revision.get(),
+        live_revision: Some(live_revision.clone()),
+    });
+    let first = save_object_tree(&runtime, &first).unwrap();
+    assert_eq!(live_revision.get(), 2);
+    let second = Value::from_value(Value::new(live_revision.get()));
+    let second = save_object_tree(&runtime, &second).unwrap();
+
+    for (expected, document) in [(1, first), (2, second)] {
+        let restored = registry.restore_object_tree(&document).unwrap();
+        let persistable = restored.query::<IPersistableAbi>().unwrap();
+        assert_eq!(persistable.schema_version().unwrap(), expected);
+        assert_eq!(persistable.save_state().unwrap().to_vec().unwrap(), [41 + expected as u8]);
+    }
 }

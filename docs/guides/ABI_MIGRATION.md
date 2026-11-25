@@ -1,12 +1,12 @@
-# Migrate a provider to WIP ABI v4
+# Migrate a provider to WIP ABI v5
 
-SDK `0.5.0-wip-alpha.1` uses [ABI v4](../abi.md). The
+SDK `0.5.0-wip-alpha.1` uses [ABI v5](../abi.md). The
 [0.4.0 release](https://github.com/NeoCogi/neocogi-com/blob/v0.4.0/docs/abi-v3.md)
 uses ABI v3/core generation 21. SDK `0.3.0` uses ABI v2/core generation 19.
 
 | Boundary | SDK 0.4.0 | Development SDK |
 | --- | --- | --- |
-| Native ABI | v3/core 21 | v4 |
+| Native ABI | v3/core 21 | v5 |
 | Plugin discovery | `nc_get_plugin_descriptor_v3` | `nc_get_plugin_descriptor` |
 | Service and metadata records | `NcHostApiV3`, `NcPluginApiV3`, other `V3` records | `NcHostApi`, `NcPluginApi`, and other unsuffixed records |
 

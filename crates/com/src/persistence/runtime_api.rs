@@ -83,6 +83,9 @@ impl Drop for FactoryRegistry {
 
 /// Saves a shared opt-in object tree to NCB bytes with the default limits.
 /// The caller lends an existing shared owner throughout the operation.
+/// The application supplies a stable view of the full tree for the call,
+/// including recipe IDs, schema versions, state bytes and ordered children.
+/// Reentrant calls must preserve that view too.
 /// Requires an explicitly supplied `nc.serialization` provider offering `ncb`;
 /// provider absence returns `NC_E_NOT_FOUND`, without implicit loading/fallback.
 ///
@@ -100,8 +103,9 @@ pub fn save_object_tree(runtime: &RuntimeHandle, object: &ComPtr<IUnknown>) -> R
 }
 
 /// Saves a shared object tree to caller-owned NCB bytes under the supplied limits.
-/// Root and capture-budget checks precede named-NCB selection. Provider
-/// acquisition/selection errors propagate and publish no document bytes.
+/// The stable-view requirements of [`save_object_tree`] apply. The root
+/// shape and object limits are checked before selecting NCB. The writer then
+/// opens before any object getters, and the first failure determines the status.
 pub fn save_object_tree_with_limits(runtime: &RuntimeHandle, object: &ComPtr<IUnknown>, limits: Limits) -> Result<Vec<u8>, NcStatus> {
     let api = runtime.persistence;
     let mut destination = SaveOutput {

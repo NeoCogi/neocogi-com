@@ -266,7 +266,7 @@ bytes, not the argument list. Generated documentation therefore names the full
 closed IDL type beside the Rust declaration. Use that comment or the generated
 typed IDL metadata to interpret the name. This differs from Cargo `links` names,
 whose hex suffix directly encodes the exact dotted module name and is reversible.
-Neither presentation rule changes runtime/descriptor ABI v4.
+Neither presentation rule changes runtime/descriptor ABI v5.
 
 A canonical name denotes one semantic contract in a resolved graph. Authored
 declarations cannot impersonate a closed specialization's canonical name, even

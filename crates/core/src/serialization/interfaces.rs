@@ -3938,7 +3938,7 @@ pub trait ISerializer {
     /// Completes the record.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:38:8` (module `neocogi.com.serialization`).
     fn end_record(&mut self) -> ::core::result::Result<(), crate::NcStatus>;
-    /// Opens an ordered collection with its complete element count.
+    /// Opens a counted sequence. A nonempty sequence requires room for an immediate element in the writer's depth limit.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:40:8` (module `neocogi.com.serialization`).
     fn begin_sequence(
         &mut self,
@@ -4343,7 +4343,7 @@ pub struct ISerializerVTable {
     pub end_record: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
     ) -> crate::NcStatus,
-    /// Opens an ordered collection with its complete element count.
+    /// Opens a counted sequence. A nonempty sequence requires room for an immediate element in the writer's depth limit.
     /// IDL source: `neocogi/com/serialization/formats.ncidl:40:8` (module `neocogi.com.serialization`).
     ///Raw COM ABI vtable slot for [`ISerializer::begin_sequence`].
     ///
@@ -5156,7 +5156,7 @@ const _: () = {
             let __nc_result_17 = ();
             ::core::result::Result::Ok(__nc_result_17)
         }
-        /// Opens an ordered collection with its complete element count.
+        /// Opens a counted sequence. A nonempty sequence requires room for an immediate element in the writer's depth limit.
         /// IDL source: `neocogi/com/serialization/formats.ncidl:40:8` (module `neocogi.com.serialization`).
         ///
         ///Calls [`ISerializer::begin_sequence`] through the generated COM ABI vtable.

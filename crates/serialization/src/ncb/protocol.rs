@@ -79,9 +79,14 @@ impl Protocol {
         self.depth
     }
 
+    /// Reports whether the bounded protocol stack has another value slot.
+    fn has_room(&self) -> bool {
+        self.depth < self.values.len()
+    }
+
     /// Reserves one child before placing its fresh value on the bounded stack.
     pub(super) fn enter(&mut self, offset: usize) -> Result<(), Failure> {
-        if self.depth == self.values.len() {
+        if !self.has_room() {
             return Err(Failure::range(offset, "value or nesting limit"));
         }
         if self.depth == 0 {
@@ -462,7 +467,14 @@ impl ISerializer for Encoder<'_> {
     }
     fn begin_sequence(&mut self, count: u32) -> Result<(), NcStatus> {
         self.run(|writer| {
-            writer.begin_sequence(count as usize)?;
+            writer.enter()?;
+            if count != 0 {
+                writer.budget.check_depth(writer.offset, writer.protocol.open_depth())?;
+                if !writer.protocol.has_room() {
+                    return Err(Failure::range(writer.offset, "value or nesting limit"));
+                }
+            }
+            writer.count(count as usize, 1)?;
             writer.shape(Value::Ordered {
                 kind: Container::Sequence,
                 remaining: count as usize,

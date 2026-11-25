@@ -6,13 +6,13 @@ interface IObjectChildren {
     fn get(&self, index: u32) -> Result<ComPtr<IUnknown>>;
 }
 
-/// Optional capability that supplies the data needed to save an owned object tree.
+/// Supplies data for an owned object tree. The application keeps the complete saved view stable throughout a synchronous save, including during reentry.
 interface IPersistable {
     /// Identifies the registered construction recipe, not this object instance.
     fn type_id(&self) -> Result<Guid>;
     /// Identifies the persistent initialization schema, independently of COM ABI.
     fn schema_version(&self) -> Result<u32>;
-    /// Exports initialization data only: no receivers, runtime pointers or caches.
+    /// Exports initialization data without process-local resources. The returned length and contents stay stable throughout the save.
     fn save_state(&self) -> Result<ComPtr<INcBytes>>;
     /// Returns the number of owned persistent children; parent links are excluded.
     fn child_count(&self) -> Result<u32>;

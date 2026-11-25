@@ -36,7 +36,7 @@ interface ISerializer {
     fn field(&mut self, name: &str) -> Result<()>;
     /// Completes the record.
     fn end_record(&mut self) -> Result<()>;
-    /// Opens an ordered collection with its complete element count.
+    /// Opens a counted sequence. A nonempty sequence requires room for an immediate element in the writer's depth limit.
     fn begin_sequence(&mut self, length: u32) -> Result<()>;
     /// Completes the collection.
     fn end_sequence(&mut self) -> Result<()>;

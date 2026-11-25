@@ -19,7 +19,7 @@
 //! explicit `neocogi-com-serialization` crate. Wire layouts and application
 //! storage remain separate.
 //!
-//! SDK 0.5.0-wip-alpha.1 uses ABI v4, which is WORK IN PROGRESS (WIP).
+//! SDK 0.5.0-wip-alpha.1 uses ABI v5, which is WORK IN PROGRESS (WIP).
 //! Advance the native ABI version for incompatible changes and rebuild all
 //! participants together.
 
@@ -40,9 +40,9 @@ mod generated_names;
 pub use generated_names::{NcComDenseEnumMember, NcComInterfaceCompanion};
 mod data;
 mod deserialize;
-mod serialize;
 mod guid;
 mod plugin_descriptor;
+mod serialize;
 mod value;
 mod value_cost;
 pub use value_cost::ValueCost;
@@ -66,8 +66,8 @@ pub use output::{NcOutput, NcOutputWriter, PreparedOutput};
 pub use output::NcOutputBuffer;
 #[doc(hidden)]
 pub use ref_count::{__com_add_ref_count, __com_release_ref_count};
-pub mod runtime_abi;
 mod abi_digest;
+pub mod runtime_abi;
 mod status;
 
 #[cfg(feature = "alloc")]

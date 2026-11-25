@@ -7,6 +7,45 @@ include!("support/object_persistence_cases.rs");
 #[path = "support/allocation_probe.rs"]
 mod allocation_probe;
 
+/// Refusing host storage must return a status without allocating diagnostics.
+#[test]
+fn save_reservations_fail_cleanly_and_allow_retry() {
+    use std::alloc::Layout;
+    use std::mem::MaybeUninit;
+    use neocogi_com_sdk::NC_E_OUT_OF_MEMORY;
+
+    let runtime = crate::host_runtime();
+    let (registry, _) = registry();
+    // Match a single-frame Vec growth layout without assuming std's capacities.
+    // A frame has one typed owner followed by two u32 counters.
+    type Frame = (ComPtr<IPersistableAbi>, u32, u32);
+    let mut probe_stack = Vec::<MaybeUninit<Frame>>::new();
+    probe_stack.reserve(1);
+    let initial = probe_stack.capacity();
+    probe_stack.resize_with(initial, MaybeUninit::uninit);
+    probe_stack.reserve(1);
+    let later = probe_stack.capacity();
+    let mut tree = record(&"x".repeat(111), vec![]);
+    for _ in 0..initial {
+        tree = record("parent", vec![tree]);
+    }
+    let expected = binary::to_vec(&tree).unwrap();
+    let root = registry.restore_object_tree(&expected).unwrap();
+
+    for layout in [
+        Layout::array::<Frame>(initial).unwrap(),
+        Layout::array::<Frame>(later).unwrap(),
+        Layout::array::<u8>(expected.len()).unwrap(),
+    ] {
+        let probe = allocation_probe::Probe::matching(layout, Some(1));
+        let result = save_object_tree(&runtime, &root);
+        let report = probe.finish();
+        assert_eq!(report.denied, 1, "{layout:?}");
+        assert_eq!(result, Err(NC_E_OUT_OF_MEMORY), "{layout:?}");
+    }
+    assert_eq!(save_object_tree(&runtime, &root).unwrap(), expected);
+}
+
 /// Pending siblings count before their storage or any recipe callback.
 #[test]
 fn restore_checks_declared_child_slots_before_descending() {

@@ -1,9 +1,9 @@
 # NeoCogi COM
 
-Development SDK `0.5.0-wip-alpha.1` uses **ABI v4 (WIP)**. See the
+Development SDK `0.5.0-wip-alpha.1` uses **ABI v5 (WIP)**. See the
 [current ABI versions](docs/abi.md#abi-identities-and-versions). Its layouts,
 callbacks and ownership contracts are provisional and may change before release;
-ABI v4 is not frozen.
+ABI v5 is not frozen.
 Published 0.3.0 packages retain ABI v2/core generation 19; use their release-tag
 documentation for that contract.
 
@@ -43,7 +43,7 @@ every provider. Native providers, including the serialization plugin, can be
 loaded from shared libraries.
 The [Rust API renames](docs/COM.md#rust-names-in-040) are
 recorded with migration names. The lifetime-policy split introduces distinct
-shared and boxed headers in ABI v3. The current ABI v4 candidate uses those
+shared and boxed headers in ABI v3. The current ABI v5 candidate uses those
 headers and declares shared ownership explicitly for persistence inputs.
 See the [provider migration guide](docs/guides/ABI_MIGRATION.md) when adopting it.
 
