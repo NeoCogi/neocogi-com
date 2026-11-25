@@ -420,6 +420,62 @@ fn native_load_diagnostics(inspector: &Path, cases: &[(PathBuf, &str)], director
     results
 }
 
+/// Exercises publication on the real CLI with an output device that refuses writes.
+#[cfg(target_os = "linux")]
+fn assert_refused_output(inspector: &Path, plugin: &Path, artifact: &serde_json::Value, directory: &Path) {
+    use std::io::Write as _;
+
+    let full = || std::fs::File::options().write(true).open("/dev/full").unwrap();
+    let io_error = full().write_all(b"probe").unwrap_err().to_string();
+    let assert_io_failure = |command: &mut Command| {
+        let output = command.output().unwrap();
+        let stderr = String::from_utf8(output.stderr).unwrap();
+        assert_eq!(output.status.code(), Some(1), "{command:?}: {stderr}");
+        assert!(output.stdout.is_empty(), "{command:?}");
+        assert_eq!(stderr, format!("error: {io_error}\n"), "{command:?}");
+    };
+    for subcommand in ["dump", "check", "plan"] {
+        let mut command = Command::new(inspector);
+        command.arg(subcommand).arg(plugin);
+        let output = command.output().unwrap();
+        assert_success(subcommand, &output);
+        assert!(!output.stdout.is_empty());
+        assert_io_failure(command.stdout(full()));
+    }
+    let mut help = Command::new(inspector);
+    help.arg("--help");
+    let output = help.output().unwrap();
+    assert_success("help", &output);
+    assert!(output.stdout.starts_with(b"Usage:\n"));
+    assert!(output.stdout.ends_with(b"\n\n"));
+    assert_io_failure(help.stdout(full()));
+
+    let old = directory.join("stream-old.json");
+    let new = directory.join("stream-new.json");
+    let mut different = artifact.clone();
+    different["target"]["triple"] = "different-unknown-target".into();
+    std::fs::write(&old, serde_json::to_vec(artifact).unwrap()).unwrap();
+    std::fs::write(&new, serde_json::to_vec(&different).unwrap()).unwrap();
+    for mode in ["--exact", "--compat"] {
+        for (other, status) in [(&old, 0), (&new, 1)] {
+            let mut command = Command::new(inspector);
+            command.arg("diff").arg(&old).arg(other).arg(mode);
+            let output = command.output().unwrap();
+            assert_eq!(output.status.code(), Some(status), "{command:?}");
+            assert!(!output.stdout.is_empty(), "{command:?}");
+            assert!(output.stderr.is_empty(), "{command:?}");
+            assert_io_failure(command.stdout(full()));
+        }
+    }
+
+    let mut file_output = Command::new(inspector);
+    file_output.arg("dump").arg(plugin).args(["-o", "/dev/full"]);
+    assert_io_failure(&mut file_output);
+    assert_eq!(file_output.stderr(full()).output().unwrap().status.code(), Some(1));
+    let usage = Command::new(inspector).stderr(full()).output().unwrap();
+    assert_eq!(usage.status.code(), Some(2));
+}
+
 /// Relocation and native output identity share one provider build and staging owner.
 #[test]
 fn inspects_a_standalone_plugin_and_its_exact_factory_signature() {
@@ -469,6 +525,7 @@ fn inspects_a_standalone_plugin_and_its_exact_factory_signature() {
     #[cfg(target_os = "linux")]
     {
         use std::os::unix::ffi::OsStringExt;
+        assert_refused_output(&inspector, &plugin, &artifact, staging.path());
         // Linux qualifies the checkout's min-size profile and native byte paths.
         let min_size_inspector = build_inspector("min-size");
         assert_eq!(snapshot_diagnostics(&min_size_inspector, &artifact, staging.path()), _default_diagnostics);

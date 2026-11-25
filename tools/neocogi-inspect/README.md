@@ -40,6 +40,11 @@ neocogi-inspect diff old.nccom.json new.nccom.json --compat
 Pass values to `--output` / `-o` and `--format` / `-f` as separate arguments.
 Output files use the exact supplied native path.
 
+Usage errors exit with status 2. Inspection, artifact, and output I/O failures
+exit with status 1. Exact differences and incompatible comparisons write their
+report and exit with status 1. Other successful operations exit with status 0.
+Errors go to stderr when the stream is writable.
+
 Inspection JSON uses strict schema 10. Live inspection checks the
 [current native ABI](../../docs/abi.md#abi-identities-and-versions).
 Saved artifacts record one `abi_version` field that `diff` compares.

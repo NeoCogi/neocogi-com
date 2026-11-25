@@ -18,9 +18,12 @@ Commands:
   diff    Compare artifacts exactly or check old-to-new compatibility
 
 Option values use separate arguments: --output PATH, --format FORMAT.
+
 ";
 
 pub(crate) enum Command {
+    /// Prints the command grammar without loading an artifact.
+    Help,
     Dump {
         library: PathBuf,
         format: OutputFormat,
@@ -58,12 +61,8 @@ pub(crate) fn parse_args(args: impl IntoIterator<Item = OsString>) -> Result<Com
     let _program = args.next();
     let command = args.next().ok_or_else(|| "missing command".to_string())?;
 
-    if command == OsStr::new("--help") || command == OsStr::new("-h") {
-        println!("{USAGE}");
-        std::process::exit(0);
-    }
-
     match command.to_string_lossy().as_ref() {
+        "--help" | "-h" => Ok(Command::Help),
         "dump" => parse_dump(args),
         "check" => parse_check(args),
         "plan" => parse_plan(args),
@@ -307,7 +306,7 @@ mod tests {
                 assert!(matches!(format, OutputFormat::Json));
                 assert!(output.is_none());
             }
-            Command::Check { .. } | Command::Plan { .. } | Command::Diff { .. } => {
+            Command::Help | Command::Check { .. } | Command::Plan { .. } | Command::Diff { .. } => {
                 panic!("expected dump command")
             }
         }
@@ -324,7 +323,7 @@ mod tests {
                 assert!(matches!(format, OutputFormat::Text));
                 assert_eq!(output, Some(PathBuf::from("plugin.txt")));
             }
-            Command::Check { .. } | Command::Plan { .. } | Command::Diff { .. } => {
+            Command::Help | Command::Check { .. } | Command::Plan { .. } | Command::Diff { .. } => {
                 panic!("expected dump command")
             }
         }
@@ -340,7 +339,7 @@ mod tests {
                 assert_eq!(new, PathBuf::from("new.json"));
                 assert!(matches!(mode, DiffMode::Exact));
             }
-            Command::Dump { .. } | Command::Check { .. } | Command::Plan { .. } => {
+            Command::Help | Command::Dump { .. } | Command::Check { .. } | Command::Plan { .. } => {
                 panic!("expected diff command")
             }
         }
@@ -356,7 +355,7 @@ mod tests {
                 assert_eq!(new, PathBuf::from("new.json"));
                 assert!(matches!(mode, DiffMode::Compatible));
             }
-            Command::Dump { .. } | Command::Check { .. } | Command::Plan { .. } => {
+            Command::Help | Command::Dump { .. } | Command::Check { .. } | Command::Plan { .. } => {
                 panic!("expected diff command")
             }
         }

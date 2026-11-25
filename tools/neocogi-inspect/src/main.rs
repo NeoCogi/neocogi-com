@@ -7,7 +7,12 @@
 
 #![deny(missing_docs)]
 
-use std::path::Path;
+use std::{
+    fs,
+    io::{self, Write as _},
+    path::Path,
+    process::ExitCode,
+};
 
 use neocogi_com_host::{inspect_plugin_library, plan_plugin_load_order};
 
@@ -25,56 +30,38 @@ mod plan;
 mod render;
 mod schema;
 
-fn main() {
-    // Usage errors are command-line mistakes (exit 2). Inspection, I/O, JSON,
-    // exact artifact differences, and incompatibilities are operational
-    // failures (exit 1).
-    match run() {
-        Ok(()) => {}
-        Err(CliError::Usage(message)) => {
-            eprintln!("error: {message}\n\n{USAGE}");
-            std::process::exit(2);
+fn main() -> ExitCode {
+    let error = match run() {
+        Ok(status) => return status,
+        Err(error) => error,
+    };
+    // A refused diagnostic leaves the selected usage or operational exit intact.
+    let mut stderr = io::stderr().lock();
+    let _ = match error {
+        CliError::Usage(message) => {
+            let _ = write!(stderr, "error: {message}\n\n{USAGE}");
+            return ExitCode::from(2);
         }
-        Err(CliError::Inspect(error)) => {
-            eprintln!("error: {error}");
-            std::process::exit(1);
-        }
-        Err(CliError::Io(error)) => {
-            eprintln!("error: {error}");
-            std::process::exit(1);
-        }
-        Err(CliError::Json(error)) => {
-            eprintln!("error: {error}");
-            std::process::exit(1);
-        }
-        Err(CliError::Artifact(error)) => {
-            eprintln!("error: invalid inspection artifact: {error}");
-            std::process::exit(1);
-        }
-        Err(CliError::Different(report)) => {
-            print!("{report}");
-            std::process::exit(1);
-        }
-        Err(CliError::Incompatible(report)) => {
-            print!("{report}");
-            std::process::exit(1);
-        }
-        Err(CliError::PlanInspection(errors)) => {
+        CliError::Inspect(error) => writeln!(stderr, "error: {error}"),
+        CliError::Io(error) => writeln!(stderr, "error: {error}"),
+        CliError::Json(error) => writeln!(stderr, "error: {error}"),
+        CliError::Artifact(error) => writeln!(stderr, "error: invalid inspection artifact: {error}"),
+        CliError::PlanInspection(errors) => {
             for error in errors {
-                eprintln!("error: {error}");
+                let _ = writeln!(stderr, "error: {error}");
             }
-            std::process::exit(1);
+            return ExitCode::FAILURE;
         }
-        Err(CliError::Plan(error)) => {
-            eprintln!("error: {error}");
-            std::process::exit(1);
-        }
-    }
+        CliError::Plan(error) => writeln!(stderr, "error: {error}"),
+    };
+    ExitCode::FAILURE
 }
 
-fn run() -> Result<(), CliError> {
+/// Validates, renders and publishes each command before returning its exit status.
+fn run() -> Result<ExitCode, CliError> {
     let command = parse_args(std::env::args_os()).map_err(CliError::Usage)?;
     match command {
+        Command::Help => publish(None, USAGE)?,
         Command::Dump { library, format, output } => {
             // SAFETY: The user explicitly asks the inspector to load this
             // shared library. The runtime reads only neocogi-com-sdk descriptor metadata.
@@ -83,18 +70,19 @@ fn run() -> Result<(), CliError> {
                 OutputFormat::Json => render_json(&inspection).map_err(CliError::Json)?,
                 OutputFormat::Text => render_text(&inspection),
             };
-            if let Some(output) = output {
-                std::fs::write(output, rendered).map_err(CliError::Io)?;
-            } else {
-                print!("{rendered}");
-            }
+            publish(output.as_deref(), &rendered)?;
         }
         Command::Check { library } => {
             // SAFETY: The user explicitly asks the inspector to load this
             // shared library. The runtime reads only neocogi-com-sdk descriptor metadata.
             let inspection = unsafe { inspect_plugin_library(&library) }.map_err(CliError::Inspect)?;
-            let activation = format!("factory {}", inspection.factory.root_factory_id);
-            println!("{}: ok ({}, {activation})", library.display(), inspection.qualified_name);
+            let rendered = format!(
+                "{}: ok ({}, factory {})\n",
+                library.display(),
+                inspection.qualified_name,
+                inspection.factory.root_factory_id
+            );
+            publish(None, &rendered)?;
         }
         Command::Plan { libraries, format, output } => {
             let mut artifacts = Vec::with_capacity(libraries.len());
@@ -116,11 +104,7 @@ fn run() -> Result<(), CliError> {
                 OutputFormat::Json => render_plan_json(&artifacts, &order).map_err(CliError::Json)?,
                 OutputFormat::Text => render_plan_text(&artifacts, &order),
             };
-            if let Some(output) = output {
-                std::fs::write(output, rendered).map_err(CliError::Io)?;
-            } else {
-                print!("{rendered}");
-            }
+            publish(output.as_deref(), &rendered)?;
         }
         Command::Diff { old, new, mode } => {
             let old = read_json(&old)?;
@@ -129,29 +113,40 @@ fn run() -> Result<(), CliError> {
                 DiffMode::Exact => {
                     let differences = diff_inspections(&old, &new);
                     if differences.is_empty() {
-                        println!("no differences");
+                        publish(None, "no differences\n")?;
                     } else {
-                        return Err(CliError::Different(render_diff(&differences)));
+                        publish(None, &render_diff(&differences))?;
+                        return Ok(ExitCode::FAILURE);
                     }
                 }
                 DiffMode::Compatible => {
                     let report = check_compatibility(&old, &new);
-                    let compatible = report.is_compatible();
-                    let rendered = render_compatibility(&report);
-                    if compatible {
-                        print!("{rendered}");
-                    } else {
-                        return Err(CliError::Incompatible(rendered));
+                    publish(None, &render_compatibility(&report))?;
+                    if !report.is_compatible() {
+                        return Ok(ExitCode::FAILURE);
                     }
                 }
             }
         }
     }
-    Ok(())
+    Ok(ExitCode::SUCCESS)
 }
 
+/// Writes a complete rendering to the selected destination and checks stdout flush.
+fn publish(output: Option<&Path>, rendered: &str) -> Result<(), CliError> {
+    match output {
+        Some(path) => fs::write(path, rendered),
+        None => {
+            let mut stdout = io::stdout().lock();
+            stdout.write_all(rendered.as_bytes()).and_then(|()| stdout.flush())
+        }
+    }
+    .map_err(CliError::Io)
+}
+
+/// Loads and validates one saved inspection before rendering comparisons.
 fn read_json(path: &Path) -> Result<InspectionArtifact, CliError> {
-    let data = std::fs::read(path).map_err(CliError::Io)?;
+    let data = fs::read(path).map_err(CliError::Io)?;
     let artifact: InspectionArtifact = serde_json::from_slice(&data).map_err(CliError::Json)?;
     artifact.validate().map_err(CliError::Artifact)?;
     Ok(artifact)
@@ -161,11 +156,9 @@ fn read_json(path: &Path) -> Result<InspectionArtifact, CliError> {
 enum CliError {
     Usage(String),
     Inspect(neocogi_com_host::PluginLoadError),
-    Io(std::io::Error),
+    Io(io::Error),
     Json(serde_json::Error),
     Artifact(ArtifactValidationError),
-    Different(String),
-    Incompatible(String),
     PlanInspection(Vec<String>),
     Plan(neocogi_com_host::PluginDependencyPlanError),
 }
