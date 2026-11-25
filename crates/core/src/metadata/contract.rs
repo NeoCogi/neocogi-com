@@ -63,11 +63,7 @@ impl NcInterfaceId {
     /// ownership actions. Different revisions return false for checked discovery;
     /// ancestry validation keeps its separate panic-on-conflict rule.
     pub(crate) const fn const_eq(self, other: Self) -> bool {
-        self.iid.data1 == other.iid.data1
-            && self.iid.data2 == other.iid.data2
-            && self.iid.data3 == other.iid.data3
-            && u64::from_ne_bytes(self.iid.data4) == u64::from_ne_bytes(other.iid.data4)
-            && self.abi_signature.__const_eq(other.abi_signature)
+        self.iid.const_eq(other.iid) && self.abi_signature.__const_eq(other.abi_signature)
     }
 
     /// Returns whether this is the no-interface sentinel.

@@ -1,5 +1,5 @@
 //! Independent bindings freeze traversal order and prove callable compatibility.
-use std::{fs, path::Path, process::Command};
+use std::{fmt::Write, fs, path::Path, process::Command};
 use super::test_consumer::Consumer;
 
 /// A diamond has different preorder identities and postorder methods. Metadata
@@ -66,4 +66,53 @@ fn metadata_diamond_order_and_independent_com_calls() {
         String::from_utf8_lossy(&output.stderr)
     );
     assert!(String::from_utf8_lossy(&output.stdout).contains("metadata_and_calls ... ok"));
+}
+
+/// Wide IDL ancestry must compile through ordinary object construction on the floor.
+#[test]
+fn wide_interface_compiles_and_dispatches_through_compact_tables() {
+    const PARENTS: usize = 384;
+    let mut schema = String::new();
+    let mut implementations = String::new();
+    for parent in 0..PARENTS {
+        let method = match parent {
+            0 => "fn first(&self) -> Result<u32>;",
+            383 => "fn last(&self) -> Result<u32>;",
+            _ => "",
+        };
+        writeln!(schema, "interface I{parent} {{ {method} }}").unwrap();
+        let implementation = match parent {
+            0 => "fn first(&self) -> Result<u32, neocogi_com_sdk::NcStatus> { Ok(17) }",
+            383 => "fn last(&self) -> Result<u32, neocogi_com_sdk::NcStatus> { Ok(42) }",
+            _ => "",
+        };
+        writeln!(implementations, "impl I{parent} for Provider {{ {implementation} }}").unwrap();
+    }
+    let bases = (0..PARENTS).map(|parent| format!("I{parent}")).collect::<Vec<_>>().join(" + ");
+    writeln!(schema, "interface Wide: {bases} {{}} interface Extra {{}}").unwrap();
+    let graph = crate::resolve_modules(vec![crate::parse_module(Path::new("proof/wide.ncidl"), &schema).unwrap()]).unwrap();
+    let bindings = crate::generate_rust(&graph, "proof.wide").unwrap();
+    let provider = format!(
+        r#"
+        {bindings}
+        #[neocogi_com_sdk::com_object(interfaces(Wide, Extra))] struct Provider;
+        impl Wide for Provider {{}}
+        impl Extra for Provider {{}}
+        {implementations}
+
+        #[test] fn dispatch() {{
+            assert_eq!(Provider::COM_INTERFACE_COUNT, {count});
+            assert_eq!(WideAbi::INTERFACE_CHAIN.len(), {wide});
+            let owner = Provider::from_value(Provider);
+            let wide = owner.query::<WideAbi>().unwrap();
+            assert_eq!(wide.first(), Ok(17));
+            assert_eq!(wide.query::<I383Abi>().unwrap().last(), Ok(42));
+            assert_eq!(wide.query::<ExtraAbi>().unwrap().as_raw().object, wide.as_raw().object);
+        }}
+        "#,
+        count = PARENTS + 3,
+        wide = PARENTS + 1,
+    );
+    let consumer = Consumer::new("wide-interface-projection");
+    super::name_ownership_tests::run_consumers_with_files(consumer, [("wide interface".into(), provider)], &[], &["dispatch"]);
 }

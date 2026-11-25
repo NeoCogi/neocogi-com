@@ -47,9 +47,11 @@ fn nominal_metadata_collectors_fit_a_small_stack() {
                     "ancestry" => {
                         let chain = interface_metadata::ancestry(&generation, module, declaration).unwrap();
                         assert_eq!(chain.len(), edges + 1);
-                        for (i, entry) in chain.iter().enumerate() {
-                            let expected = interface_metadata::identity(&generation.support, module.declaration(&format!("I{i}")).unwrap());
-                            assert_eq!(entry.to_string(), expected.to_string());
+                        assert!(chain[0].parent.is_none());
+                        for (i, row) in chain.iter().enumerate().skip(1) {
+                            assert_eq!(row.identity.qualified_name, format!("proof.metadata.I{i}"));
+                            let source = row.parent.unwrap();
+                            assert_eq!((source.direct, source.entry), (0, i - 1));
                         }
                     }
                     "methods" => {

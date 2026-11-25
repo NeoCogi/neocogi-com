@@ -195,7 +195,8 @@ fn generate_bootstrap_inner(graph: &ResolvedModules, module_name: &str) -> Resul
     let mut abi = module_header(&mut generation, module)?;
     let mut provider = String::new();
     for declaration in &module.source.declarations {
-        let parts = interface_parts(&mut generation, module, declaration)?;
+        let ancestry = interface_metadata::ancestry(&generation, module, declaration)?;
+        let parts = interface_parts(&mut generation, module, declaration, &ancestry)?;
         abi.push_str(&format_rust(parts.abi)?);
         provider.push_str(&format_rust(parts.provider)?);
     }
@@ -216,7 +217,8 @@ pub fn generate_scoped_serialization_adapters(graph: &ResolvedModules, module_na
             if !matches!(declaration.name.as_str(), "ISerializer" | "IDeserializer") {
                 continue;
             }
-            let plan = interface_plan(&mut generation, module, declaration)?;
+            let ancestry = interface_metadata::ancestry(&generation, module, declaration)?;
+            let plan = interface_plan(&mut generation, module, declaration, &ancestry)?;
             let parts = crate::codegen::expand_scoped_interface_parts(plan, &generation.support).map_err(|error| GenerateError::new(error.to_string()))?;
             output.push_str(&format_rust(parts.provider)?);
         }
@@ -239,8 +241,7 @@ fn generate_module(graph: &mut Generation<'_>, module_name: &str) -> Result<crat
     for (index, origin) in module.source.declarations.iter().enumerate() {
         // Both pieces are already formatted Rust. Map the completed declaration
         // once, so its associated metadata and deep initializers share its cause.
-        let mut declaration = generate_declaration(graph, module, origin, index)?;
-        declaration.push_str(&generate_declaration_metadata(graph, module, origin)?);
+        let declaration = generate_declaration(graph, module, origin, index)?;
         // Keep declarations visibly separated so generated files remain useful
         // during diagnostics, reviews, and editor navigation.
         source.push('\n');
@@ -302,7 +303,12 @@ fn module_header(graph: &mut Generation<'_>, module: &ResolvedModule) -> Result<
 /// Completes one declaration with authoring metadata derived from its bound graph.
 /// Ordinary emission maps this with the declaration; allocation-free bootstrap
 /// emits ABI/provider halves directly and intentionally omits these descriptions.
-fn generate_declaration_metadata(graph: &Generation<'_>, module: &ResolvedModule, declaration: &Declaration) -> Result<String, GenerateError> {
+fn generate_declaration_metadata(
+    graph: &Generation<'_>,
+    module: &ResolvedModule,
+    declaration: &Declaration,
+    ancestry: &[interface_metadata::Projection<'_>],
+) -> Result<String, GenerateError> {
     let nc = &graph.support;
     let description = if let DeclarationKind::Interface(_) = &declaration.kind {
         let interface_member = rust_ident(crate::metadata_names::INTERFACE_METADATA_MEMBER)?;
@@ -311,7 +317,7 @@ fn generate_declaration_metadata(graph: &Generation<'_>, module: &ResolvedModule
         let declaration_identity = module.declaration(&declaration.name).expect("resolved interface identity");
         let qualified_name = Literal::string(&declaration_identity.qualified_name);
         let identity = interface_metadata::identity(nc, declaration_identity);
-        let chain = interface_metadata::ancestry(graph, module, declaration)?;
+        let chain = ancestry.iter().map(|row| interface_metadata::identity(nc, row.identity));
         let rust_abi = Literal::string(&public_rust_path(graph, module, &abi_name)?);
         let methods = method_metadata::descriptions(graph, module, declaration)?;
         let values = reachable_metadata::definitions(
@@ -531,13 +537,17 @@ fn generate_declaration(graph: &mut Generation<'_>, module: &ResolvedModule, dec
         DeclarationKind::Enum(enumeration) if enumeration.has_payload() => value::generate_aggregate(graph, module, declaration, identity),
         DeclarationKind::Enum(_) | DeclarationKind::BitEnum(_) => value::generate_scalar(graph, declaration, identity),
         DeclarationKind::Interface(_) => {
-            let parts = interface_parts(graph, module, declaration)?;
+            let ancestry = interface_metadata::ancestry(graph, module, declaration)?;
+            let parts = interface_parts(graph, module, declaration, &ancestry)?;
             let abi = parts.abi;
             let provider = parts.provider;
-            return format_rust(quote! { #abi #provider });
+            let mut output = format_rust(quote! { #abi #provider })?;
+            output.push_str(&generate_declaration_metadata(graph, module, declaration, &ancestry)?);
+            return Ok(output);
         }
     }?;
     output.push_str(&format_rust(binding_proof(&rust_ident(&declaration.name)?, identity.rust_binding))?);
+    output.push_str(&generate_declaration_metadata(graph, module, declaration, &[])?);
     Ok(output)
 }
 
@@ -566,8 +576,9 @@ fn interface_parts(
     graph: &mut Generation<'_>,
     module: &ResolvedModule,
     declaration: &Declaration,
+    ancestry: &[interface_metadata::Projection<'_>],
 ) -> Result<crate::codegen::InterfaceExpansion, GenerateError> {
-    let plan = interface_plan(graph, module, declaration)?;
+    let plan = interface_plan(graph, module, declaration, ancestry)?;
     let marker = rust_ident(&format!("{}{}", declaration.name, NcComInterfaceCompanion::Abi.suffix()))?;
     let identity = module.declaration(&declaration.name).expect("interface plan checked declaration identity");
     let mut parts = crate::codegen::expand_interface_parts_with_path(plan, &graph.support).map_err(|error| GenerateError::new(error.to_string()))?;
@@ -580,6 +591,7 @@ fn interface_plan(
     graph: &mut Generation<'_>,
     module: &ResolvedModule,
     declaration: &Declaration,
+    ancestry: &[interface_metadata::Projection<'_>],
 ) -> Result<crate::codegen::model::InterfacePlan, GenerateError> {
     use crate::codegen::{model::InterfacePlan, InterfaceThreading};
     let DeclarationKind::Interface(interface) = &declaration.kind else {
@@ -615,6 +627,7 @@ fn interface_plan(
             Threading::Shared => InterfaceThreading::Shared,
         },
         bases,
+        inherited_projections: ancestry.iter().filter_map(|row| row.parent).collect(),
         methods,
     };
     Ok(plan)

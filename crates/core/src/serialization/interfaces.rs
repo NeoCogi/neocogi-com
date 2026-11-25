@@ -2076,9 +2076,9 @@ impl IDeserializerAbi {
     };
     /// Distinct projections in derived-first, declared-parent order.
     /// Shared ancestors occur once; repeated identities must have the same ABI.
-    pub const INTERFACE_CHAIN: [&'static crate::NcInterfaceDescriptor; crate::__nc_object_interface_count(
-        &[&[&Self::INTERFACE_DESCRIPTOR]],
-    )] = crate::__nc_interface_chain(&Self::INTERFACE_DESCRIPTOR, &[]);
+    pub const INTERFACE_CHAIN: [&'static crate::NcInterfaceDescriptor; 1usize] = [
+        &Self::INTERFACE_DESCRIPTOR,
+    ];
 }
 impl IDeserializerAbi {
     #[doc(hidden)]
@@ -2805,9 +2805,9 @@ impl ISerializationDiagnosticsAbi {
     };
     /// Distinct projections in derived-first, declared-parent order.
     /// Shared ancestors occur once; repeated identities must have the same ABI.
-    pub const INTERFACE_CHAIN: [&'static crate::NcInterfaceDescriptor; crate::__nc_object_interface_count(
-        &[&[&Self::INTERFACE_DESCRIPTOR]],
-    )] = crate::__nc_interface_chain(&Self::INTERFACE_DESCRIPTOR, &[]);
+    pub const INTERFACE_CHAIN: [&'static crate::NcInterfaceDescriptor; 1usize] = [
+        &Self::INTERFACE_DESCRIPTOR,
+    ];
 }
 impl ISerializationDiagnosticsAbi {
     #[doc(hidden)]
@@ -3256,9 +3256,9 @@ impl ISerializationFormatAbi {
     };
     /// Distinct projections in derived-first, declared-parent order.
     /// Shared ancestors occur once; repeated identities must have the same ABI.
-    pub const INTERFACE_CHAIN: [&'static crate::NcInterfaceDescriptor; crate::__nc_object_interface_count(
-        &[&[&Self::INTERFACE_DESCRIPTOR]],
-    )] = crate::__nc_interface_chain(&Self::INTERFACE_DESCRIPTOR, &[]);
+    pub const INTERFACE_CHAIN: [&'static crate::NcInterfaceDescriptor; 1usize] = [
+        &Self::INTERFACE_DESCRIPTOR,
+    ];
 }
 impl ISerializationFormatAbi {
     #[doc(hidden)]
@@ -3536,9 +3536,9 @@ impl ISerializationOutputAbi {
     };
     /// Distinct projections in derived-first, declared-parent order.
     /// Shared ancestors occur once; repeated identities must have the same ABI.
-    pub const INTERFACE_CHAIN: [&'static crate::NcInterfaceDescriptor; crate::__nc_object_interface_count(
-        &[&[&Self::INTERFACE_DESCRIPTOR]],
-    )] = crate::__nc_interface_chain(&Self::INTERFACE_DESCRIPTOR, &[]);
+    pub const INTERFACE_CHAIN: [&'static crate::NcInterfaceDescriptor; 1usize] = [
+        &Self::INTERFACE_DESCRIPTOR,
+    ];
 }
 impl ISerializationOutputAbi {
     #[doc(hidden)]
@@ -3824,9 +3824,9 @@ impl ISerializationPluginAbi {
     };
     /// Distinct projections in derived-first, declared-parent order.
     /// Shared ancestors occur once; repeated identities must have the same ABI.
-    pub const INTERFACE_CHAIN: [&'static crate::NcInterfaceDescriptor; crate::__nc_object_interface_count(
-        &[&[&Self::INTERFACE_DESCRIPTOR]],
-    )] = crate::__nc_interface_chain(&Self::INTERFACE_DESCRIPTOR, &[]);
+    pub const INTERFACE_CHAIN: [&'static crate::NcInterfaceDescriptor; 1usize] = [
+        &Self::INTERFACE_DESCRIPTOR,
+    ];
 }
 impl ISerializationPluginAbi {
     #[doc(hidden)]
@@ -5920,9 +5920,9 @@ impl ISerializerAbi {
     };
     /// Distinct projections in derived-first, declared-parent order.
     /// Shared ancestors occur once; repeated identities must have the same ABI.
-    pub const INTERFACE_CHAIN: [&'static crate::NcInterfaceDescriptor; crate::__nc_object_interface_count(
-        &[&[&Self::INTERFACE_DESCRIPTOR]],
-    )] = crate::__nc_interface_chain(&Self::INTERFACE_DESCRIPTOR, &[]);
+    pub const INTERFACE_CHAIN: [&'static crate::NcInterfaceDescriptor; 1usize] = [
+        &Self::INTERFACE_DESCRIPTOR,
+    ];
 }
 impl ISerializerAbi {
     #[doc(hidden)]

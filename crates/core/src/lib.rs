@@ -121,7 +121,7 @@ pub use status::{
 };
 
 #[doc(hidden)]
-pub use metadata::{ComInterfaceTableEntry, __nc_interface_chain, __nc_object_interface_count, __nc_interface_table, __nc_interface_vtables};
+pub use metadata::{ComInterfaceTableEntry, __nc_count_object_interfaces, __nc_object_interface_vtables};
 pub use plugin_descriptor::{
     NC_GET_PLUGIN_DESCRIPTOR_SYMBOL, NcAcquirePluginFactory, NcPluginDescriptor, NcGetPluginDescriptor, write_plugin_root, return_plugin_descriptor,
     validate_plugin_descriptor,

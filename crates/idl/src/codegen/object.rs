@@ -21,8 +21,6 @@ pub fn expand_com_object(args: ObjectArgs, input: ItemStruct) -> proc_macro2::To
     let mut names = PrivateNames::new(quote! { #input #nc #(#declared_paths)* });
     let object_pointer = names.binding("__nc_object_pointer");
     let initial = names.binding("__nc_initial_value");
-    let contracts = names.binding("__nc_contracts");
-    let interface_table = names.binding("__nc_interface_table");
     let object_ident = &input.ident;
     let object_vis = &input.vis;
     // Rust implementation generics stay inside the allocating binary, and COM
@@ -71,21 +69,12 @@ pub fn expand_com_object(args: ObjectArgs, input: ItemStruct) -> proc_macro2::To
             quote! { &#abi::INTERFACE_CHAIN }
         })
         .collect::<Vec<_>>();
-    let interface_chains = quote! { &[
-        &[&#nc::IUnknown::INTERFACE_DESCRIPTOR],
-        #(#declared_chains,)*
-    ] };
+    let interface_chains = quote! { &[#(#declared_chains,)*] };
     // This expression contains contract types only, never implementation type
     // parameters. Fixed-size arrays therefore also work for generic Rust owners.
-    let interface_count = quote! { #nc::__nc_object_interface_count(#interface_chains) };
-    let providers = args
-        .interfaces
-        .iter()
-        .map(|iface| {
-            let provider = &iface.vtable_for_path;
-            quote! { &#provider::<#object_type>::INTERFACE_TABLE }
-        })
-        .collect::<Vec<_>>();
+    let interface_count = quote! { #nc::__nc_count_object_interfaces(#interface_chains) };
+    let providers = args.interfaces.iter().map(|iface| &iface.vtable_for_path).collect::<Vec<_>>();
+    let abis = args.interfaces.iter().map(|iface| &iface.abi_path).collect::<Vec<_>>();
     // Only the selected provider policy exists; shared calls have no dynamic
     // exclusive-admission branch. All unsafe layout work belongs to typed support.
     let unknown_vtable = match args.ownership {
@@ -155,17 +144,17 @@ pub fn expand_com_object(args: ObjectArgs, input: ItemStruct) -> proc_macro2::To
             type ExclusiveGuard<'a> = #exclusive_guard;
             /// One trait-owned static table; no inherent forwarding member is emitted.
             const VTABLES: &'static [*const #nc::IUnknownVTable] = &{
-                let #contracts = #nc::__nc_interface_chain::<{ #interface_count }>(
-                    &#nc::IUnknown::INTERFACE_DESCRIPTOR, &[#(#declared_chains,)*],
-                );
-                let #interface_table = #nc::__nc_interface_table(
-                    &#contracts,
-                    // SAFETY: this allocation's canonical unknown table delegates
-                    // lifecycle and queries to the same stored implementation.
-                    unsafe { #nc::ComInterfaceTableEntry::<Self>::new(#nc::IUnknown::INTERFACE_ID, <Self as #nc::ComObject>::UNKNOWN_VTABLE) },
-                    &[#(#providers,)*],
-                );
-                #nc::__nc_interface_vtables(&#interface_table)
+                // Explicit Rust roots may use aliases. Each provider's nominal
+                // vtable must agree with the marker supplying its descriptors.
+                #(
+                    let _: fn(&'static #nc::NcInterfaceId) -> <#abis as #nc::ComInterface>::VTable =
+                        #providers::<Self>::with_identity;
+                )*
+                #nc::__nc_object_interface_vtables::<Self, { #interface_count }>(
+                    <Self as #nc::ComObject>::UNKNOWN_VTABLE,
+                    #interface_chains,
+                    &[#(&#providers::<Self>::INTERFACE_TABLE,)*],
+                )
             };
 
             unsafe fn borrow_abi_ref<'a>(

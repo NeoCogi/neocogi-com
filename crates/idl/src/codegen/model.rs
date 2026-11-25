@@ -147,6 +147,15 @@ pub enum InterfaceOwnership {
     WeakShared,
 }
 
+/// Supplying entry in one direct parent's already-deduplicated projection order.
+#[derive(Clone, Copy)]
+pub struct ParentProjection {
+    /// Position in the authored direct-base list.
+    pub direct: usize,
+    /// Position in that parent's descriptor and typed provider arrays.
+    pub entry: usize,
+}
+
 /// Complete callable contract supplied by the bound IDL graph.
 /// Identity, signature and bases are required resolved data, never syntax options.
 pub struct InterfacePlan {
@@ -166,6 +175,8 @@ pub struct InterfacePlan {
     pub threading: crate::codegen::InterfaceThreading,
     /// Ordered bound provider paths; first entry supplies the physical prefix.
     pub bases: Vec<syn::Path>,
+    /// Inherited projections in first-supplier order. The owning interface is implicit.
+    pub inherited_projections: Vec<ParentProjection>,
     /// One authoritative ownership/wire plan for traits, calls and descriptions.
     pub methods: Vec<AbiMethod>,
 }

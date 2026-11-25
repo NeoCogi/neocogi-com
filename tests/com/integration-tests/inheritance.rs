@@ -139,17 +139,18 @@ fn inherited_methods_and_queries_share_one_allocation() {
     assert_eq!(drops.get(), 1);
 }
 
-/// Compile-time entries retain the concrete provider through real C queries and calls.
+/// The assembled object tables use their concrete provider in real C queries and calls.
 #[test]
 fn interface_table_entries_dispatch_to_their_concrete_implementation() {
-    use neocogi_com_sdk::{ComInterfaceTableEntry, ComRaw, IUnknownVTable, NC_OK};
+    use neocogi_com_sdk::{ComObject, ComRaw, NC_OK};
 
-    const ENTRIES: [ComInterfaceTableEntry<Toggle>; IToggleAbi::INTERFACE_CHAIN.len()] = IToggleVtblFor::<Toggle>::INTERFACE_TABLE;
-    const TABLES: [*const IUnknownVTable; ENTRIES.len()] = neocogi_com_sdk::__nc_interface_vtables(&ENTRIES);
+    // The canonical IUnknown is immediately followed by the generated chain.
+    let tables = &<Toggle as ComObject>::VTABLES[1..];
+    assert_eq!(tables.len(), IToggleAbi::INTERFACE_CHAIN.len());
 
     let drops = Rc::new(Cell::new(0));
     let owner = Toggle::from_value(Toggle { value: 0, drops: drops.clone() });
-    for (index, (&table, descriptor)) in TABLES.iter().zip(IToggleAbi::INTERFACE_CHAIN).enumerate() {
+    for (index, (&table, descriptor)) in tables.iter().zip(IToggleAbi::INTERFACE_CHAIN).enumerate() {
         let mut output = ComRaw::<IUnknown>::null();
         // SAFETY: these compiler-generated tables implement Toggle's exact allocation
         // contract. The owner retains that allocation throughout query and dispatch.

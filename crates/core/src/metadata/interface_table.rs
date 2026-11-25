@@ -5,8 +5,7 @@
 //! allocation its thunks understand. Only the ABI's common vtable pointer is
 //! erased; application values and provider types remain statically typed.
 use core::marker::PhantomData;
-use crate::{IUnknownVTable, NcInterfaceDescriptor, NcInterfaceId};
-use super::inheritance::same_identity;
+use crate::{IUnknown, IUnknownVTable, NcInterfaceDescriptor, NcInterfaceId};
 
 /// One interface identity and its vtable for the concrete implementation `T`.
 ///
@@ -49,63 +48,105 @@ impl<T> ComInterfaceTableEntry<T> {
             implementor: PhantomData,
         }
     }
+    /// Verifies an indexed entry against the descriptor from the same projection.
+    #[doc(hidden)]
+    pub const fn checked_contract(self, descriptor: &NcInterfaceDescriptor) -> Self {
+        assert!(
+            same_identity(&self.identity, &descriptor_identity(descriptor)),
+            "interface projection table entry mismatch"
+        );
+        self
+    }
 }
 
-/// Selects interface table entries in exactly the canonical descriptor order.
-///
-/// Generated associated constants evaluate this at compilation. Parent tables
-/// already contain only unique interfaces. No runtime ancestry traversal, map,
-/// erased application value, or per-parent header allocation is needed.
-#[doc(hidden)]
-pub const fn __nc_interface_table<T, const N: usize>(
-    contracts: &[&'static NcInterfaceDescriptor; N],
-    own: ComInterfaceTableEntry<T>,
-    parents: &[&[ComInterfaceTableEntry<T>]],
-) -> [ComInterfaceTableEntry<T>; N] {
-    let mut result = [own; N];
-    let mut index = 0;
-    while index < N {
-        let identity = NcInterfaceId::new(contracts[index].interface_id, contracts[index].abi_signature);
-        if same_identity(&identity, &own.identity) {
-            result[index] = own;
-        } else {
-            let mut parent = 0;
-            let mut found = false;
-            // The canonical set has already rejected conflicting revisions.
-            // First occurrence therefore selects the same contract through
-            // either side of a diamond, with thunks for this exact T.
-            'search: while parent < parents.len() {
-                let mut item = 0;
-                while item < parents[parent].len() {
-                    let candidate = parents[parent][item];
-                    if same_identity(&identity, &candidate.identity) {
-                        result[index] = candidate;
-                        found = true;
-                        break 'search;
-                    }
-                    item += 1;
-                }
-                parent += 1;
+/// Reads only the identity part of a physical projection descriptor in const code.
+const fn descriptor_identity(descriptor: &NcInterfaceDescriptor) -> NcInterfaceId {
+    NcInterfaceId::new(descriptor.interface_id, descriptor.abi_signature)
+}
+
+/// Checks the root's unique entry against the implicit IUnknown and earlier
+/// independent roots. The first authored supplier keeps its index on duplicates.
+const fn seen_in_earlier_roots(chains: &[&[&NcInterfaceDescriptor]], root: usize, entry: usize) -> bool {
+    let current = descriptor_identity(chains[root][entry]);
+    if same_identity(&current, &IUnknown::INTERFACE_ID) {
+        return true;
+    }
+    let mut earlier = 0;
+    while earlier < root {
+        let mut index = 0;
+        while index < chains[earlier].len() {
+            if same_identity(&current, &descriptor_identity(chains[earlier][index])) {
+                return true;
             }
-            assert!(found, "canonical interface has no interface table entry");
+            index += 1;
         }
-        index += 1;
+        earlier += 1;
     }
+    false
+}
+
+/// Counts canonical IUnknown and the distinct projections of already-unique roots.
+///
+/// Rust attribute macros can compose roots that were resolved independently.
+/// Only cross-root duplicates need comparison, so one wide root is linear.
+#[doc(hidden)]
+pub const fn __nc_count_object_interfaces(chains: &[&[&NcInterfaceDescriptor]]) -> usize {
+    let mut count = 1;
+    let mut root = 0;
+    while root < chains.len() {
+        let mut entry = 0;
+        while entry < chains[root].len() {
+            if !seen_in_earlier_roots(chains, root, entry) {
+                count += 1;
+            }
+            entry += 1;
+        }
+        root += 1;
+    }
+    assert!(count <= u32::MAX as usize, "object interface count exceeds the ABI limit");
+    count
+}
+
+/// Assembles compact runtime pointers in canonical query order at compile time.
+///
+/// Descriptors and typed entries share their selected root's ordered positions.
+/// Even a discarded duplicate must have the exact descriptor and provider pair.
+#[doc(hidden)]
+pub const fn __nc_object_interface_vtables<T, const N: usize>(
+    unknown: *const IUnknownVTable,
+    chains: &[&[&NcInterfaceDescriptor]],
+    providers: &[&[ComInterfaceTableEntry<T>]],
+) -> [*const IUnknownVTable; N] {
+    assert!(chains.len() == providers.len(), "object has differing interface and provider root counts");
+    let mut result = [unknown; N];
+    let mut output = 1;
+    let mut root = 0;
+    while root < chains.len() {
+        assert!(
+            chains[root].len() == providers[root].len(),
+            "interface and provider chains have differing lengths"
+        );
+        let mut entry = 0;
+        while entry < chains[root].len() {
+            let provider = providers[root][entry].checked_contract(chains[root][entry]);
+            if !seen_in_earlier_roots(chains, root, entry) {
+                assert!(output < N, "object interface projection count is too small");
+                result[output] = provider.vtable;
+                output += 1;
+            }
+            entry += 1;
+        }
+        root += 1;
+    }
+    assert!(output == N, "invalid object interface projection count");
     result
 }
 
-/// Extracts runtime vtable pointers from the compiler-only interface table entries.
-///
-/// Generated queries scan only this result. Returning pointer words instead
-/// of entry records prevents a runtime reference from retaining descriptor graphs
-/// or a redundant per-implementation interface-identity array.
-#[doc(hidden)]
-pub const fn __nc_interface_vtables<T, const N: usize>(entries: &[ComInterfaceTableEntry<T>; N]) -> [*const IUnknownVTable; N] {
-    let mut result = [core::ptr::null(); N];
-    let mut index = 0;
-    while index < N {
-        result[index] = entries[index].vtable;
-        index += 1;
+/// Rejects incompatible digests once two contracts claim the same nominal IID.
+const fn same_identity(left: &NcInterfaceId, right: &NcInterfaceId) -> bool {
+    if !left.iid.const_eq(right.iid) {
+        return false;
     }
-    result
+    assert!(left.abi_signature.__const_eq(right.abi_signature), "conflicting inherited interface contracts");
+    true
 }

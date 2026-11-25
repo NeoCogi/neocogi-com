@@ -97,6 +97,7 @@ fn expand_parts(plan: InterfacePlan, dispatch: ProviderDispatch, nc: &syn::Path)
         qualified_name,
         threading: requirement,
         bases: interface_paths,
+        inherited_projections,
         mut methods,
     } = plan;
     let declarations = methods.iter().map(|method| super::method_declaration_with_path(method, nc));
@@ -174,6 +175,20 @@ fn expand_parts(plan: InterfacePlan, dispatch: ProviderDispatch, nc: &syn::Path)
     // a required sibling projection; all refer to the same owned Rust value.
     let required_providers = interface_paths.iter().map(|path| generated_path(path, Companion::Provider)).collect::<Vec<_>>();
     let required_abis = interface_paths.iter().map(|path| generated_path(path, Companion::Abi)).collect::<Vec<_>>();
+    let projection_count = inherited_projections.len() + 1;
+    checked_u32_len(projection_count, trait_ident.span(), "interface projection count")?;
+    let mut inherited_descriptors = Vec::new();
+    let mut inherited_entries = Vec::new();
+    for projection in inherited_projections {
+        let entry = projection.entry;
+        let parent_abi = required_abis
+            .get(projection.direct)
+            .ok_or_else(|| syn::Error::new_spanned(trait_ident, "projection has no supplying base"))?;
+        let parent_provider = &required_providers[projection.direct];
+        let descriptor = quote! { #parent_abi::INTERFACE_CHAIN[#entry] };
+        inherited_entries.push(quote! { #parent_provider::<#provider>::INTERFACE_TABLE[#entry].checked_contract(#descriptor) });
+        inherited_descriptors.push(descriptor);
+    }
     let mut base_identity = quote! { #nc::NcInterfaceId::NONE };
     let mut prefix_field = quote! {
         /// Common identity, query and reference-count slots.
@@ -792,10 +807,8 @@ fn expand_parts(plan: InterfacePlan, dispatch: ProviderDispatch, nc: &syn::Path)
 
             /// Distinct projections in derived-first, declared-parent order.
             /// Shared ancestors occur once; repeated identities must have the same ABI.
-            pub const INTERFACE_CHAIN: [&'static #nc::NcInterfaceDescriptor; #nc::__nc_object_interface_count(&[
-                &[&Self::INTERFACE_DESCRIPTOR], #(&#required_abis::INTERFACE_CHAIN,)*
-            ])] =
-                #nc::__nc_interface_chain(&Self::INTERFACE_DESCRIPTOR, &[#(&#required_abis::INTERFACE_CHAIN,)*]);
+            pub const INTERFACE_CHAIN: [&'static #nc::NcInterfaceDescriptor; #projection_count] =
+                [&Self::INTERFACE_DESCRIPTOR, #(#inherited_descriptors,)*];
         }
 
     };
@@ -807,15 +820,21 @@ fn expand_parts(plan: InterfacePlan, dispatch: ProviderDispatch, nc: &syn::Path)
         ProviderDispatch::Owned => quote! {
             /// Distinct interface entries in the canonical metadata order.
             /// T fixes each vtable's implementation; entries own no object state.
-            pub const INTERFACE_TABLE: [#nc::ComInterfaceTableEntry<#provider>; #abi_ident::INTERFACE_CHAIN.len()] =
-                #nc::__nc_interface_table(
-                    &#abi_ident::INTERFACE_CHAIN,
-                    // SAFETY: this macro emits the exact contract identity and
-                    // complete prefix-compatible vtable for T's allocation.
+            pub const INTERFACE_TABLE: [#nc::ComInterfaceTableEntry<#provider>; #projection_count] = {
+                // Each supplying provider must build the table type selected
+                // by its marker, including when a facade reexports companions.
+                #(
+                    let _: fn(&'static #nc::NcInterfaceId) -> <#required_abis as #nc::ComInterface>::VTable =
+                        #required_providers::<#provider>::with_identity;
+                )*
+                [
+                    // SAFETY: the generated complete prefix-compatible table
+                    // implements this exact identity for T's allocation.
                     unsafe { #nc::ComInterfaceTableEntry::new(<#abi_ident as #nc::ComInterface>::INTERFACE_ID,
                         &Self::VTABLE as *const #vtable_ident as *const #nc::IUnknownVTable) },
-                    &[#(&#required_providers::<#provider>::INTERFACE_TABLE,)*],
-                );
+                    #(#inherited_entries,)*
+                ]
+            };
 
         },
         ProviderDispatch::Scoped => quote! {},

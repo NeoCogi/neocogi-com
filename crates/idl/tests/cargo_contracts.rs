@@ -137,6 +137,7 @@ fn imported_generics_use_typed_routes_through_direct_providers() {
             r#"
             struct Fixed { count: u32 }
             interface Service { fn read(&self) -> Result<Fixed>; }
+            interface Common { fn common(&self) -> Result<u32>; }
         "#,
         ),
         (
@@ -147,7 +148,7 @@ fn imported_generics_use_typed_routes_through_direct_providers() {
             r#"
             extern proof.leaf;
             struct Wrapper<T> { fixed: proof::leaf::Fixed, value: T }
-            interface Reader<T> {
+            interface Reader<T>: proof::leaf::Common {
                 fn read(&self, source: &proof::leaf::Service, extra: T) -> Result<proof::leaf::Fixed>;
             }
         "#,
@@ -160,6 +161,8 @@ fn imported_generics_use_typed_routes_through_direct_providers() {
             r#"
             extern proof.leaf;
             struct Other<T> { fixed: proof::leaf::Fixed, value: T }
+            interface Tail { fn tail(&self) -> Result<u32>; }
+            interface Branch: proof::leaf::Common + Tail {}
         "#,
         ),
         (
@@ -173,7 +176,7 @@ fn imported_generics_use_typed_routes_through_direct_providers() {
             struct Combined<T> {
                 left: proof::left::Wrapper<T>, right: proof::right::Other<T>
             }
-            interface Root<T>: proof::left::Reader<T> {}
+            interface Root<T>: proof::left::Reader<T> + proof::right::Branch {}
         "#,
         ),
         (
@@ -253,17 +256,22 @@ fn imported_generics_use_typed_routes_through_direct_providers() {
             // These convenience exports let the test implement the public
             // service without spelling compiler-private routing identifiers.
             // Generated consumers still use their compiler-selected routes.
-            "left" => format!("pub mod bindings {{ {entry} }} pub use leaf::r#type::{{Fixed, Service, ServiceAbi, ServiceVtblFor}};"),
+            "left" => format!("pub mod bindings {{ {entry} }} pub use leaf::r#type::{{Common, CommonAbi, Fixed, Service, ServiceAbi, ServiceVtblFor}};"),
             "right" => format!("pub mod bindings {{ {entry} }}"),
-            "bridge" => format!("{entry} pub use left::bindings::*; pub use right::bindings::*; pub use left::{{Fixed, Service, ServiceAbi, ServiceVtblFor}};"),
+            "bridge" => format!(
+                "{entry} pub use left::bindings::*; pub use right::bindings::*; pub use left::{{Common, CommonAbi, Fixed, Service, ServiceAbi, ServiceVtblFor}};"
+            ),
             "consumer" => format!(
                 r#"
 {entry}
-use bridge::{{Fixed, Service, ServiceAbi, ServiceVtblFor}};
+use bridge::{{Branch, BranchAbi, Common, CommonAbi, Fixed, Service, ServiceAbi, ServiceVtblFor, Tail, TailAbi}};
 use neocogi_com_sdk::{{com_object, ComRef, NcStatus}};
 #[com_object(Service)] struct Source;
 impl Service for Source {{ fn read(&self) -> Result<Fixed, NcStatus> {{ Ok(Fixed {{ count: 40 }}) }} }}
 #[com_object(Client)] struct Controller;
+impl Common for Controller {{ fn common(&self) -> Result<u32, NcStatus> {{ Ok(11) }} }}
+impl Tail for Controller {{ fn tail(&self) -> Result<u32, NcStatus> {{ Ok(29) }} }}
+impl Branch for Controller {{}}
 impl {reader} for Controller {{
     fn read(&self, source: ComRef<'_, ServiceAbi>, extra: u32) -> Result<Fixed, NcStatus> {{
         Ok(Fixed {{ count: source.read()?.count + extra }})
@@ -279,6 +287,12 @@ impl Client for Controller {{
     let source = Source::from_value(Source).query::<ServiceAbi>().unwrap();
     let controller = Controller::from_value(Controller).query::<ClientAbi>().unwrap();
     assert_eq!(controller.read(source.as_com_ref(), 2).unwrap(), Fixed {{ count: 42 }});
+    assert_eq!(controller.common(), Ok(11));
+    assert_eq!(controller.query::<TailAbi>().unwrap().tail(), Ok(29));
+    assert_eq!(controller.query::<BranchAbi>().unwrap().common(), Ok(11));
+    assert_eq!(ClientAbi::INTERFACE_CHAIN[3..].iter().map(|row| row.interface_id).collect::<Vec<_>>(), [
+        CommonAbi::INTERFACE_DESCRIPTOR.interface_id, BranchAbi::INTERFACE_DESCRIPTOR.interface_id, TailAbi::INTERFACE_DESCRIPTOR.interface_id
+    ]);
     assert_eq!(controller.sum(Input {{ value: {combined} {{
         left: {wrapper} {{ fixed: Fixed {{ count: 10 }}, value: 3 }},
         right: {other} {{ fixed: Fixed {{ count: 20 }}, value: 9 }},

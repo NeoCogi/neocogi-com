@@ -173,9 +173,7 @@ pub use runtime::{
 };
 
 #[doc(hidden)]
-pub use neocogi_com::{
-    ComInterfaceTableEntry, __nc_interface_chain, __nc_object_interface_count, __nc_interface_table, __nc_interface_vtables, __nc_find_interface,
-};
+pub use neocogi_com::{ComInterfaceTableEntry, __nc_count_object_interfaces, __nc_object_interface_vtables, __nc_find_interface};
 
 pub mod serialization;
 

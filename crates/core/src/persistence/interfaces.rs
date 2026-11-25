@@ -268,9 +268,9 @@ impl IObjectChildrenAbi {
     };
     /// Distinct projections in derived-first, declared-parent order.
     /// Shared ancestors occur once; repeated identities must have the same ABI.
-    pub const INTERFACE_CHAIN: [&'static crate::NcInterfaceDescriptor; crate::__nc_object_interface_count(
-        &[&[&Self::INTERFACE_DESCRIPTOR]],
-    )] = crate::__nc_interface_chain(&Self::INTERFACE_DESCRIPTOR, &[]);
+    pub const INTERFACE_CHAIN: [&'static crate::NcInterfaceDescriptor; 1usize] = [
+        &Self::INTERFACE_DESCRIPTOR,
+    ];
 }
 impl IObjectChildrenAbi {
     #[doc(hidden)]
@@ -738,9 +738,9 @@ impl IPersistableAbi {
     };
     /// Distinct projections in derived-first, declared-parent order.
     /// Shared ancestors occur once; repeated identities must have the same ABI.
-    pub const INTERFACE_CHAIN: [&'static crate::NcInterfaceDescriptor; crate::__nc_object_interface_count(
-        &[&[&Self::INTERFACE_DESCRIPTOR]],
-    )] = crate::__nc_interface_chain(&Self::INTERFACE_DESCRIPTOR, &[]);
+    pub const INTERFACE_CHAIN: [&'static crate::NcInterfaceDescriptor; 1usize] = [
+        &Self::INTERFACE_DESCRIPTOR,
+    ];
 }
 impl IPersistableAbi {
     #[doc(hidden)]
@@ -1117,9 +1117,9 @@ impl IPersistenceFactoryAbi {
     };
     /// Distinct projections in derived-first, declared-parent order.
     /// Shared ancestors occur once; repeated identities must have the same ABI.
-    pub const INTERFACE_CHAIN: [&'static crate::NcInterfaceDescriptor; crate::__nc_object_interface_count(
-        &[&[&Self::INTERFACE_DESCRIPTOR]],
-    )] = crate::__nc_interface_chain(&Self::INTERFACE_DESCRIPTOR, &[]);
+    pub const INTERFACE_CHAIN: [&'static crate::NcInterfaceDescriptor; 1usize] = [
+        &Self::INTERFACE_DESCRIPTOR,
+    ];
 }
 impl IPersistenceFactoryAbi {
     #[doc(hidden)]

@@ -33,17 +33,17 @@ const _: () = {
         /// T fixes each vtable's implementation; entries own no object state.
         pub const INTERFACE_TABLE: [crate::ComInterfaceTableEntry<
             __NcProvider,
-        >; IObjectChildrenAbi::INTERFACE_CHAIN.len()] = crate::__nc_interface_table(
-            &IObjectChildrenAbi::INTERFACE_CHAIN,
-            unsafe {
-                crate::ComInterfaceTableEntry::new(
-                    <IObjectChildrenAbi as crate::ComInterface>::INTERFACE_ID,
-                    &Self::VTABLE as *const IObjectChildrenVTable
-                        as *const crate::IUnknownVTable,
-                )
-            },
-            &[],
-        );
+        >; 1usize] = {
+            [
+                unsafe {
+                    crate::ComInterfaceTableEntry::new(
+                        <IObjectChildrenAbi as crate::ComInterface>::INTERFACE_ID,
+                        &Self::VTABLE as *const IObjectChildrenVTable
+                            as *const crate::IUnknownVTable,
+                    )
+                },
+            ]
+        };
         /// Table for a standalone projection of this interface.
         pub const VTABLE: IObjectChildrenVTable = Self::with_identity(
             &<IObjectChildrenAbi as crate::ComInterface>::INTERFACE_ID,
@@ -194,17 +194,17 @@ const _: () = {
         /// T fixes each vtable's implementation; entries own no object state.
         pub const INTERFACE_TABLE: [crate::ComInterfaceTableEntry<
             __NcProvider,
-        >; IPersistableAbi::INTERFACE_CHAIN.len()] = crate::__nc_interface_table(
-            &IPersistableAbi::INTERFACE_CHAIN,
-            unsafe {
-                crate::ComInterfaceTableEntry::new(
-                    <IPersistableAbi as crate::ComInterface>::INTERFACE_ID,
-                    &Self::VTABLE as *const IPersistableVTable
-                        as *const crate::IUnknownVTable,
-                )
-            },
-            &[],
-        );
+        >; 1usize] = {
+            [
+                unsafe {
+                    crate::ComInterfaceTableEntry::new(
+                        <IPersistableAbi as crate::ComInterface>::INTERFACE_ID,
+                        &Self::VTABLE as *const IPersistableVTable
+                            as *const crate::IUnknownVTable,
+                    )
+                },
+            ]
+        };
         /// Table for a standalone projection of this interface.
         pub const VTABLE: IPersistableVTable = Self::with_identity(
             &<IPersistableAbi as crate::ComInterface>::INTERFACE_ID,
@@ -506,17 +506,17 @@ const _: () = {
         /// T fixes each vtable's implementation; entries own no object state.
         pub const INTERFACE_TABLE: [crate::ComInterfaceTableEntry<
             __NcProvider,
-        >; IPersistenceFactoryAbi::INTERFACE_CHAIN.len()] = crate::__nc_interface_table(
-            &IPersistenceFactoryAbi::INTERFACE_CHAIN,
-            unsafe {
-                crate::ComInterfaceTableEntry::new(
-                    <IPersistenceFactoryAbi as crate::ComInterface>::INTERFACE_ID,
-                    &Self::VTABLE as *const IPersistenceFactoryVTable
-                        as *const crate::IUnknownVTable,
-                )
-            },
-            &[],
-        );
+        >; 1usize] = {
+            [
+                unsafe {
+                    crate::ComInterfaceTableEntry::new(
+                        <IPersistenceFactoryAbi as crate::ComInterface>::INTERFACE_ID,
+                        &Self::VTABLE as *const IPersistenceFactoryVTable
+                            as *const crate::IUnknownVTable,
+                    )
+                },
+            ]
+        };
         /// Table for a standalone projection of this interface.
         pub const VTABLE: IPersistenceFactoryVTable = Self::with_identity(
             &<IPersistenceFactoryAbi as crate::ComInterface>::INTERFACE_ID,

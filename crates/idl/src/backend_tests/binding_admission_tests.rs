@@ -792,27 +792,26 @@ fn nominal_interface_substitution_is_rejected() {
     fixture.rejected("same-module nominal interface", "proof.value.Base");
 }
 
-/// com_object's existing typed projection proof must keep rejecting a stale
-/// root provider even when the Rust implementation satisfies both old/new traits.
-/// This is independent of IDL's external-use checks and inherited view selection.
+/// An explicit object's root marker and provider must select the same Rust
+/// vtable type even when the old and new Rust slots have the same native ABI.
 #[test]
 fn object_projection_identity_still_rejects_a_stale_root_provider() {
-    let fixture = Fixture::new("binding-root-provider", OLD_BASE, CURRENT_BASE);
+    const DIRECT: &str = "interface Base { fn tick(&self); }";
+    const FALLIBLE: &str = "interface Base { fn tick(&self) -> Result<()>; }";
+    let fixture = Fixture::new("binding-root-provider", DIRECT, FALLIBLE);
     fixture.select("pub use super::old::BaseVtblFor;");
     fixture.provider(
-        CURRENT_BASE,
+        FALLIBLE,
         "interface Service {}",
         "binding_helper::selected",
         r#"
         #[neocogi_com_sdk::com_object(interfaces(binding_helper::selected::Base))]
         struct Counter;
         impl binding_helper::current::Base for Counter {
-            fn height(&self) -> Result<u32, neocogi_com_sdk::NcStatus> { Ok(3) }
-            fn width(&self) -> Result<u32, neocogi_com_sdk::NcStatus> { Ok(4) }
+            fn tick(&self) -> Result<(), neocogi_com_sdk::NcStatus> { Ok(()) }
         }
         impl binding_helper::old::Base for Counter {
-            fn height(&self) -> Result<u32, neocogi_com_sdk::NcStatus> { Ok(3) }
-            fn width(&self) -> Result<u32, neocogi_com_sdk::NcStatus> { Ok(4) }
+            fn tick(&self) {}
         }
         pub fn root() -> neocogi_com_sdk::ComPtr<neocogi_com_sdk::IUnknown> { Counter::from_value(Counter) }
     "#,
@@ -821,10 +820,7 @@ fn object_projection_identity_still_rejects_a_stale_root_provider() {
     let output = fixture.cargo("test");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(!output.status.success());
-    assert!(
-        stderr.contains("E0080") && stderr.contains("conflicting inherited interface contracts") && stderr.contains("VTABLES"),
-        "{stderr}"
-    );
+    assert!(stderr.contains("E0308") && stderr.contains("BaseVTable"), "{stderr}");
 }
 
 /// Source owner for the imported-provider regressions; no locally derived

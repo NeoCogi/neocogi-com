@@ -89,25 +89,25 @@ acquisition; exact interface signatures additionally select the callable contrac
 
 ## Compilation, queries, and borrowed inherited methods
 
-Rust constant evaluation merges each parent's already-deduplicated interface
-set, including imported contracts. Repeating an IID with another signature fails
-compilation. Typed `VtblFor<Implementation>::INTERFACE_TABLE` constants contain
-`ComInterfaceTableEntry<Implementation>` entries. Each entry pairs an exact
-interface identity with the vtable implementing it for that concrete Rust type.
-The type parameter prevents mixing entries for different allocation contracts;
-entries own no application value or per-object storage.
+The bound IDL graph determines derived-first projection order. For each
+distinct IID, the first authored parent supplies the descriptor and the
+corresponding typed vtable entry by index. Conflicting ABI signatures are
+rejected before an IID is reused. Direct parent indices let a downstream
+module use inherited entries without naming transitive Rust dependencies.
 
-These hidden Rust helpers compose the interface table at compile time. The
-compiler emits only a static vtable-pointer array for runtime queries, which
-scan the exact identities already in those tables. No runtime ancestry walk,
-header array, descriptor graph, or redundant identity table is needed.
+Typed `VtblFor<Implementation>::INTERFACE_TABLE` entries carry each exact
+interface identity and the vtable implementing it for that concrete Rust type.
+The generated code checks the parent marker and provider pairing and validates
+each selected entry's identity. Entries own no application value or per-object
+storage. An object macro can compose independent roots in Rust. Its const
+selection checks exact identities only across those already-deduplicated
+roots and keeps the first occurrence in attribute order after canonical
+`IUnknown`.
 
-The entry type replaces `__ComProjection<T>`; `INTERFACE_TABLE` replaces the
-generated `PROJECTIONS` constant. The composition/extraction helpers are now
-`__nc_interface_table` and `__nc_interface_vtables`. Regenerate bindings and
-update Rust code that names the previous helpers together. This is a Rust
-source API rename that preserved the C layouts, calling convention, interface
-signatures and ownership behavior.
+Only the compact static vtable-pointer array reaches ordinary runtime
+dispatch. Queries scan the exact identities already in those tables.
+Inspection retains the descriptor ancestry and associated descriptions when
+explicitly requested.
 
 A successful shared-owner query transfers exactly one reference and returns the same object
 address with the requested table. An absent IID returns `NC_E_NOINTERFACE`; a

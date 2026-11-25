@@ -1000,8 +1000,10 @@ Inherited physical table fields use `<BaseAbi as ComInterface>::VTable` and
 borrowed inherited wrappers use `<BaseAbi as ComRustInterface>::Wrapper<M>`.
 The checked marker therefore selects both representations, even if a facade
 also exposes an unrelated old `BaseVTable` or `BaseWrapper` convenience name.
-The selected `BaseVtblFor<T>` constructor must type-check against that associated
-table; existing typed provider-projection identity/ancestry checks still apply.
+Each direct base provider's `with_identity` constructor must produce the
+vtable type associated with the checked marker. The resolved ancestry supplies
+each inherited descriptor and provider entry through the same direct parent
+and index. Those entries must agree on the complete interface identity.
 Public trait/Abi/VTable/VtblFor/Wrapper names remain available. No extra query,
 reference-count operation, core/compiler dependency or runtime graph is added.
 

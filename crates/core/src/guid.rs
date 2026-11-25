@@ -164,6 +164,11 @@ impl NcGuid {
             && self.data4[7] == 0
     }
 
+    /// Compares the native fields in const operations that select exact contracts.
+    pub(crate) const fn const_eq(self, other: Self) -> bool {
+        self.data1 == other.data1 && self.data2 == other.data2 && self.data3 == other.data3 && u64::from_ne_bytes(self.data4) == u64::from_ne_bytes(other.data4)
+    }
+
     /// Creates a GUID from its C-compatible field representation.
     pub const fn from_fields(data1: u32, data2: u16, data3: u16, data4: [u8; 8]) -> Self {
         Self { data1, data2, data3, data4 }

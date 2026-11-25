@@ -4,31 +4,23 @@ error[E0080]: evaluation panicked: conflicting inherited interface contracts
 11 | #[com_object(interfaces(ILeft, IRight))]
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ evaluation of `_::<impl neocogi_com_sdk::ComObject for Object>::VTABLES::{constant#0}` failed inside this call
    |
-note: inside `neocogi_com_sdk::__nc_object_interface_count`
-  --> $WORKSPACE/crates/core/src/metadata/inheritance.rs
+note: inside `neocogi_com_sdk::__nc_count_object_interfaces`
+  --> $WORKSPACE/crates/core/src/metadata/interface_table.rs
    |
-   |             if !repeated(chains, chain, item) {
-   |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-note: inside `neocogi_com::metadata::inheritance::repeated`
-  --> $WORKSPACE/crates/core/src/metadata/inheritance.rs
+   |             if !seen_in_earlier_roots(chains, root, entry) {
+   |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+note: inside `neocogi_com::metadata::interface_table::seen_in_earlier_roots`
+  --> $WORKSPACE/crates/core/src/metadata/interface_table.rs
    |
-   |             if same_contract(current, previous) {
-   |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-note: inside `neocogi_com::metadata::inheritance::same_contract`
-  --> $WORKSPACE/crates/core/src/metadata/inheritance.rs
-   |
-   | /     same_identity(
-   | |         &NcInterfaceId::new(left.interface_id, left.abi_signature),
-   | |         &NcInterfaceId::new(right.interface_id, right.abi_signature),
-   | |     )
-   | |_____^
-note: inside `neocogi_com::metadata::inheritance::same_identity`
+   |             if same_identity(&current, &descriptor_identity(chains[earlier][index])) {
+   |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+note: inside `neocogi_com::metadata::interface_table::same_identity`
   --> $RUST/core/src/panic.rs
    |
    |         $crate::panicking::panic_fmt($crate::const_format_args!($($t)+));
    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the failure occurred here
    |
-  ::: $WORKSPACE/crates/core/src/metadata/inheritance.rs
+  ::: $WORKSPACE/crates/core/src/metadata/interface_table.rs
    |
    |     assert!(left.abi_signature.__const_eq(right.abi_signature), "conflicting inherited interface contracts");
    |     -------------------------------------------------------------------------------------------------------- in this macro invocation

@@ -110,17 +110,17 @@ const _: () = {
         /// T fixes each vtable's implementation; entries own no object state.
         pub const INTERFACE_TABLE: [crate::ComInterfaceTableEntry<
             __NcProvider,
-        >; IDeserializerAbi::INTERFACE_CHAIN.len()] = crate::__nc_interface_table(
-            &IDeserializerAbi::INTERFACE_CHAIN,
-            unsafe {
-                crate::ComInterfaceTableEntry::new(
-                    <IDeserializerAbi as crate::ComInterface>::INTERFACE_ID,
-                    &Self::VTABLE as *const IDeserializerVTable
-                        as *const crate::IUnknownVTable,
-                )
-            },
-            &[],
-        );
+        >; 1usize] = {
+            [
+                unsafe {
+                    crate::ComInterfaceTableEntry::new(
+                        <IDeserializerAbi as crate::ComInterface>::INTERFACE_ID,
+                        &Self::VTABLE as *const IDeserializerVTable
+                            as *const crate::IUnknownVTable,
+                    )
+                },
+            ]
+        };
         /// Table for a standalone projection of this interface.
         pub const VTABLE: IDeserializerVTable = Self::with_identity(
             &<IDeserializerAbi as crate::ComInterface>::INTERFACE_ID,
@@ -1452,17 +1452,17 @@ const _: () = {
         /// T fixes each vtable's implementation; entries own no object state.
         pub const INTERFACE_TABLE: [crate::ComInterfaceTableEntry<
             __NcProvider,
-        >; ISerializationDiagnosticsAbi::INTERFACE_CHAIN.len()] = crate::__nc_interface_table(
-            &ISerializationDiagnosticsAbi::INTERFACE_CHAIN,
-            unsafe {
-                crate::ComInterfaceTableEntry::new(
-                    <ISerializationDiagnosticsAbi as crate::ComInterface>::INTERFACE_ID,
-                    &Self::VTABLE as *const ISerializationDiagnosticsVTable
-                        as *const crate::IUnknownVTable,
-                )
-            },
-            &[],
-        );
+        >; 1usize] = {
+            [
+                unsafe {
+                    crate::ComInterfaceTableEntry::new(
+                        <ISerializationDiagnosticsAbi as crate::ComInterface>::INTERFACE_ID,
+                        &Self::VTABLE as *const ISerializationDiagnosticsVTable
+                            as *const crate::IUnknownVTable,
+                    )
+                },
+            ]
+        };
         /// Table for a standalone projection of this interface.
         pub const VTABLE: ISerializationDiagnosticsVTable = Self::with_identity(
             &<ISerializationDiagnosticsAbi as crate::ComInterface>::INTERFACE_ID,
@@ -1977,17 +1977,17 @@ const _: () = {
         /// T fixes each vtable's implementation; entries own no object state.
         pub const INTERFACE_TABLE: [crate::ComInterfaceTableEntry<
             __NcProvider,
-        >; ISerializationFormatAbi::INTERFACE_CHAIN.len()] = crate::__nc_interface_table(
-            &ISerializationFormatAbi::INTERFACE_CHAIN,
-            unsafe {
-                crate::ComInterfaceTableEntry::new(
-                    <ISerializationFormatAbi as crate::ComInterface>::INTERFACE_ID,
-                    &Self::VTABLE as *const ISerializationFormatVTable
-                        as *const crate::IUnknownVTable,
-                )
-            },
-            &[],
-        );
+        >; 1usize] = {
+            [
+                unsafe {
+                    crate::ComInterfaceTableEntry::new(
+                        <ISerializationFormatAbi as crate::ComInterface>::INTERFACE_ID,
+                        &Self::VTABLE as *const ISerializationFormatVTable
+                            as *const crate::IUnknownVTable,
+                    )
+                },
+            ]
+        };
         /// Table for a standalone projection of this interface.
         pub const VTABLE: ISerializationFormatVTable = Self::with_identity(
             &<ISerializationFormatAbi as crate::ComInterface>::INTERFACE_ID,
@@ -2200,17 +2200,17 @@ const _: () = {
         /// T fixes each vtable's implementation; entries own no object state.
         pub const INTERFACE_TABLE: [crate::ComInterfaceTableEntry<
             __NcProvider,
-        >; ISerializationOutputAbi::INTERFACE_CHAIN.len()] = crate::__nc_interface_table(
-            &ISerializationOutputAbi::INTERFACE_CHAIN,
-            unsafe {
-                crate::ComInterfaceTableEntry::new(
-                    <ISerializationOutputAbi as crate::ComInterface>::INTERFACE_ID,
-                    &Self::VTABLE as *const ISerializationOutputVTable
-                        as *const crate::IUnknownVTable,
-                )
-            },
-            &[],
-        );
+        >; 1usize] = {
+            [
+                unsafe {
+                    crate::ComInterfaceTableEntry::new(
+                        <ISerializationOutputAbi as crate::ComInterface>::INTERFACE_ID,
+                        &Self::VTABLE as *const ISerializationOutputVTable
+                            as *const crate::IUnknownVTable,
+                    )
+                },
+            ]
+        };
         /// Table for a standalone projection of this interface.
         pub const VTABLE: ISerializationOutputVTable = Self::with_identity(
             &<ISerializationOutputAbi as crate::ComInterface>::INTERFACE_ID,
@@ -2382,17 +2382,17 @@ const _: () = {
         /// T fixes each vtable's implementation; entries own no object state.
         pub const INTERFACE_TABLE: [crate::ComInterfaceTableEntry<
             __NcProvider,
-        >; ISerializationPluginAbi::INTERFACE_CHAIN.len()] = crate::__nc_interface_table(
-            &ISerializationPluginAbi::INTERFACE_CHAIN,
-            unsafe {
-                crate::ComInterfaceTableEntry::new(
-                    <ISerializationPluginAbi as crate::ComInterface>::INTERFACE_ID,
-                    &Self::VTABLE as *const ISerializationPluginVTable
-                        as *const crate::IUnknownVTable,
-                )
-            },
-            &[],
-        );
+        >; 1usize] = {
+            [
+                unsafe {
+                    crate::ComInterfaceTableEntry::new(
+                        <ISerializationPluginAbi as crate::ComInterface>::INTERFACE_ID,
+                        &Self::VTABLE as *const ISerializationPluginVTable
+                            as *const crate::IUnknownVTable,
+                    )
+                },
+            ]
+        };
         /// Table for a standalone projection of this interface.
         pub const VTABLE: ISerializationPluginVTable = Self::with_identity(
             &<ISerializationPluginAbi as crate::ComInterface>::INTERFACE_ID,
@@ -2679,17 +2679,17 @@ const _: () = {
         /// T fixes each vtable's implementation; entries own no object state.
         pub const INTERFACE_TABLE: [crate::ComInterfaceTableEntry<
             __NcProvider,
-        >; ISerializerAbi::INTERFACE_CHAIN.len()] = crate::__nc_interface_table(
-            &ISerializerAbi::INTERFACE_CHAIN,
-            unsafe {
-                crate::ComInterfaceTableEntry::new(
-                    <ISerializerAbi as crate::ComInterface>::INTERFACE_ID,
-                    &Self::VTABLE as *const ISerializerVTable
-                        as *const crate::IUnknownVTable,
-                )
-            },
-            &[],
-        );
+        >; 1usize] = {
+            [
+                unsafe {
+                    crate::ComInterfaceTableEntry::new(
+                        <ISerializerAbi as crate::ComInterface>::INTERFACE_ID,
+                        &Self::VTABLE as *const ISerializerVTable
+                            as *const crate::IUnknownVTable,
+                    )
+                },
+            ]
+        };
         /// Table for a standalone projection of this interface.
         pub const VTABLE: ISerializerVTable = Self::with_identity(
             &<ISerializerAbi as crate::ComInterface>::INTERFACE_ID,
