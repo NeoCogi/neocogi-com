@@ -125,15 +125,30 @@ impl Runner {
     /// Creates an isolated owner under the selected temporary source parent.
     /// Keeping that filesystem input explicit also permits alias-path regression
     /// checks without mutating the process-wide temporary-directory environment.
-    fn isolated_in(&self, prefix: &str, temporary_root: &Path) -> Result<(Workspace, Self)> {
-        // Canonicalize before creating the owner so TempDir::path(), Runner,
-        // Cargo patches and child temporary roots all use one source spelling.
-        // macOS /var and /private/var otherwise become distinct Cargo packages.
-        // Prefer an equivalent Win32 spelling where possible: propagating the
-        // extended-path namespace through TEMP also gives it to native linkers.
-        // Keep paths requiring that namespace intact rather than changing identity.
-        let temporary_root = dunce::canonicalize(temporary_root)?;
-        let files = tempfile::Builder::new().prefix("neocogi-com-sdk-").tempdir_in(temporary_root)?;
+    pub(crate) fn isolated_in(&self, prefix: &str, temporary_root: &Path) -> Result<(Workspace, Self)> {
+        let checkout = self
+            .root
+            .canonicalize()
+            .map_err(|error| format!("cannot prepare checkout {}: {error}", self.root.display()))?;
+        let temporary_root = temporary_root
+            .canonicalize()
+            .map_err(|error| format!("cannot prepare temporary source parent {}: {error}", temporary_root.display()))?;
+        // Compare canonical identities before changing Windows path spelling.
+        // A long child may require the verbatim prefix even when its parent does not.
+        if temporary_root.starts_with(&checkout) {
+            let setting = if cfg!(windows) { "TMP or TEMP" } else { "TMPDIR" };
+            return Err(format!(
+                "temporary source parent {} is within checkout {}; set {setting} to a directory outside the checkout",
+                temporary_root.display(),
+                checkout.display(),
+            )
+            .into());
+        }
+        // Publish one resolved spelling for Cargo paths, including macOS aliases.
+        // Use an ordinary Win32 spelling where equivalent for native tools.
+        let files = tempfile::Builder::new()
+            .prefix("neocogi-com-sdk-")
+            .tempdir_in(dunce::simplified(&temporary_root))?;
         let work = self.scratch(prefix)?;
         let mut runner = self.clone();
         runner.root = files.path().to_owned();
@@ -164,6 +179,29 @@ mod windows_tests {
         fs,
         path::{Component, Path, Prefix},
     };
+
+    /// Windows spelling simplification must not conceal a real descendant.
+    #[test]
+    fn isolated_windows_sources_reject_a_verbatim_descendant() -> Result<()> {
+        let parent = tempfile::tempdir()?;
+        let checkout = parent.path().join("checkout");
+        let descendant = checkout.join("a".repeat(180)).join("b".repeat(120));
+        fs::create_dir_all(&descendant)?;
+        let checkout = checkout.canonicalize()?;
+        let descendant = descendant.canonicalize()?;
+        assert!(matches!(dunce::simplified(&checkout).components().next(), Some(Component::Prefix(prefix)) if matches!(prefix.kind(), Prefix::Disk(_))));
+        assert!(
+            matches!(dunce::simplified(&descendant).components().next(), Some(Component::Prefix(prefix)) if matches!(prefix.kind(), Prefix::VerbatimDisk(_)))
+        );
+        let error = Runner::new(checkout.clone())
+            .isolated_in("verbatim-descendant-", &descendant)
+            .err()
+            .expect("long temporary source parent is inside the checkout");
+        assert!(error.to_string().contains("is within checkout"), "{error}");
+        assert_eq!(fs::read_dir(descendant)?.count(), 0);
+        assert!(!checkout.join("target").exists());
+        Ok(())
+    }
 
     /// Source ownership resolves aliases without forcing ordinary temporary
     /// paths into the extended namespace inherited by nested native builds.
@@ -275,12 +313,7 @@ pub(crate) fn copy_tree(source: &Path, destination: &Path) -> Result<()> {
 /// Own a complete source fixture, keeping compile-time embedded paths alive.
 /// Normal completion uses explicit close so cleanup failure prevents a green task.
 pub(crate) fn sources(runner: &Runner) -> Result<(Workspace, Runner)> {
-    let mut fixture = runner.clone();
-    fixture.root = runner
-        .root
-        .canonicalize()
-        .map_err(|error| format!("cannot prepare checkout {}: {error}", runner.root.display()))?;
-    let (owner, isolated) = fixture.isolated("sources-")?;
+    let (owner, isolated) = runner.isolated("sources-")?;
     for relative in [
         "crates",
         "schemas",
@@ -293,10 +326,10 @@ pub(crate) fn sources(runner: &Runner) -> Result<(Workspace, Runner)> {
         "examples/schemas",
         "docs",
     ] {
-        copy_tree(&fixture.root.join(relative), &owner.path().join(relative))?;
+        copy_tree(&runner.root.join(relative), &owner.path().join(relative))?;
     }
     for relative in ["README.md", "LICENSE-MIT", "rustfmt.toml", "Cargo.lock", "Cargo.toml"] {
-        fs::copy(fixture.root.join(relative), owner.path().join(relative))?;
+        fs::copy(runner.root.join(relative), owner.path().join(relative))?;
     }
     Ok((owner, isolated))
 }

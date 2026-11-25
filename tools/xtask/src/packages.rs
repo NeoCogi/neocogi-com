@@ -373,7 +373,8 @@ fn qualify_reduced_serialization(verification: &Runner, manifest: &Path) -> Resu
 }
 
 /// Check shipped tests/docs and execute actual generated COM against only archives.
-pub(crate) fn run(runner: &Runner) -> Result<()> {
+/// Extracted sources use the same admitted temporary parent as the packaging sources.
+pub(crate) fn run(runner: &Runner, source_parent: &Path) -> Result<()> {
     let mut runner = runner.clone();
     runner.env.insert("CARGO_NET_OFFLINE".into(), "true".into());
     let manifest: toml::Value = toml::from_str(&fs::read_to_string(runner.root.join("Cargo.toml"))?)?;
@@ -392,7 +393,7 @@ pub(crate) fn run(runner: &Runner) -> Result<()> {
     args.extend(words(&["--no-verify", "--allow-dirty", "--locked", "--target-dir"]));
     args.push(runner.target_dir().into_os_string());
     runner.run("rustup", words(&["run", "stable", "cargo"]).into_iter().chain(args))?;
-    let (owner, mut verification) = runner.isolated("archives-")?;
+    let (owner, mut verification) = runner.isolated_in("archives-", source_parent)?;
     let result = (|| {
         let root = owner.path();
         for (package, _) in PUBLISHED {

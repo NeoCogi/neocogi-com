@@ -382,6 +382,46 @@ fn temporary_cargo_projects_do_not_join_the_copied_workspace() -> Result<()> {
     Ok(())
 }
 
+/// Native path identity, including aliases, decides qualification containment.
+#[test]
+fn isolated_sources_reject_checkout_temporary_parents() -> Result<()> {
+    let owner = tempfile::tempdir()?;
+    let checkout = owner.path().join("checkout");
+    let descendant = checkout.join("temp");
+    let sibling = owner.path().join("checkout-temp");
+    fs::create_dir_all(&descendant)?;
+    fs::create_dir(&sibling)?;
+    let checkout = checkout.canonicalize()?;
+    let runner = Runner::new(checkout.clone());
+    let reject = |temporary_root: &std::path::Path| -> Result<()> {
+        let error = runner
+            .isolated_in("within-checkout-", temporary_root)
+            .err()
+            .expect("temporary source parent is inside the checkout")
+            .to_string();
+        let temporary_root = temporary_root.canonicalize()?;
+        assert!(error.contains(&temporary_root.display().to_string()), "{error}");
+        assert!(error.contains(&checkout.display().to_string()), "{error}");
+        assert!(error.contains(if cfg!(windows) { "TMP or TEMP" } else { "TMPDIR" }), "{error}");
+        Ok(())
+    };
+    reject(&checkout)?;
+    reject(&descendant)?;
+    #[cfg(unix)]
+    {
+        let alias = owner.path().join("outside-alias");
+        std::os::unix::fs::symlink(&descendant, &alias)?;
+        reject(&alias)?;
+    }
+    assert_eq!(fs::read_dir(descendant)?.count(), 0);
+    assert!(!checkout.join("target").exists());
+
+    let (workspace, isolated) = runner.isolated_in("outside-checkout-", &sibling)?;
+    assert_eq!(workspace.path().canonicalize()?.parent(), Some(sibling.canonicalize()?.as_path()));
+    assert!(isolated.target_dir().starts_with(checkout.join("target")));
+    crate::process::retire(workspace, Ok(()))
+}
+
 /// Failed source preparation invalidates old success and leaves no scratch directory.
 #[test]
 fn failed_preparation_replaces_previous_success_receipt() -> Result<()> {
@@ -504,9 +544,9 @@ fn filesystem_cleanup_failure_keeps_the_receipt_failed() -> Result<()> {
     Ok(())
 }
 
-/// A binary whose original checkout disappeared must invalidate old evidence.
-/// Build the actual CLI in owned scratch, retain its executable outside that
-/// checkout, then remove every original source and target before invoking it.
+/// The real CLI invalidates old evidence before validating source preparation.
+/// Build once in owned scratch and retain the executable outside its checkout
+/// to exercise both a refused temporary parent and a missing source tree.
 #[test]
 fn standalone_cli_invalidates_receipts_before_validating_its_checkout() -> Result<()> {
     let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize()?;
@@ -527,18 +567,34 @@ fn standalone_cli_invalidates_receipts_before_validating_its_checkout() -> Resul
     let executable_name = format!("xtask{}", std::env::consts::EXE_SUFFIX);
     let executable = outer.path().join(&executable_name);
     fs::copy(target.join("debug").join(&executable_name), &executable)?;
+    let receipt_path = outer.path().join("receipt.json");
+    let mut arguments = words(&["compatibility", "--suite", "linked", "--report"]);
+    arguments.push(receipt_path.clone().into_os_string());
+    let failed_receipt = |runner: &Runner| -> Result<String> {
+        fs::write(&receipt_path, "{\"status\":\"passed\"}")?;
+        assert!(runner.run(&executable, &arguments).is_err());
+        let receipt: Value = serde_json::from_slice(&fs::read(&receipt_path)?)?;
+        assert_eq!(receipt["status"], "failed");
+        assert_eq!(receipt["cases"], json!([]));
+        Ok(receipt["error"].as_str().unwrap().to_owned())
+    };
+
+    let selected = source.path().join("temporary-child");
+    fs::create_dir(&selected)?;
+    let mut child = runner.clone();
+    for setting in ["TMPDIR", "TMP", "TEMP"] {
+        child.env.insert(setting.into(), selected.as_os_str().to_owned());
+    }
+    let error = failed_receipt(&child)?;
+    assert!(error.contains("is within checkout"), "{error}");
+    assert!(error.contains(&selected.canonicalize()?.display().to_string()), "{error}");
+    assert_eq!(fs::read_dir(selected)?.count(), 0);
+    assert!(!source.path().join("target/xtask-work").exists());
+
     let missing = source.path().to_owned();
     source.close()?;
     fs::remove_dir_all(target)?;
-    let receipt_path = outer.path().join("receipt.json");
-    fs::write(&receipt_path, "{\"status\":\"passed\"}")?;
-    let mut arguments = words(&["compatibility", "--suite", "linked", "--report"]);
-    arguments.push(receipt_path.clone().into_os_string());
-    assert!(runner.run(&executable, arguments).is_err());
-    let receipt: Value = serde_json::from_slice(&fs::read(&receipt_path)?)?;
-    assert_eq!(receipt["status"], "failed");
-    assert_eq!(receipt["cases"], json!([]));
+    assert!(failed_receipt(&runner)?.contains("cannot prepare checkout"));
     assert!(!missing.exists(), "source validation must not recreate the removed checkout");
-    assert!(receipt["error"].as_str().unwrap().contains("cannot prepare checkout"));
     crate::process::retire(outer, Ok(()))
 }

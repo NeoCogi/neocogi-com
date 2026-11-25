@@ -80,6 +80,9 @@ Their temporary parent is canonicalized before the source owner is created, so
 the owner, Cargo patch paths and child working directories share one spelling.
 This prevents aliases such as macOS `/var` and `/private/var` from producing
 duplicate SDK package identities in a consumer lockfile.
+The canonical temporary parent must be outside the checkout. Select a different
+parent through `TMPDIR` on Unix or `TMP` or `TEMP` on Windows if necessary.
+Archive verification creates its extracted sources under the same admitted parent.
 On Windows, canonical source parents use an equivalent ordinary Win32 spelling
 when available. Extended paths remain intact when simplification would change
 their meaning. This keeps canonical aliases resolved without forcing `\\?\`

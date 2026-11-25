@@ -48,7 +48,7 @@ fn dispatch() -> Result<()> {
                 let (owner, fixture) = process::sources(&runner)?;
                 let result = match task {
                     "quality" => qualification::quality(&fixture),
-                    "packages" => packages::run(&fixture),
+                    "packages" => packages::run(&fixture, owner.path().parent().expect("isolated source parent")),
                     "workspace" => qualification::workspace(&fixture),
                     "abi-32" => qualification::abi_32(&fixture),
                     _ => unreachable!(),
