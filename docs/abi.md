@@ -1046,11 +1046,17 @@ A provider may create a fresh factory or retain an existing instance. The runtim
 promises no singleton and no identity reuse between successful calls.
 
 The runtime compares the requested IID, full signature and threading capability
-before invoking bootstrap. It releases the catalog guard before plugin code runs,
-then validates the returned object/table pair and its declared contract. Rejected
-returned references are released. The raw output starts null and only success
-transfers one owner. Typed facade adoption preserves the requested IDL factory
-contract and threading model. Product construction occurs through factory methods.
+before invoking bootstrap. It releases the catalog guard before plugin code runs.
+The successful bootstrap pair itself must advertise the declared root IID and
+full signature. Acquisition validates it without calling `QueryInterface` or
+retaining another reference, and transfers that original pair. A wrong IID returns
+`NC_E_NOINTERFACE`, a wrong signature returns `NC_E_ABI_VERSION`, and a null,
+half-null, or missing identity returns `NC_E_POINTER`. Rejection consumes one present successful
+transfer through its original table. A failed bootstrap transfers nothing and its
+output is never dereferenced or released.
+The raw output starts null and only success transfers one owner. Typed facade
+adoption preserves the requested IDL factory contract and threading model. Product
+construction occurs through factory methods.
 
 Loading and metadata queries never acquire factories. Registration does not need
 an application factory type and does not traverse the IDL contract graph. Exact
