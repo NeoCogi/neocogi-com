@@ -37,9 +37,9 @@ interface IComplete {
 /// Ordinary outputs admit capacity before entry and acquire all results before publication.
 interface IOrdinaryOutputs {
     /// A later converted buffer may exceed the actual-value budget.
-    fn buffers(&mut self, flags: &mut [bool], choices: &mut [Choice]) -> Result<()>;
+    fn buffers(&self, flags: &mut [bool], choices: &mut [Choice]) -> Result<()>;
     /// An invalid copied return must not publish earlier converted buffers either.
-    fn result(&mut self, flags: &mut [bool]) -> Result<[CountAtom; 100000]>;
+    fn result(&self, flags: &mut [bool]) -> Result<[CountAtom; 100000]>;
 }
 
 #[id("bd3502ac-3df3-506f-8c24-c2c007395d75")]

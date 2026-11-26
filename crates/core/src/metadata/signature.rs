@@ -118,17 +118,25 @@ fn write_return(out: &mut String, returns: &NcMethodReturnDescriptor) -> Result<
         }
         NC_ABI_PASSING_COM_PTR_OUT
         | crate::NC_ABI_PASSING_COM_BOX_OUT
-        | crate::NC_ABI_PASSING_WEAK_COM_BOX_OUT
         | crate::NC_ABI_PASSING_WEAK_COM_PTR_OUT
         | crate::NC_ABI_PASSING_OPTIONAL_COM_PTR_OUT
+        | crate::NC_ABI_PASSING_COM_REF_OUT
+        | crate::NC_ABI_PASSING_OPTIONAL_COM_REF_OUT
+        | crate::NC_ABI_PASSING_COM_MUT_OUT
+        | crate::NC_ABI_PASSING_OPTIONAL_COM_MUT_OUT
+        | crate::NC_ABI_PASSING_SCOPED_COM_MUT_OUT
         | crate::NC_ABI_PASSING_SCOPED_COM_REF_OUT => {
             validate_interface_type(&returns.ty)?;
             out.push_str(match returns.passing.tag {
                 crate::NC_ABI_PASSING_COM_BOX_OUT => "com_box_out<",
-                crate::NC_ABI_PASSING_WEAK_COM_BOX_OUT => "weak_com_box_out<",
                 crate::NC_ABI_PASSING_WEAK_COM_PTR_OUT => "weak_com_ptr_out<",
                 crate::NC_ABI_PASSING_OPTIONAL_COM_PTR_OUT => "optional_com_ptr_out<",
                 crate::NC_ABI_PASSING_SCOPED_COM_REF_OUT => "scoped_com_ref_out<",
+                crate::NC_ABI_PASSING_COM_REF_OUT => "com_ref_out<",
+                crate::NC_ABI_PASSING_OPTIONAL_COM_REF_OUT => "optional_com_ref_out<",
+                crate::NC_ABI_PASSING_COM_MUT_OUT => "com_mut_out<",
+                crate::NC_ABI_PASSING_OPTIONAL_COM_MUT_OUT => "optional_com_mut_out<",
+                crate::NC_ABI_PASSING_SCOPED_COM_MUT_OUT => "scoped_com_mut_out<",
                 _ => "com_ptr_out<",
             });
             write_threading(out, returns.passing.threading)?;
@@ -181,12 +189,17 @@ fn write_passing_type(out: &mut String, passing: NcAbiPassingDescriptor, ty: &Nc
             write_type(out, ty)?;
             out.push('>');
         }
-        NC_ABI_PASSING_COM_REF | crate::NC_ABI_PASSING_OPTIONAL_COM_REF | crate::NC_ABI_PASSING_COM_BOX_IN | crate::NC_ABI_PASSING_COM_MUT => {
+        NC_ABI_PASSING_COM_REF
+        | crate::NC_ABI_PASSING_OPTIONAL_COM_REF
+        | crate::NC_ABI_PASSING_COM_BOX_IN
+        | crate::NC_ABI_PASSING_COM_MUT
+        | crate::NC_ABI_PASSING_OPTIONAL_COM_MUT => {
             validate_interface_type(ty)?;
             out.push_str(match passing.tag {
                 NC_ABI_PASSING_COM_REF => "com_ref<",
                 crate::NC_ABI_PASSING_COM_BOX_IN => "com_box_in<",
                 crate::NC_ABI_PASSING_COM_MUT => "com_mut<",
+                crate::NC_ABI_PASSING_OPTIONAL_COM_MUT => "optional_com_mut<",
                 _ => "optional_com_ref<",
             });
             write_threading(out, passing.threading)?;
@@ -246,6 +259,8 @@ fn write_threading(out: &mut String, threading: u32) -> Result<(), NcStatus> {
     match threading {
         NC_ABI_THREADING_THREAD_LOCAL => out.push_str("thread_local"),
         NC_ABI_THREADING_THREAD_SAFE => out.push_str("thread_safe"),
+        crate::NC_ABI_THREADING_THREAD_SEND => out.push_str("thread_send"),
+        crate::NC_ABI_THREADING_THREAD_SYNC => out.push_str("thread_sync"),
         _ => return Err(NC_E_INVALID_ARG),
     }
     Ok(())

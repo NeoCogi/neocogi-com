@@ -2,7 +2,7 @@
 
 use core::{cell::Cell, ffi::c_void, ptr};
 
-use crate::{ComInterface, ComRaw, ComRef, NC_E_INVALID_ARG, NcStatus, ThreadingModel};
+use crate::{ComInterface, ComMut, ComRaw, ComRef, NC_E_INVALID_ARG, NcStatus, ThreadingModel};
 
 /// C continuation for delivery of a call-scoped interface loan.
 ///
@@ -44,14 +44,41 @@ where
     M: ThreadingModel,
 {
     let state = VisitorState::new(visit);
-    // The native context borrows this stack state as shared storage. The callback
-    // writes only its Cells, and neither moves or retains the context.
-    let status = invoke(ptr::from_ref(&state).cast_mut().cast(), state.callback::<I, M>());
+    run_visitor(&state, state.shared_callback::<I, M>(), invoke)
+}
+
+/// Invokes an exclusive scoped visitor whose callable result remains valid
+/// only until that visitor returns.
+///
+/// # Safety
+///
+/// `invoke` follows the same synchronous context and pair obligations as
+/// [`__nc_with_scoped_result`]. A present pair must additionally carry an
+/// exclusive target reborrow for the complete visit.
+#[doc(hidden)]
+pub unsafe fn __nc_with_scoped_mut_result<I, M, R>(
+    visit: impl for<'loan> FnOnce(ComMut<'loan, I, M>) -> R,
+    invoke: impl FnOnce(*mut c_void, NcScopedResultCallback<I>) -> NcStatus,
+) -> Result<Option<R>, NcStatus>
+where
+    I: ComInterface,
+    M: ThreadingModel,
+{
+    let state = VisitorState::new(visit);
+    run_visitor(&state, state.mutable_callback::<I, M>(), invoke)
+}
+
+/// The caller owns the callback context until native return, including any
+/// rejected result or unused user visitor that still needs to be dropped.
+fn run_visitor<I: ComInterface, F, R>(
+    state: &VisitorState<F, R>,
+    callback: NcScopedResultCallback<I>,
+    invoke: impl FnOnce(*mut c_void, NcScopedResultCallback<I>) -> NcStatus,
+) -> Result<Option<R>, NcStatus> {
+    let status = invoke(ptr::from_ref(state).cast_mut().cast(), callback);
     match (state.delivery.get(), status.is_ok()) {
         (Delivery::Unvisited, false) => Err(status),
-        (Delivery::Once, true) => state.result.into_inner().ok_or(NC_E_INVALID_ARG)?,
-        // Keep both a rejected result and an unused visitor in this context until
-        // the provider returns, so their destructors run after its guard releases.
+        (Delivery::Once, true) => state.result.take().ok_or(NC_E_INVALID_ARG)?,
         (Delivery::Duplicate, _) | (Delivery::Once, false) | (Delivery::Unvisited, true) => Err(NC_E_INVALID_ARG),
     }
 }
@@ -87,14 +114,20 @@ impl<F, R> VisitorState<F, R> {
         }
     }
 
-    /// Selects the typed continuation for this context's visitor.
-    fn callback<I, M>(&self) -> NcScopedResultCallback<I>
+    /// Selects the shared callback for this context's exact Rust visitor type.
+    fn shared_callback<I: ComInterface, M: ThreadingModel>(&self) -> NcScopedResultCallback<I>
     where
-        I: ComInterface,
-        M: ThreadingModel,
         F: for<'loan> FnOnce(ComRef<'loan, I, M>) -> R,
     {
         Self::receive::<I, M>
+    }
+
+    /// Selects the mutable callback for the matching Rust visitor type.
+    fn mutable_callback<I: ComInterface, M: ThreadingModel>(&self) -> NcScopedResultCallback<I>
+    where
+        F: for<'loan> FnOnce(ComMut<'loan, I, M>) -> R,
+    {
+        Self::receive_mut::<I, M>
     }
 
     /// Validates the first pair and records the output without retaining the loan.
@@ -111,27 +144,46 @@ impl<F, R> VisitorState<F, R> {
     {
         // SAFETY: The invocation supplies this exact state for one synchronous call.
         let state = unsafe { &*context.cast::<Self>() };
-        match state.delivery.get() {
-            Delivery::Unvisited => state.delivery.set(Delivery::Once),
+        state.deliver(
+            // SAFETY: The native call supplies the live declared lender.
+            || unsafe { ComRef::<'_, I, M>::__nc_from_raw_optional_borrowed_checked(raw) },
+            |visit, loan| visit(loan),
+        );
+    }
+
+    /// Exclusive entry selects the mutable validator while sharing the same
+    /// one-delivery state machine and lifetime-independent visitor result.
+    unsafe extern "C" fn receive_mut<I, M>(context: *mut c_void, raw: ComRaw<I>)
+    where
+        I: ComInterface,
+        M: ThreadingModel,
+        F: for<'loan> FnOnce(ComMut<'loan, I, M>) -> R,
+    {
+        // SAFETY: The synchronous caller supplied this exact context.
+        let state = unsafe { &*context.cast::<Self>() };
+        state.deliver(
+            // SAFETY: The native call supplies a live exclusive target loan.
+            || unsafe { ComMut::<'_, I, M>::__nc_from_raw_optional_borrowed_checked(raw) },
+            |visit, loan| visit(loan),
+        );
+    }
+
+    /// Mark the callback before invoking foreign code. A reentrant duplicate
+    /// changes only cardinality and never consumes the visitor or its output.
+    fn deliver<L>(&self, validate: impl FnOnce() -> Result<Option<L>, NcStatus>, invoke: impl FnOnce(F, L) -> R) {
+        match self.delivery.get() {
+            Delivery::Unvisited => self.delivery.set(Delivery::Once),
             Delivery::Once | Delivery::Duplicate => {
-                state.delivery.set(Delivery::Duplicate);
+                self.delivery.set(Delivery::Duplicate);
                 return;
             }
         }
-
-        // SAFETY: The current callback retains the lending provider and raw
-        // backing. Validation checks shape and exact identity. R is independent
-        // of the lifetime granted to the visitor.
-        let loan = unsafe { ComRef::<'_, I, M>::__nc_from_raw_optional_borrowed_checked(raw) };
-        let result = loan.and_then(|loan| {
+        let result = validate().and_then(|loan| {
             let Some(loan) = loan else { return Ok(None) };
-            // The first valid delivery owns F. Taking it leaves no mutable
-            // reference to the context while the visitor can call foreign code.
-            let visit = state.visit.take().ok_or(NC_E_INVALID_ARG)?;
-            Ok(Some(visit(loan)))
+            let visit = self.visit.take().ok_or(NC_E_INVALID_ARG)?;
+            Ok(Some(invoke(visit, loan)))
         });
-        // A reentrant duplicate records its phase without touching this result.
-        state.result.set(Some(result));
+        self.result.set(Some(result));
     }
 }
 

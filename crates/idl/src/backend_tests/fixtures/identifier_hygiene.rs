@@ -109,8 +109,7 @@ mod capability_dispatch {
             .query::<ICapabilityAbi>()
             .unwrap();
         check!(&exclusive);
-        let weak = exclusive.downgrade();
-        check!(&weak);
+        check!(exclusive.as_com_ref());
         assert_eq!(calls.load(Ordering::Relaxed), 16);
     }
 }
@@ -373,13 +372,12 @@ mod private_arguments {
             Ok(73)
         );
         let token = Token::into_box(Token).query::<ITokenAbi>().unwrap();
-        let weak = token.downgrade();
+        let original = token.as_raw();
         let (error, token) = provider.owner(token, false).unwrap_err();
         assert_eq!(error, NC_E_INVALID_ARG);
-        assert!(weak.same_object(&token.downgrade()));
-        assert_eq!(weak.value(), Ok(73));
+        assert_eq!(token.as_raw(), original);
+        assert_eq!(token.value(), Ok(73));
         assert_eq!(provider.owner(token, true).unwrap(), 73);
-        assert_eq!(weak.value(), Err(NC_E_DROPPED));
     }
 }
 

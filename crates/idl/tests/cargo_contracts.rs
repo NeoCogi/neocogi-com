@@ -137,7 +137,7 @@ fn imported_generics_use_typed_routes_through_direct_providers() {
             r#"
             struct Fixed { count: u32 }
             interface Service { fn read(&self) -> Result<Fixed>; }
-            interface Common { fn common(&self) -> Result<u32>; fn observe(&self) -> Option<&Service>; }
+            interface Common { fn common(&self) -> Result<u32>; #[scoped] fn observe(&self) -> Option<&Service>; }
         "#,
         ),
         (
@@ -271,7 +271,9 @@ impl Service for Source {{ fn read(&self) -> Result<Fixed, NcStatus> {{ Ok(Fixed
 #[com_object(Client)] struct Controller {{ source: neocogi_com_sdk::ComPtr<ServiceAbi> }}
 impl Common for Controller {{
     fn common(&self) -> Result<u32, NcStatus> {{ Ok(11) }}
-    fn observe(&self) -> Option<ComRef<'_, ServiceAbi>> {{ Some(self.source.as_com_ref()) }}
+    fn observe<R>(&self, lend: impl for<'a> FnOnce(Option<ComRef<'a, ServiceAbi>>) -> R) -> R {{
+        lend(Some(self.source.as_com_ref()))
+    }}
 }}
 impl Tail for Controller {{ fn tail(&self) -> Result<u32, NcStatus> {{ Ok(29) }} }}
 impl Branch for Controller {{}}

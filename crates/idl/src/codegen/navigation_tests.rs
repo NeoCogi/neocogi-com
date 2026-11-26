@@ -44,6 +44,7 @@ fn typed_interface_and_value_names_keep_their_supplied_identifier_spans() {
         },
     };
     let plan = crate::codegen::model::InterfacePlan {
+        requires_exclusive: false,
         name: definition.ident,
         visibility: definition.vis,
         docs: definition.attrs,

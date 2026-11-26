@@ -1,24 +1,26 @@
+use neocogi.lang::Option;
+
 #[id("2b26dbbb-64ad-5619-a85d-fd240dcd11f6")]
 #[threading(shared)]
-/// Shared readers and exclusive writers exercise the same object-wide gate.
+/// Ordinary owned state with separate shared and exclusive receiver access.
 interface IValue {
     /// Returns state without acquiring an owning reference.
     fn value(&self) -> Result<u32>;
-    /// Mutates state only when no reader or writer is already executing.
+    /// Mutates state through an exclusive receiver.
     fn set(&mut self, value: u32) -> Result<()>;
-    /// Holds a reader inside the provider while its owner is removed elsewhere.
-    fn wait_read(&self) -> Result<u32>;
-    /// Holds a writer to prove conflicting weak calls fail without blocking.
-    fn wait_write(&mut self) -> Result<()>;
 }
 
 #[id("3bd939d7-5ee1-5ae7-acf7-2e0f3ce5fe9c")]
-/// A real ABI container transfers the only owner and exposes only weak child access.
+/// A real ABI container transfers the only owner and lends its child.
 interface IContainer {
     /// Consumes its input on success and returns the same owner on failure.
     fn insert(&mut self, child: ComBox<IValue>, reject: bool) -> Result<()>;
-    /// Returns an observer while the container remains the sole owner.
-    fn child(&self) -> Result<WeakComBox<IValue>>;
+    /// A stable child is reachable under the receiver's ordinary borrow.
+    fn child(&self) -> Option<&IValue>;
+    /// Lends the child exclusively while its owning parent is borrowed.
+    fn child_mut(&mut self) -> Option<&mut IValue>;
+    /// Lends read access while the exclusive borrow of the parent remains active.
+    fn child_read(&mut self) -> Option<&IValue>;
     /// Removes the child permanently; there is no detach or close operation.
     fn remove(&mut self) -> Result<()>;
 }
@@ -29,4 +31,26 @@ interface IPair {
     /// A false choice deliberately returns a malformed nonnegative error status;
     /// normalization must preserve both owners while reporting INVALID_ARG.
     fn offer(&mut self, left: ComBox<IValue>, right: ComBox<IValue>, accept: bool) -> Result<u32>;
+}
+
+#[threading(send)]
+/// A target movable under an owner or exclusive loan, but not a shared loan.
+interface ITransferCell {
+    fn value(&self) -> Result<u32>;
+    fn set(&mut self, value: u32) -> Result<()>;
+}
+
+#[threading(sync)]
+/// A target shareable by reference while its unique owner stays local.
+interface ILocalLock {
+    fn value(&self) -> Result<u32>;
+}
+
+/// A shared provider lends a replaceable boxed child under a field guard.
+interface IGuardedCell {
+    /// Replaces the sole child owner once exclusive field access is available.
+    fn replace(&self, child: ComBox<ITransferCell>) -> Result<()>;
+    /// Supplies exclusive child access only during synchronous callback delivery.
+    #[scoped]
+    fn child_mut(&self) -> Result<Option<&mut ITransferCell>>;
 }

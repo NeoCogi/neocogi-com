@@ -16,7 +16,7 @@ struct Payload {
 /// Receiver explicitly acquires its borrowed argument through the real ABI.
 interface IReceiver {
     /// Returns the acquired element count so both producer and receiver execute.
-    fn retain(&mut self, value: &Payload) -> Result<u32>;
+    fn retain(&self, value: &Payload) -> Result<u32>;
 }
 
 #[id("bc9fc222-a967-56d2-9116-1801b271b1a8")]

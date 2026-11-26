@@ -88,14 +88,16 @@ fn compare_dependencies(report: &mut CompatibilityReport, old: &InspectionArtifa
 
 /// Classifies a capability strengthening as additive and weakening as breaking.
 fn compare_threading(report: &mut CompatibilityReport, subject: &str, old: ArtifactThreading, new: ArtifactThreading) {
-    match (old, new) {
-        (ArtifactThreading::ThreadSafe, ArtifactThreading::ThreadLocal) => {
-            report.breaking.push(format!("{subject} threading weakened: thread_safe -> thread_local"))
-        }
-        (ArtifactThreading::ThreadLocal, ArtifactThreading::ThreadSafe) => {
-            report.additive.push(format!("{subject} threading strengthened: thread_local -> thread_safe"))
-        }
-        _ => {}
+    if old == new {
+        return;
+    }
+    let before = old.native();
+    let after = new.native();
+    let names = (crate::render::threading_name(before), crate::render::threading_name(after));
+    if after.supports(before) {
+        report.additive.push(format!("{subject} threading strengthened: {} -> {}", names.0, names.1));
+    } else {
+        report.breaking.push(format!("{subject} threading weakened: {} -> {}", names.0, names.1));
     }
 }
 
@@ -134,16 +136,28 @@ mod tests {
     fn factory_threading_changes_are_directional() {
         let old = sample_artifact();
         let mut new = old.clone();
-        new.factory.root_factory_threading = ArtifactThreading::ThreadSafe;
+        new.factory.root_factory_threading = ArtifactThreading::Shared;
         let strengthened = check_compatibility(&old, &new);
         assert!(strengthened.is_compatible());
         assert_eq!(strengthened.additive.len(), 1);
 
         let mut old_safe = old.clone();
-        old_safe.factory.root_factory_threading = ArtifactThreading::ThreadSafe;
+        old_safe.factory.root_factory_threading = ArtifactThreading::Shared;
         let report = check_compatibility(&old_safe, &old);
         assert!(!report.is_compatible());
         assert!(report.breaking[0].contains("threading weakened"));
+    }
+
+    #[test]
+    fn exchanging_send_for_sync_loses_a_guarantee() {
+        let mut old = sample_artifact();
+        old.factory.root_factory_threading = ArtifactThreading::Send;
+        let mut new = old.clone();
+        new.factory.root_factory_threading = ArtifactThreading::Sync;
+        let changed = check_compatibility(&old, &new);
+        assert_eq!(changed.breaking, ["root factory threading weakened: thread_send -> thread_sync"]);
+        new.factory.root_factory_threading = ArtifactThreading::Shared;
+        assert!(check_compatibility(&old, &new).is_compatible());
     }
 
     /// A new exact contract cannot relax the previous root's required capability.
@@ -153,7 +167,7 @@ mod tests {
         old.plugin.dependencies.push(guid_from_qualified_name("example.Dependency").to_string());
         let mut new = sample_artifact();
         new.factory.root_factory_signature = "22".repeat(32);
-        new.factory.root_factory_threading = ArtifactThreading::ThreadSafe;
+        new.factory.root_factory_threading = ArtifactThreading::Shared;
 
         let report = check_compatibility(&old, &new);
         assert!(!report.is_compatible());

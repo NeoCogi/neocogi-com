@@ -12,7 +12,6 @@ all consumers.
 | `ComPtr<I>` | Owned reference to a closed interface/class/factory | Stores a retained capability; does not store the implementation inline |
 | `WeakComPtr<I>` | Shared weak reference to a closed interface/class/factory | Record/enum fields and method results; retains bookkeeping without retaining the value |
 | `ComBox<I>` | Exclusive object owner | Explicit consuming method input/result; not an ordinary record/enum field |
-| `WeakComBox<I>` | Weak observation of an exclusive owner | Method result and recursively borrowed record/enum fields; never persists the object |
 | `Vec<T>` | Owned collection of values | Record/enum fields; explicitly indirect, including recursive trees |
 | `Slice<T>` or `[T]` | Unsized sequence referent | Cannot be stored in a record; must be borrowed for a call |
 | `&Slice<T>` or `&[T]` | Readable call-scoped buffer | Elements must support recursively checked copied transport |
@@ -272,7 +271,7 @@ bytes, not the argument list. Generated documentation therefore names the full
 closed IDL type beside the Rust declaration. Use that comment or the generated
 typed IDL metadata to interpret the name. This differs from Cargo `links` names,
 whose hex suffix directly encodes the exact dotted module name and is reversible.
-Neither presentation rule changes runtime/descriptor ABI v5.
+Neither presentation rule changes runtime/descriptor ABI v4.
 
 A canonical name denotes one semantic contract in a resolved graph. Authored
 declarations cannot impersonate a closed specialization's canonical name, even

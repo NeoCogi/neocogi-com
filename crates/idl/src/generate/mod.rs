@@ -445,7 +445,7 @@ fn value_type_metadata(graph: &Generation<'_>, module: &ResolvedModule, ty: &Idl
                 _ => quote! { #nc::idl_metadata::ValueType::Named(#qualified) },
             })
         }
-        IdlType::WeakComPtr(value) | IdlType::WeakComBox(value) => {
+        IdlType::WeakComPtr(value) => {
             let IdlType::Named(name) = value.as_ref() else {
                 return Err(GenerateError::new("weak target is not a contract"));
             };
@@ -453,10 +453,7 @@ fn value_type_metadata(graph: &Generation<'_>, module: &ResolvedModule, ty: &Idl
                 Some(_) => name.segments.join("."),
                 None => resolve(graph, module, name)?.identity.qualified_name.clone(),
             };
-            Ok(match ty {
-                IdlType::WeakComPtr(_) => quote! { #nc::idl_metadata::ValueType::WeakObject(#qualified) },
-                _ => quote! { #nc::idl_metadata::ValueType::WeakBoxObject(#qualified) },
-            })
+            Ok(quote! { #nc::idl_metadata::ValueType::WeakObject(#qualified) })
         }
         IdlType::ComPtr(value) | IdlType::ComBox(value) => value_type_metadata(graph, module, value),
         IdlType::Vector(value) => {
@@ -625,7 +622,10 @@ fn interface_plan(
         threading: match interface.threading {
             Threading::Local => InterfaceThreading::Local,
             Threading::Shared => InterfaceThreading::Shared,
+            Threading::Send => InterfaceThreading::Send,
+            Threading::Sync => InterfaceThreading::Sync,
         },
+        requires_exclusive: ancestry.iter().any(|projection| projection.requires_exclusive),
         bases,
         inherited_projections: ancestry.iter().filter_map(|row| row.parent).collect(),
         scoped_prefixes: interface_metadata::scoped_prefixes(graph, module, declaration)?,
@@ -797,7 +797,6 @@ fn owned_object_type(graph: &mut Generation<'_>, module: &ResolvedModule, ty: &I
         IdlType::ComPtr(target) => (target, "ComPtr"),
         IdlType::WeakComPtr(target) => (target, "WeakComPtr"),
         IdlType::ComBox(target) => (target, "ComBox"),
-        IdlType::WeakComBox(target) => (target, "WeakComBox"),
         _ => return Err(GenerateError::new("resolved type is not an object ownership wrapper")),
     };
     let (interface, mode) = lower::object(graph, module, target)?;

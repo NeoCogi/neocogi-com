@@ -40,7 +40,7 @@ impl<T: 'static> IB6 for Diamond<T> {}
 /// Generic application storage proves interface storage is independent of Rust state type.
 struct Diamond<T: 'static> {
     /// One ordinary mutable counter, shared by all inherited capabilities.
-    value: u32,
+    value: std::cell::RefCell<u32>,
     /// Arbitrary owned state destroyed exactly once by final Release.
     _lifetime: T,
 }
@@ -48,13 +48,13 @@ impl<T: 'static> ITop for Diamond<T> {}
 impl<T: 'static> IA0 for Diamond<T> {
     /// Reads through the allocation's shared lease.
     fn value(&self) -> Result<u32, NcStatus> {
-        Ok(self.value)
+        Ok(*self.value.try_borrow().map_err(|_| NC_E_BUSY)?)
     }
 }
 impl<T: 'static> IB0 for Diamond<T> {
     /// Updates directly through the allocation's exclusive lease.
-    fn set_value(&mut self, value: u32) -> Result<(), NcStatus> {
-        self.value = value;
+    fn set_value(&self, value: u32) -> Result<(), NcStatus> {
+        *self.value.try_borrow_mut().map_err(|_| NC_E_BUSY)? = value;
         Ok(())
     }
 }
@@ -74,28 +74,34 @@ impl Drop for Lifetime {
 /// Measures real allocated payload placement without naming generated storage.
 fn payload_offset<T: neocogi_com_sdk::ComObject>(local: &neocogi_com_sdk::LocalCom<T>) -> usize {
     let root = local.query::<IUnknown>().unwrap();
-    let value = local.try_borrow().unwrap();
-    (&*value as *const T) as usize - root.as_raw().object as usize
+    let value = local.get();
+    (value as *const T) as usize - root.as_raw().object as usize
 }
 
-/// Interface count adds no payload storage; the common control header and call gate have fixed size.
+/// Interface count adds no payload storage; the common control header size is fixed.
 #[test]
 fn repeated_diamond_adds_no_per_object_interface_storage() {
     assert_eq!(ITopAbi::INTERFACE_CHAIN.len(), 15);
     assert_eq!(Diamond::<()>::COM_INTERFACE_COUNT, 16); // Includes canonical IUnknown.
     assert_eq!(
-        payload_offset(&Diamond::into_local(Diamond { value: 0, _lifetime: () })),
-        core::mem::size_of::<neocogi_com_sdk::lifetime::NcSharedLifetimeState>() + core::mem::size_of::<usize>()
+        payload_offset(&Diamond::into_local(Diamond {
+            value: std::cell::RefCell::new(0),
+            _lifetime: ()
+        })),
+        core::mem::size_of::<neocogi_com_sdk::lifetime::NcSharedLifetimeState>()
     );
     // A second state specialization must use exactly the same contract set.
     assert_eq!(
         payload_offset(&Diamond::into_local(Diamond {
-            value: 0,
+            value: std::cell::RefCell::new(0),
             _lifetime: Lifetime { drops: Arc::new(AtomicUsize::new(0)) }
         })),
-        core::mem::size_of::<neocogi_com_sdk::lifetime::NcSharedLifetimeState>() + core::mem::size_of::<usize>()
+        core::mem::size_of::<neocogi_com_sdk::lifetime::NcSharedLifetimeState>()
     );
-    let object = Diamond::from_value(Diamond { value: 7, _lifetime: () });
+    let object = Diamond::from_value(Diamond {
+        value: std::cell::RefCell::new(7),
+        _lifetime: (),
+    });
     let top = object.query::<ITopAbi>().unwrap();
     assert_eq!(top.value(), Ok(7)); // Calls the inherited physical vtable prefix.
 }
@@ -138,7 +144,7 @@ unsafe fn release(source: neocogi_com_sdk::ComRaw<IUnknown>) {
 fn all_projection_pairs_share_addresses_state_and_lifetime() {
     let drops = Arc::new(AtomicUsize::new(0));
     let object = Diamond::from_value(Diamond {
-        value: 5,
+        value: std::cell::RefCell::new(5),
         _lifetime: Lifetime { drops: drops.clone() },
     });
     let identities = core::iter::once(IUnknown::INTERFACE_ID)
@@ -174,7 +180,7 @@ fn all_projection_pairs_share_addresses_state_and_lifetime() {
             release(source);
         }
     }
-    let mut writer = object.query::<IB0Abi>().unwrap();
+    let writer = object.query::<IB0Abi>().unwrap();
     let reader = object.query::<IA0Abi>().unwrap();
     writer.set_value(42).unwrap();
     assert_eq!(reader.value(), Ok(42));
@@ -187,21 +193,24 @@ fn all_projection_pairs_share_addresses_state_and_lifetime() {
 
 /// Duplicate ancestry must not create a second authority for borrowing application state.
 #[test]
-fn every_projection_uses_the_same_exclusive_borrow_gate() {
-    let local = Diamond::into_local(Diamond { value: 8, _lifetime: () });
+fn every_projection_uses_the_same_provider_field() {
+    let local = Diamond::into_local(Diamond {
+        value: std::cell::RefCell::new(8),
+        _lifetime: (),
+    });
     let top = local.query::<ITopAbi>().unwrap();
     let reader = local.query::<IA0Abi>().unwrap();
-    let mut writer = local.query::<IB0Abi>().unwrap();
+    let writer = local.query::<IB0Abi>().unwrap();
     {
-        let mut lease = local.try_borrow_mut().unwrap();
-        lease.value = 17;
+        let mut lease = local.get().value.borrow_mut();
+        *lease = 17;
         assert_eq!(top.value(), Err(NC_E_BUSY));
         assert_eq!(reader.value(), Err(NC_E_BUSY));
         assert_eq!(writer.set_value(19), Err(NC_E_BUSY));
     }
     {
-        let lease = local.try_borrow().unwrap();
-        assert_eq!(reader.value(), Ok(lease.value));
+        let lease = local.get().value.borrow();
+        assert_eq!(reader.value(), Ok(*lease));
         assert_eq!(writer.set_value(19), Err(NC_E_BUSY));
     }
     writer.set_value(19).unwrap();
@@ -259,30 +268,27 @@ fn unknown_only_generic_owner_has_no_interface_storage() {
     let owner = UnknownOnly::into_local(UnknownOnly { value: 42_u32 });
     let unknown = owner.query::<IUnknown>().unwrap();
     assert_eq!(UnknownOnly::<u32>::COM_INTERFACE_COUNT, 1);
-    assert_eq!(owner.try_borrow().unwrap().value, 42);
+    assert_eq!(owner.get().value, 42);
     assert!(matches!(unknown.query::<IA0Abi>(), Err(NC_E_NOINTERFACE)));
-    assert_eq!(
-        payload_offset(&owner),
-        core::mem::size_of::<neocogi_com_sdk::lifetime::NcSharedLifetimeState>() + core::mem::size_of::<usize>()
-    );
+    assert_eq!(payload_offset(&owner), core::mem::size_of::<neocogi_com_sdk::lifetime::NcSharedLifetimeState>());
 }
 
 #[com_object(interfaces(IA0, IB0, IA1))]
 /// Explicit roots can overlap ancestors of another explicitly listed interface.
 struct OverlappingRoots {
     /// Shared counter proves the selected providers use this exact implementation.
-    value: u32,
+    value: std::cell::RefCell<u32>,
 }
 impl IA0 for OverlappingRoots {
     /// Reads the counter through either the explicit root or inherited prefix.
     fn value(&self) -> Result<u32, NcStatus> {
-        Ok(self.value)
+        Ok(*self.value.try_borrow().map_err(|_| NC_E_BUSY)?)
     }
 }
 impl IB0 for OverlappingRoots {
     /// Mutates the same state without a per-projection receiver object.
-    fn set_value(&mut self, value: u32) -> Result<(), NcStatus> {
-        self.value = value;
+    fn set_value(&self, value: u32) -> Result<(), NcStatus> {
+        *self.value.try_borrow_mut().map_err(|_| NC_E_BUSY)? = value;
         Ok(())
     }
 }
@@ -291,15 +297,15 @@ impl IA1 for OverlappingRoots {}
 /// Deduplication applies across authored roots as well as inside a single diamond.
 #[test]
 fn explicit_roots_reuse_their_inherited_contracts() {
-    let object = OverlappingRoots::from_value(OverlappingRoots { value: 7 });
+    let object = OverlappingRoots::from_value(OverlappingRoots { value: std::cell::RefCell::new(7) });
     let root = object.query::<IA0Abi>().unwrap();
     let child = object.query::<IA1Abi>().unwrap();
     assert_eq!(child.query::<IA0Abi>().unwrap().as_raw(), root.as_raw());
     assert_eq!(child.value(), Ok(7));
     assert_eq!(OverlappingRoots::COM_INTERFACE_COUNT, 4);
     assert_eq!(
-        payload_offset(&OverlappingRoots::into_local(OverlappingRoots { value: 0 })),
-        core::mem::size_of::<neocogi_com_sdk::lifetime::NcSharedLifetimeState>() + core::mem::size_of::<usize>()
+        payload_offset(&OverlappingRoots::into_local(OverlappingRoots { value: std::cell::RefCell::new(0) })),
+        core::mem::size_of::<neocogi_com_sdk::lifetime::NcSharedLifetimeState>()
     );
 }
 
@@ -308,15 +314,15 @@ fn explicit_roots_reuse_their_inherited_contracts() {
 #[repr(align(64))]
 struct AlignedState {
     /// Application state remains directly accessible through the local owner.
-    marker: u64,
+    marker: std::cell::Cell<u64>,
 }
 
 /// Direct object addresses must preserve alignment without assuming the state offset.
 #[test]
 fn generic_aligned_state_keeps_direct_object_access_correct() {
     let local = Diamond::into_local(Diamond {
-        value: 17,
-        _lifetime: AlignedState { marker: 5 },
+        value: std::cell::RefCell::new(17),
+        _lifetime: AlignedState { marker: std::cell::Cell::new(5) },
     });
     let top = local.query::<ITopAbi>().unwrap();
     let base = top.query::<IA0Abi>().unwrap();
@@ -330,10 +336,10 @@ fn generic_aligned_state_keeps_direct_object_access_correct() {
         0
     );
     {
-        let mut value = local.try_borrow_mut().unwrap();
-        value.value = 29;
-        value._lifetime.marker = 11;
+        let value = local.get();
+        *value.value.borrow_mut() = 29;
+        value._lifetime.marker.set(11);
     }
     assert_eq!(top.value(), Ok(29));
-    assert_eq!(local.try_borrow().unwrap()._lifetime.marker, 11);
+    assert_eq!(local.get()._lifetime.marker.get(), 11);
 }

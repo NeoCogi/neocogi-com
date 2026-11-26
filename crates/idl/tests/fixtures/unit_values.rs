@@ -2,12 +2,13 @@
 #[cfg(test)]
 mod unit_tests {
     use super::*;
+    use std::cell::Cell;
     use neocogi_com_sdk::*;
     use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
 
     /// Concrete state counts dispatch after validation and returned owner cleanup.
     #[com_object(IUnits)]
-    struct Units { accepted: usize, drops: Arc<AtomicUsize> }
+    struct Units { accepted: Cell<usize>, drops: Arc<AtomicUsize> }
     /// A real returned owner must be released if another output is malformed.
     #[com_object(neocogi_com_sdk::persistence::IObjectChildren)]
     struct Item { drops: Arc<AtomicUsize> }
@@ -18,13 +19,13 @@ mod unit_tests {
     impl Drop for Item { fn drop(&mut self) { self.drops.fetch_add(1,Ordering::SeqCst); } }
     impl IUnits for Units {
         fn status(&self)->Result<(),NcStatus> { Ok(()) }
-        fn completion(&mut self,value:Completion)->Result<Completion,NcStatus> { self.accepted+=1; Ok(value) }
+        fn completion(&self,value:Completion)->Result<Completion,NcStatus> { self.accepted.set(self.accepted.get() + 1); Ok(value) }
         fn optional(&self,value:Maybe)->Result<Maybe,NcStatus> { Ok(value) }
-        fn mixed(&mut self,value:Mixed)->Result<Mixed,NcStatus> { self.accepted+=1; Ok(value) }
+        fn mixed(&self,value:Mixed)->Result<Mixed,NcStatus> { self.accepted.set(self.accepted.get() + 1); Ok(value) }
         fn arrays(&self,value:Arrays)->Result<Arrays,NcStatus> { Ok(value) }
         fn direct(&self,value:[();2])->Result<[();2],NcStatus> { Ok(value) }
-        fn buffers(&mut self,input:NcCopyFromBufferOffset<'_,()>,mut output:NcOutputWriter<'_,()>)->Result<(),NcStatus> {
-            self.accepted+=1; output.extend_from_slice(input.as_slice())
+        fn buffers(&self,input:NcCopyFromBufferOffset<'_,()>,mut output:NcOutputWriter<'_,()>)->Result<(),NcStatus> {
+            self.accepted.set(self.accepted.get() + 1); output.extend_from_slice(input.as_slice())
         }
         fn finish(&self,mut output:NcOutputWriter<'_,Completion>)->Result<ComPtr<IUnknown>,NcStatus> {
             output.push(Completion::Done(()))?;
@@ -53,8 +54,8 @@ mod unit_tests {
     fn unit_calls_and_malformed_storage() {
         const { assert!(!<()>::BORROW_ABI_REPR); assert!(!<[();2]>::BORROW_ABI_REPR); assert!(!Mixed::BORROW_ABI_REPR); }
         let drops=Arc::new(AtomicUsize::new(0));
-        let local=Units::into_local(Units { accepted:0,drops:drops.clone() });
-        let mut owner:ComPtr<IUnitsAbi>=local.query().unwrap();
+        let local=Units::into_local(Units { accepted:Cell::new(0),drops:drops.clone() });
+        let owner:ComPtr<IUnitsAbi>=local.query().unwrap();
         owner.status().unwrap();
         assert_eq!(owner.completion(Completion::Done(())).unwrap(),Completion::Done(()));
         assert_eq!(owner.optional(Maybe::Some(())).unwrap(),Maybe::Some(()));
@@ -70,7 +71,7 @@ mod unit_tests {
         let mut output=NcOutputBuffer::new();
         owner.buffers(NcCopyFromBufferOffset::new(0,&input),output.output(0,3)).unwrap();
         assert_eq!(output.as_slice(),input);
-        let accepted=local.try_borrow().unwrap().accepted;
+        let accepted=local.get().accepted.get();
         let raw=owner.as_raw();
         let mut result=core::mem::MaybeUninit::uninit();
         let mut bad=encode_inline(&Completion::Done(())).unwrap();
@@ -93,7 +94,7 @@ mod unit_tests {
         let mut written=99;
         assert_eq!(unsafe { ((*raw.vtable).buffers)(raw.object,0,3,invalid.as_ptr(),0,3,wire_output.as_mut_ptr(),&mut written) },NC_E_INVALID_ARG);
         assert_eq!(wire_output,[99;3]);
-        assert_eq!(local.try_borrow().unwrap().accepted,accepted);
+        assert_eq!(local.get().accepted.get(),accepted);
         let (_,guard)=mixed.encode_value(&mut ValueBudget::new(0,5,2)).unwrap();
         let _=guard;
         assert!(matches!(mixed.encode_value(&mut ValueBudget::new(0,4,2)),Err(NC_E_OUT_OF_RANGE)));

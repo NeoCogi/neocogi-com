@@ -787,7 +787,6 @@ fn attach_type_source(ty: &mut IdlType, source: &SourceFile) {
         IdlType::ComPtr(value)
         | IdlType::WeakComPtr(value)
         | IdlType::ComBox(value)
-        | IdlType::WeakComBox(value)
         | IdlType::Borrowed(value)
         | IdlType::BorrowedMut(value)
         | IdlType::Vector(value)
@@ -1037,7 +1036,12 @@ fn parse_threading(attribute: &Attribute) -> syn::Result<Threading> {
     match capability.to_string().as_str() {
         "local" => Ok(Threading::Local),
         "shared" => Ok(Threading::Shared),
-        _ => Err(syn::Error::new_spanned(capability, "threading capability must be `local` or `shared`")),
+        "send" => Ok(Threading::Send),
+        "sync" => Ok(Threading::Sync),
+        _ => Err(syn::Error::new_spanned(
+            capability,
+            "threading capability must be `local`, `shared`, `send`, or `sync`",
+        )),
     }
 }
 
@@ -1053,7 +1057,7 @@ fn reject_attributes(attributes: &[Attribute]) -> syn::Result<()> {
     Ok(())
 }
 
-/// Extracts documentation while rejecting all other method or field attributes.
+/// Extracts documentation while rejecting all other field or variant attributes.
 fn parse_doc_only_attributes(attributes: &[Attribute]) -> syn::Result<Vec<String>> {
     attributes
         .iter()

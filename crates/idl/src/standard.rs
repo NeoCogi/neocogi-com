@@ -105,7 +105,6 @@ fn references(ty: &IdlType, name: &str, shadowed: bool, prelude: &mut Option<Sou
         IdlType::ComPtr(value)
         | IdlType::WeakComPtr(value)
         | IdlType::ComBox(value)
-        | IdlType::WeakComBox(value)
         | IdlType::Borrowed(value)
         | IdlType::BorrowedMut(value)
         | IdlType::Vector(value)

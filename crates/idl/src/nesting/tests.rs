@@ -43,7 +43,6 @@ fn all_recursive_type_spellings_share_the_inline_height_boundary() {
         ("ComPtr<", ">"),
         ("WeakComPtr<", ">"),
         ("ComBox<", ">"),
-        ("WeakComBox<", ">"),
         ("Slice<", ">"),
         ("Array<", ", 1>"),
         ("[", "; 1]"),

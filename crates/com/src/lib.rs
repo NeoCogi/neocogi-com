@@ -35,27 +35,22 @@
 //! }
 //!
 //! let owner: ComBox<IObjectChildrenAbi> = EmptyChildren::into_box(EmptyChildren).query().unwrap();
-//! assert_eq!(owner.count().unwrap(), 0);
-//! let observed = owner.downgrade();
+//! let children = owner.as_com_ref();
+//! assert_eq!(children.count().unwrap(), 0);
 //! drop(owner);
-//! assert!(!observed.is_alive());
 //! ```
 //!
 //! Shared objects have `from_value` and `into_local`; exclusive objects have
 //! `into_box` and `into_local_box`. Each takes a complete native value. Local
-//! owners provide checked `try_borrow`/`try_borrow_mut` access to concrete state.
+//! owners lend concrete state through `get`, with `get_mut` on a local box.
 //! Factories can finish private weak-origin wiring before publishing a result.
-//! Each allocation stores typed state, lifetime counters and one call-borrow
-//! gate. Interface projections share its object address and use static tables.
+//! Interface projections share the allocation's object address and use static tables.
 //!
 //! [`ComPtr`] owns a shared reference; [`ComBox`] owns the sole exclusive token.
-//! [`ComRef`] lends shared method access, and [`ComMut`] lends mutable method access.
-//! [`WeakComPtr`] promotes to shared
-//! ownership, whereas [`WeakComBox`] observes an exclusive object's liveness
-//! and enters its checked call gate without making another owner. `&mut self`
-//! methods require exclusive call admission; conflicts report [`NC_E_BUSY`].
-//! [`NC_E_DROPPED`] reports lost ownership, while [`NC_E_CLOSED`] reports an
-//! explicitly closed live service. A dependency may propagate either status.
+//! [`ComRef`] lends shared target access. [`ComMut`] lends exclusive target access
+//! for mutable receiver methods. A [`WeakComPtr`] promotes to shared ownership
+//! while the value remains alive. A boxed target is accessed through the sole
+//! owner or its live loans.
 //!
 //! Generated callers use the same `handle.method()` syntax for owned and borrowed
 //! handles, including inherited methods. Querying a projection compares its
@@ -126,7 +121,7 @@ mod runtime;
 mod tests;
 
 pub use neocogi_com::lifetime;
-pub use neocogi_com::{ComBox, WeakComBox};
+pub use neocogi_com::ComBox;
 pub use neocogi_com::{NcCopyFromBufferOffset, WeakComPtr, NcSharedWeakRaw};
 pub use neocogi_com::{NcHostApi, validate_host_api};
 #[cfg(feature = "alloc")]
@@ -138,32 +133,34 @@ pub use neocogi_com::{format_abi_signature, format_method_signature};
 pub use neocogi_com::{
     __nc_abi_plain_type, __nc_abi_type, AbiPlainValue, AbiType, ComRustInterface, ComDeserialize, ComSerialize, ComInterface, ComMut, ComPtr, ComRaw, ComRef,
     ComInterfacePointer, IID_INC_BYTES, IID_INC_STRING, IID_IUNKNOWN, INcBytesAbi, INcBytesVTable, INcStringAbi, INcStringVTable, IUNKNOWN_INTERFACE_ID,
-    IUNKNOWN_QUALIFIED_NAME, IUnknown, IUnknownVTable, NC_ABI_PASSING_COM_PTR_OUT, NC_ABI_PASSING_COM_BOX_IN, NC_ABI_PASSING_COM_BOX_OUT,
-    NC_ABI_PASSING_COM_MUT, NC_ABI_PASSING_OPTIONAL_COM_PTR_OUT, NC_ABI_PASSING_OPTIONAL_COM_REF, NC_ABI_PASSING_SCOPED_COM_REF_OUT,
-    NC_ABI_PASSING_WEAK_COM_BOX_OUT, NC_ABI_PASSING_WEAK_COM_PTR_OUT, NC_ABI_PASSING_COM_REF, NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET,
+    IUNKNOWN_QUALIFIED_NAME, IUnknown, IUnknownVTable, NC_ABI_PASSING_COM_REF_OUT, NC_ABI_PASSING_OPTIONAL_COM_REF_OUT, NC_ABI_PASSING_COM_MUT_OUT,
+    NC_ABI_PASSING_OPTIONAL_COM_MUT_OUT, NC_ABI_PASSING_OPTIONAL_COM_MUT, NC_ABI_PASSING_SCOPED_COM_MUT_OUT, NC_ABI_PASSING_COM_PTR_OUT,
+    NC_ABI_PASSING_COM_BOX_IN, NC_ABI_PASSING_COM_BOX_OUT, NC_ABI_PASSING_COM_MUT, NC_ABI_PASSING_OPTIONAL_COM_PTR_OUT, NC_ABI_PASSING_OPTIONAL_COM_REF,
+    NC_ABI_PASSING_SCOPED_COM_REF_OUT, NC_ABI_PASSING_WEAK_COM_PTR_OUT, NC_ABI_PASSING_COM_REF, NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET,
     NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET, NC_ABI_PASSING_OUTPUT_BUFFER, NC_ABI_PASSING_OUT, NC_ABI_PASSING_BORROWED_VALUE, NC_ABI_PASSING_VALUE,
-    NC_ABI_PASSING_VOID, NC_ABI_RECEIVER_MUTABLE, NC_ABI_RECEIVER_SHARED, NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE, NC_ABI_TYPE_AGGREGATE,
-    NC_ABI_TYPE_BOOL, NC_ABI_TYPE_F32, NC_ABI_TYPE_F64, NC_ABI_TYPE_I8, NC_ABI_TYPE_I16, NC_ABI_TYPE_I32, NC_ABI_TYPE_I64, NC_ABI_TYPE_INTERFACE,
-    NC_ABI_TYPE_ISIZE, NC_ABI_TYPE_NC_GUID, NC_ABI_TYPE_NC_STATUS, NC_ABI_TYPE_U8, NC_ABI_TYPE_U16, NC_ABI_TYPE_U32, NC_ABI_TYPE_U64, NC_ABI_TYPE_USIZE,
-    NC_ABI_TYPE_VOID, NC_COM_ABI_MAGIC, NC_COM_ABI_VERSION, NC_COM_GUID_NAMESPACE, NC_COM_RUNTIME_MAX_ACTIVE_DEBUG_MESSENGERS,
-    NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS, NC_DEBUG_SEVERITY_ALL, NC_DEBUG_SEVERITY_ERROR, NC_DEBUG_SEVERITY_INFO, NC_DEBUG_SEVERITY_WARNING, NC_DEBUG_TYPE_ALL,
-    NC_DEBUG_TYPE_PLUGIN, NC_DEBUG_TYPE_RUNTIME, NC_DEBUG_TYPE_VALIDATION, NC_DESCRIPTOR_QUALIFIED_NAME_MAX_LEN, NC_DESCRIPTOR_VERSION_MAX_LEN,
-    NC_E_ABI_VERSION, NC_E_BUSY, NC_E_CLOSED, NC_E_DROPPED, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG, NC_E_INVALID_TAG, NC_E_LOAD_FAILED, NC_E_NOINTERFACE,
-    NC_E_NOT_FOUND, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_GET_PLUGIN_DESCRIPTOR_SYMBOL, NC_GUID_NIL, NC_OK, NcAbiDigest, NcAbiPassing,
-    NcAbiPassingDescriptor, NcAbiReceiver, NcAbiThreadingMode, NcAbiType, NcAbiTypeDescriptor, NcAcquirePluginFactory, NcDebugApi, NcDebugCallback,
-    NcDebugMessage, NcDebugMessengerCreateInfo, NcPluginDescriptor, NcGetPluginDescriptor, NcGuid, NcInspectPluginDescriptorCallback, NcInterfaceDescriptor,
-    NcInterfaceId, NcMethodDescriptor, NcMethodParamDescriptor, NcPersistenceApi, NcPersistenceContext, NcPersistenceLimits, NcPersistenceWriteBytes,
-    NcMethodReturnDescriptor, NcPluginDependencyDescriptor, NcFactoryInfo, NcPluginInfo, NcQualifiedNameError, NcPluginApi, NcStaticUtf8, NcStatus, NcUtf8View,
-    NcVersionTextError, ParseGuidError, QUALIFIED_NAME_INC_BYTES, QUALIFIED_NAME_INC_STRING, ThreadLocal, ThreadSafe, ThreadingModel, write_plugin_root,
+    NC_ABI_PASSING_VOID, NC_ABI_RECEIVER_MUTABLE, NC_ABI_RECEIVER_SHARED, NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE,
+    NC_ABI_THREADING_THREAD_SEND, NC_ABI_THREADING_THREAD_SYNC, NC_ABI_TYPE_AGGREGATE, NC_ABI_TYPE_BOOL, NC_ABI_TYPE_F32, NC_ABI_TYPE_F64, NC_ABI_TYPE_I8,
+    NC_ABI_TYPE_I16, NC_ABI_TYPE_I32, NC_ABI_TYPE_I64, NC_ABI_TYPE_INTERFACE, NC_ABI_TYPE_ISIZE, NC_ABI_TYPE_NC_GUID, NC_ABI_TYPE_NC_STATUS, NC_ABI_TYPE_U8,
+    NC_ABI_TYPE_U16, NC_ABI_TYPE_U32, NC_ABI_TYPE_U64, NC_ABI_TYPE_USIZE, NC_ABI_TYPE_VOID, NC_COM_ABI_MAGIC, NC_COM_ABI_VERSION, NC_COM_GUID_NAMESPACE,
+    NC_COM_RUNTIME_MAX_ACTIVE_DEBUG_MESSENGERS, NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS, NC_DEBUG_SEVERITY_ALL, NC_DEBUG_SEVERITY_ERROR, NC_DEBUG_SEVERITY_INFO,
+    NC_DEBUG_SEVERITY_WARNING, NC_DEBUG_TYPE_ALL, NC_DEBUG_TYPE_PLUGIN, NC_DEBUG_TYPE_RUNTIME, NC_DEBUG_TYPE_VALIDATION, NC_DESCRIPTOR_QUALIFIED_NAME_MAX_LEN,
+    NC_DESCRIPTOR_VERSION_MAX_LEN, NC_E_ABI_VERSION, NC_E_BUSY, NC_E_CLOSED, NC_E_DROPPED, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG, NC_E_INVALID_TAG,
+    NC_E_LOAD_FAILED, NC_E_NOINTERFACE, NC_E_NOT_FOUND, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_GET_PLUGIN_DESCRIPTOR_SYMBOL, NC_GUID_NIL,
+    NC_OK, NcAbiDigest, NcAbiPassing, NcAbiPassingDescriptor, NcAbiReceiver, NcAbiThreadingMode, NcAbiType, NcAbiTypeDescriptor, NcAcquirePluginFactory,
+    NcDebugApi, NcDebugCallback, NcDebugMessage, NcDebugMessengerCreateInfo, NcPluginDescriptor, NcGetPluginDescriptor, NcGuid,
+    NcInspectPluginDescriptorCallback, NcInterfaceDescriptor, NcInterfaceId, NcMethodDescriptor, NcMethodParamDescriptor, NcPersistenceApi,
+    NcPersistenceContext, NcPersistenceLimits, NcPersistenceWriteBytes, NcMethodReturnDescriptor, NcPluginDependencyDescriptor, NcFactoryInfo, NcPluginInfo,
+    NcQualifiedNameError, NcPluginApi, NcStaticUtf8, NcStatus, NcUtf8View, NcVersionTextError, ParseGuidError, QUALIFIED_NAME_INC_BYTES,
+    QUALIFIED_NAME_INC_STRING, CanWeakenThreading, ThreadLocal, ThreadSafe, ThreadSend, ThreadSync, ThreadingModel, write_plugin_root,
     guid_from_qualified_name, raw, return_plugin_descriptor, validate_plugin_descriptor, validate_qualified_name, validate_version_text, validate_rust_path,
     NcRustPathError, NC_DESCRIPTOR_RUST_PATH_MAX_LEN,
 };
-pub use object::{ComBorrowGate, ComReadGuard, ComWriteGuard, __ComReadPermit, __ComWritePermit, __com_add_ref_count, __com_release_ref_count, ComObject};
+pub use object::{__com_add_ref_count, __com_release_ref_count, ComExclusiveObject, ComObject};
 #[cfg(feature = "alloc")]
 #[doc(hidden)]
 pub use object::{__ComBoxedInner, __ComSharedInner};
 mod local;
-pub use local::{LocalBox, WeakLocalBox, LocalCom, WeakLocalCom, LocalRef, LocalRefMut};
+pub use local::{LocalBox, LocalCom, WeakLocalCom};
 #[doc(hidden)]
 pub use neocogi_com::__ComSupportsInterfaceThreading;
 #[cfg(feature = "runtime")]
@@ -197,7 +194,7 @@ pub use neocogi_com::{NcOutput, NcOutputWriter, PreparedOutput};
 pub use neocogi_com::NcOutputBuffer;
 
 #[doc(hidden)]
-pub use neocogi_com::{NcScopedResultCallback, __nc_with_scoped_result};
+pub use neocogi_com::{NcScopedResultCallback, __nc_with_scoped_mut_result, __nc_with_scoped_result};
 
 /// Compile-time physical-prefix witnesses for generated scoped getter helpers.
 #[doc(hidden)]

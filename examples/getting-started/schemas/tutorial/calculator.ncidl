@@ -7,5 +7,5 @@ interface Calculator {
     /// Reports invalid keys independently of an absent label.
     fn load_label(&self, key: i32) -> Result<Option<ComPtr<INcString>>>;
     /// Clears the label from the calculator.
-    fn invalidate(&mut self);
+    fn invalidate(&self);
 }

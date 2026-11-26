@@ -16,7 +16,7 @@ fn main(runtime: neocogi_com_sdk::RuntimeHandle) {
     // SAFETY: The caller supplies this tutorial's trusted build artifact. Native
     // initializers can execute on open; the host pins the library for its lifetime.
     let plugin = unsafe { runtime.load_plugin_library(std::path::PathBuf::from(path)) };
-    let mut calculator = runtime
+    let calculator = runtime
         .acquire_plugin_root::<contracts::CalculatorAbi>(plugin)
         .expect("compatible calculator factory");
     println!("2 + 3 = {}", calculator.add(2, 3).expect("checked addition"));

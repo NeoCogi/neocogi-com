@@ -8,12 +8,13 @@ interface IMeasured {
 
 /// Public object shape constructed only by `ExampleFactory`.
 interface ExampleObject: IMeasured {
-    /// Replaces the dimensions using an exclusive implementation borrow.
-    fn resize(&mut self, extent: Extent) -> Result<()>;
-    /// Lends the optional transient caption while the receiver is shared-borrowed.
-    fn caption(&self) -> Option<&INcString>;
+    /// Replaces the dimensions and notifies the observer after committing them.
+    fn resize(&self, extent: Extent) -> Result<()>;
+    /// Lends the optional transient caption while its field is borrowed.
+    #[scoped]
+    fn caption(&self) -> Result<Option<&INcString>>;
     /// Copies a new transient caption, or clears it when no value was supplied.
-    fn set_caption(&mut self, caption: Option<&INcString>) -> Result<()>;
+    fn set_caption(&self, caption: Option<&INcString>) -> Result<()>;
 }
 
 /// Typed construction surface for the example object.
@@ -22,16 +23,20 @@ interface ExampleFactory {
     fn create(&self, extent: Extent, events: &ExtentBinding) -> Result<ComPtr<ExampleObject>>;
 }
 
-/// Opaque composition exposes only its mountable root, never internal controls.
+/// Transfers the mountable composition to its new owner.
 interface ICompositionRoot {
-    /// Returns the root capability for a host-specific mount operation.
-    fn take_root(&mut self) -> Result<ComBox<IUnknown>>;
-    /// Resolves one authored child for a checked concrete class query.
-    fn widget(&self, name: &[u8]) -> Result<WeakComBox<IUnknown>>;
+    /// Moves the sole owner of the mounted composition.
+    fn take_root(&mut self) -> Result<ComBox<IMountedComposition>>;
+}
+
+/// The mounted object lends selected views of its owned children.
+interface IMountedComposition {
+    /// Lends the measured view of an authored child for this receiver borrow.
+    fn widget(&self, name: &[u8]) -> Option<&IMeasured>;
 }
 
 /// Domain-specific observer; COM gives this interface no event semantics.
 interface IExtentObserver {
     /// Captures an immutable extent and a non-owning producer identity.
-    fn changed(&mut self, notification: &ExtentNotification) -> Result<()>;
+    fn changed(&self, notification: &ExtentNotification) -> Result<()>;
 }

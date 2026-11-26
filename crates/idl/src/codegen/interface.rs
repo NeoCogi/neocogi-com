@@ -45,7 +45,7 @@ impl InterfaceVTablePrefix {
 /// Separately emitted contract and provider support for built-in interfaces.
 ///
 /// Core owns the ABI and safe wrappers. The facade owns generated object thunks,
-/// whose borrow gates and concrete object storage must not enter the native ABI.
+/// whose concrete storage and provider-local borrows stay inside the allocator.
 pub struct InterfaceExpansion {
     /// Traits, markers, wrappers and metadata, using only allocation-free core types.
     pub abi: proc_macro2::TokenStream,
@@ -65,9 +65,12 @@ pub(crate) fn expand_interface_parts_with_path(plan: InterfacePlan, nc: &syn::Pa
 
 /// Built-in format adapters borrow their caller's state without granting ownership.
 pub(crate) fn expand_scoped_interface_parts(plan: InterfacePlan, nc: &syn::Path) -> Result<InterfaceExpansion> {
-    if matches!(plan.threading, InterfaceThreading::Shared)
+    if !matches!(plan.threading, InterfaceThreading::Local)
         || !plan.bases.is_empty()
-        || plan.methods.iter().any(|method| !matches!(method.receiver, AbiReceiver::Mutable))
+        || plan
+            .methods
+            .iter()
+            .any(|method| !matches!(method.receiver, AbiReceiver::Mutable) || matches!(method.ok.kind, AbiReturnKind::BorrowedLoan { .. }))
     {
         return Err(syn::Error::new_spanned(
             &plan.name,
@@ -80,7 +83,7 @@ pub(crate) fn expand_scoped_interface_parts(plan: InterfacePlan, nc: &syn::Path)
 /// Storage admission selected independently of the canonical callable contract.
 #[derive(Clone, Copy)]
 enum ProviderDispatch {
-    /// Ordinary owning COM implementations use their object-wide gate.
+    /// Ordinary owner-backed implementations recover the caller's declared borrow.
     Owned,
     /// A nonretainable format session lends stack-owned state for one operation.
     Scoped,
@@ -99,6 +102,7 @@ fn expand_parts(plan: InterfacePlan, dispatch: ProviderDispatch, nc: &syn::Path)
         bases: interface_paths,
         inherited_projections,
         scoped_prefixes,
+        requires_exclusive,
         mut methods,
     } = plan;
     let declarations = methods.iter().map(|method| super::method_declaration_with_path(method, nc));
@@ -109,6 +113,8 @@ fn expand_parts(plan: InterfacePlan, dispatch: ProviderDispatch, nc: &syn::Path)
     match requirement {
         InterfaceThreading::Local => {}
         InterfaceThreading::Shared => provider_bounds.extend([quote! { ::core::marker::Send }, quote! { ::core::marker::Sync }]),
+        InterfaceThreading::Send => provider_bounds.push(quote! { ::core::marker::Send }),
+        InterfaceThreading::Sync => provider_bounds.push(quote! { ::core::marker::Sync }),
     }
     let supertraits = if provider_bounds.is_empty() {
         quote! {}
@@ -121,7 +127,6 @@ fn expand_parts(plan: InterfacePlan, dispatch: ProviderDispatch, nc: &syn::Path)
     let mut names = PrivateNames::new(quote! { #input #nc });
     let provider = names.fresh("__NcProvider");
     let mode = names.fresh("__NcThreading");
-    let object_ident = names.binding("__nc_dispatch_object");
     let value_ident = names.binding("__nc_dispatch_value");
     for method in &mut methods {
         for (position, argument) in method.args.iter_mut().enumerate() {
@@ -164,6 +169,8 @@ fn expand_parts(plan: InterfacePlan, dispatch: ProviderDispatch, nc: &syn::Path)
     let threading = match requirement {
         InterfaceThreading::Local => quote! { #nc::ThreadLocal },
         InterfaceThreading::Shared => quote! { #nc::ThreadSafe },
+        InterfaceThreading::Send => quote! { #nc::ThreadSend },
+        InterfaceThreading::Sync => quote! { #nc::ThreadSync },
     };
     let qualified_name = syn::LitStr::new(&qualified_name, trait_ident.span());
     let guid = guid_tokens(id, nc)?;
@@ -290,7 +297,7 @@ fn expand_parts(plan: InterfacePlan, dispatch: ProviderDispatch, nc: &syn::Path)
         let abi_args = method.args.iter().flat_map(raw_vtable_arg_params);
         let out_param = match &method.ok.kind {
             AbiReturnKind::Void => quote! {},
-            AbiReturnKind::Plain | AbiReturnKind::ComPtr { .. } => {
+            AbiReturnKind::Plain | AbiReturnKind::ComPtr { .. } | AbiReturnKind::BorrowedLoan { .. } => {
                 let ret = &method.ok.abi_ty;
                 quote! { #output_local: *mut #ret, }
             }
@@ -313,7 +320,7 @@ fn expand_parts(plan: InterfacePlan, dispatch: ProviderDispatch, nc: &syn::Path)
     // A thunk adapts one C ABI vtable call back into the Rust trait method.
     // It accesses the owning generated storage directly through the handle's
     // opaque `object` pointer, then asks `ComObject` for the concrete Rust
-    // value through the generated object-wide borrow gate. Panics are
+    // value under the caller's established liveness and access. Panics are
     // intentionally not caught here; the non-unwind C ABI boundary follows
     // Rust's normal panic and ABI unwind rules.
     let thunks = methods.iter().map(|method| {
@@ -411,6 +418,7 @@ fn expand_parts(plan: InterfacePlan, dispatch: ProviderDispatch, nc: &syn::Path)
                     InterfaceBorrow::Shared => (quote! { ComRef }, quote! { __nc_from_raw_borrowed_checked }),
                     InterfaceBorrow::OptionalShared => (quote! { ComRef }, quote! { __nc_from_raw_optional_borrowed_checked }),
                     InterfaceBorrow::Mutable => (quote! { ComMut }, quote! { __nc_from_raw_borrowed_checked }),
+                    InterfaceBorrow::OptionalMutable => (quote! { ComMut }, quote! { __nc_from_raw_optional_borrowed_checked }),
                 };
                 let checked = quote! {
                     match unsafe {
@@ -504,7 +512,7 @@ fn expand_parts(plan: InterfacePlan, dispatch: ProviderDispatch, nc: &syn::Path)
         let arg_names = method.args.iter().map(|arg| &arg.binding).collect::<Vec<_>>();
         let out_param = match &method.ok.kind {
             AbiReturnKind::Void => quote! {},
-            AbiReturnKind::Plain | AbiReturnKind::ComPtr { .. } => {
+            AbiReturnKind::Plain | AbiReturnKind::ComPtr { .. } | AbiReturnKind::BorrowedLoan { .. } => {
                 let ret = &method.ok.abi_ty;
                 quote! { #output_local: *mut #ret, }
             }
@@ -519,7 +527,7 @@ fn expand_parts(plan: InterfacePlan, dispatch: ProviderDispatch, nc: &syn::Path)
                     return #nc::NC_E_POINTER;
                 }
             },
-            AbiReturnKind::Plain | AbiReturnKind::ComPtr { .. } => quote! {
+            AbiReturnKind::Plain | AbiReturnKind::ComPtr { .. } | AbiReturnKind::BorrowedLoan { .. } => quote! {
                 if #this_local.is_null() || #output_local.is_null() {
                     return #nc::NC_E_POINTER;
                 }
@@ -545,6 +553,20 @@ fn expand_parts(plan: InterfacePlan, dispatch: ProviderDispatch, nc: &syn::Path)
                     #nc::NC_OK
                 }
             },
+            AbiReturnKind::BorrowedLoan { optional, .. } => {
+                let pair = if *optional {
+                    quote! { #value_local.as_ref().map(|#value_local| #value_local.as_raw()).unwrap_or_default() }
+                } else {
+                    quote! { #value_local.as_raw() }
+                };
+                quote! {
+                    ::core::result::Result::Ok(#value_local) => {
+                        // The receiver's lender anchors the borrowed result after return.
+                        unsafe { #output_local.write(#pair); }
+                        #nc::NC_OK
+                    }
+                }
+            },
             AbiReturnKind::ComPtr { optional, .. } => {
                 let transfer = if *optional {
                     quote! { #value_local.map(|#value_local| #value_local.into_raw()).unwrap_or_default() }
@@ -563,46 +585,63 @@ fn expand_parts(plan: InterfacePlan, dispatch: ProviderDispatch, nc: &syn::Path)
             },
         };
         let borrow = match dispatch {
-            ProviderDispatch::Scoped => quote! { #nc::serialization::scope::ScopedComProvider::<#provider>::borrow_mut(#object_ident) },
+            ProviderDispatch::Scoped => quote! { #nc::serialization::scope::ScopedComProvider::<#provider>::borrow_mut(#this_local) },
             ProviderDispatch::Owned => match method.receiver {
             AbiReceiver::Shared => quote! {
-                <#provider as #nc::ComObject>::borrow_abi_ref(#object_ident)
+                    <#provider as #nc::ComObject>::borrow_abi_ref(#this_local)
             },
             AbiReceiver::Mutable => quote! {
-                <#provider as #nc::ComObject>::borrow_abi_mut(#object_ident)
+                    <#provider as #nc::ComExclusiveObject>::borrow_abi_mut(#this_local)
             },
         },
         };
-        let invoke = match method.receiver {
-            AbiReceiver::Shared => quote! {
-                <#provider as #trait_ident>::#method_ident(&*#value_ident, #(#arg_names),*)
-            },
-            AbiReceiver::Mutable => quote! {
-                <#provider as #trait_ident>::#method_ident(&mut *#value_ident, #(#arg_names),*)
-            },
+        let receiver = match dispatch {
+            ProviderDispatch::Owned => quote! { #value_ident },
+            ProviderDispatch::Scoped => quote! { &mut *#value_ident },
         };
-        let invoke = match method.projection {
-            crate::ReturnProjection::Fallible => invoke,
-            crate::ReturnProjection::Direct => quote! { ::core::result::Result::Ok::<_, #nc::NcStatus>(#invoke) },
-        };
-        // A scoped result borrows the receiver; its match and delivery must
-        // finish before the guard can end. Ordinary output publication can
-        // release the receiver immediately after the implementation returns.
-        let release_receiver = if matches!(method.ok.kind, AbiReturnKind::ScopedLoan { .. }) {
-            quote! {}
+        let receiver_mut = matches!(dispatch, ProviderDispatch::Scoped).then(|| quote! { mut });
+        let completion = if matches!(method.ok.kind, AbiReturnKind::ScopedLoan { .. }) {
+            let delivery = match method.projection {
+                crate::ReturnProjection::Direct => quote! { ::core::result::Result::Ok::<_, #nc::NcStatus>(#result_local) },
+                crate::ReturnProjection::Fallible => quote! { #result_local },
+            };
+            // The provider calls the continuation before its field guard ends.
+            quote! {
+                <#provider as #trait_ident>::#method_ident(#receiver, #(#arg_names,)* |#result_local| {
+                    match #delivery {
+                        #success_arm
+                        #error_arm
+                    }
+                })
+            }
         } else {
-            quote! { ::core::mem::drop(#value_ident); }
+            let invoke = quote! { <#provider as #trait_ident>::#method_ident(#receiver, #(#arg_names),*) };
+            let invoke = match method.projection {
+                crate::ReturnProjection::Fallible => invoke,
+                crate::ReturnProjection::Direct => quote! { ::core::result::Result::Ok::<_, #nc::NcStatus>(#invoke) },
+            };
+            // Stack providers retain their separate call gate. Owner-backed
+            // dispatch has only a short reborrow of the caller's loan.
+            let release = matches!(dispatch, ProviderDispatch::Scoped).then(|| quote! { ::core::mem::drop(#value_ident); });
+            quote! {
+                let #result_local = #invoke;
+                #release
+                match #result_local {
+                    #success_arm
+                    #error_arm
+                }
+            }
         };
         quote! {
             #(#source_docs)*
-            /// Validates raw pointers, borrows the concrete provider through its
-            /// object-wide gate, invokes its typed method, and lowers the result.
-            /// Owned results transfer after release of the receiver guard. Scoped
-            /// loans are delivered before release. Error statuses are normalized.
+            /// Validates arguments and dispatches through the caller's live target borrow.
+            /// Ordinary borrowed results retain the caller's receiver lifetime.
+            /// Scoped delivery completes before its provider-side lender ends.
             ///
             /// # Safety
-            /// The interface belongs to T's live generated storage. Non-null ABI
-            /// arguments must satisfy their method's readable/writable contracts.
+            /// The interface belongs to the exact live provider storage. The
+            /// receiver and every input must jointly satisfy their declared
+            /// lifetime and aliasing contracts through the call and any returned loan.
             unsafe extern "C" fn #thunk_ident(
                 #this_local: *mut ::core::ffi::c_void,
                 #(#params,)*
@@ -610,32 +649,17 @@ fn expand_parts(plan: InterfacePlan, dispatch: ProviderDispatch, nc: &syn::Path)
             ) -> #nc::NcStatus {
                 #pointer_check
 
-                // SAFETY: `this` was checked non-null above and is a generated
-                // object address paired with this vtable.
-                let #object_ident = #this_local;
-                if #object_ident.is_null() {
-                    return #nc::NC_E_POINTER;
-                }
                 // All possible outputs must fit before any owning input is adopted.
                 #(#output_preflight)*
                 #(#arg_conversions)*
-                // SAFETY: The object pointer is paired with this generated table.
-                // `ComObject` validates the requested Rust borrow
-                // against every call active on the same allocation.
-                let mut #value_ident = match unsafe { #borrow } {
+                // SAFETY: The paired table identifies the storage. The caller
+                // supplies the lifetime and access declared by this receiver.
+                let #receiver_mut #value_ident = match unsafe { #borrow } {
                     ::core::result::Result::Ok(#value_local) => #value_local,
                     ::core::result::Result::Err(#status_local) => return #status_local,
                 };
                 #(#owner_adoptions)*
-                let #result_local = #invoke;
-                #release_receiver
-                match #result_local {
-                    #success_arm
-                    // Rust `Result::Err` must map to a negative ABI status.
-                    // Normalizing here prevents an invalid `Err(success)` from
-                    // making a safe caller read an unwritten out slot.
-                    #error_arm
-                }
+                #completion
             }
         }
     });
@@ -836,6 +860,7 @@ fn expand_parts(plan: InterfacePlan, dispatch: ProviderDispatch, nc: &syn::Path)
 
     };
     let object_bound = match dispatch {
+        ProviderDispatch::Owned if requires_exclusive => quote! { + #nc::ComExclusiveObject },
         ProviderDispatch::Owned => quote! { + #nc::ComObject },
         ProviderDispatch::Scoped => quote! {},
     };
@@ -1058,6 +1083,24 @@ fn safe_wrapper_method_body(nc: &syn::Path, method: &AbiMethod, names: &mut Priv
                 AbiReturnKind::ComPtr { optional: false, .. } => quote! {
                     (unsafe { <#rust_ret>::__nc_from_raw_owned_checked(#output_local.assume_init()) }) #acquire
                 },
+                AbiReturnKind::BorrowedLoan { interface_ty, mode_ty, mutable, optional } => {
+                    let mode = mode_ty.as_deref().map_or_else(|| quote! { #nc::ThreadLocal }, |mode| quote! { #mode });
+                    let handle = if *mutable {
+                        quote! { ComMut }
+                    } else {
+                        quote! { ComRef }
+                    };
+                    let decode = if *optional {
+                        quote! { __nc_from_raw_optional_borrowed_checked }
+                    } else {
+                        quote! { __nc_from_raw_borrowed_checked }
+                    };
+                    quote! {
+                        // SAFETY: native success lends the exact interface
+                        // from this receiver's borrow, which bounds the result.
+                        (unsafe { #nc::#handle::<#interface_ty, #mode>::#decode(#output_local.assume_init()) }) #acquire
+                    }
+                }
                 AbiReturnKind::Void | AbiReturnKind::ScopedLoan { .. } => unreachable!(),
             };
             (
@@ -1094,7 +1137,12 @@ fn safe_wrapper_method_body(nc: &syn::Path, method: &AbiMethod, names: &mut Priv
             let project = match method.ok.kind {
                 AbiReturnKind::Void => quote! { let _ = #result_local; },
                 AbiReturnKind::ComPtr { optional: true, .. } => quote! { #result_local.ok().flatten() },
-                _ => unreachable!("resolved direct return must be unit or optional"),
+                AbiReturnKind::Plain | AbiReturnKind::BorrowedLoan { .. } => quote! {
+                    #result_local.unwrap_or_else(|status| {
+                        ::core::panic!(::core::concat!("COM method ", ::core::stringify!(#method_ident), " failed: {:?}"), status)
+                    })
+                },
+                _ => unreachable!("unsupported direct return"),
             };
             (
                 quote! { #rust_ret },
@@ -1185,6 +1233,7 @@ fn arg_passing_descriptor(nc: &syn::Path, arg: &crate::codegen::model::AbiArg) -
                 InterfaceBorrow::Shared => quote! { ComRef },
                 InterfaceBorrow::OptionalShared => quote! { OptionalComRef },
                 InterfaceBorrow::Mutable => quote! { ComMut },
+                InterfaceBorrow::OptionalMutable => quote! { OptionalComMut },
             };
             quote! {
                 #nc::NcAbiPassingDescriptor::from_abi_passing(#nc::NcAbiPassing::#passing {
@@ -1229,11 +1278,24 @@ fn arg_type_descriptor(nc: &syn::Path, arg: &crate::codegen::model::AbiArg) -> p
 /// Maps a return kind to its C-shaped output passing descriptor.
 fn return_passing_descriptor(nc: &syn::Path, method: &AbiMethod) -> proc_macro2::TokenStream {
     match &method.ok.kind {
-        AbiReturnKind::ScopedLoan { mode_ty, .. } => {
+        AbiReturnKind::ScopedLoan { mode_ty, mutable, .. } => {
             let mode = threading_mode_expr(nc, mode_ty.as_deref());
-            quote! {
-                #nc::NcAbiPassingDescriptor::from_abi_passing(#nc::NcAbiPassing::ScopedComRefOut { mode: #mode })
-            }
+            let passing = if *mutable {
+                quote! { ScopedComMutOut }
+            } else {
+                quote! { ScopedComRefOut }
+            };
+            quote! { #nc::NcAbiPassingDescriptor::from_abi_passing(#nc::NcAbiPassing::#passing { mode: #mode }) }
+        }
+        AbiReturnKind::BorrowedLoan { mode_ty, mutable, optional, .. } => {
+            let mode = threading_mode_expr(nc, mode_ty.as_deref());
+            let passing = match (mutable, optional) {
+                (false, false) => quote! { ComRefOut },
+                (false, true) => quote! { OptionalComRefOut },
+                (true, false) => quote! { ComMutOut },
+                (true, true) => quote! { OptionalComMutOut },
+            };
+            quote! { #nc::NcAbiPassingDescriptor::from_abi_passing(#nc::NcAbiPassing::#passing { mode: #mode }) }
         }
         AbiReturnKind::Void => quote! {
             #nc::NcAbiPassingDescriptor::from_abi_passing(#nc::NcAbiPassing::Void)
@@ -1247,7 +1309,6 @@ fn return_passing_descriptor(nc: &syn::Path, method: &AbiMethod) -> proc_macro2:
                 crate::codegen::model::InterfaceOwnership::Shared if *optional => quote! { OptionalComPtrOut },
                 crate::codegen::model::InterfaceOwnership::Shared => quote! { ComPtrOut },
                 crate::codegen::model::InterfaceOwnership::Exclusive => quote! { ComBoxOut },
-                crate::codegen::model::InterfaceOwnership::WeakExclusive => quote! { WeakComBoxOut },
                 crate::codegen::model::InterfaceOwnership::WeakShared => quote! { WeakComPtrOut },
             };
             quote! {
@@ -1271,7 +1332,7 @@ fn return_type_descriptor(nc: &syn::Path, method: &AbiMethod) -> proc_macro2::To
                 #nc::NcAbiTypeDescriptor::from_abi_type(#nc::__nc_abi_type::<#ty>())
             }
         }
-        AbiReturnKind::ComPtr { interface_ty, .. } | AbiReturnKind::ScopedLoan { interface_ty, .. } => {
+        AbiReturnKind::ComPtr { interface_ty, .. } | AbiReturnKind::ScopedLoan { interface_ty, .. } | AbiReturnKind::BorrowedLoan { interface_ty, .. } => {
             let interface_ty = interface_ty.as_ref();
             quote! {
                 #nc::NcAbiTypeDescriptor::from_interface(
@@ -1353,9 +1414,10 @@ fn safe_vtable_call_args(arg: &crate::codegen::model::AbiArg) -> Vec<proc_macro2
         AbiArgKind::BorrowedValue { .. } => vec![quote! { #ident.as_ptr() }],
         AbiArgKind::Plain => vec![quote! { #ident }],
         AbiArgKind::ComRef {
-            access: InterfaceBorrow::OptionalShared, ..
+            access: InterfaceBorrow::OptionalShared | InterfaceBorrow::OptionalMutable,
+            ..
         } => {
-            vec![quote! { #ident.map(|#ident| #ident.as_raw()).unwrap_or_default() }]
+            vec![quote! { #ident.as_ref().map(|#ident| #ident.as_raw()).unwrap_or_default() }]
         }
         AbiArgKind::ComRef { .. } => vec![quote! { #ident.as_raw() }],
         AbiArgKind::CopyFromBufferOffset { .. } => vec![quote! { #ident.offset() }, quote! { #ident.len() }, quote! { #ident.as_ptr() }],

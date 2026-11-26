@@ -23,11 +23,11 @@ struct OptionalValues {
 /// Demonstrates copied and borrowed use sites of the same ordinary enum template.
 interface IValues {
     /// Copies a finite optional scalar in both directions.
-    fn number(&mut self, value: Option<u32>) -> Result<Option<u32>>;
+    fn number(&self, value: Option<u32>) -> Result<Option<u32>>;
     /// Borrows the active text; the receiver acquires data before retaining it.
-    fn text(&mut self, value: &Option<String>) -> Result<()>;
+    fn text(&self, value: &Option<String>) -> Result<()>;
     /// Borrows a tagged capability; absence has its own enum tag.
-    fn capability(&mut self, value: &Option<ComPtr<IToken>>) -> Result<u32>;
+    fn capability(&self, value: &Option<ComPtr<IToken>>) -> Result<u32>;
     /// Borrows an array of independently checked optional boolean elements.
-    fn flags(&mut self, values: &Slice<Option<bool>>) -> Result<u32>;
+    fn flags(&self, values: &Slice<Option<bool>>) -> Result<u32>;
 }

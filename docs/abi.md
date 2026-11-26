@@ -1,18 +1,18 @@
-# COM ABI v5 (WIP)
+# COM ABI v4 (WIP)
 
-**SDK 0.5.0-wip-alpha.1 uses ABI v5 while the ABI is WORK IN PROGRESS (WIP).**
+**SDK 0.5.0-wip-alpha.1 uses ABI v4 while the ABI is WORK IN PROGRESS (WIP).**
 
 One native ABI version covers the shared layouts, callback signatures and
-ownership contracts. Hosts and plugins require an exact version match.
-Advance the version whenever a change makes older binaries incompatible and
-rebuild hosts, providers and generated consumers from the same source revision.
+ownership contracts. While ABI v4 is in progress, rebuild hosts, providers and
+generated consumers from the same source revision. Hosts and plugins require a
+matching header and version.
 
 Published SDK 0.4.0 uses [ABI v3/core 21](https://github.com/NeoCogi/neocogi-com/blob/v0.4.0/docs/abi-v3.md).
 Published SDK 0.3.0 uses [ABI v2/core 19](https://github.com/NeoCogi/neocogi-com/blob/v0.3.0/docs/abi-v2.md).
 The [ABI v1 specification](https://github.com/NeoCogi/neocogi-com/blob/v0.1.0/docs/abi-v1.md)
-is available at its release tag. Current admission rejects the earlier
-ABI v4/core 23, ABI 24, and marked ABI v4 drafts. No fallback symbols, aliases or adapters admit
-older binaries.
+is available at its release tag. Current admission rejects earlier
+ABI v4/core 23 and ABI 24 drafts, along with drafts that used the retired
+`NCOM` marker.
 
 The persistence service borrows shared-owned roots and factories. Construction
 and declared ownership establish the matching lifetime header. Serialization
@@ -27,16 +27,15 @@ Opening an image may still execute its initializers and descriptor getter.
 
 | Identity or version | Current authority and purpose |
 | --- | --- |
-| Native ABI | NC_COM_ABI_VERSION == 5; checked in the plugin descriptor and host bundle |
+| Native ABI | NC_COM_ABI_VERSION == 4; checked in the plugin descriptor and host bundle |
 | Native getter | `nc_get_plugin_descriptor`; fixed C signature and descriptor header |
 | Interface contract | IID plus exact 32-byte ABI signature; checked for a particular interface |
-| IDL fingerprint encoding | MODULE_ABI_ENCODING_DOMAIN; canonical encoding v15 with directional callable slots |
+| IDL fingerprint encoding | MODULE_ABI_ENCODING_DOMAIN; canonical encoding v16 with directional loans and threading |
 | NCB format | Version 1; independent of live object ownership and lifetime layout |
 
 Live method/vtable dispatch, shared-query ownership transfer, checked recursive
 value wires, caller-owned persistence contexts and the separate service tables
-retain their existing roles. Interface GUIDs remain nominal. V15 updates exact
-interface signatures to cover the native passing contracts. NCB-v1 documents
+retain their existing roles. Interface GUIDs remain nominal. V16 signs actual borrow permissions, result lifetime form, and threading evidence. NCB-v1 documents
 and explicit serialization-provider selection keep their contracts. No Rust trait object, container layout, application value
 or unwinding crosses a C boundary. The application links one host owner and
 supplies its tables through nested plugins.
@@ -98,28 +97,32 @@ adopting the transfer. A negative status leaves the out slot unread and
 transfers no reference. A present but mismatched shared transfer releases its
 reference using the supplied common table.
 
-A required shared input lends a live object/table pair for the call. Optional
-shared input also accepts the all-null pair. A mutable input requires a live
-mutable lender and permits mutable receiver dispatch. These are distinct
-passing modes even though each uses the same by-value layout.
+A shared or mutable input lends a live object/table pair for the call. A
+mutable pair grants exclusive access to the target across all its projections.
+An optional input permits the both-null pair. The receiver and all arguments
+must jointly obey their declared borrowing rules.
 
-A scoped result replaces the out slot with a caller context and function
-pointer equivalent to `void (*visit)(void *context, NcRawInterface loan)`.
-A null function is rejected before entering the provider. A successful method
-calls the continuation exactly once, synchronously on the calling thread,
-including when the pair is all-null. A failed method calls it zero times.
-A present loan remains valid under the provider's shared receiver guard through
-the callback. The provider uses the continuation and context only before it
-returns. The callback uses a present pair only during its delivery.
-The Rust helper validates the pair and runs the user visitor only for a valid
-present loan. Missing or repeated delivery, or a failure after delivery, is a
-protocol error. The helper's higher-ranked callback prevents the interface loan
-from escaping. Delivery preserves the usual reentrant read/write admission.
+An ordinary borrowed result writes a pair on success. Its lender is the
+receiver borrow and remains live after native return. A read result from a
+mutable receiver still retains that mutable receiver borrow. Required results
+reject null. Optional results use both-null for absence. Borrowed results
+transfer no ownership and rejected pairs require no ownership cleanup.
 
-Unit returns use the status-only slot. Direct and `Result` Rust projections for
-the same native slot have the same ABI signature. A direct optional caller
-projects checked failure to `None`; a direct unit caller discards checked status.
-`Result` callers retain exact call errors, including `NC_E_DROPPED`.
+An explicitly scoped result replaces the out slot with a caller context and
+`void (*visit)(void *context, NcRawInterface loan)`. The provider retains its
+actual lender, such as a field guard, until delivery finishes. Success calls
+the continuation once on the invoking thread, including for absence. Failure
+calls it zero times. The continuation must not unwind or use a present pair
+after it returns. The Rust wrapper checks pair shape, exact identity and
+cardinality. It runs the visitor only for a valid present loan. Any workers
+borrowing that loan must finish before the visit ends.
+
+Unit uses the status-only slot. Direct and checked Rust projections of the
+same native slot share its ABI signature. Direct unit discards checked status.
+Existing direct optional owned and scoped outputs map checked failure to
+absence. Direct ordinary borrowed and copied results panic on unexpected
+checked dispatch or decoding failure. Their optional absence is a successful
+output value. A checked declaration exposes the error status.
 
 Tables have the common prefix above. A derived table can embed its first base's
 full method table at offset zero. All nested prefixes advertise the actual
@@ -141,12 +144,12 @@ Rust method lookup uses `ComRustInterface::Wrapper<M>`: generated
 its existing handle. These Rust-only wrappers retain zero-length slice metadata;
 they do not cross the C ABI or change the two-word stored handle. Inherited
 lookup borrows the physical table prefix without retaining or querying; an
-owned base projection still requires checked `QueryInterface`. A retained boxed
-weak wrapper may outlive the value, so provider entry admits liveness before
-access and reports expiration through the existing status contract.
+owned shared base projection requires checked `QueryInterface`. A boxed
+projection changes the interface through consuming lookup or through a borrow
+of the live owner.
 
 A scoped getter's declaring ABI marker supplies a Rust helper accepting the
-same physical first-base inheritance path from a live `ComRef`. A hidden unsafe
+same physical first-base inheritance path from a live shared or exclusive loan. A hidden unsafe
 Rust witness certifies the offset-zero prefix and exact declaring marker. The
 helper casts the borrowed table pointer for dispatch, preserves its object
 address and threading marker, and uses the existing synchronous guarded visitor.
@@ -205,8 +208,10 @@ continuation. Other successful results use an output pointer. Expected failures
 return negative `NcStatus` values and leave any output pointer unwritten.
 Panics must not cross an `extern "C"` boundary.
 
-Mutable IDL methods lower from `&mut self`. Generated object storage enforces an
-exclusive call gate and reports conflicting/reentrant access as `NC_E_BUSY`.
+Mutable IDL methods lower from `&mut self` and require exclusive access
+to the target. That access comes from the live boxed owner or its
+reborrow. Locks protecting shared provider fields and scoped stack
+adapters can still reject reentry with `NC_E_BUSY`.
 
 ## Signature storage and absence
 
@@ -244,7 +249,7 @@ The public static constructor makes digest width a compile-time obligation:
 
 ```rust
 use neocogi_com_sdk::{NcAbiDigest, NC_COM_ABI_VERSION};
-assert_eq!(NC_COM_ABI_VERSION, 5);
+assert_eq!(NC_COM_ABI_VERSION, 4);
 static FIRST: [u8; 32] = [7; 32];
 static SECOND: [u8; 32] = [7; 32];
 let a = NcAbiDigest::from_static(&FIRST);
@@ -274,33 +279,18 @@ The raw shared weak token contains one opaque allocation address:
 typedef struct NcSharedWeakRaw { struct NcSharedLifetimeState *control; } NcSharedWeakRaw;
 ```
 
-The [lifetime engine](../crates/core/src/lifetime.rs) provides two distinct headers.
-Both begin with an immutable NcObjectTypeInfo pointer, followed by one policy
-word and the weak count. NcSharedLifetimeState uses a numeric strong_count;
-NcBoxedLifetimeState uses owner_and_borrows. No BOXED kind bit is mixed into a
-strong count. Each header remains three pointer-width words.
+The [lifetime engine](../crates/core/src/lifetime.rs) has a three-word
+`NcSharedLifetimeState` with type information, a strong count and a weak count.
+A box has a one-word metadata prefix. Both point to the four-word
+`NcObjectTypeInfo` containing provider-local destruction/deallocation callbacks,
+an immutable table array and its count. Ownership follows construction and
+the declared slot. There is no erased ownership tag or mixed-policy cleanup.
 
-NcObjectTypeInfo contains only provider-local destroy_value/deallocate callbacks,
-the immutable interface table array and its count: four pointer-width words.
-Core 21 removes core 20's ownership field. Foreign implementations match target
-atomic width, alignment and synchronization; no Rust Arc representation is read.
-
-Construction, ABI argument/result categories and unsafe matching-storage contracts
-establish shared/boxed policy before an operation begins. Raw shared weak tokens
-point to NcSharedLifetimeState. Boxed weak pairs must identify genuine boxed
-storage. Checked adoption validates presence and exact interface identity; it
-releases a rejected token through that declared policy. A producer supplying the
-opposite policy violates the ABI contract: the SDK does not accept, classify or
-clean up arbitrary cross-policy tokens. Borrowed rejection acquires nothing.
-See [lifetime contracts](contracts/COM_LIFETIME_ADMISSION.md) for the proof matrix.
-
-Weak operations are ordinary Rust operations on their concrete states, with no
-erased dispatcher or standalone SDK weak C-helper API. Promotion returns a Rust
-result directly, acquiring a nonzero strong count before exact lookup. Binding-
-owned C adapters translate that result to their own status/output protocol. The
-native C fixture declares separate shared/boxed callback families. Metadata and
-provider code remain valid through final weak release; no weak operation table
-or allocation ownership tag is used.
+Checked adoption validates presence and exact interface identity. An owner
+rejected after transfer is released through its declared policy. Shared weak
+tokens retain their own shared storage and code until their final release. The
+preconditions for each boundary are in the
+[lifetime contract](contracts/COM_LIFETIME_ADMISSION.md).
 
 A shared `WeakComPtr<T>` owns one weak reference and occupies one pointer word.
 Cloning changes only weak ownership. Promotion acquires a strong owner before
@@ -312,8 +302,7 @@ translate this result to their status/output protocol and clear failed outputs.
 Canonical control addresses remain unique while weak owners prevent storage reuse.
 
 Objects are constructed from completely initialized values. Generated construction
-publishes one shared strong owner or the exclusive owner bit, plus an implicit
-weak storage reference. There is no cyclic initializer, unpublished callable
+publishes one shared strong owner with an implicit weak storage reference, or one exclusive owner. There is no cyclic initializer, unpublished callable
 object, or rollback state exposed by construction. Obtain weak identities after
 construction while an owner is available.
 
@@ -329,98 +318,31 @@ prefix copies that implementation's selected callbacks and changes only its exac
 interface identity. Shared classes reuse one shared callback family; exclusive
 classes reuse another. There are two canonical root tables, not one per class.
 
-NcSharedLifetimeState owns ordinary Rust retain/release operations.
-NcBoxedLifetimeState owns ordinary Rust sole-owner release. Release consumes a raw
-typed pointer so final deallocation does not invalidate a protected &self argument.
-The private nc_shared_retain/nc_shared_release and nc_exclusive_release C adapters
-serve the existing IUnknown slots and require their matching object/prefix policy;
-no universal release selects an ownership policy. Unsafe provider support
-BoxRead::enter, BoxWrite::enter and try_box_cast likewise require genuine retained
-boxed storage. A pointer cast alone is no proof. Raw checked callers admit policy
-before calling typed operations; typed borrow entry still checks liveness/conflicts.
-Exclusive AddRef returns zero, and shared query/downgrade clear outputs and reject
-with NC_E_INVALID_ARG (null argument/output rejection remains NC_E_POINTER).
+Shared `AddRef` and `Release` operate on counted strong owners. Exclusive
+`AddRef` refuses retention. Shared query or downgrade on boxed storage clears
+the output and rejects. A boxed caller can release the sole owner via its
+matching release slot. An interface loan grants use of the value for the
+declared duration and supplies no ownership callback authority. Exact boxed
+lookup uses the provider's immutable metadata and canonical table.
 
-Shared AddRef and Release account for the same strong owners, including built-in
-headerless data and child lists. Counts reported by either slot are capped at
-`u32::MAX` when the internal count is wider. A raw caller transfers its exclusive
-token through the matching Release slot. Rust `ComBox::drop` calls the typed boxed
-operation directly. Exclusive release closes admission, waits for admitted
-methods, and destroys the value before returning zero. Boxed weak observers can
-still retain storage for checked access. Only an owned token can be released through the owner slot. Scoped
-format providers lend a pair for calls, with a defensive Release stub and no owner
-token. See the [lifetime admission contract](contracts/COM_LIFETIME_ADMISSION.md)
-for threading, reentry, and provider-code retention rules.
-
-Only interface slots and provider cleanup callbacks cross the C boundary. C calling
-convention does not make their implementation names public Rust functions or
-unmangled exports. Counter bookkeeping and weak promotion remain Rust helpers;
-one private cold non-unwinding failure path preserves fail-stop exhaustion for
-ordinary Rust weak clones. destroy_value/deallocate remain C callbacks because
-final cleanup can execute in the allocating provider's binary.
-
-ABI v5 retains the three-word headers and four-word provider type
-information introduced in ABI v3/core 21. Admission rejects older versions
-before interpreting callbacks or object storage.
+Only declared slots and provider-local cleanup use the C convention. Shared
+weak promotion and counter bookkeeping use typed Rust support. Allocations
+are freed in their allocating binary.
 
 ## Allocation and borrowing
 
-Each allocation embeds exactly one policy-specific header at offset zero.
-NcSharedLifetimeState contains type_info, strong_count and weak_count.
-NcBoxedLifetimeState contains type_info, owner_and_borrows and weak_count.
-Ownership policy is fixed by construction and ABI contracts; metadata contains no kind tag.
+Generated shared-backed implementations expose only actual shared references.
+Rust providers that mutate state through shared receivers synchronize their
+fields explicitly. Generated shared storage cannot implement an interface
+whose authored or inherited methods need whole-value exclusive access.
 
-For boxed storage, the highest policy-word bit is owner presence, the next bit
-is mutable writer admission and the remaining bits count readers. Clearing owner
-presence rejects new calls atomically with admission. Existing readers/writers
-finish before the dropping owner destroys the value. A separate strong-count
-field does not exist in this header. Shared storage's strong_count contains only
-a count and never encodes mode or borrowing.
-
-The [lifetime and access diagrams](contracts/COM_INTERFACE_STORAGE.md#lifetime-state-machine)
-separate Live/Expired/deallocated lifetime from boxed reader/writer access.
-Each live allocation retains one implicit weak reference through destruction;
-the final weak reference frees storage through its allocating provider.
-
-Generated exclusive storage places `UnsafeCell<MaybeUninit<T>>` after the header.
-It contains no separate call gate. Generated shared storage retains its separate
-`ComBorrowGate` because its header word counts strong owners. This one atomic
-state admits shared readers or one exclusive writer across every projection;
-conflicts return `NC_E_BUSY` without waiting for an active call to finish.
-Both policies produce a two-word provider-local `ComReadGuard` or `ComWriteGuard`:
-a typed `UnsafeCell<MaybeUninit<T>>` slot reference and one selected admission
-token. The guard creates `&T`/`&mut T` only for short guarded reborrows. It must
-not store a T reference across admission release:
-passing a reference-bearing guard into a drop function can protect that reference
-until after the guard unlocks. A newly admitted writer or waiting exclusive-owner
-destructor may then access T immediately. Retained slot storage outlives the
-complete guard/drop call; `MaybeUninit` permits T to be destroyed within that
-interval once its last value loan and admission have ended. Threading capability
-still requires the corresponding T, guard and owner-mode proofs.
-Shared entry requires the caller to retain a strong owner throughout the call;
-the shared borrow gate does not acquire a replacement ownership reference.
-These Rust guard names replace `__ComSharedLease`/`__ComExclusiveLease`;
-rebuild generated Rust consumers with the matching SDK/compiler. The rename does
-not change the C ABI, interface signatures, storage layout or borrowing behavior.
-`ComBorrowGate` issues read and write permits for shared-object access.
-
-Exclusive objects have one `ComBox` owner and cached `WeakComBox` observers.
-Their shared `AddRef` slot returns zero without retaining; shared query and
-shared weak downgrade reject with `NC_E_INVALID_ARG`. Shared and mutable loans
-grant method access. Consuming exclusive queries preserve the one owner, and
-`query_ref` lends shared access for the owner's borrow.
-Consuming `WeakComBox::into_unknown` selects canonical IUnknown and moves the
-existing weak token without a retain/release pair. It works live or expired and
-at the weak counter limit; borrowed weak queries still retain a new observer.
-
-A reader atomically checks owner presence, excludes the writer and increments the
-reader count. A writer atomically checks owner presence and zero borrowers before
-setting its bit. Conflicts and reader-count exhaustion return `NC_E_BUSY`;
-expired objects return `NC_E_DROPPED`. These checks precede creation
-of any application-value reference. Acquire admission pairs with release of prior borrows and
-construction publication. Reader release subtracts one; writer release clears only
-its bit, preserving concurrent owner removal. Exclusive borrow release never
-destroys the value; the owning thread completes synchronous destruction.
+Boxed storage contains a fully initialized provider value and starts with the
+typed metadata prefix. All access derives from its sole owner or a live target
+loan. Exclusive lending suspends the owner's conflicting use for the loan's
+whole lifetime. Once the last loan ends, the owner can move or be destroyed.
+The ordinary boxed path requires no runtime borrow counter. Native callers
+must uphold the same liveness, aliasing and provenance contract. Stack format
+adapters retain their separate admission guard.
 
 ## Drop and weak storage
 
@@ -440,33 +362,13 @@ later releases and permit premature destruction. A capped diagnostic `u32`
 return is allowed only when the wider private counter still records the retain.
 This policy does not change any handle, method table or native ABI version.
 
-Exclusive owner Drop clears owner presence with an acquire/release operation, rejecting all
-new calls. It waits for existing readers/writers using acquire observations, invokes
-the provider's destructor exactly once, and releases its implicit weak storage
-reference. Drop returns only after value destruction, including ordinary owned
-child fields. The wait uses spin hints; std-enabled builds also yield to the
-scheduler. Completion requires admitted calls to terminate: this is not wait-free.
+Exclusive Drop consumes the owner. It invokes the provider's value destructor
+and then deallocates in the allocating provider. Its valid call begins only
+after all dependent borrows end. No expired boxed observer remains. Shared
+storage retains its implicit weak reference through destruction so weak-to-self
+fields can release safely. Final weak release frees storage exactly once.
 
-The implicit weak reference lasts through the destructor, protecting storage when
-T drops a weak-to-self field. The last external weak reference frees allocation
-storage through the original provider and never drops T again. Provider code and
-metadata must remain loaded until that final weak release.
-
-An exclusive weak handle retains interface storage. Each method acquires
-checked access to the value and reports expiration when the owner is gone.
-The live owner can lend a `ComRef` or `ComMut`. Liveness and idle observations
-are snapshots. Cached interface queries can inspect retained class metadata
-after value destruction. Shared weak handles use `upgrade()` to acquire a
-shared strong reference.
-
-An executing method must not destroy its own owner, directly or by removing an
-ancestor; waiting would deadlock. Nor may the dropping thread hold resources
-needed for an admitted call to finish. These are ordinary blocking synchronization
-constraints, not permission to defer destruction.
-Explicit ThreadSafe objects additionally require Send + Sync
-implementations and permit destruction on the dropping thread.
-
-## Consuming arguments
+## Consuming boxed arguments
 
 The wire argument is `*mut ComRaw<I>`: writable call-scoped storage containing
 one exclusive owner. On successful return the slot is null. On **every** negative
@@ -511,11 +413,9 @@ known unaffordable work returns `NC_E_OUT_OF_RANGE` with original owners intact.
 See [prepared completion](contracts/COM_OUTPUT_COMPLETION.md)
 for exact ordering and resource accounting.
 
-The caller decides whether to retry or destroy returned inputs. In particular,
-rejecting ancestor A offered to descendant B returns A through every forwarding
-call before application code can drop it. This requires no deferred-destruction
-queue. Destroying one's own active owner remains forbidden by the synchronous
-Drop contract; ownership-taking providers must validate before accepting it.
+The caller decides whether to retry or destroy returned inputs. Safe Rust
+prevents moving an ancestor while the receiver borrows it. Native calls must
+enforce the same ownership rule before supplying the consuming token.
 
 `ComBox::query` and `LocalBox::into_interface` likewise return the original owner
 on failed projection. Private builders that create fresh, unpublished candidates
@@ -531,29 +431,32 @@ This changes neither the wire protocol nor ownership/borrow state.
 
 ## Construction access
 
-`LocalBox` borrows are tied to its unique owner, so Rust prevents moving that owner
-while its local guard lives. `WeakLocalBox::with` and `with_mut` provide scoped
-provider-local construction access without exporting implementation references or
-guards. Their closures must obey the same non-recursive-destruction rule as methods.
-No implementation pointer, Any payload, or foreign downcast is exposed by safe APIs.
-Shared `LocalCom<T>` and its weak local counterpart likewise preserve typed
-construction proof in Rust. Foreign COM projections cannot recover a concrete
-implementation or fabricate that proof.
-
+`LocalBox<T>` derives concrete shared or mutable references from the unique
+owner and can borrow exact interface projections. `LocalCom<T>` derives shared
+concrete access from its strong owner. A foreign interface pair never supplies
+construction proof for a private Rust type.
 
 ## Threading capabilities
 
-The ABI exposes thread-local and thread-safe object capabilities. The raw
-pointer representation is identical; the typed pointer marker retains the
-producer's promise after the concrete implementation type is erased.
+The ABI signs four provider modes. Local grants neither cross-thread transfer
+nor sharing. Shared grants both. Send grants transfer, including boxed
+destruction on the destination thread. Sync grants cross-thread shared access.
 
-- `ComPtr`, `ComRef` and `ComMut` with `ThreadLocal` are thread-affine.
-- The same handles with `ThreadSafe` are `Send + Sync`.
-- weakening thread-safe to thread-local is safe; upgrading is not.
+| Capability | Send requires | Sync requires |
+| --- | --- | --- |
+| `ComBox` and `ComMut` | Send evidence | Sync evidence |
+| `ComRef` | Sync evidence | Sync evidence |
+| `ComPtr` and `WeakComPtr` | Both | Both |
 
-Generated thread-safe implementations require their private Rust value to be
-`Send + Sync`. Atomic reference counting protects lifetime but does not by
-itself prove safe concurrent method calls or destruction.
+Borrowed workers obey the loan lifetime. Generated Rust providers enforce
+the declared target trait bounds. A handwritten provider promises the
+corresponding access and destruction behavior.
+
+A handle may use `into_threading::<Mode>()` to discard guarantees. For example,
+a boxed handle from a shared-threading provider can enter a slot declared
+as send-only. The conversion keeps the object, table and any loan lifetime
+and does not acquire a reference. The Rust bound permits Shared to weaken to
+Send or Sync, and permits every mode to weaken to Local.
 
 ## Contract declarations and checked values
 
@@ -606,15 +509,15 @@ Built-in data interfaces exercise shared ownership and checked native calls:
 
 ```rust
 use neocogi_com_sdk::{INcBytesAbi, ComBytesExt, ComStringExt, IUnknown, NcString};
-let text = NcString::from_utf8_str("ABI v5");
+let text = NcString::from_utf8_str("ABI v4");
 let another = text.clone();
 let bytes = text.query::<INcBytesAbi>().unwrap();
-assert_eq!(bytes.to_vec().unwrap(), b"ABI v5");
-assert_eq!(another.to_string().unwrap(), "ABI v5");
+assert_eq!(bytes.to_vec().unwrap(), b"ABI v4");
+assert_eq!(another.to_string().unwrap(), "ABI v4");
 let identity = text.query::<IUnknown>().unwrap();
 assert!(identity.as_com_ref().same_object(bytes.as_com_ref()));
 drop(text); // Other strong owners still retain the immutable value.
-assert_eq!(another.to_string().unwrap(), "ABI v5");
+assert_eq!(another.to_string().unwrap(), "ABI v4");
 ```
 
 
@@ -716,8 +619,8 @@ its encoded/decoded output guards have been removed.
 The raw record is the existing single common-header pointer, without a cached
 interface table. `NC_ABI_PASSING_WEAK_COM_PTR_OUT` (`0x0d`) identifies this passing
 mode; the return type descriptor supplies the exact interface identity and the
-passing descriptor preserves the threading capability. It is distinct from the
-two-word exclusive `WeakComBox` output (`0x0b`).
+passing descriptor preserves the threading capability. ABI v4 reserves
+the retired boxed observer code `0x0b`.
 
 A successful provider transfers one retained genuine shared weak token. The caller
 rejects null tokens, missing interfaces and wrong revisions, releasing a rejected
@@ -853,16 +756,15 @@ The accessor and native export return metadata without registration or acquisiti
 The stable getter takes a pointer to one descriptor-pointer output slot and
 returns `NcStatus`. The descriptor starts with C fields `uint32_t abi_magic`
 and `uint32_t abi_version` at byte offsets 0 and 4. The consumer reads the
-version only after the first word matches `NC_COM_ABI_MAGIC` (`0x4e434f4d`).
+version only after the first word matches `NC_COM_ABI_MAGIC` (`0x4e434142`).
 The version must equal `NC_COM_ABI_VERSION` before the consumer reads the
 complete immutable descriptor. Static registration checks the same header.
 Interface IID/signature and threading checks additionally select the exact
 callable contract.
 
-The marker is fixed across ABI versions. It distinguishes this header from
-older layouts that put a version in the first word, including a layout that
-used the same getter and the first word `4`. Discovery uses the stable
-getter name exclusively.
+The fixed `NCAB` marker identifies this header family. It distinguishes
+unmarked layouts and earlier drafts that used the `NCOM` marker with version
+`4`. The getter name and both field offsets remain readable from the prefix.
 
 The provider owns the descriptor's storage and code. Static registration requires
 the entire graph to remain immutable for the process lifetime, including referenced
@@ -1211,11 +1113,9 @@ including failures originating in the codec's own allocation.
 Recipe validation begins after accepting the complete document and finishes
 before constructing any object. The same live context can retry after a failure.
 
-The previous marked ABI v4 saved the full tree before opening the codec. ABI v5
-opens the writer sooner, copies state in bounded chunks, and preserves the
-originating save status. The saved NCB-v1 representation uses the same count and
-value order. An incompatible layout or guaranteed calling or ownership behavior
-requires advancing the native ABI version.
+Saving opens the writer before reading object state, copies the state in
+bounded chunks, and preserves the originating save status. The saved NCB-v1
+representation uses the same count and value order.
 
 After successful encoding and output copy, `save_object_tree` calls
 `NcPersistenceWriteBytes` once with borrowed complete bytes. The callback may
@@ -1375,9 +1275,9 @@ execution. A cancelled run or detached JSON is insufficient evidence.
    Reports distinguish ordinary tests, host-runtime cases and independent providers.
 
 The independent sample exercises typed factory construction, inherited interface
-calls, exclusive mutation, domain notifications delivered into the host's concrete queue,
+calls, shared-provider state changes, domain notifications delivered into the host's concrete queue,
 canonical weak-origin identity, fresh copied output (nested enum/boolean and short
-prefix) through ABI v5, persistence through provider-owned byte buffers,
+prefix) through ABI v4, persistence through provider-owned byte buffers,
 restoration through a host-implemented factory adapter, promotion while live,
 and failed promotion after final object release. All assertions execute in
 release/abort builds. Normal completion crosses calls in both directions; panic

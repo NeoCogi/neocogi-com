@@ -10,9 +10,9 @@ pub const MODULE_ID: crate::NcGuid = crate::NcGuid::from_fields(
 );
 /// Transitive canonical ABI fingerprint of this generated module.
 pub const ABI_FINGERPRINT: [::core::primitive::u8; 32] = [
-    204u8, 19u8, 123u8, 180u8, 17u8, 214u8, 155u8, 45u8, 4u8, 100u8, 133u8, 55u8, 65u8,
-    239u8, 21u8, 99u8, 207u8, 161u8, 203u8, 176u8, 77u8, 189u8, 128u8, 124u8, 191u8,
-    126u8, 194u8, 178u8, 36u8, 77u8, 139u8, 34u8,
+    69u8, 137u8, 56u8, 62u8, 9u8, 240u8, 238u8, 117u8, 63u8, 113u8, 61u8, 16u8, 238u8,
+    206u8, 95u8, 118u8, 109u8, 107u8, 217u8, 139u8, 117u8, 217u8, 35u8, 194u8, 13u8,
+    201u8, 80u8, 178u8, 44u8, 130u8, 3u8, 57u8,
 ];
 /// Exact dotted module name derived from the normalized IDL path.
 pub const MODULE_NAME: &::core::primitive::str = "neocogi.com.serialization";
@@ -165,6 +165,8 @@ pub struct IDeserializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table.
+    ///The caller must have exclusive target access across all projections for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -183,6 +185,8 @@ pub struct IDeserializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table.
+    ///The caller must have exclusive target access across all projections for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -201,6 +205,8 @@ pub struct IDeserializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table.
+    ///The caller must have exclusive target access across all projections for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -218,7 +224,10 @@ pub struct IDeserializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
+    ///`this` must be the live allocation address paired with this table.
+    ///The caller must have exclusive target access across all projections for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
+    ///`out` must be valid writable storage that satisfies the call's aliasing rules.
     ///
     ///On success, `out` receives `< :: core :: primitive :: bool as crate :: ComValue > :: AbiRepr`.
     #[allow(
@@ -237,7 +246,10 @@ pub struct IDeserializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
+    ///`this` must be the live allocation address paired with this table.
+    ///The caller must have exclusive target access across all projections for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
+    ///`out` must be valid writable storage that satisfies the call's aliasing rules.
     ///
     ///On success, `out` receives `< :: core :: primitive :: u8 as crate :: ComValue > :: AbiRepr`.
     #[allow(
@@ -256,7 +268,10 @@ pub struct IDeserializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
+    ///`this` must be the live allocation address paired with this table.
+    ///The caller must have exclusive target access across all projections for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
+    ///`out` must be valid writable storage that satisfies the call's aliasing rules.
     ///
     ///On success, `out` receives `< :: core :: primitive :: u16 as crate :: ComValue > :: AbiRepr`.
     #[allow(
@@ -275,7 +290,10 @@ pub struct IDeserializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
+    ///`this` must be the live allocation address paired with this table.
+    ///The caller must have exclusive target access across all projections for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
+    ///`out` must be valid writable storage that satisfies the call's aliasing rules.
     ///
     ///On success, `out` receives `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr`.
     #[allow(
@@ -294,7 +312,10 @@ pub struct IDeserializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
+    ///`this` must be the live allocation address paired with this table.
+    ///The caller must have exclusive target access across all projections for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
+    ///`out` must be valid writable storage that satisfies the call's aliasing rules.
     ///
     ///On success, `out` receives `< :: core :: primitive :: u64 as crate :: ComValue > :: AbiRepr`.
     #[allow(
@@ -313,7 +334,10 @@ pub struct IDeserializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
+    ///`this` must be the live allocation address paired with this table.
+    ///The caller must have exclusive target access across all projections for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
+    ///`out` must be valid writable storage that satisfies the call's aliasing rules.
     ///
     ///On success, `out` receives `< :: core :: primitive :: i8 as crate :: ComValue > :: AbiRepr`.
     #[allow(
@@ -332,7 +356,10 @@ pub struct IDeserializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
+    ///`this` must be the live allocation address paired with this table.
+    ///The caller must have exclusive target access across all projections for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
+    ///`out` must be valid writable storage that satisfies the call's aliasing rules.
     ///
     ///On success, `out` receives `< :: core :: primitive :: i16 as crate :: ComValue > :: AbiRepr`.
     #[allow(
@@ -351,7 +378,10 @@ pub struct IDeserializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
+    ///`this` must be the live allocation address paired with this table.
+    ///The caller must have exclusive target access across all projections for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
+    ///`out` must be valid writable storage that satisfies the call's aliasing rules.
     ///
     ///On success, `out` receives `< :: core :: primitive :: i32 as crate :: ComValue > :: AbiRepr`.
     #[allow(
@@ -370,7 +400,10 @@ pub struct IDeserializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
+    ///`this` must be the live allocation address paired with this table.
+    ///The caller must have exclusive target access across all projections for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
+    ///`out` must be valid writable storage that satisfies the call's aliasing rules.
     ///
     ///On success, `out` receives `< :: core :: primitive :: i64 as crate :: ComValue > :: AbiRepr`.
     #[allow(
@@ -389,7 +422,10 @@ pub struct IDeserializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
+    ///`this` must be the live allocation address paired with this table.
+    ///The caller must have exclusive target access across all projections for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
+    ///`out` must be valid writable storage that satisfies the call's aliasing rules.
     ///
     ///On success, `out` receives `< :: core :: primitive :: f32 as crate :: ComValue > :: AbiRepr`.
     #[allow(
@@ -408,7 +444,10 @@ pub struct IDeserializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
+    ///`this` must be the live allocation address paired with this table.
+    ///The caller must have exclusive target access across all projections for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
+    ///`out` must be valid writable storage that satisfies the call's aliasing rules.
     ///
     ///On success, `out` receives `< :: core :: primitive :: f64 as crate :: ComValue > :: AbiRepr`.
     #[allow(
@@ -427,7 +466,10 @@ pub struct IDeserializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
+    ///`this` must be the live allocation address paired with this table.
+    ///The caller must have exclusive target access across all projections for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
+    ///`out` must be valid writable storage that satisfies the call's aliasing rules.
     ///
     ///On success, `out` receives `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr`.
     #[allow(
@@ -446,7 +488,10 @@ pub struct IDeserializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
+    ///`this` must be the live allocation address paired with this table.
+    ///The caller must have exclusive target access across all projections for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
+    ///`out` must be valid writable storage that satisfies the call's aliasing rules.
     ///- `output` uses ABI storage `* mut < :: core :: primitive :: u8 as crate :: ComValue > :: AbiRepr` for `crate :: NcOutputWriter < '_ , :: core :: primitive :: u8 >`. The writable buffer pointer is accompanied by `offset: u64`, `capacity: u64`, and a separate `written: *mut u64`. Old contents are not input. Only the successfully reported initialized prefix may be read; count and element storage must not alias.
     ///
     ///On success, `out` receives `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr`.
@@ -470,7 +515,10 @@ pub struct IDeserializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
+    ///`this` must be the live allocation address paired with this table.
+    ///The caller must have exclusive target access across all projections for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
+    ///`out` must be valid writable storage that satisfies the call's aliasing rules.
     ///
     ///On success, `out` receives `< :: core :: primitive :: bool as crate :: ComValue > :: AbiRepr`.
     #[allow(
@@ -489,7 +537,10 @@ pub struct IDeserializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
+    ///`this` must be the live allocation address paired with this table.
+    ///The caller must have exclusive target access across all projections for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
+    ///`out` must be valid writable storage that satisfies the call's aliasing rules.
     ///- `maximum` uses ABI storage `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
     ///
     ///On success, `out` receives `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr`.
@@ -510,7 +561,10 @@ pub struct IDeserializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
+    ///`this` must be the live allocation address paired with this table.
+    ///The caller must have exclusive target access across all projections for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
+    ///`out` must be valid writable storage that satisfies the call's aliasing rules.
     ///- `name` uses ABI storage `* const < :: core :: primitive :: u8 as crate :: ComValue > :: AbiRepr` for `crate :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
     ///
     ///On success, `out` receives `< :: core :: primitive :: bool as crate :: ComValue > :: AbiRepr`.
@@ -534,6 +588,8 @@ pub struct IDeserializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table.
+    ///The caller must have exclusive target access across all projections for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -551,7 +607,10 @@ pub struct IDeserializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
+    ///`this` must be the live allocation address paired with this table.
+    ///The caller must have exclusive target access across all projections for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
+    ///`out` must be valid writable storage that satisfies the call's aliasing rules.
     ///
     ///On success, `out` receives `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr`.
     #[allow(
@@ -571,6 +630,8 @@ pub struct IDeserializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table.
+    ///The caller must have exclusive target access across all projections for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -588,7 +649,10 @@ pub struct IDeserializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
+    ///`this` must be the live allocation address paired with this table.
+    ///The caller must have exclusive target access across all projections for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
+    ///`out` must be valid writable storage that satisfies the call's aliasing rules.
     ///
     ///On success, `out` receives `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr`.
     #[allow(
@@ -608,6 +672,8 @@ pub struct IDeserializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table.
+    ///The caller must have exclusive target access across all projections for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -625,7 +691,10 @@ pub struct IDeserializerVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
+    ///`this` must be the live allocation address paired with this table.
+    ///The caller must have exclusive target access across all projections for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
+    ///`out` must be valid writable storage that satisfies the call's aliasing rules.
     ///- `index` uses ABI storage `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
     ///- `name` uses ABI storage `* const < :: core :: primitive :: u8 as crate :: ComValue > :: AbiRepr` for `crate :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
     ///
@@ -652,6 +721,8 @@ pub struct IDeserializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table.
+    ///The caller must have exclusive target access across all projections for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
     ///- `status` uses ABI storage `< crate :: NcStatus as crate :: ComValue > :: AbiRepr` for `crate :: NcStatus`. Passed by value.
     ///- `message` uses ABI storage `* const < :: core :: primitive :: u8 as crate :: ComValue > :: AbiRepr` for `crate :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
     ///
@@ -676,6 +747,8 @@ pub struct IDeserializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table.
+    ///The caller must have exclusive target access across all projections for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -737,45 +810,45 @@ unsafe impl crate::ComRustInterface for IDeserializerAbi {
 const _: () = {
     #[allow(unused_imports)]
     use ::core::convert::{
-        identity as __nc_dispatch_object, identity as __nc_dispatch_value,
-        identity as __nc_arg_0, identity as __nc_arg_0_owner_slot,
-        identity as __nc_arg_0_owner_table, identity as __nc_arg_0_owner_original,
-        identity as __nc_arg_0_offset, identity as __nc_arg_0_len,
-        identity as __nc_arg_0_ptr, identity as __nc_arg_0_values,
-        identity as __nc_arg_0_written, identity as __nc_arg_0_0,
-        identity as __nc_arg_0_0_owner_slot, identity as __nc_arg_0_0_owner_table,
-        identity as __nc_arg_0_0_owner_original, identity as __nc_arg_0_0_offset,
-        identity as __nc_arg_0_0_len, identity as __nc_arg_0_0_ptr,
-        identity as __nc_arg_0_0_values, identity as __nc_arg_0_0_written,
-        identity as __nc_arg_0_1, identity as __nc_arg_0_1_owner_slot,
-        identity as __nc_arg_0_1_owner_table, identity as __nc_arg_0_1_owner_original,
-        identity as __nc_arg_0_1_offset, identity as __nc_arg_0_1_len,
-        identity as __nc_arg_0_1_ptr, identity as __nc_arg_0_1_values,
-        identity as __nc_arg_0_1_written, identity as __nc_arg_0_2,
-        identity as __nc_arg_0_2_owner_slot, identity as __nc_arg_0_2_owner_table,
-        identity as __nc_arg_0_2_owner_original, identity as __nc_arg_0_2_offset,
-        identity as __nc_arg_0_2_len, identity as __nc_arg_0_2_ptr,
-        identity as __nc_arg_0_2_values, identity as __nc_arg_0_2_written,
-        identity as __nc_arg_1, identity as __nc_arg_1_owner_slot,
-        identity as __nc_arg_1_owner_table, identity as __nc_arg_1_owner_original,
-        identity as __nc_arg_1_offset, identity as __nc_arg_1_len,
-        identity as __nc_arg_1_ptr, identity as __nc_arg_1_values,
-        identity as __nc_arg_1_written, identity as __nc_arg_0_3,
-        identity as __nc_arg_0_3_owner_slot, identity as __nc_arg_0_3_owner_table,
-        identity as __nc_arg_0_3_owner_original, identity as __nc_arg_0_3_offset,
-        identity as __nc_arg_0_3_len, identity as __nc_arg_0_3_ptr,
-        identity as __nc_arg_0_3_values, identity as __nc_arg_0_3_written,
-        identity as __nc_arg_1_0, identity as __nc_arg_1_0_owner_slot,
-        identity as __nc_arg_1_0_owner_table, identity as __nc_arg_1_0_owner_original,
-        identity as __nc_arg_1_0_offset, identity as __nc_arg_1_0_len,
-        identity as __nc_arg_1_0_ptr, identity as __nc_arg_1_0_values,
-        identity as __nc_arg_1_0_written, identity as __nc_this, identity as __nc_status,
-        identity as __nc_value, identity as __nc_raw, identity as __nc_result,
-        identity as __nc_values, identity as __nc_writer, identity as __nc_out,
-        identity as __nc_scoped_context, identity as __nc_scoped_callback,
-        identity as __nc_identity, identity as __nc_this_0, identity as __nc_status_0,
-        identity as __nc_result_0, identity as __nc_prepared, identity as __nc_out_0,
-        identity as __nc_this_1, identity as __nc_status_1, identity as __nc_result_1,
+        identity as __nc_dispatch_value, identity as __nc_arg_0,
+        identity as __nc_arg_0_owner_slot, identity as __nc_arg_0_owner_table,
+        identity as __nc_arg_0_owner_original, identity as __nc_arg_0_offset,
+        identity as __nc_arg_0_len, identity as __nc_arg_0_ptr,
+        identity as __nc_arg_0_values, identity as __nc_arg_0_written,
+        identity as __nc_arg_0_0, identity as __nc_arg_0_0_owner_slot,
+        identity as __nc_arg_0_0_owner_table, identity as __nc_arg_0_0_owner_original,
+        identity as __nc_arg_0_0_offset, identity as __nc_arg_0_0_len,
+        identity as __nc_arg_0_0_ptr, identity as __nc_arg_0_0_values,
+        identity as __nc_arg_0_0_written, identity as __nc_arg_0_1,
+        identity as __nc_arg_0_1_owner_slot, identity as __nc_arg_0_1_owner_table,
+        identity as __nc_arg_0_1_owner_original, identity as __nc_arg_0_1_offset,
+        identity as __nc_arg_0_1_len, identity as __nc_arg_0_1_ptr,
+        identity as __nc_arg_0_1_values, identity as __nc_arg_0_1_written,
+        identity as __nc_arg_0_2, identity as __nc_arg_0_2_owner_slot,
+        identity as __nc_arg_0_2_owner_table, identity as __nc_arg_0_2_owner_original,
+        identity as __nc_arg_0_2_offset, identity as __nc_arg_0_2_len,
+        identity as __nc_arg_0_2_ptr, identity as __nc_arg_0_2_values,
+        identity as __nc_arg_0_2_written, identity as __nc_arg_1,
+        identity as __nc_arg_1_owner_slot, identity as __nc_arg_1_owner_table,
+        identity as __nc_arg_1_owner_original, identity as __nc_arg_1_offset,
+        identity as __nc_arg_1_len, identity as __nc_arg_1_ptr,
+        identity as __nc_arg_1_values, identity as __nc_arg_1_written,
+        identity as __nc_arg_0_3, identity as __nc_arg_0_3_owner_slot,
+        identity as __nc_arg_0_3_owner_table, identity as __nc_arg_0_3_owner_original,
+        identity as __nc_arg_0_3_offset, identity as __nc_arg_0_3_len,
+        identity as __nc_arg_0_3_ptr, identity as __nc_arg_0_3_values,
+        identity as __nc_arg_0_3_written, identity as __nc_arg_1_0,
+        identity as __nc_arg_1_0_owner_slot, identity as __nc_arg_1_0_owner_table,
+        identity as __nc_arg_1_0_owner_original, identity as __nc_arg_1_0_offset,
+        identity as __nc_arg_1_0_len, identity as __nc_arg_1_0_ptr,
+        identity as __nc_arg_1_0_values, identity as __nc_arg_1_0_written,
+        identity as __nc_this, identity as __nc_status, identity as __nc_value,
+        identity as __nc_raw, identity as __nc_result, identity as __nc_values,
+        identity as __nc_writer, identity as __nc_out, identity as __nc_scoped_context,
+        identity as __nc_scoped_callback, identity as __nc_identity,
+        identity as __nc_this_0, identity as __nc_status_0, identity as __nc_result_0,
+        identity as __nc_prepared, identity as __nc_out_0, identity as __nc_this_1,
+        identity as __nc_status_1, identity as __nc_result_1,
         identity as __nc_prepared_0, identity as __nc_out_1, identity as __nc_this_2,
         identity as __nc_status_2, identity as __nc_result_2,
         identity as __nc_prepared_1, identity as __nc_out_2, identity as __nc_this_3,
@@ -1623,7 +1696,7 @@ const _: () = {
 impl IDeserializerAbi {
     ///Canonical validation form of this interface's typed ABI contract.
     pub const ABI_SIGNATURE: crate::NcAbiDigest = crate::NcAbiDigest::from_static(
-        b"\xA5\xD0\xE0\x86\x8C\xE9w\xDB\xAB\x8D\xBA\x85\xA4\xF2OZ\xE5\xC6(R\x9F\xCD\xD6\xEA+rp\xDE\x7F}\x97L",
+        b"\x03M\x8B\xC6\xFE\n\xC3\0_\x14F9\xAC\x9D\x7F\xB3+H\xDFr\x95\x88\xE71\xA9</\x99\x03\x8A\x11f",
     );
     ///Static descriptors for this interface's ABI methods.
     pub const METHOD_DESCRIPTORS: [crate::NcMethodDescriptor; 27usize] = [
@@ -2083,9 +2156,9 @@ impl IDeserializerAbi {
 impl IDeserializerAbi {
     #[doc(hidden)]
     pub const __NC_RUST_BINDING: [::core::primitive::u8; 32] = [
-        148u8, 249u8, 115u8, 251u8, 50u8, 245u8, 53u8, 20u8, 190u8, 218u8, 18u8, 217u8,
-        177u8, 220u8, 98u8, 173u8, 48u8, 196u8, 179u8, 131u8, 116u8, 211u8, 50u8, 46u8,
-        12u8, 69u8, 47u8, 182u8, 57u8, 140u8, 113u8, 144u8,
+        46u8, 98u8, 73u8, 57u8, 93u8, 168u8, 52u8, 90u8, 248u8, 7u8, 232u8, 196u8, 247u8,
+        135u8, 127u8, 91u8, 36u8, 143u8, 50u8, 203u8, 218u8, 22u8, 106u8, 2u8, 192u8,
+        181u8, 166u8, 109u8, 151u8, 169u8, 141u8, 246u8,
     ];
 }
 /// Immutable first-failure details on an owning serializer/deserializer session.
@@ -2144,7 +2217,10 @@ pub struct ISerializationDiagnosticsVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
+    ///`this` must be the live allocation address paired with this table.
+    ///The caller must have shared target access for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
+    ///`out` must be valid writable storage that satisfies the call's aliasing rules.
     ///
     ///On success, `out` receives `< crate :: NcStatus as crate :: ComValue > :: AbiRepr`.
     #[allow(
@@ -2163,7 +2239,10 @@ pub struct ISerializationDiagnosticsVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
+    ///`this` must be the live allocation address paired with this table.
+    ///The caller must have shared target access for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
+    ///`out` must be valid writable storage that satisfies the call's aliasing rules.
     ///
     ///On success, `out` receives `< :: core :: primitive :: u64 as crate :: ComValue > :: AbiRepr`.
     #[allow(
@@ -2182,7 +2261,10 @@ pub struct ISerializationDiagnosticsVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
+    ///`this` must be the live allocation address paired with this table.
+    ///The caller must have shared target access for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
+    ///`out` must be valid writable storage that satisfies the call's aliasing rules.
     ///
     ///On success, `out` receives `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr`.
     #[allow(
@@ -2201,7 +2283,10 @@ pub struct ISerializationDiagnosticsVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
+    ///`this` must be the live allocation address paired with this table.
+    ///The caller must have shared target access for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
+    ///`out` must be valid writable storage that satisfies the call's aliasing rules.
     ///
     ///On success, `out` receives `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr`.
     #[allow(
@@ -2220,7 +2305,10 @@ pub struct ISerializationDiagnosticsVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
+    ///`this` must be the live allocation address paired with this table.
+    ///The caller must have shared target access for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
+    ///`out` must be valid writable storage that satisfies the call's aliasing rules.
     ///
     ///On success, `out` receives `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr`.
     #[allow(
@@ -2239,7 +2327,10 @@ pub struct ISerializationDiagnosticsVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
+    ///`this` must be the live allocation address paired with this table.
+    ///The caller must have shared target access for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
+    ///`out` must be valid writable storage that satisfies the call's aliasing rules.
     ///- `output` uses ABI storage `* mut < :: core :: primitive :: u8 as crate :: ComValue > :: AbiRepr` for `crate :: NcOutputWriter < '_ , :: core :: primitive :: u8 >`. The writable buffer pointer is accompanied by `offset: u64`, `capacity: u64`, and a separate `written: *mut u64`. Old contents are not input. Only the successfully reported initialized prefix may be read; count and element storage must not alias.
     ///
     ///On success, `out` receives `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr`.
@@ -2263,7 +2354,10 @@ pub struct ISerializationDiagnosticsVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
+    ///`this` must be the live allocation address paired with this table.
+    ///The caller must have shared target access for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
+    ///`out` must be valid writable storage that satisfies the call's aliasing rules.
     ///
     ///On success, `out` receives `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr`.
     #[allow(
@@ -2282,7 +2376,10 @@ pub struct ISerializationDiagnosticsVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
+    ///`this` must be the live allocation address paired with this table.
+    ///The caller must have shared target access for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
+    ///`out` must be valid writable storage that satisfies the call's aliasing rules.
     ///- `output` uses ABI storage `* mut < :: core :: primitive :: u8 as crate :: ComValue > :: AbiRepr` for `crate :: NcOutputWriter < '_ , :: core :: primitive :: u8 >`. The writable buffer pointer is accompanied by `offset: u64`, `capacity: u64`, and a separate `written: *mut u64`. Old contents are not input. Only the successfully reported initialized prefix may be read; count and element storage must not alias.
     ///
     ///On success, `out` receives `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr`.
@@ -2353,23 +2450,22 @@ unsafe impl crate::ComRustInterface for ISerializationDiagnosticsAbi {
 const _: () = {
     #[allow(unused_imports)]
     use ::core::convert::{
-        identity as __nc_dispatch_object, identity as __nc_dispatch_value,
-        identity as __nc_arg_0, identity as __nc_arg_0_owner_slot,
-        identity as __nc_arg_0_owner_table, identity as __nc_arg_0_owner_original,
-        identity as __nc_arg_0_offset, identity as __nc_arg_0_len,
-        identity as __nc_arg_0_ptr, identity as __nc_arg_0_values,
-        identity as __nc_arg_0_written, identity as __nc_arg_0_0,
-        identity as __nc_arg_0_0_owner_slot, identity as __nc_arg_0_0_owner_table,
-        identity as __nc_arg_0_0_owner_original, identity as __nc_arg_0_0_offset,
-        identity as __nc_arg_0_0_len, identity as __nc_arg_0_0_ptr,
-        identity as __nc_arg_0_0_values, identity as __nc_arg_0_0_written,
-        identity as __nc_this, identity as __nc_status, identity as __nc_value,
-        identity as __nc_raw, identity as __nc_result, identity as __nc_values,
-        identity as __nc_writer, identity as __nc_out, identity as __nc_scoped_context,
-        identity as __nc_scoped_callback, identity as __nc_identity,
-        identity as __nc_this_0, identity as __nc_status_0, identity as __nc_result_0,
-        identity as __nc_prepared, identity as __nc_out_0, identity as __nc_this_1,
-        identity as __nc_status_1, identity as __nc_result_1,
+        identity as __nc_dispatch_value, identity as __nc_arg_0,
+        identity as __nc_arg_0_owner_slot, identity as __nc_arg_0_owner_table,
+        identity as __nc_arg_0_owner_original, identity as __nc_arg_0_offset,
+        identity as __nc_arg_0_len, identity as __nc_arg_0_ptr,
+        identity as __nc_arg_0_values, identity as __nc_arg_0_written,
+        identity as __nc_arg_0_0, identity as __nc_arg_0_0_owner_slot,
+        identity as __nc_arg_0_0_owner_table, identity as __nc_arg_0_0_owner_original,
+        identity as __nc_arg_0_0_offset, identity as __nc_arg_0_0_len,
+        identity as __nc_arg_0_0_ptr, identity as __nc_arg_0_0_values,
+        identity as __nc_arg_0_0_written, identity as __nc_this, identity as __nc_status,
+        identity as __nc_value, identity as __nc_raw, identity as __nc_result,
+        identity as __nc_values, identity as __nc_writer, identity as __nc_out,
+        identity as __nc_scoped_context, identity as __nc_scoped_callback,
+        identity as __nc_identity, identity as __nc_this_0, identity as __nc_status_0,
+        identity as __nc_result_0, identity as __nc_prepared, identity as __nc_out_0,
+        identity as __nc_this_1, identity as __nc_status_1, identity as __nc_result_1,
         identity as __nc_prepared_0, identity as __nc_out_1, identity as __nc_this_2,
         identity as __nc_status_2, identity as __nc_result_2,
         identity as __nc_prepared_1, identity as __nc_out_2, identity as __nc_this_3,
@@ -2653,7 +2749,7 @@ const _: () = {
 impl ISerializationDiagnosticsAbi {
     ///Canonical validation form of this interface's typed ABI contract.
     pub const ABI_SIGNATURE: crate::NcAbiDigest = crate::NcAbiDigest::from_static(
-        b"\x0F\x81\x04\xA5|\xFF\x88\xE1E;_\x91`\xFBa\xFB6\xC6\x9F\xBBa>\xA4\xF6\\Q+{(\xCD1\x9E",
+        b"e\xD5\x04*\xB1%s-\x83\xAF\x06\x8C\xC0\xB9,h\x8A\xDB\xAA\xCB\0i\x9D\r\x8FH\xE4\xE8\x03@`t",
     );
     ///Static descriptors for this interface's ABI methods.
     pub const METHOD_DESCRIPTORS: [crate::NcMethodDescriptor; 8usize] = [
@@ -2812,9 +2908,9 @@ impl ISerializationDiagnosticsAbi {
 impl ISerializationDiagnosticsAbi {
     #[doc(hidden)]
     pub const __NC_RUST_BINDING: [::core::primitive::u8; 32] = [
-        36u8, 194u8, 112u8, 196u8, 109u8, 187u8, 83u8, 170u8, 54u8, 36u8, 215u8, 49u8,
-        155u8, 222u8, 170u8, 237u8, 13u8, 21u8, 222u8, 182u8, 149u8, 194u8, 117u8, 85u8,
-        10u8, 40u8, 146u8, 238u8, 145u8, 69u8, 155u8, 213u8,
+        101u8, 190u8, 169u8, 93u8, 130u8, 196u8, 155u8, 209u8, 151u8, 217u8, 87u8, 24u8,
+        96u8, 103u8, 228u8, 231u8, 75u8, 187u8, 85u8, 153u8, 173u8, 112u8, 101u8, 220u8,
+        127u8, 144u8, 178u8, 75u8, 14u8, 125u8, 149u8, 48u8,
     ];
 }
 /// A format plugin's shared root; each document receives its own exclusive session.
@@ -2855,7 +2951,10 @@ pub struct ISerializationFormatVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
+    ///`this` must be the live allocation address paired with this table.
+    ///The caller must have shared target access for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
+    ///`out` must be valid writable storage that satisfies the call's aliasing rules.
     ///- `max_bytes` uses ABI storage `< :: core :: primitive :: u64 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u64`. Passed by value.
     ///- `max_elements` uses ABI storage `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
     ///- `max_depth` uses ABI storage `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
@@ -2882,7 +2981,10 @@ pub struct ISerializationFormatVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
+    ///`this` must be the live allocation address paired with this table.
+    ///The caller must have shared target access for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
+    ///`out` must be valid writable storage that satisfies the call's aliasing rules.
     ///- `input` uses ABI storage `* const < :: core :: primitive :: u8 as crate :: ComValue > :: AbiRepr` for `crate :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
     ///- `max_bytes` uses ABI storage `< :: core :: primitive :: u64 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u64`. Passed by value.
     ///- `max_elements` uses ABI storage `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
@@ -2957,54 +3059,54 @@ unsafe impl crate::ComRustInterface for ISerializationFormatAbi {
 const _: () = {
     #[allow(unused_imports)]
     use ::core::convert::{
-        identity as __nc_dispatch_object, identity as __nc_dispatch_value,
-        identity as __nc_arg_0, identity as __nc_arg_0_owner_slot,
-        identity as __nc_arg_0_owner_table, identity as __nc_arg_0_owner_original,
-        identity as __nc_arg_0_offset, identity as __nc_arg_0_len,
-        identity as __nc_arg_0_ptr, identity as __nc_arg_0_values,
-        identity as __nc_arg_0_written, identity as __nc_arg_1,
-        identity as __nc_arg_1_owner_slot, identity as __nc_arg_1_owner_table,
-        identity as __nc_arg_1_owner_original, identity as __nc_arg_1_offset,
-        identity as __nc_arg_1_len, identity as __nc_arg_1_ptr,
-        identity as __nc_arg_1_values, identity as __nc_arg_1_written,
-        identity as __nc_arg_2, identity as __nc_arg_2_owner_slot,
-        identity as __nc_arg_2_owner_table, identity as __nc_arg_2_owner_original,
-        identity as __nc_arg_2_offset, identity as __nc_arg_2_len,
-        identity as __nc_arg_2_ptr, identity as __nc_arg_2_values,
-        identity as __nc_arg_2_written, identity as __nc_arg_3,
-        identity as __nc_arg_3_owner_slot, identity as __nc_arg_3_owner_table,
-        identity as __nc_arg_3_owner_original, identity as __nc_arg_3_offset,
-        identity as __nc_arg_3_len, identity as __nc_arg_3_ptr,
-        identity as __nc_arg_3_values, identity as __nc_arg_3_written,
-        identity as __nc_arg_0_0, identity as __nc_arg_0_0_owner_slot,
-        identity as __nc_arg_0_0_owner_table, identity as __nc_arg_0_0_owner_original,
-        identity as __nc_arg_0_0_offset, identity as __nc_arg_0_0_len,
-        identity as __nc_arg_0_0_ptr, identity as __nc_arg_0_0_values,
-        identity as __nc_arg_0_0_written, identity as __nc_arg_1_0,
-        identity as __nc_arg_1_0_owner_slot, identity as __nc_arg_1_0_owner_table,
-        identity as __nc_arg_1_0_owner_original, identity as __nc_arg_1_0_offset,
-        identity as __nc_arg_1_0_len, identity as __nc_arg_1_0_ptr,
-        identity as __nc_arg_1_0_values, identity as __nc_arg_1_0_written,
-        identity as __nc_arg_2_0, identity as __nc_arg_2_0_owner_slot,
-        identity as __nc_arg_2_0_owner_table, identity as __nc_arg_2_0_owner_original,
-        identity as __nc_arg_2_0_offset, identity as __nc_arg_2_0_len,
-        identity as __nc_arg_2_0_ptr, identity as __nc_arg_2_0_values,
-        identity as __nc_arg_2_0_written, identity as __nc_arg_3_0,
-        identity as __nc_arg_3_0_owner_slot, identity as __nc_arg_3_0_owner_table,
-        identity as __nc_arg_3_0_owner_original, identity as __nc_arg_3_0_offset,
-        identity as __nc_arg_3_0_len, identity as __nc_arg_3_0_ptr,
-        identity as __nc_arg_3_0_values, identity as __nc_arg_3_0_written,
-        identity as __nc_arg_4, identity as __nc_arg_4_owner_slot,
-        identity as __nc_arg_4_owner_table, identity as __nc_arg_4_owner_original,
-        identity as __nc_arg_4_offset, identity as __nc_arg_4_len,
-        identity as __nc_arg_4_ptr, identity as __nc_arg_4_values,
-        identity as __nc_arg_4_written, identity as __nc_this, identity as __nc_status,
-        identity as __nc_value, identity as __nc_raw, identity as __nc_result,
-        identity as __nc_values, identity as __nc_writer, identity as __nc_out,
-        identity as __nc_scoped_context, identity as __nc_scoped_callback,
-        identity as __nc_identity, identity as __nc_this_0, identity as __nc_status_0,
-        identity as __nc_result_0, identity as __nc_prepared, identity as __nc_out_0,
-        identity as __nc_this_1, identity as __nc_status_1, identity as __nc_result_1,
+        identity as __nc_dispatch_value, identity as __nc_arg_0,
+        identity as __nc_arg_0_owner_slot, identity as __nc_arg_0_owner_table,
+        identity as __nc_arg_0_owner_original, identity as __nc_arg_0_offset,
+        identity as __nc_arg_0_len, identity as __nc_arg_0_ptr,
+        identity as __nc_arg_0_values, identity as __nc_arg_0_written,
+        identity as __nc_arg_1, identity as __nc_arg_1_owner_slot,
+        identity as __nc_arg_1_owner_table, identity as __nc_arg_1_owner_original,
+        identity as __nc_arg_1_offset, identity as __nc_arg_1_len,
+        identity as __nc_arg_1_ptr, identity as __nc_arg_1_values,
+        identity as __nc_arg_1_written, identity as __nc_arg_2,
+        identity as __nc_arg_2_owner_slot, identity as __nc_arg_2_owner_table,
+        identity as __nc_arg_2_owner_original, identity as __nc_arg_2_offset,
+        identity as __nc_arg_2_len, identity as __nc_arg_2_ptr,
+        identity as __nc_arg_2_values, identity as __nc_arg_2_written,
+        identity as __nc_arg_3, identity as __nc_arg_3_owner_slot,
+        identity as __nc_arg_3_owner_table, identity as __nc_arg_3_owner_original,
+        identity as __nc_arg_3_offset, identity as __nc_arg_3_len,
+        identity as __nc_arg_3_ptr, identity as __nc_arg_3_values,
+        identity as __nc_arg_3_written, identity as __nc_arg_0_0,
+        identity as __nc_arg_0_0_owner_slot, identity as __nc_arg_0_0_owner_table,
+        identity as __nc_arg_0_0_owner_original, identity as __nc_arg_0_0_offset,
+        identity as __nc_arg_0_0_len, identity as __nc_arg_0_0_ptr,
+        identity as __nc_arg_0_0_values, identity as __nc_arg_0_0_written,
+        identity as __nc_arg_1_0, identity as __nc_arg_1_0_owner_slot,
+        identity as __nc_arg_1_0_owner_table, identity as __nc_arg_1_0_owner_original,
+        identity as __nc_arg_1_0_offset, identity as __nc_arg_1_0_len,
+        identity as __nc_arg_1_0_ptr, identity as __nc_arg_1_0_values,
+        identity as __nc_arg_1_0_written, identity as __nc_arg_2_0,
+        identity as __nc_arg_2_0_owner_slot, identity as __nc_arg_2_0_owner_table,
+        identity as __nc_arg_2_0_owner_original, identity as __nc_arg_2_0_offset,
+        identity as __nc_arg_2_0_len, identity as __nc_arg_2_0_ptr,
+        identity as __nc_arg_2_0_values, identity as __nc_arg_2_0_written,
+        identity as __nc_arg_3_0, identity as __nc_arg_3_0_owner_slot,
+        identity as __nc_arg_3_0_owner_table, identity as __nc_arg_3_0_owner_original,
+        identity as __nc_arg_3_0_offset, identity as __nc_arg_3_0_len,
+        identity as __nc_arg_3_0_ptr, identity as __nc_arg_3_0_values,
+        identity as __nc_arg_3_0_written, identity as __nc_arg_4,
+        identity as __nc_arg_4_owner_slot, identity as __nc_arg_4_owner_table,
+        identity as __nc_arg_4_owner_original, identity as __nc_arg_4_offset,
+        identity as __nc_arg_4_len, identity as __nc_arg_4_ptr,
+        identity as __nc_arg_4_values, identity as __nc_arg_4_written,
+        identity as __nc_this, identity as __nc_status, identity as __nc_value,
+        identity as __nc_raw, identity as __nc_result, identity as __nc_values,
+        identity as __nc_writer, identity as __nc_out, identity as __nc_scoped_context,
+        identity as __nc_scoped_callback, identity as __nc_identity,
+        identity as __nc_this_0, identity as __nc_status_0, identity as __nc_result_0,
+        identity as __nc_prepared, identity as __nc_out_0, identity as __nc_this_1,
+        identity as __nc_status_1, identity as __nc_result_1,
         identity as __nc_prepared_0, identity as __nc_out_1,
     };
     impl<
@@ -3125,7 +3227,7 @@ const _: () = {
 impl ISerializationFormatAbi {
     ///Canonical validation form of this interface's typed ABI contract.
     pub const ABI_SIGNATURE: crate::NcAbiDigest = crate::NcAbiDigest::from_static(
-        b"Kq\xFC\xA5\x97V\xBA\xC45s\xE3\x93J\xFCf\xDB&\x01{\xF7\xA1Uy\xAC6\x1B\xBD\x17\x91\x1BJJ",
+        b"\x86U\xFEW\x96\x8D\xFC\xCEO\xCE\xB5tXbv[#\xE2\x0E\xF6\x9F=\xB7Z\x97\xD3\x16\xFD\x11\xCB-%",
     );
     ///Static descriptors for this interface's ABI methods.
     pub const METHOD_DESCRIPTORS: [crate::NcMethodDescriptor; 2usize] = [
@@ -3263,9 +3365,9 @@ impl ISerializationFormatAbi {
 impl ISerializationFormatAbi {
     #[doc(hidden)]
     pub const __NC_RUST_BINDING: [::core::primitive::u8; 32] = [
-        168u8, 15u8, 194u8, 73u8, 135u8, 152u8, 80u8, 230u8, 180u8, 217u8, 159u8, 42u8,
-        255u8, 227u8, 105u8, 225u8, 90u8, 211u8, 107u8, 152u8, 82u8, 219u8, 196u8, 73u8,
-        79u8, 92u8, 126u8, 194u8, 169u8, 211u8, 154u8, 24u8,
+        246u8, 62u8, 76u8, 122u8, 118u8, 149u8, 159u8, 75u8, 162u8, 154u8, 150u8, 240u8,
+        139u8, 33u8, 227u8, 136u8, 125u8, 34u8, 44u8, 199u8, 1u8, 68u8, 224u8, 80u8,
+        94u8, 61u8, 220u8, 150u8, 179u8, 233u8, 140u8, 117u8,
     ];
 }
 /// Byte output of a completed serializer, independent of its document format.
@@ -3298,7 +3400,10 @@ pub struct ISerializationOutputVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
+    ///`this` must be the live allocation address paired with this table.
+    ///The caller must have shared target access for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
+    ///`out` must be valid writable storage that satisfies the call's aliasing rules.
     ///
     ///On success, `out` receives `< :: core :: primitive :: u64 as crate :: ComValue > :: AbiRepr`.
     #[allow(
@@ -3317,7 +3422,10 @@ pub struct ISerializationOutputVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
+    ///`this` must be the live allocation address paired with this table.
+    ///The caller must have shared target access for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
+    ///`out` must be valid writable storage that satisfies the call's aliasing rules.
     ///- `output` uses ABI storage `* mut < :: core :: primitive :: u8 as crate :: ComValue > :: AbiRepr` for `crate :: NcOutputWriter < '_ , :: core :: primitive :: u8 >`. The writable buffer pointer is accompanied by `offset: u64`, `capacity: u64`, and a separate `written: *mut u64`. Old contents are not input. Only the successfully reported initialized prefix may be read; count and element storage must not alias.
     ///
     ///On success, `out` receives `< :: core :: primitive :: u64 as crate :: ComValue > :: AbiRepr`.
@@ -3385,18 +3493,18 @@ unsafe impl crate::ComRustInterface for ISerializationOutputAbi {
 const _: () = {
     #[allow(unused_imports)]
     use ::core::convert::{
-        identity as __nc_dispatch_object, identity as __nc_dispatch_value,
-        identity as __nc_arg_0, identity as __nc_arg_0_owner_slot,
-        identity as __nc_arg_0_owner_table, identity as __nc_arg_0_owner_original,
-        identity as __nc_arg_0_offset, identity as __nc_arg_0_len,
-        identity as __nc_arg_0_ptr, identity as __nc_arg_0_values,
-        identity as __nc_arg_0_written, identity as __nc_this, identity as __nc_status,
-        identity as __nc_value, identity as __nc_raw, identity as __nc_result,
-        identity as __nc_values, identity as __nc_writer, identity as __nc_out,
-        identity as __nc_scoped_context, identity as __nc_scoped_callback,
-        identity as __nc_identity, identity as __nc_this_0, identity as __nc_status_0,
-        identity as __nc_result_0, identity as __nc_prepared, identity as __nc_out_0,
-        identity as __nc_this_1, identity as __nc_status_1, identity as __nc_result_1,
+        identity as __nc_dispatch_value, identity as __nc_arg_0,
+        identity as __nc_arg_0_owner_slot, identity as __nc_arg_0_owner_table,
+        identity as __nc_arg_0_owner_original, identity as __nc_arg_0_offset,
+        identity as __nc_arg_0_len, identity as __nc_arg_0_ptr,
+        identity as __nc_arg_0_values, identity as __nc_arg_0_written,
+        identity as __nc_this, identity as __nc_status, identity as __nc_value,
+        identity as __nc_raw, identity as __nc_result, identity as __nc_values,
+        identity as __nc_writer, identity as __nc_out, identity as __nc_scoped_context,
+        identity as __nc_scoped_callback, identity as __nc_identity,
+        identity as __nc_this_0, identity as __nc_status_0, identity as __nc_result_0,
+        identity as __nc_prepared, identity as __nc_out_0, identity as __nc_this_1,
+        identity as __nc_status_1, identity as __nc_result_1,
         identity as __nc_prepared_0, identity as __nc_out_1,
     };
     impl<
@@ -3479,7 +3587,7 @@ const _: () = {
 impl ISerializationOutputAbi {
     ///Canonical validation form of this interface's typed ABI contract.
     pub const ABI_SIGNATURE: crate::NcAbiDigest = crate::NcAbiDigest::from_static(
-        b"\xC4\xB2\xE1\xA43\x84\xDB\xEE!\x99YB\x0C\x88h\x1B%Z\xF0\x90\xA3)M\xAC\xBB\x1B\xAC\x1Aa\xD2|\x19",
+        b"\x82\0\xF5\x9E\x06\r4\xAA\x9D~\x02{\x1D\xB6\x03`\xB2\x97\xB0A'\xCF\x94\x0CY\xDA\xC8\xD6\x87\xF3\x04\xAE",
     );
     ///Static descriptors for this interface's ABI methods.
     pub const METHOD_DESCRIPTORS: [crate::NcMethodDescriptor; 2usize] = [
@@ -3543,9 +3651,9 @@ impl ISerializationOutputAbi {
 impl ISerializationOutputAbi {
     #[doc(hidden)]
     pub const __NC_RUST_BINDING: [::core::primitive::u8; 32] = [
-        194u8, 219u8, 47u8, 120u8, 22u8, 80u8, 3u8, 189u8, 46u8, 15u8, 163u8, 199u8,
-        212u8, 234u8, 212u8, 46u8, 126u8, 72u8, 239u8, 227u8, 131u8, 63u8, 132u8, 2u8,
-        231u8, 114u8, 214u8, 46u8, 119u8, 140u8, 159u8, 163u8,
+        164u8, 153u8, 44u8, 245u8, 221u8, 53u8, 143u8, 166u8, 227u8, 194u8, 238u8, 45u8,
+        237u8, 28u8, 8u8, 218u8, 199u8, 12u8, 154u8, 139u8, 202u8, 21u8, 245u8, 241u8,
+        4u8, 39u8, 143u8, 233u8, 149u8, 86u8, 156u8, 48u8,
     ];
 }
 /// One serialization plugin bundles its enabled codecs, with NCB always available.
@@ -3584,7 +3692,10 @@ pub struct ISerializationPluginVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
+    ///`this` must be the live allocation address paired with this table.
+    ///The caller must have shared target access for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
+    ///`out` must be valid writable storage that satisfies the call's aliasing rules.
     ///
     ///On success, `out` receives `crate :: ComRaw < self :: ISerializationFormatAbi >` for `crate :: ComPtr < self :: ISerializationFormatAbi >`. The caller receives one shared owner and releases it when finished.
     #[allow(
@@ -3603,7 +3714,10 @@ pub struct ISerializationPluginVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
+    ///`this` must be the live allocation address paired with this table.
+    ///The caller must have shared target access for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
+    ///`out` must be valid writable storage that satisfies the call's aliasing rules.
     ///- `name` uses ABI storage `* const < :: core :: primitive :: u8 as crate :: ComValue > :: AbiRepr` for `crate :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
     ///
     ///On success, `out` receives `crate :: ComRaw < self :: ISerializationFormatAbi >` for `crate :: ComPtr < self :: ISerializationFormatAbi >`. The caller receives one shared owner and releases it when finished.
@@ -3670,18 +3784,18 @@ unsafe impl crate::ComRustInterface for ISerializationPluginAbi {
 const _: () = {
     #[allow(unused_imports)]
     use ::core::convert::{
-        identity as __nc_dispatch_object, identity as __nc_dispatch_value,
-        identity as __nc_arg_0, identity as __nc_arg_0_owner_slot,
-        identity as __nc_arg_0_owner_table, identity as __nc_arg_0_owner_original,
-        identity as __nc_arg_0_offset, identity as __nc_arg_0_len,
-        identity as __nc_arg_0_ptr, identity as __nc_arg_0_values,
-        identity as __nc_arg_0_written, identity as __nc_this, identity as __nc_status,
-        identity as __nc_value, identity as __nc_raw, identity as __nc_result,
-        identity as __nc_values, identity as __nc_writer, identity as __nc_out,
-        identity as __nc_scoped_context, identity as __nc_scoped_callback,
-        identity as __nc_identity, identity as __nc_this_0, identity as __nc_status_0,
-        identity as __nc_result_0, identity as __nc_prepared, identity as __nc_out_0,
-        identity as __nc_this_1, identity as __nc_status_1, identity as __nc_result_1,
+        identity as __nc_dispatch_value, identity as __nc_arg_0,
+        identity as __nc_arg_0_owner_slot, identity as __nc_arg_0_owner_table,
+        identity as __nc_arg_0_owner_original, identity as __nc_arg_0_offset,
+        identity as __nc_arg_0_len, identity as __nc_arg_0_ptr,
+        identity as __nc_arg_0_values, identity as __nc_arg_0_written,
+        identity as __nc_this, identity as __nc_status, identity as __nc_value,
+        identity as __nc_raw, identity as __nc_result, identity as __nc_values,
+        identity as __nc_writer, identity as __nc_out, identity as __nc_scoped_context,
+        identity as __nc_scoped_callback, identity as __nc_identity,
+        identity as __nc_this_0, identity as __nc_status_0, identity as __nc_result_0,
+        identity as __nc_prepared, identity as __nc_out_0, identity as __nc_this_1,
+        identity as __nc_status_1, identity as __nc_result_1,
         identity as __nc_prepared_0, identity as __nc_out_1,
     };
     impl<
@@ -3767,7 +3881,7 @@ const _: () = {
 impl ISerializationPluginAbi {
     ///Canonical validation form of this interface's typed ABI contract.
     pub const ABI_SIGNATURE: crate::NcAbiDigest = crate::NcAbiDigest::from_static(
-        b"\xA8i\x99\xE6\xF4\xEE:X3\xDBl\x84\xEAH\x06\xF6EJD\x05{\xF9+\x86,:>)\x91\x80\xD1s",
+        b"\xCB_\x1D\xE9\xFDY\x17\x17P\xAF\xDA\x13\xA7\xF9\x98i\xA2\x04q\xAD\"\x89\xFCg{Bk\xC2\x17S\xBF\t",
     );
     ///Static descriptors for this interface's ABI methods.
     pub const METHOD_DESCRIPTORS: [crate::NcMethodDescriptor; 2usize] = [
@@ -3831,9 +3945,9 @@ impl ISerializationPluginAbi {
 impl ISerializationPluginAbi {
     #[doc(hidden)]
     pub const __NC_RUST_BINDING: [::core::primitive::u8; 32] = [
-        236u8, 196u8, 0u8, 62u8, 146u8, 222u8, 26u8, 210u8, 75u8, 136u8, 119u8, 177u8,
-        247u8, 107u8, 13u8, 172u8, 235u8, 18u8, 14u8, 75u8, 98u8, 126u8, 74u8, 154u8,
-        157u8, 102u8, 114u8, 224u8, 248u8, 211u8, 246u8, 184u8,
+        59u8, 13u8, 205u8, 75u8, 152u8, 172u8, 223u8, 247u8, 253u8, 252u8, 58u8, 40u8,
+        186u8, 26u8, 250u8, 143u8, 216u8, 116u8, 153u8, 153u8, 148u8, 132u8, 193u8, 17u8,
+        28u8, 39u8, 143u8, 111u8, 227u8, 146u8, 20u8, 168u8,
     ];
 }
 /// A mutable format session. Failures poison it; finish commits one complete document.
@@ -3994,6 +4108,8 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table.
+    ///The caller must have exclusive target access across all projections for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -4012,6 +4128,8 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table.
+    ///The caller must have exclusive target access across all projections for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
     ///- `value` uses ABI storage `< :: core :: primitive :: bool as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: bool`. Passed by value.
     ///
     ///On success, no output value is written.
@@ -4032,6 +4150,8 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table.
+    ///The caller must have exclusive target access across all projections for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
     ///- `value` uses ABI storage `< :: core :: primitive :: u8 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u8`. Passed by value.
     ///
     ///On success, no output value is written.
@@ -4052,6 +4172,8 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table.
+    ///The caller must have exclusive target access across all projections for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
     ///- `value` uses ABI storage `< :: core :: primitive :: u16 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u16`. Passed by value.
     ///
     ///On success, no output value is written.
@@ -4072,6 +4194,8 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table.
+    ///The caller must have exclusive target access across all projections for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
     ///- `value` uses ABI storage `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
     ///
     ///On success, no output value is written.
@@ -4092,6 +4216,8 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table.
+    ///The caller must have exclusive target access across all projections for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
     ///- `value` uses ABI storage `< :: core :: primitive :: u64 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u64`. Passed by value.
     ///
     ///On success, no output value is written.
@@ -4112,6 +4238,8 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table.
+    ///The caller must have exclusive target access across all projections for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
     ///- `value` uses ABI storage `< :: core :: primitive :: i8 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: i8`. Passed by value.
     ///
     ///On success, no output value is written.
@@ -4132,6 +4260,8 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table.
+    ///The caller must have exclusive target access across all projections for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
     ///- `value` uses ABI storage `< :: core :: primitive :: i16 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: i16`. Passed by value.
     ///
     ///On success, no output value is written.
@@ -4152,6 +4282,8 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table.
+    ///The caller must have exclusive target access across all projections for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
     ///- `value` uses ABI storage `< :: core :: primitive :: i32 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: i32`. Passed by value.
     ///
     ///On success, no output value is written.
@@ -4172,6 +4304,8 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table.
+    ///The caller must have exclusive target access across all projections for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
     ///- `value` uses ABI storage `< :: core :: primitive :: i64 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: i64`. Passed by value.
     ///
     ///On success, no output value is written.
@@ -4192,6 +4326,8 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table.
+    ///The caller must have exclusive target access across all projections for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
     ///- `value` uses ABI storage `< :: core :: primitive :: f32 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: f32`. Passed by value.
     ///
     ///On success, no output value is written.
@@ -4212,6 +4348,8 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table.
+    ///The caller must have exclusive target access across all projections for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
     ///- `value` uses ABI storage `< :: core :: primitive :: f64 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: f64`. Passed by value.
     ///
     ///On success, no output value is written.
@@ -4232,6 +4370,8 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table.
+    ///The caller must have exclusive target access across all projections for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
     ///- `value` uses ABI storage `* const < :: core :: primitive :: u8 as crate :: ComValue > :: AbiRepr` for `crate :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
     ///
     ///On success, no output value is written.
@@ -4254,6 +4394,8 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table.
+    ///The caller must have exclusive target access across all projections for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
     ///- `present` uses ABI storage `< :: core :: primitive :: bool as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: bool`. Passed by value.
     ///
     ///On success, no output value is written.
@@ -4274,6 +4416,8 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table.
+    ///The caller must have exclusive target access across all projections for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -4292,6 +4436,8 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table.
+    ///The caller must have exclusive target access across all projections for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
     ///- `fields` uses ABI storage `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
     ///
     ///On success, no output value is written.
@@ -4312,6 +4458,8 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table.
+    ///The caller must have exclusive target access across all projections for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
     ///- `name` uses ABI storage `* const < :: core :: primitive :: u8 as crate :: ComValue > :: AbiRepr` for `crate :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
     ///
     ///On success, no output value is written.
@@ -4334,6 +4482,8 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table.
+    ///The caller must have exclusive target access across all projections for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -4352,6 +4502,8 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table.
+    ///The caller must have exclusive target access across all projections for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
     ///- `length` uses ABI storage `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
     ///
     ///On success, no output value is written.
@@ -4372,6 +4524,8 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table.
+    ///The caller must have exclusive target access across all projections for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -4390,6 +4544,8 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table.
+    ///The caller must have exclusive target access across all projections for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
     ///- `pairs` uses ABI storage `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
     ///
     ///On success, no output value is written.
@@ -4410,6 +4566,8 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table.
+    ///The caller must have exclusive target access across all projections for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -4428,6 +4586,8 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table.
+    ///The caller must have exclusive target access across all projections for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
     ///- `index` uses ABI storage `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
     ///- `name` uses ABI storage `* const < :: core :: primitive :: u8 as crate :: ComValue > :: AbiRepr` for `crate :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
     ///
@@ -4452,6 +4612,8 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table.
+    ///The caller must have exclusive target access across all projections for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -4471,6 +4633,8 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table.
+    ///The caller must have exclusive target access across all projections for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
     ///- `status` uses ABI storage `< crate :: NcStatus as crate :: ComValue > :: AbiRepr` for `crate :: NcStatus`. Passed by value.
     ///- `message` uses ABI storage `* const < :: core :: primitive :: u8 as crate :: ComValue > :: AbiRepr` for `crate :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
     ///
@@ -4495,6 +4659,8 @@ pub struct ISerializerVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table.
+    ///The caller must have exclusive target access across all projections for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
     ///
     ///On success, no output value is written.
     #[allow(
@@ -4556,108 +4722,108 @@ unsafe impl crate::ComRustInterface for ISerializerAbi {
 const _: () = {
     #[allow(unused_imports)]
     use ::core::convert::{
-        identity as __nc_dispatch_object, identity as __nc_dispatch_value,
-        identity as __nc_arg_0, identity as __nc_arg_0_owner_slot,
-        identity as __nc_arg_0_owner_table, identity as __nc_arg_0_owner_original,
-        identity as __nc_arg_0_offset, identity as __nc_arg_0_len,
-        identity as __nc_arg_0_ptr, identity as __nc_arg_0_values,
-        identity as __nc_arg_0_written, identity as __nc_arg_0_0,
-        identity as __nc_arg_0_0_owner_slot, identity as __nc_arg_0_0_owner_table,
-        identity as __nc_arg_0_0_owner_original, identity as __nc_arg_0_0_offset,
-        identity as __nc_arg_0_0_len, identity as __nc_arg_0_0_ptr,
-        identity as __nc_arg_0_0_values, identity as __nc_arg_0_0_written,
-        identity as __nc_arg_0_1, identity as __nc_arg_0_1_owner_slot,
-        identity as __nc_arg_0_1_owner_table, identity as __nc_arg_0_1_owner_original,
-        identity as __nc_arg_0_1_offset, identity as __nc_arg_0_1_len,
-        identity as __nc_arg_0_1_ptr, identity as __nc_arg_0_1_values,
-        identity as __nc_arg_0_1_written, identity as __nc_arg_0_2,
-        identity as __nc_arg_0_2_owner_slot, identity as __nc_arg_0_2_owner_table,
-        identity as __nc_arg_0_2_owner_original, identity as __nc_arg_0_2_offset,
-        identity as __nc_arg_0_2_len, identity as __nc_arg_0_2_ptr,
-        identity as __nc_arg_0_2_values, identity as __nc_arg_0_2_written,
-        identity as __nc_arg_0_3, identity as __nc_arg_0_3_owner_slot,
-        identity as __nc_arg_0_3_owner_table, identity as __nc_arg_0_3_owner_original,
-        identity as __nc_arg_0_3_offset, identity as __nc_arg_0_3_len,
-        identity as __nc_arg_0_3_ptr, identity as __nc_arg_0_3_values,
-        identity as __nc_arg_0_3_written, identity as __nc_arg_0_4,
-        identity as __nc_arg_0_4_owner_slot, identity as __nc_arg_0_4_owner_table,
-        identity as __nc_arg_0_4_owner_original, identity as __nc_arg_0_4_offset,
-        identity as __nc_arg_0_4_len, identity as __nc_arg_0_4_ptr,
-        identity as __nc_arg_0_4_values, identity as __nc_arg_0_4_written,
-        identity as __nc_arg_0_5, identity as __nc_arg_0_5_owner_slot,
-        identity as __nc_arg_0_5_owner_table, identity as __nc_arg_0_5_owner_original,
-        identity as __nc_arg_0_5_offset, identity as __nc_arg_0_5_len,
-        identity as __nc_arg_0_5_ptr, identity as __nc_arg_0_5_values,
-        identity as __nc_arg_0_5_written, identity as __nc_arg_0_6,
-        identity as __nc_arg_0_6_owner_slot, identity as __nc_arg_0_6_owner_table,
-        identity as __nc_arg_0_6_owner_original, identity as __nc_arg_0_6_offset,
-        identity as __nc_arg_0_6_len, identity as __nc_arg_0_6_ptr,
-        identity as __nc_arg_0_6_values, identity as __nc_arg_0_6_written,
-        identity as __nc_arg_0_7, identity as __nc_arg_0_7_owner_slot,
-        identity as __nc_arg_0_7_owner_table, identity as __nc_arg_0_7_owner_original,
-        identity as __nc_arg_0_7_offset, identity as __nc_arg_0_7_len,
-        identity as __nc_arg_0_7_ptr, identity as __nc_arg_0_7_values,
-        identity as __nc_arg_0_7_written, identity as __nc_arg_0_8,
-        identity as __nc_arg_0_8_owner_slot, identity as __nc_arg_0_8_owner_table,
-        identity as __nc_arg_0_8_owner_original, identity as __nc_arg_0_8_offset,
-        identity as __nc_arg_0_8_len, identity as __nc_arg_0_8_ptr,
-        identity as __nc_arg_0_8_values, identity as __nc_arg_0_8_written,
-        identity as __nc_arg_0_9, identity as __nc_arg_0_9_owner_slot,
-        identity as __nc_arg_0_9_owner_table, identity as __nc_arg_0_9_owner_original,
-        identity as __nc_arg_0_9_offset, identity as __nc_arg_0_9_len,
-        identity as __nc_arg_0_9_ptr, identity as __nc_arg_0_9_values,
-        identity as __nc_arg_0_9_written, identity as __nc_arg_0_10,
-        identity as __nc_arg_0_10_owner_slot, identity as __nc_arg_0_10_owner_table,
-        identity as __nc_arg_0_10_owner_original, identity as __nc_arg_0_10_offset,
-        identity as __nc_arg_0_10_len, identity as __nc_arg_0_10_ptr,
-        identity as __nc_arg_0_10_values, identity as __nc_arg_0_10_written,
-        identity as __nc_arg_0_11, identity as __nc_arg_0_11_owner_slot,
-        identity as __nc_arg_0_11_owner_table, identity as __nc_arg_0_11_owner_original,
-        identity as __nc_arg_0_11_offset, identity as __nc_arg_0_11_len,
-        identity as __nc_arg_0_11_ptr, identity as __nc_arg_0_11_values,
-        identity as __nc_arg_0_11_written, identity as __nc_arg_0_12,
-        identity as __nc_arg_0_12_owner_slot, identity as __nc_arg_0_12_owner_table,
-        identity as __nc_arg_0_12_owner_original, identity as __nc_arg_0_12_offset,
-        identity as __nc_arg_0_12_len, identity as __nc_arg_0_12_ptr,
-        identity as __nc_arg_0_12_values, identity as __nc_arg_0_12_written,
-        identity as __nc_arg_0_13, identity as __nc_arg_0_13_owner_slot,
-        identity as __nc_arg_0_13_owner_table, identity as __nc_arg_0_13_owner_original,
-        identity as __nc_arg_0_13_offset, identity as __nc_arg_0_13_len,
-        identity as __nc_arg_0_13_ptr, identity as __nc_arg_0_13_values,
-        identity as __nc_arg_0_13_written, identity as __nc_arg_0_14,
-        identity as __nc_arg_0_14_owner_slot, identity as __nc_arg_0_14_owner_table,
-        identity as __nc_arg_0_14_owner_original, identity as __nc_arg_0_14_offset,
-        identity as __nc_arg_0_14_len, identity as __nc_arg_0_14_ptr,
-        identity as __nc_arg_0_14_values, identity as __nc_arg_0_14_written,
-        identity as __nc_arg_0_15, identity as __nc_arg_0_15_owner_slot,
-        identity as __nc_arg_0_15_owner_table, identity as __nc_arg_0_15_owner_original,
-        identity as __nc_arg_0_15_offset, identity as __nc_arg_0_15_len,
-        identity as __nc_arg_0_15_ptr, identity as __nc_arg_0_15_values,
-        identity as __nc_arg_0_15_written, identity as __nc_arg_0_16,
-        identity as __nc_arg_0_16_owner_slot, identity as __nc_arg_0_16_owner_table,
-        identity as __nc_arg_0_16_owner_original, identity as __nc_arg_0_16_offset,
-        identity as __nc_arg_0_16_len, identity as __nc_arg_0_16_ptr,
-        identity as __nc_arg_0_16_values, identity as __nc_arg_0_16_written,
-        identity as __nc_arg_1, identity as __nc_arg_1_owner_slot,
-        identity as __nc_arg_1_owner_table, identity as __nc_arg_1_owner_original,
-        identity as __nc_arg_1_offset, identity as __nc_arg_1_len,
-        identity as __nc_arg_1_ptr, identity as __nc_arg_1_values,
-        identity as __nc_arg_1_written, identity as __nc_arg_0_17,
-        identity as __nc_arg_0_17_owner_slot, identity as __nc_arg_0_17_owner_table,
-        identity as __nc_arg_0_17_owner_original, identity as __nc_arg_0_17_offset,
-        identity as __nc_arg_0_17_len, identity as __nc_arg_0_17_ptr,
-        identity as __nc_arg_0_17_values, identity as __nc_arg_0_17_written,
-        identity as __nc_arg_1_0, identity as __nc_arg_1_0_owner_slot,
-        identity as __nc_arg_1_0_owner_table, identity as __nc_arg_1_0_owner_original,
-        identity as __nc_arg_1_0_offset, identity as __nc_arg_1_0_len,
-        identity as __nc_arg_1_0_ptr, identity as __nc_arg_1_0_values,
-        identity as __nc_arg_1_0_written, identity as __nc_this, identity as __nc_status,
-        identity as __nc_value, identity as __nc_raw, identity as __nc_result,
-        identity as __nc_values, identity as __nc_writer, identity as __nc_out,
-        identity as __nc_scoped_context, identity as __nc_scoped_callback,
-        identity as __nc_identity, identity as __nc_this_0, identity as __nc_status_0,
-        identity as __nc_result_0, identity as __nc_prepared, identity as __nc_out_0,
-        identity as __nc_this_1, identity as __nc_status_1, identity as __nc_result_1,
+        identity as __nc_dispatch_value, identity as __nc_arg_0,
+        identity as __nc_arg_0_owner_slot, identity as __nc_arg_0_owner_table,
+        identity as __nc_arg_0_owner_original, identity as __nc_arg_0_offset,
+        identity as __nc_arg_0_len, identity as __nc_arg_0_ptr,
+        identity as __nc_arg_0_values, identity as __nc_arg_0_written,
+        identity as __nc_arg_0_0, identity as __nc_arg_0_0_owner_slot,
+        identity as __nc_arg_0_0_owner_table, identity as __nc_arg_0_0_owner_original,
+        identity as __nc_arg_0_0_offset, identity as __nc_arg_0_0_len,
+        identity as __nc_arg_0_0_ptr, identity as __nc_arg_0_0_values,
+        identity as __nc_arg_0_0_written, identity as __nc_arg_0_1,
+        identity as __nc_arg_0_1_owner_slot, identity as __nc_arg_0_1_owner_table,
+        identity as __nc_arg_0_1_owner_original, identity as __nc_arg_0_1_offset,
+        identity as __nc_arg_0_1_len, identity as __nc_arg_0_1_ptr,
+        identity as __nc_arg_0_1_values, identity as __nc_arg_0_1_written,
+        identity as __nc_arg_0_2, identity as __nc_arg_0_2_owner_slot,
+        identity as __nc_arg_0_2_owner_table, identity as __nc_arg_0_2_owner_original,
+        identity as __nc_arg_0_2_offset, identity as __nc_arg_0_2_len,
+        identity as __nc_arg_0_2_ptr, identity as __nc_arg_0_2_values,
+        identity as __nc_arg_0_2_written, identity as __nc_arg_0_3,
+        identity as __nc_arg_0_3_owner_slot, identity as __nc_arg_0_3_owner_table,
+        identity as __nc_arg_0_3_owner_original, identity as __nc_arg_0_3_offset,
+        identity as __nc_arg_0_3_len, identity as __nc_arg_0_3_ptr,
+        identity as __nc_arg_0_3_values, identity as __nc_arg_0_3_written,
+        identity as __nc_arg_0_4, identity as __nc_arg_0_4_owner_slot,
+        identity as __nc_arg_0_4_owner_table, identity as __nc_arg_0_4_owner_original,
+        identity as __nc_arg_0_4_offset, identity as __nc_arg_0_4_len,
+        identity as __nc_arg_0_4_ptr, identity as __nc_arg_0_4_values,
+        identity as __nc_arg_0_4_written, identity as __nc_arg_0_5,
+        identity as __nc_arg_0_5_owner_slot, identity as __nc_arg_0_5_owner_table,
+        identity as __nc_arg_0_5_owner_original, identity as __nc_arg_0_5_offset,
+        identity as __nc_arg_0_5_len, identity as __nc_arg_0_5_ptr,
+        identity as __nc_arg_0_5_values, identity as __nc_arg_0_5_written,
+        identity as __nc_arg_0_6, identity as __nc_arg_0_6_owner_slot,
+        identity as __nc_arg_0_6_owner_table, identity as __nc_arg_0_6_owner_original,
+        identity as __nc_arg_0_6_offset, identity as __nc_arg_0_6_len,
+        identity as __nc_arg_0_6_ptr, identity as __nc_arg_0_6_values,
+        identity as __nc_arg_0_6_written, identity as __nc_arg_0_7,
+        identity as __nc_arg_0_7_owner_slot, identity as __nc_arg_0_7_owner_table,
+        identity as __nc_arg_0_7_owner_original, identity as __nc_arg_0_7_offset,
+        identity as __nc_arg_0_7_len, identity as __nc_arg_0_7_ptr,
+        identity as __nc_arg_0_7_values, identity as __nc_arg_0_7_written,
+        identity as __nc_arg_0_8, identity as __nc_arg_0_8_owner_slot,
+        identity as __nc_arg_0_8_owner_table, identity as __nc_arg_0_8_owner_original,
+        identity as __nc_arg_0_8_offset, identity as __nc_arg_0_8_len,
+        identity as __nc_arg_0_8_ptr, identity as __nc_arg_0_8_values,
+        identity as __nc_arg_0_8_written, identity as __nc_arg_0_9,
+        identity as __nc_arg_0_9_owner_slot, identity as __nc_arg_0_9_owner_table,
+        identity as __nc_arg_0_9_owner_original, identity as __nc_arg_0_9_offset,
+        identity as __nc_arg_0_9_len, identity as __nc_arg_0_9_ptr,
+        identity as __nc_arg_0_9_values, identity as __nc_arg_0_9_written,
+        identity as __nc_arg_0_10, identity as __nc_arg_0_10_owner_slot,
+        identity as __nc_arg_0_10_owner_table, identity as __nc_arg_0_10_owner_original,
+        identity as __nc_arg_0_10_offset, identity as __nc_arg_0_10_len,
+        identity as __nc_arg_0_10_ptr, identity as __nc_arg_0_10_values,
+        identity as __nc_arg_0_10_written, identity as __nc_arg_0_11,
+        identity as __nc_arg_0_11_owner_slot, identity as __nc_arg_0_11_owner_table,
+        identity as __nc_arg_0_11_owner_original, identity as __nc_arg_0_11_offset,
+        identity as __nc_arg_0_11_len, identity as __nc_arg_0_11_ptr,
+        identity as __nc_arg_0_11_values, identity as __nc_arg_0_11_written,
+        identity as __nc_arg_0_12, identity as __nc_arg_0_12_owner_slot,
+        identity as __nc_arg_0_12_owner_table, identity as __nc_arg_0_12_owner_original,
+        identity as __nc_arg_0_12_offset, identity as __nc_arg_0_12_len,
+        identity as __nc_arg_0_12_ptr, identity as __nc_arg_0_12_values,
+        identity as __nc_arg_0_12_written, identity as __nc_arg_0_13,
+        identity as __nc_arg_0_13_owner_slot, identity as __nc_arg_0_13_owner_table,
+        identity as __nc_arg_0_13_owner_original, identity as __nc_arg_0_13_offset,
+        identity as __nc_arg_0_13_len, identity as __nc_arg_0_13_ptr,
+        identity as __nc_arg_0_13_values, identity as __nc_arg_0_13_written,
+        identity as __nc_arg_0_14, identity as __nc_arg_0_14_owner_slot,
+        identity as __nc_arg_0_14_owner_table, identity as __nc_arg_0_14_owner_original,
+        identity as __nc_arg_0_14_offset, identity as __nc_arg_0_14_len,
+        identity as __nc_arg_0_14_ptr, identity as __nc_arg_0_14_values,
+        identity as __nc_arg_0_14_written, identity as __nc_arg_0_15,
+        identity as __nc_arg_0_15_owner_slot, identity as __nc_arg_0_15_owner_table,
+        identity as __nc_arg_0_15_owner_original, identity as __nc_arg_0_15_offset,
+        identity as __nc_arg_0_15_len, identity as __nc_arg_0_15_ptr,
+        identity as __nc_arg_0_15_values, identity as __nc_arg_0_15_written,
+        identity as __nc_arg_0_16, identity as __nc_arg_0_16_owner_slot,
+        identity as __nc_arg_0_16_owner_table, identity as __nc_arg_0_16_owner_original,
+        identity as __nc_arg_0_16_offset, identity as __nc_arg_0_16_len,
+        identity as __nc_arg_0_16_ptr, identity as __nc_arg_0_16_values,
+        identity as __nc_arg_0_16_written, identity as __nc_arg_1,
+        identity as __nc_arg_1_owner_slot, identity as __nc_arg_1_owner_table,
+        identity as __nc_arg_1_owner_original, identity as __nc_arg_1_offset,
+        identity as __nc_arg_1_len, identity as __nc_arg_1_ptr,
+        identity as __nc_arg_1_values, identity as __nc_arg_1_written,
+        identity as __nc_arg_0_17, identity as __nc_arg_0_17_owner_slot,
+        identity as __nc_arg_0_17_owner_table, identity as __nc_arg_0_17_owner_original,
+        identity as __nc_arg_0_17_offset, identity as __nc_arg_0_17_len,
+        identity as __nc_arg_0_17_ptr, identity as __nc_arg_0_17_values,
+        identity as __nc_arg_0_17_written, identity as __nc_arg_1_0,
+        identity as __nc_arg_1_0_owner_slot, identity as __nc_arg_1_0_owner_table,
+        identity as __nc_arg_1_0_owner_original, identity as __nc_arg_1_0_offset,
+        identity as __nc_arg_1_0_len, identity as __nc_arg_1_0_ptr,
+        identity as __nc_arg_1_0_values, identity as __nc_arg_1_0_written,
+        identity as __nc_this, identity as __nc_status, identity as __nc_value,
+        identity as __nc_raw, identity as __nc_result, identity as __nc_values,
+        identity as __nc_writer, identity as __nc_out, identity as __nc_scoped_context,
+        identity as __nc_scoped_callback, identity as __nc_identity,
+        identity as __nc_this_0, identity as __nc_status_0, identity as __nc_result_0,
+        identity as __nc_prepared, identity as __nc_out_0, identity as __nc_this_1,
+        identity as __nc_status_1, identity as __nc_result_1,
         identity as __nc_prepared_0, identity as __nc_out_1, identity as __nc_this_2,
         identity as __nc_status_2, identity as __nc_result_2,
         identity as __nc_prepared_1, identity as __nc_out_2, identity as __nc_this_3,
@@ -5363,7 +5529,7 @@ const _: () = {
 impl ISerializerAbi {
     ///Canonical validation form of this interface's typed ABI contract.
     pub const ABI_SIGNATURE: crate::NcAbiDigest = crate::NcAbiDigest::from_static(
-        b"{\xC3V\xF0\x1E\x144\x93&\x99\xD4,h\xE4e\xBC\xA7\x1E\xAEE\xF0\x13(\xCB\xFB\x99e\xE47\x8D-T",
+        b"\xB0\x88\x08\xA4\xE66\x9B{\xD9\xFF7\xEE\x91\xE5\x87-p\xF0b\xCF\x9AOU\xF8\x1Eri\xC0\xF0\xD5pI",
     );
     ///Static descriptors for this interface's ABI methods.
     pub const METHOD_DESCRIPTORS: [crate::NcMethodDescriptor; 26usize] = [
@@ -5927,8 +6093,8 @@ impl ISerializerAbi {
 impl ISerializerAbi {
     #[doc(hidden)]
     pub const __NC_RUST_BINDING: [::core::primitive::u8; 32] = [
-        234u8, 104u8, 175u8, 117u8, 207u8, 230u8, 120u8, 216u8, 89u8, 119u8, 136u8,
-        130u8, 204u8, 169u8, 125u8, 154u8, 219u8, 117u8, 96u8, 84u8, 171u8, 208u8, 234u8,
-        120u8, 85u8, 49u8, 221u8, 68u8, 41u8, 98u8, 134u8, 56u8,
+        163u8, 239u8, 162u8, 68u8, 108u8, 234u8, 77u8, 65u8, 89u8, 50u8, 11u8, 130u8,
+        215u8, 110u8, 153u8, 2u8, 230u8, 144u8, 11u8, 212u8, 49u8, 197u8, 98u8, 75u8,
+        247u8, 235u8, 84u8, 8u8, 229u8, 218u8, 37u8, 28u8,
     ];
 }

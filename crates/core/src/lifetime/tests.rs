@@ -105,22 +105,22 @@ static BOX_ROOT: IUnknownVTable = IUnknownVTable {
     ..EXCLUSIVE_UNKNOWN_VTABLE
 };
 
-/// A distinct boxed interface makes erasure select a different canonical table.
+/// A distinct boxed projection with the same owner and backing.
 static BOX_ALTERNATE_ROOT: IUnknownVTable = IUnknownVTable {
     interface_id: &AlternateInterface::INTERFACE_ID,
     ..BOX_ROOT
 };
 
-/// Boxed metadata is immutable and independent of the boxed owner/access word.
+/// Canonical metadata for the single-interface boxed fixture.
 static BOX_CLASS: NcObjectTypeInfo = NcObjectTypeInfo {
-    destroy_value: destroy::<NcBoxedLifetimeState, crate::WeakComBox<IUnknown>>,
-    deallocate: free::<NcBoxedLifetimeState, crate::WeakComBox<IUnknown>>,
+    destroy_value: destroy::<NcBoxedLifetimeState, ()>,
+    deallocate: free::<NcBoxedLifetimeState, ()>,
     interfaces: [&BOX_ROOT as *const IUnknownVTable].as_ptr(),
     interface_count: 1,
 };
 
-/// Erasure fixtures declare an alternate view without changing rejection fixtures.
-static BOX_ERASURE_CLASS: NcObjectTypeInfo = NcObjectTypeInfo {
+/// The projection fixture also exposes an alternate exact interface.
+static BOX_PROJECTION_CLASS: NcObjectTypeInfo = NcObjectTypeInfo {
     interfaces: [&BOX_ROOT as *const IUnknownVTable, &BOX_ALTERNATE_ROOT as *const IUnknownVTable].as_ptr(),
     interface_count: 2,
     ..BOX_CLASS
@@ -134,7 +134,7 @@ fn boxed_allocation() -> (*mut NcBoxedLifetimeState, Arc<Observations>) {
 /// Allocates the same concrete payload with its matching provider metadata.
 fn boxed_allocation_with_type_info(type_info: &'static NcObjectTypeInfo) -> (*mut NcBoxedLifetimeState, Arc<Observations>) {
     let observations = Arc::new(Observations::default());
-    let storage: Box<Allocation<NcBoxedLifetimeState, crate::WeakComBox<IUnknown>>> = Box::new(Allocation {
+    let storage: Box<Allocation<NcBoxedLifetimeState, ()>> = Box::new(Allocation {
         control: NcBoxedLifetimeState::new(type_info),
         value: MaybeUninit::new(Value {
             observations: observations.clone(),
@@ -246,192 +246,44 @@ fn count_exhaustion_never_wraps_or_changes_the_counter() {
     assert_eq!(count.load(Ordering::Relaxed), isize::MAX as usize);
 }
 
-/// An absent invocation header must fail before touching any provider storage.
+/// Exact projection keeps the sole owner and its allocation live.
 #[test]
-fn exclusive_call_rejects_an_absent_header() {
-    // SAFETY: null is explicitly accepted as an error input by BoxRead::enter.
-    assert!(matches!(unsafe { super::BoxRead::enter(core::ptr::null_mut()) }, Err(crate::NC_E_POINTER)));
-}
-
-/// The owner keeps allocation storage alive through weak-to-self destruction;
-/// the last external weak releases storage without running T's destructor again.
-#[test]
-fn exclusive_destruction_is_immediate_and_storage_release_is_separate() {
-    let (control, observed) = boxed_allocation();
-    // SAFETY: this boxed allocation has not escaped or been borrowed. Install
-    // one properly retained weak field before transferring its owner.
-    unsafe {
-        (*control).weak_retain();
-        (*control.cast::<Allocation<NcBoxedLifetimeState, crate::WeakComBox<IUnknown>>>())
-            .value
-            .assume_init_mut()
-            .self_weak = crate::WeakComBox::from_raw_owned(ComRaw {
-            object: control.cast(),
-            vtable: &BOX_ROOT,
-        });
-        (*control).weak_retain();
-        NcBoxedLifetimeState::release(control);
-        assert_eq!(observed.destroyed.load(Ordering::SeqCst), 1);
-        assert_eq!(observed.freed.load(Ordering::SeqCst), 0);
-        assert!(matches!(BoxRead::enter(control), Err(NC_E_DROPPED)));
-        assert!(matches!(BoxWrite::enter(control), Err(NC_E_DROPPED)));
-        NcBoxedLifetimeState::weak_release(control);
-    }
-    assert_eq!(observed.destroyed.load(Ordering::SeqCst), 1);
-    assert_eq!(observed.freed.load(Ordering::SeqCst), 1);
-}
-
-/// A full reader count must reject admission without wrapping into the writer bit.
-#[test]
-fn exclusive_reader_overflow_and_writer_conflicts_preserve_header_state() {
-    let header = NcBoxedLifetimeState::new(&BOX_CLASS);
-    let raw = core::ptr::from_ref(&header).cast_mut();
-    header.owner_and_borrows.store(BOX_OWNER | BOX_READERS, Ordering::Relaxed);
-    // SAFETY: both attempts reject before granting access; the test header is
-    // retained and no provider destruction is attempted for this stack fixture.
-    unsafe {
-        assert!(matches!(BoxRead::enter(raw), Err(crate::NC_E_BUSY)));
-        assert!(matches!(BoxWrite::enter(raw), Err(crate::NC_E_BUSY)));
-    }
-    assert_eq!(header.owner_and_borrows.load(Ordering::Relaxed), BOX_OWNER | BOX_READERS);
-    header.owner_and_borrows.store(BOX_OWNER, Ordering::Relaxed);
-    let read1 = unsafe { BoxRead::enter(raw) }.unwrap();
-    let read2 = unsafe { BoxRead::enter(raw) }.unwrap();
-    assert!(matches!(unsafe { BoxWrite::enter(raw) }, Err(crate::NC_E_BUSY)));
-    drop(read1);
-    assert!(!header.box_is_idle());
-    drop(read2);
-    assert!(header.box_is_idle());
-    let write = unsafe { BoxWrite::enter(raw) }.unwrap();
-    assert!(matches!(unsafe { BoxRead::enter(raw) }, Err(crate::NC_E_BUSY)));
-    drop(write);
-    assert!(header.box_is_idle());
-}
-
-/// Borrowed exclusive queries select tables without retaining storage or changing owner state.
-#[test]
-fn borrowed_box_queries_preserve_weak_count_and_explicit_observers_still_expire() {
-    let (control, observed) = boxed_allocation();
-    // SAFETY: transfer the initialized sole owner and its exact canonical projection.
-    let owner = unsafe {
+fn borrowed_box_queries_share_identity_and_preserve_the_owner() {
+    let (control, observed) = boxed_allocation_with_type_info(&BOX_PROJECTION_CLASS);
+    // SAFETY: this fixture transfers the initialized sole owner with its exact root table.
+    let mut owner = unsafe {
         crate::ComBox::<IUnknown>::from_raw_owned(ComRaw {
             object: control.cast(),
             vtable: &BOX_ROOT,
         })
     }
     .unwrap();
-    let before = unsafe { (*control).weak_count.load(Ordering::Relaxed) };
-    let state = unsafe { (*control).owner_and_borrows.load(Ordering::Relaxed) };
-    for _ in 0..16 {
-        let projection = owner.query_ref::<IUnknown>().unwrap();
-        assert_eq!(projection.as_raw(), owner.as_raw());
+    let raw = owner.as_raw();
+    {
+        let projection = owner.query_ref::<AlternateInterface>().unwrap();
+        assert!(projection.same_object(owner.as_com_ref()));
+        assert_eq!(projection.as_raw().vtable, &BOX_ALTERNATE_ROOT as *const _);
         assert!(matches!(owner.query_ref::<crate::INcBytesAbi>(), Err(crate::NC_E_NOINTERFACE)));
-        // SAFETY: the owner retains this fixture's readable common header.
-        assert_eq!(unsafe { (*control).weak_count.load(Ordering::Relaxed) }, before);
-        assert_eq!(unsafe { (*control).owner_and_borrows.load(Ordering::Relaxed) }, state);
     }
-    let observer = owner.query_weak::<IUnknown>().unwrap();
-    assert_eq!(unsafe { (*control).weak_count.load(Ordering::Relaxed) }, before + 1);
+    {
+        let mut mutable = owner.query_mut::<AlternateInterface>().unwrap();
+        assert_eq!(mutable.as_com_mut().as_raw().object, raw.object);
+        assert_eq!(mutable.as_raw().vtable, &BOX_ALTERNATE_ROOT as *const _);
+    }
+    assert_eq!(owner.as_raw(), raw);
+    assert_eq!(observed.destroyed.load(Ordering::SeqCst), 0);
     drop(owner);
     assert_eq!(observed.destroyed.load(Ordering::SeqCst), 1);
-    assert_eq!(observed.freed.load(Ordering::SeqCst), 0);
-    assert!(!observer.is_alive());
-    drop(observer);
     assert_eq!(observed.freed.load(Ordering::SeqCst), 1);
 }
 
-/// Erasure changes the cached interface but transfers one live or expired weak token.
+/// Both policies keep their typed prefixes and common four-word metadata.
 #[test]
-fn boxed_weak_erasure_preserves_counts_identity_and_final_cleanup() {
-    for expired in [false, true] {
-        let (control, observed) = boxed_allocation_with_type_info(&BOX_ERASURE_CLASS);
-        // SAFETY: this unique boxed fixture declares the exact alternate interface.
-        let owner = unsafe {
-            crate::ComBox::<AlternateInterface>::from_raw_owned(ComRaw {
-                object: control.cast(),
-                vtable: &BOX_ALTERNATE_ROOT,
-            })
-        }
-        .unwrap();
-        let source = owner.downgrade();
-        let owner = match expired {
-            true => {
-                drop(owner);
-                None
-            }
-            false => Some(owner),
-        };
-        // SAFETY: source retains this fixture's header in either value-lifetime state.
-        let before = unsafe { (*control).weak_count.load(Ordering::Relaxed) };
-        let erased = source.into_unknown();
-        // Erasing an already-root view must likewise transfer the existing token.
-        let erased = erased.into_unknown();
-        assert_eq!(erased.as_raw().object, control.cast());
-        assert_eq!(erased.as_raw().vtable, &BOX_ROOT as *const IUnknownVTable);
-        assert_eq!(erased.is_alive(), !expired);
-        assert_eq!(unsafe { (*control).weak_count.load(Ordering::Relaxed) }, before);
-        assert_eq!(observed.destroyed.load(Ordering::SeqCst), usize::from(expired));
-        assert_eq!(observed.freed.load(Ordering::SeqCst), 0);
-        let projected = erased.query::<AlternateInterface>().unwrap();
-        assert!(erased.same_object(&projected));
-        assert_eq!(projected.as_raw().vtable, &BOX_ALTERNATE_ROOT as *const IUnknownVTable);
-        drop(projected);
-        drop(owner);
-        assert_eq!(observed.destroyed.load(Ordering::SeqCst), 1);
-        assert_eq!(observed.freed.load(Ordering::SeqCst), 0);
-        drop(erased);
-        assert_eq!(observed.destroyed.load(Ordering::SeqCst), 1);
-        assert_eq!(observed.freed.load(Ordering::SeqCst), 1);
-    }
-}
-
-/// Saturation exposes a transient retain that a final-count equality check cannot see.
-#[test]
-fn boxed_weak_erasure_transfers_at_the_weak_counter_limit() {
-    for expired in [false, true] {
-        let (control, observed) = boxed_allocation_with_type_info(&BOX_ERASURE_CLASS);
-        // SAFETY: the allocation and table form the initialized sole boxed owner.
-        let owner = unsafe {
-            crate::ComBox::<AlternateInterface>::from_raw_owned(ComRaw {
-                object: control.cast(),
-                vtable: &BOX_ALTERNATE_ROOT,
-            })
-        }
-        .unwrap();
-        let source = owner.downgrade();
-        let owner = match expired {
-            true => {
-                drop(owner);
-                None
-            }
-            false => Some(owner),
-        };
-        // SAFETY: source retains this private fixture, with no concurrent access.
-        // Model additional forgotten references at saturation, then restore the
-        // actual count before cleanup. No application value is accessed here.
-        let actual = unsafe { (*control).weak_count.load(Ordering::Relaxed) };
-        unsafe { (*control).weak_count.store(isize::MAX as usize, Ordering::Relaxed) };
-        let erased = source.into_unknown();
-        // Erasing an already-root view must likewise transfer the existing token.
-        let erased = erased.into_unknown();
-        assert_eq!(erased.as_raw().object, control.cast());
-        assert_eq!(erased.as_raw().vtable, &BOX_ROOT as *const IUnknownVTable);
-        assert_eq!(unsafe { (*control).weak_count.load(Ordering::Relaxed) }, isize::MAX as usize);
-        unsafe { (*control).weak_count.store(actual, Ordering::Relaxed) };
-        drop(owner);
-        drop(erased);
-        assert_eq!(observed.destroyed.load(Ordering::SeqCst), 1);
-        assert_eq!(observed.freed.load(Ordering::SeqCst), 1);
-    }
-}
-
-/// Both policies retain compact headers but never share an overloaded mutable field.
-#[test]
-fn policy_headers_keep_metadata_first_and_have_three_words() {
+fn policy_headers_keep_metadata_first_and_have_expected_sizes() {
     use core::mem::{align_of, offset_of, size_of};
     let word = size_of::<usize>();
     assert_eq!(size_of::<NcSharedLifetimeState>(), 3 * word);
-    assert_eq!(size_of::<NcBoxedLifetimeState>(), 3 * word);
+    assert_eq!(size_of::<NcBoxedLifetimeState>(), word);
     assert_eq!(align_of::<NcSharedLifetimeState>(), align_of::<usize>());
     assert_eq!(align_of::<NcBoxedLifetimeState>(), align_of::<usize>());
     assert_eq!(size_of::<NcObjectTypeInfo>(), 4 * word);
@@ -443,8 +295,6 @@ fn policy_headers_keep_metadata_first_and_have_three_words() {
     assert_eq!(offset_of!(NcSharedLifetimeState, strong_count), word);
     assert_eq!(offset_of!(NcSharedLifetimeState, weak_count), 2 * word);
     assert_eq!(offset_of!(NcBoxedLifetimeState, type_info), 0);
-    assert_eq!(offset_of!(NcBoxedLifetimeState, owner_and_borrows), word);
-    assert_eq!(offset_of!(NcBoxedLifetimeState, weak_count), 2 * word);
 }
 
 /// Deallocation is immediate after destruction when no observer survives.

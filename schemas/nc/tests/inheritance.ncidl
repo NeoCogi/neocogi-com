@@ -25,19 +25,19 @@ interface IAudit {
 /// Adds one slot after the complete widget prefix.
 interface IButton: ContractIWidget + IAudit {
     /// Changes state observed through all projections.
-    fn set_value(&mut self, value: u32) -> Result<()>;
+    fn set_value(&self, value: u32) -> Result<()>;
 }
 
 #[id("220bfbc8-9bcb-5c0c-aed3-f6901a00c6c1")]
 /// A second level verifies recursive vtables and inherited wrapper lookup.
 interface IToggle: IButton {
     /// Copies a base value through a checked borrowed argument.
-    fn copy_value(&mut self, source: &ContractIWidget) -> Result<()>;
+    fn copy_value(&self, source: &ContractIWidget) -> Result<()>;
 }
 
 #[id("cdd59aae-c8a3-57cb-a507-36da69d84fda")]
 /// A mutating receiver makes accidental entry with malformed arguments visible.
 interface PairInputsIAcceptPair {
     /// Reports presence and counts only successfully decoded invocations.
-    fn accept(&mut self, value: &IUnknown) -> Result<bool>;
+    fn accept(&self, value: &IUnknown) -> Result<bool>;
 }

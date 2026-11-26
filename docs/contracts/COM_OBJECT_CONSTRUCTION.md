@@ -22,8 +22,8 @@ A factory that needs a weak source identity performs these steps:
 1. Validate application input and acquire the selected receiver.
 2. Allocate a complete value with a valid empty event destination.
 3. Obtain the weak source interface, then connect the destination using checked
-   concrete access or the existing owning record. Shared interface owners are
-   downgraded; exclusive local queries already return weak projections.
+   concrete access or the existing owning record. Shared interface owners can
+   supply weak identities. Boxed owners supply loans from the live owner.
 4. Expose the capability only after that wiring succeeds.
 
 The temporary empty destination belongs to private construction, not an
@@ -43,63 +43,27 @@ uses ordinary COM interfaces for notifications and keeps its queue in the host.
 
 ## Value and allocation lifetime
 
-Generated storage contains the common control header, the shared call gate when
-required, and `UnsafeCell<MaybeUninit<T>>`. Every constructor supplies an
-initialized `T`; after final owner destruction the allocation can remain live
-under weak ownership without a valid `T`. `MaybeUninit` permits that retained
-storage and prevents a second automatic value drop. It no longer supports a
-partially initialized construction state and cannot be removed merely because
-cyclic constructors are gone.
-
-Shared ownership starts at one strong owner; zero is terminal. Exclusive
-ownership starts with its owner bit set; clearing it permanently rejects new
-calls. Checked call admission, concurrent destruction and weak bookkeeping
-follow [the lifetime contract](COM_LIFETIME_ERRORS.md). The final owner destroys
-the value once, while its implicit weak owner keeps storage valid through that
-destructor. The final weak reference frees storage through the allocating
-provider. Each callback remains paired with the exact generated allocation.
-
-Runtime, plugin descriptor and core versions follow the [ABI version table](../abi.md#abi-identities-and-versions). Handle layouts,
-threading and process-wide runtime authority are unchanged by typed storage.
-The compiler owns the separate [canonical signature encoding](IDL_MODULES.md#canonical-signatures).
-Earlier descriptions of cyclic construction are superseded by this pre-release
-contract. The typed storage consolidation
-below preserves the two constructor names for each ownership family.
+Both storage policies publish a complete initialized value. Shared ownership
+counts strong and weak references. The implicit weak reference retains
+storage through the destructor. A box has one owner, which can lend from
+its value. Its destructor runs after those loans end. Provider-local
+callbacks destroy the value once and deallocate the original storage.
 
 ## Typed storage and implementation proof
 
-`ComObject` is the single unsafe provider-local contract for threading, compact
-vtable bindings and checked concrete borrows. Its UNKNOWN_VTABLE selects the
-canonical shared or exclusive root, paired with the same concrete header and
-constructors. Generated inherited/interface prefixes copy that root's callbacks;
-they do not name public lifetime functions or dispatch release by ownership kind. Generated objects no longer define
-a separately named storage companion or implement `ComAbiObject` and
-`ThreadSafeComObject`. Both primary-interface and explicit-list providers prove
-threading through the same mode-dependent bound, including generic specializations.
+The generated `ComObject` contract supplies exact tables, threading evidence
+and storage recovery for shared receivers. Boxed implementations additionally
+supply `ComExclusiveObject`, which recovers an exclusive target borrower.
+The caller and every input must satisfy the declared liveness and aliasing
+rules. The generated provider bound checks mutable slots throughout the
+interface's inheritance graph.
 
-Facade support owns `ComObjectInner<T, Lifetime, Access>`: shared providers select
-NcSharedLifetimeState and the existing call gate; exclusive providers select
-NcBoxedLifetimeState and zero-sized access. The boxed header combines owner
-presence and borrowing without a shared strong counter. The macro emits only bindings, small typed borrow
-adapters and the selected ownership family's two constructors. Constructor support
-is unsafe because the generated adapters and allocation must select exactly the
-same concrete layout. This is construction proof, never a foreign-object downcast.
+`LocalCom<T>` derives shared access from its live strong owner. `LocalBox<T>`
+derives shared or exclusive access from its unique owner. Neither uses an
+independent observer to access boxed fields. Constructing raw pointers or
+querying foreign interfaces provides no proof of the concrete Rust type.
+Typed storage keeps the private payload aligned and includes a
+`MaybeUninit<T>` slot so storage release cannot drop the value twice.
 
-The common header remains at offset zero, values retain their concrete alignment,
-and final weak release frees through the allocating provider. `MaybeUninit` keeps
-storage valid after value destruction. Non-generic lifecycle algorithms and
-synchronous exclusive destruction are unchanged. No shared/exclusive runtime
-policy branch or second borrow gate is added. All process registration remains
-inside the one host-owned `neocogi_com_host` runtime; typed storage has no registry state.
-
-A call lease retains a reference to the typed interior-mutable value slot and
-its selected admission guard. Dereferencing lends T only for the lease borrow;
-the lease itself stores no `&T` or `&mut T` that could remain protected through
-its release. A waiting owner or new writer may access T as soon as admission is
-released. The caller retains allocation storage through the entire lease/drop
-call, even when T is destroyed during that interval. The same rule covers
-generated methods, built-in persistence adapters and local access guards.
-
-This change reduces generated unsafe layout code. Generic support still
-monomorphizes; neither binary-size reduction nor faster dispatch follows from
-source consolidation alone.
+See the [typed lifetime contracts](COM_LIFETIME_ADMISSION.md) and
+[ABI specification](../abi.md) for raw ownership, reborrowing and interfaces.

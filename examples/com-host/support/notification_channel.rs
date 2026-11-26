@@ -9,7 +9,7 @@ struct Observer {
     sender: std::sync::mpsc::Sender<ExtentNotification>,
 }
 impl IExtentObserver for Observer {
-    fn changed(&mut self, notification: NcValueRef<'_, ExtentNotification>) -> Result<(), NcStatus> {
+    fn changed(&self, notification: NcValueRef<'_, ExtentNotification>) -> Result<(), NcStatus> {
         self.sender.send(notification.to_owned()?).map_err(|_| NC_E_CLOSED)
     }
 }

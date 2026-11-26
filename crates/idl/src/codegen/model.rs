@@ -96,6 +96,8 @@ pub enum InterfaceBorrow {
     OptionalShared,
     /// Required exclusive access, supplied by a live mutable lender.
     Mutable,
+    /// Exclusive access or canonical absence.
+    OptionalMutable,
 }
 
 /// Successful method return and its ABI lowering.
@@ -114,12 +116,25 @@ pub enum AbiReturnKind {
     Void,
     /// ABI-safe value returned through an output pointer.
     Plain,
-    /// Optional shared interface loan delivered under the receiver's read guard.
+    /// Receiver-bound interface loan issued without ownership transfer.
+    BorrowedLoan {
+        /// Exact interface marker of the borrowed result.
+        interface_ty: Box<Type>,
+        /// Thread transfer and sharing guarantees of the target.
+        mode_ty: Option<Box<Type>>,
+        /// Whether the lender supplies an exclusive reborrow.
+        mutable: bool,
+        /// Whether both words can be null.
+        optional: bool,
+    },
+    /// Optional interface loan delivered while its lender is active.
     ScopedLoan {
         /// Exact generated interface marker lent to the scoped visitor.
         interface_ty: Box<Type>,
         /// Threading guarantee of the declared result.
         mode_ty: Option<Box<Type>>,
+        /// Whether the delivered child has exclusive access.
+        mutable: bool,
     },
     /// Owned interface reference transferred through an output pointer.
     ComPtr {
@@ -141,8 +156,6 @@ pub enum InterfaceOwnership {
     Shared,
     /// The one exclusive owner; queries cannot duplicate this token.
     Exclusive,
-    /// A cached observer that retains storage but never the concrete value.
-    WeakExclusive,
     /// One shared weak header token; promotion is required before value access.
     WeakShared,
 }
@@ -159,6 +172,8 @@ pub struct ParentProjection {
 /// Complete callable contract supplied by the bound IDL graph.
 /// Identity, signature and bases are required resolved data, never syntax options.
 pub struct InterfacePlan {
+    /// Whether an authored or inherited slot needs exclusive provider access.
+    pub requires_exclusive: bool,
     /// Public provider trait name, retaining the compiler's source location.
     pub name: Ident,
     /// Visibility of every public companion emitted for this declaration.

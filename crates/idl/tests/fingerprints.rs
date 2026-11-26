@@ -99,14 +99,15 @@ fn template_free_names_use_resolved_identity() {
     assert_eq!(fingerprint(before), fingerprint(after));
 }
 
-/// Pins canonical encoding v15, including versionless declarations and generic payloads.
+/// Pins canonical encoding v16, including versionless declarations and generic payloads.
 #[test]
 fn canonical_module_encoding_has_stable_golden_digest() {
     let source = "enum State: u8 { Empty = 0, Ready = 7 } enum Data<T> { Empty, Value(T) } struct Snapshot { state: State, value: Data<bool> }";
     assert_eq!(
         fingerprint(source),
         [
-            10, 77, 28, 226, 51, 40, 133, 92, 251, 58, 138, 154, 123, 186, 58, 191, 205, 35, 109, 242, 147, 109, 177, 128, 133, 115, 157, 229, 47, 233, 12, 121
+            240, 84, 186, 72, 111, 85, 205, 171, 107, 214, 205, 189, 239, 226, 121, 231, 28, 176, 228, 44, 113, 60, 159, 198, 157, 195, 174, 178, 172, 59, 118,
+            224
         ]
     );
 }
@@ -136,13 +137,13 @@ fn canonical_interfaces_keep_exact_identities() {
     assert_eq!(
         graph.module("proof.base").unwrap().abi_fingerprint,
         [
-            218, 43, 127, 45, 75, 189, 101, 126, 23, 148, 193, 254, 146, 65, 60, 138, 131, 183, 112, 193, 195, 69, 211, 93, 68, 236, 76, 67, 116, 206, 193, 77
+            133, 228, 8, 222, 28, 30, 21, 89, 71, 148, 240, 152, 175, 96, 27, 219, 17, 241, 54, 37, 137, 99, 76, 214, 179, 91, 18, 139, 196, 74, 144, 50
         ]
     );
     assert_eq!(
         graph.module("proof.derived").unwrap().abi_fingerprint,
         [
-            91, 165, 94, 57, 226, 48, 246, 231, 245, 58, 64, 131, 236, 14, 98, 27, 75, 167, 185, 141, 189, 110, 55, 95, 149, 106, 215, 145, 242, 189, 54, 99
+            150, 127, 89, 215, 40, 46, 5, 15, 227, 87, 150, 26, 203, 2, 148, 119, 67, 212, 245, 26, 84, 131, 36, 234, 77, 190, 38, 123, 174, 177, 54, 50
         ]
     );
     let declaration = graph
@@ -156,7 +157,7 @@ fn canonical_interfaces_keep_exact_identities() {
     assert_eq!(
         declaration.abi_signature,
         [
-            2, 171, 107, 211, 195, 73, 28, 118, 111, 104, 50, 194, 58, 25, 162, 180, 136, 1, 204, 160, 166, 33, 96, 86, 6, 142, 4, 187, 237, 161, 123, 32
+            18, 1, 255, 232, 191, 15, 191, 21, 112, 162, 78, 175, 131, 49, 166, 9, 220, 72, 169, 68, 32, 178, 247, 234, 236, 36, 83, 93, 49, 207, 70, 159
         ]
     );
     let declaration = graph
@@ -170,7 +171,7 @@ fn canonical_interfaces_keep_exact_identities() {
     assert_eq!(
         declaration.abi_signature,
         [
-            43, 106, 133, 9, 58, 143, 126, 247, 42, 230, 209, 54, 97, 73, 180, 68, 58, 97, 235, 146, 6, 249, 187, 118, 80, 97, 172, 215, 73, 123, 78, 209
+            73, 216, 1, 153, 68, 5, 73, 0, 253, 207, 155, 184, 39, 65, 70, 80, 10, 218, 210, 97, 85, 40, 169, 51, 15, 248, 227, 34, 235, 215, 202, 1
         ]
     );
     let declaration = graph
@@ -184,7 +185,7 @@ fn canonical_interfaces_keep_exact_identities() {
     assert_eq!(
         declaration.abi_signature,
         [
-            180, 180, 164, 129, 185, 107, 44, 187, 131, 26, 60, 61, 83, 101, 56, 85, 213, 50, 135, 97, 218, 183, 125, 68, 79, 228, 11, 86, 231, 233, 125, 206
+            28, 114, 134, 188, 74, 137, 180, 25, 123, 120, 174, 111, 47, 40, 129, 156, 188, 59, 11, 190, 234, 221, 239, 211, 252, 109, 55, 113, 141, 3, 86, 125
         ]
     );
     let declaration = graph
@@ -198,8 +199,8 @@ fn canonical_interfaces_keep_exact_identities() {
     assert_eq!(
         declaration.abi_signature,
         [
-            207, 111, 140, 148, 53, 59, 215, 98, 135, 104, 183, 41, 30, 208, 139, 194, 250, 179, 54, 208, 159, 217, 73, 159, 128, 130, 221, 220, 90, 9, 210,
-            107
+            253, 225, 174, 1, 185, 242, 111, 157, 39, 128, 152, 214, 238, 173, 41, 202, 189, 124, 30, 0, 144, 40, 169, 85, 243, 100, 194, 99, 169, 154, 193,
+            115
         ]
     );
 }

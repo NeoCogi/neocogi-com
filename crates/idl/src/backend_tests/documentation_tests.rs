@@ -201,8 +201,8 @@ fn scoped_caller_projections_document_the_visitor_panic_boundary() {
     }
 
     let source = "interface Loan {} interface Service {
-        fn direct(&self) -> Option<&Loan>;
-        fn checked(&self) -> Result<Option<&Loan>>;
+        #[scoped] fn direct(&self) -> Option<&Loan>;
+        #[scoped] fn checked(&self) -> Result<Option<&Loan>>;
     }";
     let module = crate::parse_module(Path::new("proof/scoped.ncidl"), source).unwrap();
     let graph = crate::resolve_modules(vec![module]).unwrap();
@@ -225,7 +225,7 @@ fn scoped_caller_projections_document_the_visitor_panic_boundary() {
 }
 
 /// The exact parsed ABI slot supplies expected physical types. Native-enum and
-/// scalar-domain buffers, consuming inputs and all four returned token categories
+/// scalar-domain buffers, consuming inputs and each returned owner category
 /// must agree with their descriptions in normal and printed executable consumers.
 #[test]
 fn raw_documentation_matches_physical_slots_and_returned_ownership() {
@@ -239,12 +239,17 @@ fn raw_documentation_matches_physical_slots_and_returned_ownership() {
             fn actions(&self, input: &[Action], output: &mut [Action]) -> Result<()>;
             fn modes(&self, input: &[Mode]) -> Result<Mode>;
             fn borrow(&self, value: &Payload, object: &Owned) -> Result<()>;
-            fn consume(&mut self, owner: ComBox<Owned>) -> Result<()>;
+            fn consume(&self, owner: ComBox<Owned>) -> Result<()>;
             fn number(&self, value: u32) -> Result<u32>;
             fn shared(&self) -> Result<ComPtr<Owned>>;
             fn exclusive(&self) -> Result<ComBox<Owned>>;
             fn weak_shared(&self) -> Result<WeakComPtr<Owned>>;
-            fn weak_exclusive(&self) -> Result<WeakComBox<Owned>>;
+            fn borrowed(&self) -> Result<&Owned>;
+        }
+        interface ExclusiveLoans {
+            fn borrowed_mut(&mut self) -> Option<&mut Owned>;
+            #[scoped]
+            fn scoped_mut(&self) -> Result<Option<&mut Owned>>;
         }
     "#;
     let graph = crate::resolve_modules(vec![crate::parse_module(Path::new("proof/physical.ncidl"), source).unwrap()]).unwrap();
@@ -265,6 +270,46 @@ fn raw_documentation_matches_physical_slots_and_returned_ownership() {
         .unwrap();
     assert!(definition_docs(&raw_borrow.attrs).contains("lends live shared access through the call"));
     assert!(generated.contains("is a required shared loan"));
+    for (table, method, receiver, loan, presence) in [
+        (
+            "ShapesVTable",
+            "borrowed",
+            "shared target access for the call",
+            "lends shared target access and transfers no ownership",
+            "A successful required result has two non-null pointers",
+        ),
+        (
+            "ExclusiveLoansVTable",
+            "borrowed_mut",
+            "exclusive target access across all projections for the call",
+            "lends exclusive target access and transfers no ownership",
+            "Both-null denotes successful absence",
+        ),
+        (
+            "ExclusiveLoansVTable",
+            "scoped_mut",
+            "shared target access for the call",
+            "lends exclusive target access for the complete callback",
+            "Both-null denotes successful absence",
+        ),
+    ] {
+        let slot = file
+            .items
+            .iter()
+            .find_map(|item| match item {
+                syn::Item::Struct(item) if item.ident == table => item.fields.iter().find(|field| field.ident.as_ref().is_some_and(|ident| ident == method)),
+                _ => None,
+            })
+            .unwrap();
+        let docs = definition_docs(&slot.attrs);
+        let (_, safety) = docs.split_once("# Safety").unwrap();
+        for contract in [receiver, loan, presence, "must jointly obey their borrowing and threading rules"] {
+            assert!(safety.contains(contract), "{method}: {contract}: {docs}");
+        }
+        if method != "scoped_mut" {
+            assert!(safety.contains("Keep the receiver borrow active until the returned loan's last use"), "{docs}");
+        }
+    }
     for (method, parameters) in [
         ("actions", vec![3, 6]),
         ("modes", vec![3]),
@@ -290,7 +335,6 @@ fn raw_documentation_matches_physical_slots_and_returned_ownership() {
         ("shared", "one shared owner"),
         ("exclusive", "sole exclusive owner"),
         ("weak_shared", "shared weak control token"),
-        ("weak_exclusive", "weak observer that retains allocation storage, never the concrete value"),
     ] {
         let slot = table
             .fields
@@ -330,18 +374,18 @@ fn raw_documentation_matches_physical_slots_and_returned_ownership() {
             fn borrow(&self, value: NcValueRef<'_, Payload>, _object: ComRef<'_, OwnedAbi>) -> Result<(), NcStatus> {
                 assert_eq!(value.to_owned()?.value, 73); Ok(())
             }
-            fn consume(&mut self, _owner: ComBox<OwnedAbi>) -> Result<(), (NcStatus, ComBox<OwnedAbi>)> { Ok(()) }
+            fn consume(&self, _owner: ComBox<OwnedAbi>) -> Result<(), (NcStatus, ComBox<OwnedAbi>)> { Ok(()) }
             fn number(&self, value: u32) -> Result<u32, NcStatus> { Ok(value) }
             fn shared(&self) -> Result<ComPtr<OwnedAbi>, NcStatus> { Ok(self.shared.clone()) }
             fn exclusive(&self) -> Result<ComBox<OwnedAbi>, NcStatus> {
                 UniqueValue::into_box(UniqueValue).query().map_err(|(status, _)| status)
             }
             fn weak_shared(&self) -> Result<WeakComPtr<OwnedAbi>, NcStatus> { self.shared.downgrade() }
-            fn weak_exclusive(&self) -> Result<WeakComBox<OwnedAbi>, NcStatus> { Ok(self.exclusive()?.downgrade()) }
+            fn borrowed(&self) -> Result<ComRef<'_, OwnedAbi>, NcStatus> { Ok(self.shared.as_com_ref()) }
         }
         #[test] fn actual_documented_shapes_cross_com() {
             let shared = SharedValue::from_value(SharedValue).query::<OwnedAbi>().unwrap();
-            let mut calls = Provider::from_value(Provider { shared }).query::<ShapesAbi>().unwrap();
+            let calls = Provider::from_value(Provider { shared }).query::<ShapesAbi>().unwrap();
             let input = [Action::Set(73), Action::Idle];
             let mut output = NcOutputBuffer::new();
             calls.actions(NcCopyFromBufferOffset::new(0, &input), output.output(0, 2)).unwrap();
@@ -349,14 +393,12 @@ fn raw_documentation_matches_physical_slots_and_returned_ownership() {
             assert_eq!(calls.modes(NcCopyFromBufferOffset::new(0, &[Mode::On])), Ok(Mode::On));
             let shared = calls.shared().unwrap();
             calls.borrow(NcValueRef::new(&Payload { value: 73 }).unwrap(), shared.as_com_ref()).unwrap();
+            assert_eq!(calls.borrowed().unwrap().as_raw(), shared.as_raw());
             let unique = calls.exclusive().unwrap();
-            let observer = unique.downgrade();
             calls.consume(unique).unwrap();
-            assert!(!observer.is_alive());
             assert_eq!(calls.number(37), Ok(37));
             let weak = calls.weak_shared().unwrap();
             assert!(weak.upgrade().unwrap().is_some());
-            assert!(!calls.weak_exclusive().unwrap().is_alive());
             drop(shared);
             drop(calls);
             assert!(weak.upgrade().unwrap().is_none());

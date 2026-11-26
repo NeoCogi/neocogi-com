@@ -3,7 +3,7 @@ use super::*;
 
 /// Reads one IDL method, rejecting unsupported Rust syntax before parsing it.
 pub(super) fn method(input: ParseStream<'_>, attributes: &[Attribute]) -> syn::Result<(Method, Span)> {
-    let docs = parse_doc_only_attributes(attributes)?;
+    let (docs, scoped) = method_attributes(attributes)?;
     if !input.peek(Token![fn]) {
         return Err(input.error("IDL methods cannot be const, async, unsafe, extern, variadic, or generic"));
     }
@@ -87,8 +87,34 @@ pub(super) fn method(input: ParseStream<'_>, attributes: &[Attribute]) -> syn::R
             parameters,
             output,
             return_projection,
+            scoped,
             return_passing: crate::model::ReturnPassing::Unresolved,
         },
         name.span(),
     ))
+}
+
+/// Accepts a bare visitor annotation on a method and keeps it out of Rust docs.
+fn method_attributes(attributes: &[Attribute]) -> syn::Result<(Vec<String>, bool)> {
+    let mut docs = Vec::new();
+    let mut scoped = false;
+    for attribute in attributes {
+        if attribute.path().is_ident("doc") {
+            docs.push(parse_doc_attribute(attribute)?);
+        } else if attribute.path().is_ident("scoped") {
+            if !matches!(attribute.meta, syn::Meta::Path(_)) {
+                return Err(syn::Error::new_spanned(attribute, "use the bare #[scoped] method attribute"));
+            }
+            if scoped {
+                return Err(syn::Error::new_spanned(attribute, "duplicate #[scoped] method attribute"));
+            }
+            scoped = true;
+        } else {
+            return Err(syn::Error::new_spanned(
+                attribute,
+                "only documentation attributes and #[scoped] are valid on methods",
+            ));
+        }
+    }
+    Ok((docs, scoped))
 }

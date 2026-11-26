@@ -21,13 +21,13 @@ struct Item {
     drops: Arc<AtomicUsize>,
 }
 impl IItem for Item {
-    /// Weak observers can verify rejected owners remain callable.
+    /// Rejected owners remain callable when their token is returned.
     fn value(&self) -> Result<u32, NcStatus> {
         Ok(42)
     }
 }
 impl Drop for Item {
-    /// Count concrete destruction, independently of retained weak shells.
+    /// Count concrete destruction, independently of the caller's observations.
     fn drop(&mut self) {
         self.drops.fetch_add(1, SeqCst);
     }
@@ -192,7 +192,6 @@ fn generated_commit_completes_with_all_further_allocation_denied() {
     let capacity = 2;
     let (mut receiver, calls) = receiver();
     let ([first, second], drops) = items();
-    let weak = first.downgrade();
     let mut choices = NcOutputBuffer::<Choice>::new();
     let mut flags = NcOutputBuffer::<bool>::new();
     let probe = Probe::start(None);
@@ -212,10 +211,8 @@ fn generated_commit_completes_with_all_further_allocation_denied() {
     assert_eq!(flags.as_slice(), &[true; 2]);
     assert_eq!(calls.load(SeqCst), 1);
     assert_eq!(drops.load(SeqCst), 0);
-    assert_eq!(weak.value(), Ok(42));
     drop(receiver);
     assert_eq!(drops.load(SeqCst), 2);
-    assert_eq!(weak.value(), Err(NC_E_DROPPED));
 }
 
 #[test]

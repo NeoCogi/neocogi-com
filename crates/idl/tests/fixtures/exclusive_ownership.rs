@@ -1,15 +1,19 @@
 #[cfg(test)]
 mod exclusive_tests {
     use super::*;
-    use neocogi_com_sdk::{com_object, ComBox, WeakComBox, NcStatus};
+    use neocogi_com_sdk::{com_object, ComBox, ComMut, ComRef, NcStatus};
 
     #[com_object(IValue, ownership = exclusive)]
     /// Concrete payload whose owner travels through generated method signatures.
-    struct Value;
+    struct Value(u32);
     impl IValue for Value {
         /// Read succeeds only while the exclusive owner still exists.
         fn value(&self) -> Result<u32, NcStatus> {
-            Ok(42)
+            Ok(self.0)
+        }
+        fn set(&mut self, value: u32) -> Result<(), NcStatus> {
+            self.0 = value;
+            Ok(())
         }
     }
     /// Private forwarding observation prevents aliasing identical promoted tables.
@@ -31,7 +35,7 @@ mod exclusive_tests {
     impl Factory for Creator {
         /// Selects the result projection by consuming the freshly allocated owner.
         fn create(&self) -> Result<ComBox<IValueAbi>, NcStatus> {
-            let raw = Value::into_box(Value).query::<IValueAbi>().map_err(|(status, _unpublished)| status)?.into_raw();
+            let raw = Value::into_box(Value(42)).query::<IValueAbi>().map_err(|(status, _unpublished)| status)?.into_raw();
             // SAFETY: copied metadata has the exact generated identity/thunks for
             // this concrete Value. Transfer the sole owner, without retaining it.
             Ok(unsafe { ComBox::from_raw_owned(neocogi_com_sdk::ComRaw { object: raw.object, vtable: &COPIED_VALUE_TABLE }) }.unwrap())
@@ -58,9 +62,17 @@ mod exclusive_tests {
             self.child = Some(child);
             Ok(())
         }
-        /// Gives callers weak access without an independent owner.
-        fn child(&self) -> Result<WeakComBox<IValueAbi>, NcStatus> {
-            self.child.as_ref().map(ComBox::downgrade).ok_or(neocogi_com_sdk::NC_E_NOT_FOUND)
+        fn child(&self) -> Option<ComRef<'_, IValueAbi>> {
+            self.child.as_ref().map(ComBox::as_com_ref)
+        }
+        fn child_mut(&mut self) -> Option<ComMut<'_, IValueAbi>> {
+            self.child.as_mut().map(ComBox::as_com_mut)
+        }
+        fn edit(&self, child: Option<ComMut<'_, IValueAbi>>) -> Result<(), NcStatus> {
+            if let Some(mut child) = child {
+                child.set(57)?;
+            }
+            Ok(())
         }
         /// Ordinary destruction replaces fallible domain closure.
         fn remove(&mut self) -> Result<(), NcStatus> {
@@ -74,7 +86,7 @@ mod exclusive_tests {
     #[cfg(not(miri))]
     fn changed_admitted_owner_view_aborts_before_rejection_publication() {
         if std::env::var_os(REPLACED_VIEW_CHILD).is_some() {
-            let child = Value::into_box(Value).query::<IValueAbi>().unwrap();
+            let child = Value::into_box(Value(42)).query::<IValueAbi>().unwrap();
             let mut parent = Container::into_box(Container { child: None }).query::<IContainerAbi>().unwrap();
             let _ = parent.insert(child);
             std::process::exit(97);
@@ -105,16 +117,27 @@ mod exclusive_tests {
         assert_eq!(child.as_raw().vtable, child.query_ref::<IValueAbi>().unwrap().as_raw().vtable);
         assert_eq!(child.value(), Ok(42));
         assert_eq!(COPIED_CALLS.load(std::sync::atomic::Ordering::SeqCst), copied_calls);
-        let weak = child.downgrade();
+        let identity = child.as_raw();
         parent.insert(child).unwrap();
-        assert!(parent.child().unwrap().same_object(&weak));
-        assert_eq!(weak.value(), Ok(42));
+        let loan = parent.child().unwrap();
+        assert_eq!(loan.as_raw(), identity);
+        assert_eq!(loan.value(), Ok(42));
+        let mut loan = parent.child_mut().unwrap();
+        assert_eq!(loan.as_raw(), identity);
+        loan.set(62).unwrap();
+        assert_eq!(parent.child().unwrap().value(), Ok(62));
+        let mut other = factory.create().unwrap();
+        parent.edit(None).unwrap();
+        parent.edit(Some(other.as_com_mut())).unwrap();
+        assert_eq!(other.value(), Ok(57));
         parent.remove().unwrap();
-        assert_eq!(weak.value(), Err(neocogi_com_sdk::NC_E_DROPPED));
+        assert!(parent.child().is_none());
         for (descriptor, expected) in [
             (&FactoryAbi::METHOD_DESCRIPTORS[0], "com_box_out"),
             (&IContainerAbi::METHOD_DESCRIPTORS[0], "com_box_in"),
-            (&IContainerAbi::METHOD_DESCRIPTORS[1], "weak_com_box_out"),
+            (&IContainerAbi::METHOD_DESCRIPTORS[1], "optional_com_ref_out"),
+            (&IContainerAbi::METHOD_DESCRIPTORS[2], "optional_com_mut_out"),
+            (&IContainerAbi::METHOD_DESCRIPTORS[3], "optional_com_mut"),
         ] {
             // SAFETY: generated static descriptors have readable nested metadata.
             let printed = unsafe { neocogi_com_sdk::format_method_signature(descriptor) }.unwrap();

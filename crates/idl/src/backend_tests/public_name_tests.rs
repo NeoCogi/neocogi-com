@@ -85,7 +85,7 @@ fn accepted_names_execute_through_shared_borrowed_exclusive_and_weak_handles() {
     );
     let source = r#"
         #![allow(dead_code)]
-        use neocogi_com_sdk::{ComPtr, NcStatus, NC_E_CLOSED};
+        use neocogi_com_sdk::{NcStatus, NC_E_CLOSED};
         use std::sync::atomic::{AtomicUsize, Ordering};
         $BINDINGS
         static ENTRIES: AtomicUsize = AtomicUsize::new(0);
@@ -107,6 +107,8 @@ fn accepted_names_execute_through_shared_borrowed_exclusive_and_weak_handles() {
         }
         implement!(Shared); implement!(Exclusive);
         #[test] fn calls_and_metadata_keep_their_owners() {
+            use neocogi_com_sdk::ComPtr;
+
             let owner = Shared::from_value(Shared);
             let root = owner.query::<RootAbi>().unwrap();
             assert_eq!(root.base(1, 2, 3, 67), Ok(73));
@@ -116,9 +118,13 @@ fn accepted_names_execute_through_shared_borrowed_exclusive_and_weak_handles() {
             let _: Result<ComPtr<RootAbi>, std::convert::Infallible> = root.clone().try_into();
             let mut copy = root.to_owned(); root.clone_into(&mut copy);
             assert_eq!(ENTRIES.load(Ordering::SeqCst), 3, "blanket operations are handle operations");
+            let weak = root.downgrade().unwrap();
+            assert_eq!(weak.upgrade().unwrap().unwrap().base(1, 2, 3, 67), Ok(73));
+            drop(copy);
+            drop(root);
+            drop(owner);
+            assert!(weak.upgrade().unwrap().is_none());
             let exclusive = Exclusive::into_box(Exclusive);
-            let weak = exclusive.query_weak::<RootAbi>().unwrap();
-            assert_eq!(weak.base(1, 2, 3, 67), Ok(73));
             let boxed = exclusive.query::<RootAbi>().unwrap();
             assert_eq!(boxed.base(1, 2, 3, 67), Ok(73));
             assert_eq!(boxed.query_ref::<ChildAbi>().unwrap().unknown(), Err(NC_E_CLOSED));

@@ -18,11 +18,11 @@ test_contracts::foundation_values!();
 #[com_object(IReceiver)]
 /// Entry counting distinguishes producer rejection from provider acquisition.
 struct Receiver {
-    /// Shared observation only; the implementation itself remains exclusively mutable.
+    /// Shared observation only; the receiver records only its invocation count.
     entries: Arc<AtomicUsize>,
 }
 impl IReceiver for Receiver {
-    fn retain(&mut self, value: NcValueRef<'_, Payload>) -> Result<u32, NcStatus> {
+    fn retain(&self, value: NcValueRef<'_, Payload>) -> Result<u32, NcStatus> {
         self.entries.fetch_add(1, Ordering::SeqCst);
         let owned = value.to_owned()?;
         Ok(owned.batches.iter().map(Vec::len).sum::<usize>() as u32)
@@ -78,7 +78,7 @@ fn mixed_record_and_sequence_permutations_retain_exact_boundaries() {
 #[test]
 fn generated_calls_accept_fitting_values_in_both_sibling_orders() {
     let entries = Arc::new(AtomicUsize::new(0));
-    let mut receiver = Receiver::from_value(Receiver { entries: entries.clone() }).query::<IReceiverAbi>().unwrap();
+    let receiver = Receiver::from_value(Receiver { entries: entries.clone() }).query::<IReceiverAbi>().unwrap();
     for reverse in [false, true] {
         let mut value = Payload {
             batches: vec![vec![MaybeBytes::None; 100_000], vec![MaybeBytes::Some([7; 6]); 100_000]],

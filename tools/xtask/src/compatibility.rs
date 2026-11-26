@@ -25,7 +25,7 @@ pub(crate) const RUNTIME_TESTS: &[(&str, &str)] = &[
 pub(crate) const GENERATION_SENTINEL: &str = "retired_bootstrap_is_rejected_before_its_callback";
 /// Pure ABI targets do not enable unused native runtime API wrappers.
 pub(crate) const ABI_TESTS: &[(&str, &str)] = &[
-    ("interface_wrappers", "mutable_inherited_views_preserve_identity_and_lifecycle"),
+    ("interface_wrappers", "shared_inherited_views_preserve_identity_and_lifecycle"),
     ("checked_values", "invalid_nested_bool_fails_copied_and_buffer_thunks"),
     (
         "array_construction",
@@ -36,7 +36,7 @@ pub(crate) const ABI_TESTS: &[(&str, &str)] = &[
         "output_completion",
         "generated_calls::generated_commit_completes_with_all_further_allocation_denied",
     ),
-    ("exclusive_com", "container_owner_destruction_expires_all_cached_interfaces"),
+    ("exclusive_com", "abi_container_transfer_and_removal_preserve_exclusive_ownership"),
     ("weak_com", "weak_tokens_do_not_retain_values_and_all_projections_share_identity"),
     (
         "recursive_interfaces",
@@ -681,12 +681,12 @@ fn safety(runner: &Runner) -> Result<Value> {
                 words(&["-p", "neocogi-com-sdk", "--lib", "--features", "runtime"]),
                 vec![
                     "tests::metadata_identity_query_checks_and_releases_a_concrete_projection",
-                    "object::tests::guard_release_does_not_keep_a_protected_value_reference",
+                    "object::storage::tests::boxed_target_reborrows_and_cleanup_share_one_allocation",
                 ],
             ),
         ];
         let mut interfaces = vec![
-            ("local_com", "local_and_foreign_calls_share_one_gate_and_one_model"),
+            ("local_com", "local_and_foreign_calls_share_one_field"),
             (
                 "com_main",
                 "copied_access::copied_access_outlives_the_outer_record_and_shares_state_across_threads",
@@ -709,7 +709,11 @@ fn safety(runner: &Runner) -> Result<Value> {
         for (name, sentinel) in interfaces {
             let mut required = vec![sentinel];
             if name == "exclusive_com" {
-                required.push("thread_safe_owner_drop_waits_for_admitted_readers_and_writers");
+                required.extend([
+                    "thread_safe_owner_and_scoped_loans_preserve_lifetime",
+                    "boxed_transfer_and_sharing_follow_independent_provider_evidence",
+                    "scoped_mutable_result_holds_field_guard_through_joined_worker",
+                ]);
             }
             targets.push((words(&["-p", "neocogi-com-tests", "--features", "runtime", "--test", name]), required));
         }

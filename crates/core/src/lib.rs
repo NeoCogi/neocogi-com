@@ -19,7 +19,7 @@
 //! explicit `neocogi-com-serialization` crate. Wire layouts and application
 //! storage remain separate.
 //!
-//! SDK 0.5.0-wip-alpha.1 uses ABI v5, which is WORK IN PROGRESS (WIP).
+//! SDK 0.5.0-wip-alpha.1 uses ABI v4, which is WORK IN PROGRESS (WIP).
 //! Advance the native ABI version for incompatible changes and rebuild all
 //! participants together.
 
@@ -51,7 +51,7 @@ mod metadata;
 mod object;
 pub mod persistence;
 mod ptr;
-pub use boxed::{ComBox, WeakComBox};
+pub use boxed::ComBox;
 /// Common allocation header and non-generic strong/weak lifetime operations.
 pub mod lifetime;
 mod raw_handle;
@@ -92,23 +92,24 @@ pub use abi_digest::NcAbiDigest;
 #[cfg(feature = "alloc")]
 pub use metadata::{format_abi_signature, format_method_signature};
 pub use metadata::{
-    NC_ABI_PASSING_COM_PTR_OUT, NC_ABI_PASSING_COM_BOX_IN, NC_ABI_PASSING_COM_BOX_OUT, NC_ABI_PASSING_WEAK_COM_BOX_OUT, NC_ABI_PASSING_WEAK_COM_PTR_OUT,
-    NC_ABI_PASSING_COM_MUT, NC_ABI_PASSING_OPTIONAL_COM_PTR_OUT, NC_ABI_PASSING_SCOPED_COM_REF_OUT, NC_ABI_PASSING_COM_REF,
+    NC_ABI_PASSING_COM_REF_OUT, NC_ABI_PASSING_OPTIONAL_COM_REF_OUT, NC_ABI_PASSING_COM_MUT_OUT, NC_ABI_PASSING_OPTIONAL_COM_MUT_OUT,
+    NC_ABI_PASSING_OPTIONAL_COM_MUT, NC_ABI_PASSING_SCOPED_COM_MUT_OUT, NC_ABI_PASSING_COM_PTR_OUT, NC_ABI_PASSING_COM_BOX_IN, NC_ABI_PASSING_COM_BOX_OUT,
+    NC_ABI_PASSING_WEAK_COM_PTR_OUT, NC_ABI_PASSING_COM_MUT, NC_ABI_PASSING_OPTIONAL_COM_PTR_OUT, NC_ABI_PASSING_SCOPED_COM_REF_OUT, NC_ABI_PASSING_COM_REF,
     NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET, NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET, NC_ABI_PASSING_OUTPUT_BUFFER, NC_ABI_PASSING_OUT,
     NC_ABI_PASSING_BORROWED_VALUE, NC_ABI_PASSING_OPTIONAL_COM_REF, NC_ABI_PASSING_VALUE, NC_ABI_PASSING_VOID, NC_ABI_RECEIVER_MUTABLE, NC_ABI_RECEIVER_SHARED,
-    NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE, NC_ABI_TYPE_AGGREGATE, NC_ABI_TYPE_BOOL, NC_ABI_TYPE_F32, NC_ABI_TYPE_F64, NC_ABI_TYPE_I8,
-    NC_ABI_TYPE_I16, NC_ABI_TYPE_I32, NC_ABI_TYPE_I64, NC_ABI_TYPE_INTERFACE, NC_ABI_TYPE_ISIZE, NC_ABI_TYPE_NC_GUID, NC_ABI_TYPE_NC_STATUS, NC_ABI_TYPE_U8,
-    NC_ABI_TYPE_U16, NC_ABI_TYPE_U32, NC_ABI_TYPE_U64, NC_ABI_TYPE_USIZE, NC_ABI_TYPE_VOID, NC_COM_ABI_MAGIC, NC_COM_ABI_VERSION,
-    NC_DESCRIPTOR_QUALIFIED_NAME_MAX_LEN, NC_DESCRIPTOR_VERSION_MAX_LEN, NC_DESCRIPTOR_RUST_PATH_MAX_LEN, NcRustPathError, validate_rust_path, NcAbiPassing,
-    NcAbiPassingDescriptor, NcAbiReceiver, NcAbiThreadingMode, NcAbiType, NcAbiTypeDescriptor, NcInterfaceDescriptor, NcInterfaceId, NcMethodDescriptor,
-    NcMethodParamDescriptor, NcMethodReturnDescriptor, NcPluginDependencyDescriptor, NcQualifiedNameError, NcStaticUtf8, NcVersionTextError,
-    validate_qualified_name, validate_version_text,
+    NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE, NC_ABI_THREADING_THREAD_SEND, NC_ABI_THREADING_THREAD_SYNC, NC_ABI_TYPE_AGGREGATE,
+    NC_ABI_TYPE_BOOL, NC_ABI_TYPE_F32, NC_ABI_TYPE_F64, NC_ABI_TYPE_I8, NC_ABI_TYPE_I16, NC_ABI_TYPE_I32, NC_ABI_TYPE_I64, NC_ABI_TYPE_INTERFACE,
+    NC_ABI_TYPE_ISIZE, NC_ABI_TYPE_NC_GUID, NC_ABI_TYPE_NC_STATUS, NC_ABI_TYPE_U8, NC_ABI_TYPE_U16, NC_ABI_TYPE_U32, NC_ABI_TYPE_U64, NC_ABI_TYPE_USIZE,
+    NC_ABI_TYPE_VOID, NC_COM_ABI_MAGIC, NC_COM_ABI_VERSION, NC_DESCRIPTOR_QUALIFIED_NAME_MAX_LEN, NC_DESCRIPTOR_VERSION_MAX_LEN,
+    NC_DESCRIPTOR_RUST_PATH_MAX_LEN, NcRustPathError, validate_rust_path, NcAbiPassing, NcAbiPassingDescriptor, NcAbiReceiver, NcAbiThreadingMode, NcAbiType,
+    NcAbiTypeDescriptor, NcInterfaceDescriptor, NcInterfaceId, NcMethodDescriptor, NcMethodParamDescriptor, NcMethodReturnDescriptor,
+    NcPluginDependencyDescriptor, NcQualifiedNameError, NcStaticUtf8, NcVersionTextError, validate_qualified_name, validate_version_text,
 };
 pub use object::{
     __nc_find_interface, __ComSupportsInterfaceThreading, ComInterface, IID_IUNKNOWN, IUNKNOWN_INTERFACE_ID, IUNKNOWN_QUALIFIED_NAME, IUnknown, IUnknownVTable,
 };
 pub use raw_handle::ComRaw;
-pub use ptr::{ComMut, ComPtr, ComRef, ThreadLocal, ThreadSafe, ThreadingModel, raw};
+pub use ptr::{CanWeakenThreading, ComMut, ComPtr, ComRef, ThreadLocal, ThreadSafe, ThreadSend, ThreadSync, ThreadingModel, raw};
 pub use runtime_abi::{
     NcPersistenceApi, NcPersistenceContext, NcPersistenceLimits, NcPersistenceWriteBytes, NC_COM_RUNTIME_MAX_ACTIVE_DEBUG_MESSENGERS,
     NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS, NC_DEBUG_SEVERITY_ALL, NC_DEBUG_SEVERITY_ERROR, NC_DEBUG_SEVERITY_INFO, NC_DEBUG_SEVERITY_WARNING, NC_DEBUG_TYPE_ALL,
@@ -130,4 +131,4 @@ pub use plugin_descriptor::{
 pub use value_buffer::{EncodedInput, DecodedInput};
 
 #[doc(hidden)]
-pub use scoped_result::{NcScopedResultCallback, __nc_with_scoped_result};
+pub use scoped_result::{NcScopedResultCallback, __nc_with_scoped_mut_result, __nc_with_scoped_result};

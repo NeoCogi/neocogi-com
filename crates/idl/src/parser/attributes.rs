@@ -19,6 +19,9 @@ pub(super) fn outer(input: ParseStream<'_>) -> syn::Result<Vec<Attribute>> {
         }
         let path = RustPath { leading_colon: None, segments };
         let meta = if body.peek(Token![=]) {
+            if path.is_ident("scoped") {
+                return Err(body.error("use the bare #[scoped] method attribute"));
+            }
             let eq_token = body.parse()?;
             if !body.peek(LitStr) {
                 return Err(body.error("documentation text must be a string"));

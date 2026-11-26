@@ -828,6 +828,24 @@ fn rejects_constructor_attributes() {
     assert!(error.to_string().contains("only documentation attributes"));
 }
 
+/// Visitor syntax belongs to a method, and it bears no arguments or repetition.
+#[test]
+fn admits_only_bare_scoped_method_annotations() {
+    let path = Path::new("proof/scoped.ncidl");
+    assert!(parse_module(path, "interface Probe { #[scoped] fn visit(&self) -> Option<&IUnknown>; }").is_ok());
+    for (attributes, diagnostic) in [
+        ("#[scoped()]", "use the bare #[scoped]"),
+        ("#[scoped = true]", "use the bare #[scoped]"),
+        (r#"#[scoped = ""]"#, "use the bare #[scoped]"),
+        ("#[scoped] #[scoped]", "duplicate #[scoped]"),
+    ] {
+        let source = format!("interface Probe {{ {attributes} fn visit(&self) -> Option<&IUnknown>; }}");
+        let error = parse_module(path, &source).unwrap_err();
+        assert!(error.to_string().contains(diagnostic), "{source}: {error}");
+    }
+    assert!(parse_module(path, "#[scoped] interface Probe {}").is_err());
+}
+
 /// Explicit identity accepts exactly one UUID and cannot be declared twice.
 #[test]
 fn validates_explicit_identity_attributes() {

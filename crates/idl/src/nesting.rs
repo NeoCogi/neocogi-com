@@ -44,7 +44,6 @@ pub(crate) fn type_height(ty: &IdlType) -> usize {
         IdlType::ComPtr(child)
         | IdlType::WeakComPtr(child)
         | IdlType::ComBox(child)
-        | IdlType::WeakComBox(child)
         | IdlType::Borrowed(child)
         | IdlType::BorrowedMut(child)
         | IdlType::Vector(child)

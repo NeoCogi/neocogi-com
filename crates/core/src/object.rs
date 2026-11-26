@@ -10,7 +10,7 @@ use crate::guid::NcGuid;
 use crate::metadata::{NcInterfaceDescriptor, NcInterfaceId, NcStaticUtf8};
 use crate::abi_digest::NcAbiDigest;
 use crate::status::NcStatus;
-use crate::{ThreadLocal, ThreadSafe, ThreadingModel};
+use crate::{ThreadLocal, ThreadSafe, ThreadSend, ThreadSync, ThreadingModel};
 
 /// Interface identifier for [`IUnknown`].
 pub const IID_IUNKNOWN: NcGuid = NcGuid::from_fields(0x0000_0000, 0x0000, 0x0000, [0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46]);
@@ -82,9 +82,8 @@ pub struct IUnknownVTable {
     ///
     /// Shared release returns the remaining count, capped at `u32::MAX` when
     /// the private count is wider. Final shared release destroys the value.
-    /// Exclusive release closes admission, waits for admitted methods, destroys
-    /// the value synchronously in the provider, and returns zero. Boxed weak
-    /// observers can keep the allocation storage alive after value destruction.
+    /// Boxed release destroys the value and frees its storage synchronously in
+    /// the provider, then returns zero.
     ///
     /// Rust [`crate::ComBox`] destruction calls the typed boxed lifetime operation.
     /// A raw exclusive owner calls the matching prefix callback. A scoped
@@ -94,8 +93,8 @@ pub struct IUnknownVTable {
     ///
     /// Transfer one valid owner of the policy selected by the table exactly once.
     /// A weak token or borrowed [`crate::ComRef`] supplies no owner for this call.
-    /// Before releasing an exclusive owner, end borrows on the calling thread
-    /// and release locks or resources needed by admitted calls to finish.
+    /// Before releasing a boxed owner, end all of its target loans, including
+    /// loans on scoped workers and loans of dependent values.
     pub release: unsafe extern "C" fn(this: *mut c_void) -> u32,
 
     /// The optional callback acquires shared weak ownership.
@@ -143,14 +142,13 @@ unsafe impl Sync for IUnknownVTable {}
 ///   [`IUnknownVTable`] prefix and methods accepting the allocation address.
 /// - Every present `ComRaw<Self>` pairs an allocation address with the matching
 ///   table. Storage, immutable table and identity, and provider code stay valid
-///   for the access the pair grants. A [`crate::ComRef`] borrows that access from
-///   an owner or scope and acquires no token itself. A boxed weak observer keeps
-///   storage available for checked method entry, which checks value liveness.
+///   for the access the pair grants. A [`crate::ComRef`] or [`crate::ComMut`]
+///   carries a live shared or exclusive target loan from its lender.
 /// - Exact identity checks precede typed argument/result dispatch. Borrowed
 ///   inherited method views may use a physically compatible base table prefix.
-/// - `Self::Threading` is the minimum implementation guarantee. Shared
-///   contracts require thread-safe calls, ownership, and destruction. A
-///   pointer may retain a stronger guarantee or explicitly weaken it.
+/// - `Self::Threading` is the minimum implementation guarantee. Transfer and
+///   sharing have independent bounds. A pointer may retain a stronger guarantee
+///   or explicitly weaken it.
 /// - The common callbacks implement the construction-selected ownership policy.
 ///   Shared AddRef and Release account for a single set of strong owners,
 ///   including built-in headerless data such as bytes, strings and child lists.
@@ -189,12 +187,14 @@ pub trait __ComSupportsInterfaceThreading<M: ThreadingModel>: provider_threading
 impl<T: provider_threading::Supports<M>, M: ThreadingModel> __ComSupportsInterfaceThreading<M> for T {}
 
 mod provider_threading {
-    use super::{ThreadLocal, ThreadSafe, ThreadingModel};
+    use super::{ThreadLocal, ThreadSafe, ThreadSend, ThreadSync, ThreadingModel};
 
     /// Seals provider evidence to Rust's actual transfer and sharing bounds.
     pub trait Supports<M: ThreadingModel> {}
 
     impl<T: 'static> Supports<ThreadLocal> for T {}
+    impl<T: Send + 'static> Supports<ThreadSend> for T {}
+    impl<T: Sync + 'static> Supports<ThreadSync> for T {}
     impl<T: Send + Sync + 'static> Supports<ThreadSafe> for T {}
 }
 

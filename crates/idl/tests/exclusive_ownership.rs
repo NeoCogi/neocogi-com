@@ -18,11 +18,11 @@ fn ownership_modes_have_distinct_revision_signatures() {
     };
     let shared = make("ComPtr");
     let exclusive = make("ComBox");
-    let weak = make("WeakComBox");
+    let borrowed = graph("interface IValue {} interface Factory { fn create(&self) -> Result<&IValue>; }").unwrap();
     let signature = |g: &neocogi_idl::ResolvedModules| g.module("proof.ownership").unwrap().abi_fingerprint;
     assert_ne!(signature(&shared), signature(&exclusive));
-    assert_ne!(signature(&exclusive), signature(&weak));
-    assert_ne!(signature(&shared), signature(&weak));
+    assert_ne!(signature(&exclusive), signature(&borrowed));
+    assert_ne!(signature(&shared), signature(&borrowed));
 }
 
 /// Exclusive values cannot enter repeatable field codecs or target scalar data.
@@ -34,21 +34,28 @@ fn invalid_exclusive_positions_fail_in_the_resolver() {
         "enum Bad { Owner(ComBox<IValue>) }",
         "interface Bad { fn take(&self, owner: ComBox<u32>) -> Result<()>; }",
         "interface Bad { fn get(&self) -> Result<ComBox<ComBox<IValue>>>; }",
+        "interface Bad { fn get(&self) -> Result<WeakComBox<IValue>>; }",
+        "struct Bad { observer: WeakComBox<IValue> }",
     ] {
         assert!(graph(&format!("interface IValue {{}} {body}")).is_err(), "accepted {body}");
     }
 }
 
-/// Generated factories and containers exercise transfer slots, cached outputs,
+/// Generated factories and containers exercise transfer slots, receiver-bound outputs,
 /// concrete destruction, and the shared inspector's ownership descriptions.
 #[test]
 fn generated_factories_transfer_one_owner_through_real_abi_calls() {
     let graph = graph(
         r#"
-        interface IValue { fn value(&self) -> Result<u32>; }
+        interface IValue {
+            fn value(&self) -> Result<u32>;
+            fn set(&mut self, value: u32) -> Result<()>;
+        }
         interface IContainer {
             fn insert(&mut self, child: ComBox<IValue>) -> Result<()>;
-            fn child(&self) -> Result<WeakComBox<IValue>>;
+            fn child(&self) -> Option<&IValue>;
+            fn child_mut(&mut self) -> Option<&mut IValue>;
+            fn edit(&self, child: Option<&mut IValue>) -> Result<()>;
             fn remove(&mut self) -> Result<()>;
         }
         interface Factory { fn create(&self) -> Result<ComBox<IValue>>; }

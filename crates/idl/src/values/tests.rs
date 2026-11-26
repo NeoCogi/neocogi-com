@@ -33,7 +33,6 @@ fn capability_leaves_and_wrapper_boundaries() {
         (ValueType::Named("missing".into()), false, false),
         (ValueType::Object("I".into()), false, false),
         (ValueType::WeakObject("I".into()), false, false),
-        (ValueType::WeakBoxObject("I".into()), false, false),
     ] {
         assert_eq!((graph.can_persist(&leaf), graph.is_copied(&leaf)), (persisted, copied), "{leaf:?}");
         let array = ValueType::Array(Box::new(leaf), 0);
@@ -66,7 +65,6 @@ fn unsupported_leaf_reasons_remain_distinct() {
     for (ty, prefix) in [
         (ValueType::Object("I".into()), "ComPtr<I> transports an existing object"),
         (ValueType::WeakObject("I".into()), "WeakComPtr<I> transports lifetime bookkeeping"),
-        (ValueType::WeakBoxObject("I".into()), "WeakComBox<I> transports exclusive lifetime bookkeeping"),
         (
             ValueType::Scalar("unknown".into()),
             "unknown has no format-neutral ComDeserialize implementation",

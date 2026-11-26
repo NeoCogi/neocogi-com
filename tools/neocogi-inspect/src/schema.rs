@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 /// Stable document-family identifier, separate from the native descriptor ABI.
 pub(crate) const SCHEMA: &str = "neocogi-com.inspection";
 /// Current strict JSON shape with one native ABI version field.
-pub(crate) const SCHEMA_VERSION: u32 = 10;
+pub(crate) const SCHEMA_VERSION: u32 = 11;
 /// Tool identity recorded in every serialized inspection.
 const PRODUCER: &str = "neocogi-inspect";
 
@@ -106,12 +106,31 @@ pub(crate) struct ArtifactFactory {
 
 /// Minimum capability promised by a root factory.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(rename_all = "snake_case")]
 pub(crate) enum ArtifactThreading {
     /// References and calls stay on their owning thread.
-    ThreadLocal,
+    #[serde(rename = "thread_local")]
+    Local,
     /// Implementations permit concurrent calls and cross-thread ownership.
-    ThreadSafe,
+    #[serde(rename = "thread_safe")]
+    Shared,
+    /// Exclusive access and unique ownership can move.
+    #[serde(rename = "thread_send")]
+    Send,
+    /// Shared references can be used on multiple threads.
+    #[serde(rename = "thread_sync")]
+    Sync,
+}
+
+impl ArtifactThreading {
+    /// Use the native support relation when comparing serialized capabilities.
+    pub(crate) fn native(self) -> NcAbiThreadingMode {
+        match self {
+            Self::Local => NcAbiThreadingMode::ThreadLocal,
+            Self::Shared => NcAbiThreadingMode::ThreadSafe,
+            Self::Send => NcAbiThreadingMode::ThreadSend,
+            Self::Sync => NcAbiThreadingMode::ThreadSync,
+        }
+    }
 }
 
 /// A field-specific failure while validating an owned inspection artifact.
@@ -319,8 +338,10 @@ fn validate_version(value: &str, path: &str) -> Result<(), ArtifactValidationErr
 /// Converts validated native capabilities without exposing ABI integers in JSON.
 fn artifact_threading(threading: NcAbiThreadingMode) -> ArtifactThreading {
     match threading {
-        NcAbiThreadingMode::ThreadLocal => ArtifactThreading::ThreadLocal,
-        NcAbiThreadingMode::ThreadSafe => ArtifactThreading::ThreadSafe,
+        NcAbiThreadingMode::ThreadLocal => ArtifactThreading::Local,
+        NcAbiThreadingMode::ThreadSafe => ArtifactThreading::Shared,
+        NcAbiThreadingMode::ThreadSend => ArtifactThreading::Send,
+        NcAbiThreadingMode::ThreadSync => ArtifactThreading::Sync,
     }
 }
 
@@ -351,7 +372,7 @@ pub(crate) fn sample_artifact() -> InspectionArtifact {
         },
         factory: ArtifactFactory {
             root_factory_id: guid_from_qualified_name(factory_name).to_string(),
-            root_factory_threading: ArtifactThreading::ThreadLocal,
+            root_factory_threading: ArtifactThreading::Local,
             root_factory_signature: fingerprint,
         },
     }
@@ -408,6 +429,8 @@ mod tests {
 
         let mut artifact = sample_artifact();
         artifact.schema_version += 1;
+        assert!(artifact.validate().unwrap_err().to_string().contains("schema_version"));
+        artifact.schema_version = 10;
         assert!(artifact.validate().unwrap_err().to_string().contains("schema_version"));
 
         let mut artifact = sample_artifact();

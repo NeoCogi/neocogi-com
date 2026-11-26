@@ -1,12 +1,13 @@
 //! One plugin implementation built as either a shared library or a linked Rust library.
 
 use neocogi_com_serialization::ncb as binary;
+use std::cell::{Cell, OnceCell, RefCell};
 extern crate self as neocogi_example_com_plugin;
 /// Independently generated bindings from the common example IDL.
 pub mod contracts;
 use neocogi_com_sdk::{
-    ComPtr, ComRef, ComStringExt, INcStringAbi, NcString, NcValueRef, IUnknown, NcBytes, INcBytesAbi, NcGuid, NcStatus, NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE,
-    com_object,
+    ComPtr, ComRef, ComStringExt, INcStringAbi, NcString, NcValueRef, IUnknown, NcBytes, INcBytesAbi, NcGuid, NcStatus, NC_E_BUSY, NC_E_INVALID_ARG,
+    NC_E_OUT_OF_RANGE, com_object,
 };
 #[path = "../../com-host/support/extent_state.rs"]
 mod extent_state;
@@ -18,43 +19,48 @@ use crate::contracts::{ExampleFactory, ExampleObject, ExampleObjectAbi, Extent, 
 #[com_object(interfaces(crate::contracts::ExampleObject, neocogi_com_sdk::persistence::IPersistable))]
 struct DynamicExampleObject {
     /// Dimensions owned entirely by this COM object allocation.
-    extent: Extent,
+    extent: Cell<Extent>,
     /// Optional concrete destination, excluded from the persistent state.
-    changed: crate::contracts::notifications::ExtentDelivery,
+    changed: OnceCell<crate::contracts::notifications::ExtentDelivery>,
     /// Caption owned by the provider, excluded from persistent dimensions.
-    caption: Option<ComPtr<INcStringAbi>>,
+    caption: RefCell<Option<ComPtr<INcStringAbi>>>,
 }
 
 impl IMeasured for DynamicExampleObject {
     /// Returns the current dimensions by ABI-safe value copy.
     fn extent(&self) -> Result<Extent, NcStatus> {
-        Ok(self.extent)
+        Ok(self.extent.get())
     }
     /// Writes only fresh copied records into caller storage, without provider scratch.
     fn reports(&self, mut output: neocogi_com_sdk::NcOutputWriter<'_, ExtentReport>) -> Result<u32, NcStatus> {
         if output.capacity() >= 2 {
-            output.extend_from_slice(&[ExtentReport::Current { extent: self.extent, usable: true }, ExtentReport::Empty])?;
+            output.extend_from_slice(&[ExtentReport::Current { extent: self.extent.get(), usable: true }, ExtentReport::Empty])?;
         }
         Ok(2)
     }
 }
 
 impl ExampleObject for DynamicExampleObject {
-    /// Lends the optional provider-owned text under the receiver's read guard.
-    fn caption(&self) -> Option<ComRef<'_, INcStringAbi>> {
-        self.caption.as_ref().map(ComPtr::as_com_ref)
+    /// Keeps the caption field borrowed while the caller uses its lender.
+    fn caption<R>(&self, lend: impl for<'loan> FnOnce(Result<Option<ComRef<'loan, INcStringAbi>>, NcStatus>) -> R) -> R {
+        match self.caption.try_borrow() {
+            Ok(field) => lend(Ok(field.as_ref().map(ComPtr::as_com_ref))),
+            Err(_) => lend(Err(NC_E_BUSY)),
+        }
     }
 
     /// Copies a caption through the read-only interface into private storage.
-    fn set_caption(&mut self, caption: Option<ComRef<'_, INcStringAbi>>) -> Result<(), NcStatus> {
-        self.caption = caption.map(|text| text.to_string()).transpose()?.map(|text| NcString::from_utf8_str(&text));
+    fn set_caption(&self, caption: Option<ComRef<'_, INcStringAbi>>) -> Result<(), NcStatus> {
+        let caption = caption.map(|text| text.to_string()).transpose()?.map(|text| NcString::from_utf8_str(&text));
+        let old = std::mem::replace(&mut *self.caption.try_borrow_mut().map_err(|_| NC_E_BUSY)?, caption);
+        drop(old);
         Ok(())
     }
 
-    /// Replaces dimensions through the exclusive generated call gate.
-    fn resize(&mut self, extent: Extent) -> Result<(), NcStatus> {
-        self.extent = extent;
-        self.changed.changed(extent)
+    /// Commits dimensions before invoking the observer.
+    fn resize(&self, extent: Extent) -> Result<(), NcStatus> {
+        self.extent.set(extent);
+        self.changed.get().expect("factory connected delivery before publication").changed(extent)
     }
 }
 
@@ -67,14 +73,21 @@ impl ExampleFactory for DynamicExampleFactory {
     fn create(&self, extent: Extent, events: NcValueRef<'_, crate::contracts::ExtentBinding>) -> Result<ComPtr<ExampleObjectAbi>, NcStatus> {
         let binding = events.to_owned()?;
         let local = DynamicExampleObject::into_local(DynamicExampleObject {
-            extent,
-            changed: crate::contracts::notifications::ExtentDelivery::Unobserved,
-            caption: None,
+            extent: Cell::new(extent),
+            changed: OnceCell::new(),
+            caption: RefCell::new(None),
         });
         // Obtain identity from initialized storage and connect delivery before
         // returning the first application-facing object capability.
         let origin = local.query::<ExampleObjectAbi>()?.downgrade()?;
-        local.try_borrow_mut()?.changed = crate::contracts::notifications::ExtentDelivery::new(binding, origin);
+        assert!(
+            local
+                .get()
+                .changed
+                .set(crate::contracts::notifications::ExtentDelivery::new(binding, origin))
+                .is_ok(),
+            "new object has no previous delivery"
+        );
         local.query()
     }
 }
@@ -98,9 +111,10 @@ impl neocogi_com_sdk::persistence::IPersistable for DynamicExampleObject {
     }
     /// Snapshot captures current dimensions through the shared typed codec.
     fn save_state(&self) -> Result<ComPtr<INcBytesAbi>, NcStatus> {
+        let extent = self.extent.get();
         let state = ExtentState {
-            width: self.extent.width,
-            height: self.extent.height,
+            width: extent.width,
+            height: extent.height,
         };
         Ok(NcBytes::from_vec(binary::to_vec(&state).map_err(|_| NC_E_INVALID_ARG)?))
     }

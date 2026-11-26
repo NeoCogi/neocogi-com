@@ -20,8 +20,6 @@ pub enum ValueType {
     Object(String),
     /// Shared weak COM capability; neither transport nor persistence owns its value.
     WeakObject(String),
-    /// Observer of an exclusive owner; retains bookkeeping without borrowing the value.
-    WeakBoxObject(String),
     /// Indirect owned collection of recursively converted values.
     Sequence(Box<ValueType>),
     /// Inline fixed-size aggregate.
@@ -91,7 +89,7 @@ impl Capability {
                     Self::Copied => return Requirement::Local(false),
                     Self::Persistent => ty = element,
                 },
-                ValueType::Object(_) | ValueType::WeakObject(_) | ValueType::WeakBoxObject(_) => return Requirement::Local(false),
+                ValueType::Object(_) | ValueType::WeakObject(_) => return Requirement::Local(false),
             }
         }
     }
@@ -171,12 +169,9 @@ impl ValueGraph {
                     ValueType::Array(_, 0) => break Requirement::Local(false),
                     ValueType::Array(child, _) | ValueType::Sequence(child) => ty = child,
                     ValueType::Named(name) => break Requirement::Named(name),
-                    ValueType::Unit
-                    | ValueType::Scalar(_)
-                    | ValueType::Text
-                    | ValueType::Object(_)
-                    | ValueType::WeakObject(_)
-                    | ValueType::WeakBoxObject(_) => break Requirement::Local(true),
+                    ValueType::Unit | ValueType::Scalar(_) | ValueType::Text | ValueType::Object(_) | ValueType::WeakObject(_) => {
+                        break Requirement::Local(true);
+                    }
                 }
             },
             // Other semantic checks report missing definitions. An absent
@@ -290,11 +285,6 @@ impl ValueGraph {
                     ValueType::WeakObject(name) => {
                         return Some(format!(
                             "WeakComPtr<{name}> transports lifetime bookkeeping; persistence requires an explicit object reconstruction contract"
-                        ));
-                    }
-                    ValueType::WeakBoxObject(name) => {
-                        return Some(format!(
-                            "WeakComBox<{name}> transports exclusive lifetime bookkeeping; persistence requires an explicit object reconstruction contract"
                         ));
                     }
                     ValueType::Scalar(name) => return Some(format!("{name} has no format-neutral ComDeserialize implementation")),

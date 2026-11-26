@@ -240,8 +240,6 @@ mod tests {
                 *const NcInterfaceId,
                 *mut neocogi_com_sdk::ComRaw<IUnknown>,
             ) -> NcStatus,
-            boxed_retain: unsafe extern "C" fn(*mut neocogi_com_sdk::lifetime::NcBoxedLifetimeState),
-            boxed_release: unsafe extern "C" fn(*mut neocogi_com_sdk::lifetime::NcBoxedLifetimeState),
         ) -> i32;
 
         /// Consumes the supplied sole owner and verifies weak expiration in C.
@@ -275,24 +273,6 @@ mod tests {
     unsafe extern "C" fn fixture_weak_release(control: *mut neocogi_com_sdk::lifetime::NcSharedLifetimeState) {
         drop(unsafe { neocogi_com_sdk::WeakComPtr::<IUnknown>::from_raw_owned(neocogi_com_sdk::NcSharedWeakRaw { control }) });
     }
-    /// Borrows one boxed fixture token; this callback's ABI declares boxed backing.
-    unsafe extern "C" fn fixture_boxed_weak_retain(control: *mut neocogi_com_sdk::lifetime::NcBoxedLifetimeState) {
-        let raw = neocogi_com_sdk::ComRaw::<IUnknown> {
-            object: control.cast(),
-            vtable: &neocogi_com_sdk::lifetime::EXCLUSIVE_UNKNOWN_VTABLE,
-        };
-        let borrowed = core::mem::ManuallyDrop::new(unsafe { neocogi_com_sdk::WeakComBox::<IUnknown>::from_raw_owned(raw) }.unwrap());
-        let _ = neocogi_com_sdk::WeakComBox::clone(&borrowed).into_raw();
-    }
-    /// Consumes a boxed observer directly through its declared policy.
-    unsafe extern "C" fn fixture_boxed_weak_release(control: *mut neocogi_com_sdk::lifetime::NcBoxedLifetimeState) {
-        let raw = neocogi_com_sdk::ComRaw::<IUnknown> {
-            object: control.cast(),
-            vtable: &neocogi_com_sdk::lifetime::EXCLUSIVE_UNKNOWN_VTABLE,
-        };
-        drop(unsafe { neocogi_com_sdk::WeakComBox::<IUnknown>::from_raw_owned(raw) });
-    }
-
     /// Test-only foreign adapter uses checked token adoption, typed promotion,
     /// then dynamic exact selection. Every temporary owner is balanced on error.
     unsafe extern "C" fn fixture_weak_upgrade(
@@ -343,8 +323,6 @@ mod tests {
                     fixture_weak_retain,
                     fixture_weak_release,
                     fixture_weak_upgrade,
-                    fixture_boxed_weak_retain,
-                    fixture_boxed_weak_release,
                 )
             },
             1
@@ -518,30 +496,39 @@ mod host_abi;
 mod callable_slots {
     use super::*;
     use core::ffi::c_void;
-    use neocogi_com_sdk::{ComRaw, NcScopedResultCallback, NC_E_BUSY, NC_E_DROPPED, NC_E_INVALID_ARG, NC_E_POINTER};
+    use std::cell::{Cell, RefCell};
+    use neocogi_com_sdk::{ComBox, ComMut, ComRaw, NcScopedResultCallback, NC_E_BUSY, NC_E_DROPPED, NC_E_INVALID_ARG, NC_E_POINTER};
 
-    /// Real generated provider. A borrow of its current value holds the
-    /// receiver's guard while C runs its callback.
+    /// Real generated provider with a replaceable field and a stable lender.
     #[com_object(INativeCapability)]
     struct Capability {
-        /// The receiver owns this shared value independently of its visitors.
-        value: Option<ComPtr<INativeValueAbi>>,
+        /// The field is borrowed until the visitor returns.
+        value: RefCell<Option<ComPtr<INativeValueAbi>>>,
+        /// Direct loans from this owner survive the call while the receiver lives.
+        stable: ComPtr<INativeValueAbi>,
     }
 
     impl INativeCapability for Capability {
         fn find(&self, mode: u32) -> Option<ComPtr<INativeValueAbi>> {
-            (mode == 0).then(|| self.value.clone()).flatten()
+            (mode == 0).then(|| self.value.try_borrow().ok()?.clone()).flatten()
         }
 
         fn load(&self, mode: u32) -> Result<Option<ComPtr<INativeValueAbi>>, NcStatus> {
-            if mode == 2 { Err(NC_E_DROPPED) } else { Ok(self.find(mode)) }
-        }
-
-        fn observed(&self, mode: u32) -> Result<Option<ComRef<'_, INativeValueAbi>>, NcStatus> {
             match mode {
-                0 => Ok(self.value.as_ref().map(ComPtr::as_com_ref)),
+                0 => self.value.try_borrow().map(|field| field.clone()).map_err(|_| NC_E_BUSY),
                 2 => Err(NC_E_DROPPED),
                 _ => Ok(None),
+            }
+        }
+
+        fn observed<R>(&self, mode: u32, lend: impl for<'loan> FnOnce(Result<Option<ComRef<'loan, INativeValueAbi>>, NcStatus>) -> R) -> R {
+            match mode {
+                0 => match self.value.try_borrow() {
+                    Ok(field) => lend(Ok(field.as_ref().map(ComPtr::as_com_ref))),
+                    Err(_) => lend(Err(NC_E_BUSY)),
+                },
+                2 => lend(Err(NC_E_DROPPED)),
+                _ => lend(Ok(None)),
             }
         }
 
@@ -549,20 +536,32 @@ mod callable_slots {
             Ok(loan.map(|value| value.value()).transpose()?.unwrap_or(-1))
         }
 
-        fn invalidate(&mut self) {
-            self.value = None;
+        fn invalidate(&self) -> Result<(), NcStatus> {
+            let old = self.value.try_borrow_mut().map_err(|_| NC_E_BUSY)?.take();
+            drop(old);
+            Ok(())
         }
 
-        fn invalidate_borrowed(&self, mut target: neocogi_com_sdk::ComMut<'_, INativeCapabilityAbi>) {
+        fn invalidate_borrowed(&self, mut target: ComMut<'_, INativeBoxedActionsAbi>) {
             target.invalidate();
+        }
+
+        fn stable(&self, mode: u32) -> Result<Option<ComRef<'_, INativeValueAbi>>, NcStatus> {
+            match mode {
+                0 => Ok(Some(self.stable.as_com_ref())),
+                2 => Err(NC_E_DROPPED),
+                _ => Ok(None),
+            }
         }
     }
 
-    /// Exclusive receiver whose weak projection can report terminal expiration.
+    /// A uniquely owned target with ordinary mutable receiver access.
     #[com_object(interfaces(INativeBoxedActions), ownership = exclusive)]
     struct BoxedActions {
         /// The advertised optional value.
         value: Option<ComPtr<INativeValueAbi>>,
+        /// The exposed child loan depends on this owner.
+        child: Option<ComBox<INativeBoxedActionsAbi>>,
     }
 
     impl INativeBoxedActions for BoxedActions {
@@ -573,43 +572,98 @@ mod callable_slots {
         fn invalidate(&mut self) {
             self.value = None;
         }
+
+        fn child(&self) -> Result<ComRef<'_, INativeBoxedActionsAbi>, NcStatus> {
+            self.child.as_ref().map(ComBox::as_com_ref).ok_or(NC_E_DROPPED)
+        }
+
+        fn child_mut(&mut self) -> Result<ComMut<'_, INativeBoxedActionsAbi>, NcStatus> {
+            self.child.as_mut().map(ComBox::as_com_mut).ok_or(NC_E_DROPPED)
+        }
+
+        fn visit_child<R>(&mut self, lend: impl for<'loan> FnOnce(Option<ComMut<'loan, INativeBoxedActionsAbi>>) -> R) -> R {
+            lend(self.child.as_mut().map(ComBox::as_com_mut))
+        }
     }
 
     #[test]
-    fn direct_projections_erase_checked_busy_and_dropped_statuses() {
-        let value = NativeValue::from_value(NativeValue { value: 42 }).query::<INativeValueAbi>().unwrap();
-        let local = Capability::into_local(Capability { value: Some(value.clone()) });
-        let mut receiver = local.query::<INativeCapabilityAbi>().unwrap();
-        let guard = local.try_borrow().unwrap();
-        let raw = receiver.as_raw();
-        // SAFETY: An alias owns this exact shared receiver. The provider's
-        // read guard must cause the raw exclusive call to refuse admission.
-        assert_eq!(unsafe { ((*raw.vtable).invalidate)(raw.object) }, NC_E_BUSY);
-        receiver.invalidate();
-        assert!(receiver.find(0).is_some());
-        drop(guard);
-        receiver.invalidate();
+    fn guarded_visit_rejects_only_replacement_of_the_borrowed_field() {
+        let receiver = capability();
+        let alias = receiver.clone();
+        let observed = INativeCapabilityAbi::with_observed(receiver.as_com_ref(), 0, |loan| {
+            assert_eq!(alias.invalidate(), Err(NC_E_BUSY));
+            assert_eq!(alias.stable(0).unwrap().unwrap().value(), Ok(42));
+            loan.value().unwrap()
+        });
+        assert_eq!(observed, Ok(Some(42)));
+        alias.invalidate().unwrap();
         assert!(receiver.find(0).is_none());
-
-        let owner = BoxedActions::into_box(BoxedActions { value: Some(value) })
-            .query::<INativeBoxedActionsAbi>()
-            .unwrap();
-        let mut weak = owner.downgrade();
-        assert!(weak.find().is_some());
-        drop(owner);
-        let raw = weak.as_raw();
-        // SAFETY: This actual boxed weak handle retains the table and header
-        // even after expiration. Provider entry checks its terminal generation.
-        assert_eq!(unsafe { ((*raw.vtable).invalidate)(raw.object) }, NC_E_DROPPED);
-        weak.invalidate();
-        assert!(weak.find().is_none());
     }
 
     unsafe extern "C" {
-        fn nc_c_exercise_v4_callable_slots(source: ComRaw<INativeCapabilityAbi>, pointer: NcStatus, dropped: NcStatus) -> i32;
+        fn nc_c_exercise_callable_slots(
+            source: ComRaw<INativeCapabilityAbi>,
+            pointer: NcStatus,
+            dropped: NcStatus,
+            thread: extern "C" fn() -> *const c_void,
+        ) -> i32;
+        fn nc_c_exercise_boxed_loan_slots(
+            source: ComRaw<INativeCapabilityAbi>,
+            root: ComRaw<INativeBoxedActionsAbi>,
+            pointer: NcStatus,
+            dropped: NcStatus,
+            thread: extern "C" fn() -> *const c_void,
+        ) -> i32;
+        fn nc_c_absent_required_boxed_result(object: *mut c_void, out: *mut ComRaw<INativeBoxedActionsAbi>) -> NcStatus;
         fn nc_c_adverse_optional_result(object: *mut c_void, mode: u32, out: *mut ComRaw<INativeValueAbi>) -> NcStatus;
         fn nc_c_adverse_scoped_result(object: *mut c_void, mode: u32, context: *mut c_void, visit: Option<NcScopedResultCallback<INativeValueAbi>>)
         -> NcStatus;
+    }
+
+    thread_local! {
+        static NATIVE_THREAD: Cell<u8> = const { Cell::new(0) };
+        static BORROWED_RELEASES: Cell<u32> = const { Cell::new(0) };
+    }
+
+    /// Returns an identity C can compare on every platform without a native thread API.
+    extern "C" fn native_thread() -> *const c_void {
+        NATIVE_THREAD.with(|thread| thread.as_ptr().cast())
+    }
+
+    /// Records any erroneous cleanup of the borrowed result.
+    unsafe extern "C" fn count_borrowed_release(_: *mut c_void) -> u32 {
+        BORROWED_RELEASES.with(|count| count.set(count.get() + 1));
+        0
+    }
+
+    /// A readable table with the wrong IID makes the error observable without
+    /// requiring the caller to invoke either the getter or the cleanup callback.
+    static WRONG_BORROWED_TABLE: INativeValueVTable = INativeValueVTable {
+        unknown: neocogi_com_sdk::IUnknownVTable {
+            interface_id: &<neocogi_com_sdk::IUnknown as neocogi_com_sdk::ComInterface>::INTERFACE_ID,
+            release: count_borrowed_release,
+            ..INativeValueVtblFor::<NativeValue>::VTABLE.unknown
+        },
+        ..INativeValueVtblFor::<NativeValue>::VTABLE
+    };
+
+    unsafe extern "C" fn adverse_borrowed_result(object: *mut c_void, mode: u32, out: *mut ComRaw<INativeValueAbi>) -> NcStatus {
+        if mode == 3 || mode == 4 {
+            // SAFETY: This table belongs to Capability. Its stable field's
+            // provider outlives this receiver, and out is separate writable storage.
+            let receiver = unsafe { <Capability as neocogi_com_sdk::ComObject>::borrow_abi_ref(object) }.unwrap();
+            let backing = receiver.stable.as_raw();
+            unsafe {
+                out.write(ComRaw {
+                    object: if mode == 3 { backing.object } else { core::ptr::null_mut() },
+                    vtable: &WRONG_BORROWED_TABLE,
+                });
+            }
+            neocogi_com_sdk::NC_OK
+        } else {
+            // SAFETY: The C fixture writes this same initialized pair or fails.
+            unsafe { nc_c_adverse_optional_result(object, mode, out) }
+        }
     }
 
     /// Keeps the allocation and its shared lifecycle while selecting native C
@@ -618,39 +672,76 @@ mod callable_slots {
         find: nc_c_adverse_optional_result,
         load: nc_c_adverse_optional_result,
         observed: nc_c_adverse_scoped_result,
+        stable: adverse_borrowed_result,
         ..INativeCapabilityVtblFor::<Capability>::VTABLE
+    };
+
+    /// These two C slots deliberately report absence where the contract requires a loan.
+    static FOREIGN_REQUIRED_BOXED: INativeBoxedActionsVTable = INativeBoxedActionsVTable {
+        child: nc_c_absent_required_boxed_result,
+        child_mut: nc_c_absent_required_boxed_result,
+        ..INativeBoxedActionsVtblFor::<BoxedActions>::VTABLE
     };
 
     /// Constructs an exact live Rust-backed receiver independently of the C table.
     fn capability() -> ComPtr<INativeCapabilityAbi> {
         let value = NativeValue::from_value(NativeValue { value: 42 }).query::<INativeValueAbi>().unwrap();
-        Capability::from_value(Capability { value: Some(value) }).query().unwrap()
+        Capability::from_value(Capability {
+            value: RefCell::new(Some(value.clone())),
+            stable: value,
+        })
+        .query()
+        .unwrap()
+    }
+
+    /// Gives the native caller one child whose value can be invalidated through a returned loan.
+    fn boxed_actions(value: ComPtr<INativeValueAbi>) -> ComBox<INativeBoxedActionsAbi> {
+        let child = BoxedActions::into_box(BoxedActions { value: Some(value), child: None }).query().unwrap();
+        BoxedActions::into_box(BoxedActions { value: None, child: Some(child) }).query().unwrap()
     }
 
     #[test]
     fn native_c_consumes_owned_optional_and_scoped_slots() {
         let receiver = capability();
-        let mut target = capability();
-        receiver.invalidate_borrowed(target.as_com_mut());
-        assert!(target.find(0).is_none());
+        let mut root = boxed_actions(receiver.find(0).unwrap());
+        let loan = root.as_com_mut();
+        // SAFETY: the C fixture borrows the live shared and exclusive receivers,
+        // calls the exact slots, and uses each child only within its lending borrow.
+        assert_eq!(unsafe { nc_c_exercise_boxed_loan_slots(receiver.as_raw(), loan.as_raw(), NC_E_POINTER, NC_E_DROPPED, native_thread) }, 0);
         // SAFETY: The exact receiver and all its lenders outlive the C call.
-        assert_eq!(unsafe { nc_c_exercise_v4_callable_slots(receiver.as_raw(), NC_E_POINTER, NC_E_DROPPED) }, 0);
+        assert_eq!(unsafe { nc_c_exercise_callable_slots(receiver.as_raw(), NC_E_POINTER, NC_E_DROPPED, native_thread) }, 0);
         assert!(receiver.find(0).is_none());
     }
 
     #[test]
     fn generated_callers_validate_native_c_result_protocols() {
-        let mut raw = capability().into_raw();
+        let receiver = capability();
+        let mut required_boxed = boxed_actions(receiver.find(0).unwrap()).into_raw();
+        required_boxed.vtable = &FOREIGN_REQUIRED_BOXED;
+        // SAFETY: the original boxed allocation transfers its sole owner. The
+        // C slots use the exact native signature and write a valid pair shape.
+        let mut required_boxed = unsafe { ComBox::<INativeBoxedActionsAbi>::from_raw_owned(required_boxed) }.unwrap();
+        assert!(matches!(required_boxed.child(), Err(NC_E_POINTER)));
+        assert!(matches!(required_boxed.child_mut(), Err(NC_E_POINTER)));
+
+        let mut raw = receiver.into_raw();
         raw.vtable = &FOREIGN;
         // SAFETY: The shared allocation transfers one reference. This exact
         // table uses the same lifecycle functions and provider storage.
         let receiver = unsafe { ComPtr::<INativeCapabilityAbi>::from_raw_owned(raw) }.unwrap();
         assert!(receiver.find(0).is_none());
         assert!(receiver.load(0).unwrap().is_none());
+        assert!(receiver.stable(0).unwrap().is_none());
         for (mode, expected) in [(1, NC_E_POINTER), (2, NC_E_DROPPED)] {
             assert!(receiver.find(mode).is_none());
             assert_eq!(receiver.load(mode).unwrap_err(), expected);
+            assert_eq!(receiver.stable(mode).unwrap_err(), expected);
         }
+        BORROWED_RELEASES.with(|count| count.set(0));
+        assert!(matches!(receiver.stable(3), Err(neocogi_com_sdk::NC_E_NOINTERFACE)));
+        assert!(matches!(receiver.stable(4), Err(NC_E_POINTER)));
+        assert_eq!(BORROWED_RELEASES.with(std::cell::Cell::get), 0);
+        assert!(receiver.read(None).is_ok());
         fn visit(_: ComRef<'_, INativeValueAbi>) {
             panic!("absent or malformed delivery must skip the Rust visitor");
         }

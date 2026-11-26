@@ -1,174 +1,195 @@
-//! Provider-local storage for generated objects. No registry state lives here.
-//!
-//! The policy-specific C header stays at offset zero. The access choices retain
-//! their separate roles: a separate gate for shared ownership, no extra state
-//! for exclusive ownership. Weak owners may retain this allocation after T dies.
+//! Generated class allocation with typed backing and allocator-local cleanup.
+
+use core::{ffi::c_void, mem::MaybeUninit, ptr::NonNull};
 
 use crate::__alloc::boxed::Box;
-use core::{cell::UnsafeCell, ffi::c_void, mem::MaybeUninit};
+use crate::lifetime::{NcBoxedLifetimeState, NcObjectTypeInfo, NcSharedLifetimeState};
 use crate::{ComBox, ComObject, ComPtr, ComRaw, IUnknown, NcStatus, NC_E_POINTER};
-use crate::lifetime::{BoxRead, BoxWrite, NcObjectTypeInfo, NcSharedLifetimeState, NcBoxedLifetimeState};
-use super::{ComBorrowGate, ComReadGuard, ComWriteGuard, __ComWritePermit, __ComReadPermit};
 
-/// Heap allocation for a concrete Rust COM implementation.
-///
-/// Lifetime is the concrete shared or boxed header. Access is the shared gate
-/// or unit, selected statically; neither policy nor the concrete Rust layout
-/// crosses an interface call boundary. Weak owners can retain this block after
-/// `T` is destroyed, so the value slot does not itself own a `T` destructor.
+/// Live value stored immediately after its matching policy header, with T's
+/// alignment. The value is initialized before publication and dropped before
+/// storage is freed.
 #[doc(hidden)]
 #[repr(C)]
-pub struct ComObjectInner<T, Lifetime, Access> {
-    /// Concrete shared or boxed lifetime header, selected statically at offset zero.
+pub struct ComObjectInner<T, Lifetime> {
+    /// Concrete shared or boxed prefix at offset zero.
     control: Lifetime,
-    /// Shared classes' call gate; exclusive classes borrow through `control`.
-    access: Access,
-    /// Initialized until owner destruction; retained storage never drops T twice.
-    value: UnsafeCell<MaybeUninit<T>>,
+    /// Uninitialized during final deallocation after the value destructor runs.
+    value: MaybeUninit<T>,
 }
 
-/// Allocation layout for a shared provider with its own Rust borrow gate.
+/// Allocation layout for a shared provider.
 #[doc(hidden)]
-pub type __ComSharedInner<T> = ComObjectInner<T, NcSharedLifetimeState, ComBorrowGate>;
+pub type __ComSharedInner<T> = ComObjectInner<T, NcSharedLifetimeState>;
 
-/// Allocation layout for an exclusive provider using common-header admission.
+/// Allocation layout for a unique boxed provider.
 #[doc(hidden)]
-pub type __ComBoxedInner<T> = ComObjectInner<T, NcBoxedLifetimeState, ()>;
+pub type __ComBoxedInner<T> = ComObjectInner<T, NcBoxedLifetimeState>;
 
-impl<T: ComObject, Lifetime: 'static, Access: 'static> ComObjectInner<T, Lifetime, Access> {
-    /// Builds immutable interface metadata and callbacks for this exact storage layout.
-    const fn type_info() -> NcObjectTypeInfo {
-        NcObjectTypeInfo {
-            destroy_value: Self::destroy_value,
-            deallocate: Self::deallocate,
-            interfaces: T::VTABLES.as_ptr(),
-            interface_count: T::VTABLES.len(),
-        }
-    }
+impl<T: ComObject, Lifetime: 'static> ComObjectInner<T, Lifetime> {
+    /// Exact callbacks and tables for this particular storage instantiation.
+    const CLASS: NcObjectTypeInfo = NcObjectTypeInfo {
+        destroy_value: Self::destroy_value,
+        deallocate: Self::deallocate,
+        interfaces: T::VTABLES.as_ptr(),
+        interface_count: T::VTABLES.len(),
+    };
 
-    /// Allocates one initialized value; only the matching ownership constructor
-    /// can select the control state and convert the result into a safe owner.
-    fn allocate(value: T, control: Lifetime, access: Access) -> ComRaw<IUnknown> {
-        let storage = Box::into_raw(Box::new(Self {
-            control,
-            access,
-            value: UnsafeCell::new(MaybeUninit::new(value)),
-        }));
+    /// Allocates the initialized object before publishing an owner.
+    fn allocate(value: T, control: Lifetime) -> ComRaw<IUnknown> {
+        let storage = Box::into_raw(Box::new(Self { control, value: MaybeUninit::new(value) }));
         ComRaw {
             object: storage.cast(),
             vtable: T::UNKNOWN_VTABLE,
         }
     }
 
-    /// Destroys only T while the implicit weak owner still retains the header.
+    /// Destroys T while the allocation remains available to provider cleanup.
     unsafe extern "C" fn destroy_value(control: *mut c_void) {
         let storage = control.cast::<Self>();
-        // SAFETY: the class descriptor belongs to this exact layout. The common
-        // lifetime engine has excluded future value access and admitted calls.
-        unsafe { (*(*storage).value.get()).assume_init_drop() };
+        // SAFETY: the class descriptor selects this exact storage and all T
+        // borrows have ended before the final owner invokes the destructor.
+        unsafe { (*storage).value.assume_init_drop() };
     }
 
-    /// Frees the exact provider allocation after value destruction and final weak release.
+    /// Frees the complete allocation using the provider's exact layout.
     unsafe extern "C" fn deallocate(control: *mut c_void) {
-        // SAFETY: the final weak owner transfers this allocation once. MaybeUninit
-        // suppresses a second T destructor, and Box preserves concrete alignment.
+        // SAFETY: the allocation is returned once. MaybeUninit suppresses a
+        // second T destructor after the value was destroyed.
         unsafe { drop(Box::from_raw(control.cast::<Self>())) };
+    }
+
+    /// Recovers the shared Rust value from an admitted receiver.
+    ///
+    /// # Safety
+    /// A nonnull object identifies this exact live storage. The caller retains
+    /// its lender and supplies shared target access for the returned lifetime.
+    pub unsafe fn borrow_ref<'a>(object: *mut c_void) -> Result<&'a T, NcStatus> {
+        let storage = NonNull::new(object.cast::<Self>()).ok_or(NC_E_POINTER)?;
+        // SAFETY: the caller's live shared loan covers the initialized value.
+        // Project the field before constructing a reference.
+        Ok(unsafe { (*storage.as_ptr()).value.assume_init_ref() })
     }
 }
 
 impl<T: ComObject> __ComSharedInner<T> {
-    /// Callbacks and interfaces belong to this concrete shared storage instantiation.
-    const CLASS: NcObjectTypeInfo = Self::type_info();
-
-    /// Allocates shared storage and transfers its initial strong owner.
+    /// Creates and transfers the first strong owner of initialized shared storage.
     ///
     /// # Safety
-    /// T's ComObject implementation and every paired table must recover exactly
-    /// this storage layout and use its gate. T's threading proof must hold.
+    /// T's tables and class proof must match this exact storage and threading.
     pub unsafe fn into_shared(value: T) -> ComPtr<IUnknown, T::Threading> {
-        let raw = Self::allocate(value, NcSharedLifetimeState::new(&Self::CLASS), ComBorrowGate::new());
-        // SAFETY: allocation initialized one strong reference and its canonical table.
+        let raw = Self::allocate(value, NcSharedLifetimeState::new(&Self::CLASS));
+        // SAFETY: freshly constructed storage owns one reference and exact table.
         unsafe { ComPtr::from_raw_owned(raw) }.expect("new shared object is present")
-    }
-
-    /// Recovers shared access through this allocation's one call gate.
-    ///
-    /// # Safety
-    /// A non-null object must identify this exact initialized storage, retained
-    /// by a strong owner for the entire returned lifetime. All T access uses its gate.
-    pub unsafe fn borrow_ref<'a>(object: *mut c_void) -> Result<ComReadGuard<'a, T, __ComReadPermit<'a>>, NcStatus> {
-        // SAFETY: caller retains matching storage; null is rejected before field access.
-        let storage = unsafe { object.cast::<Self>().as_ref() }.ok_or(NC_E_POINTER)?;
-        // SAFETY: the guard acquires the gate before constructing a reference to T.
-        unsafe { ComReadGuard::acquire(&storage.access, &storage.value) }
-    }
-
-    /// Recovers exclusive access through the shared allocation's call gate.
-    ///
-    /// # Safety
-    /// The same matching-storage and retained-owner obligations as borrow_ref apply.
-    pub unsafe fn borrow_mut<'a>(object: *mut c_void) -> Result<ComWriteGuard<'a, T, __ComWritePermit<'a>>, NcStatus> {
-        // SAFETY: caller retains matching storage throughout the guard.
-        let storage = unsafe { object.cast::<Self>().as_ref() }.ok_or(NC_E_POINTER)?;
-        // SAFETY: acquisition rejects readers/reentrant writers before creating &mut T.
-        unsafe { ComWriteGuard::acquire(&storage.access, &storage.value) }
     }
 }
 
 impl<T: ComObject> __ComBoxedInner<T> {
-    /// Callbacks and interfaces belong to this concrete boxed storage instantiation.
-    const CLASS: NcObjectTypeInfo = Self::type_info();
-
-    /// Allocates exclusive storage and transfers its sole owner.
+    /// Creates and transfers the sole owner of initialized boxed storage.
     ///
     /// # Safety
-    /// T's ComObject implementation and paired tables must recover exactly this
-    /// layout and admit calls through the header before accessing T. Threading must match.
+    /// T's tables and class proof must match this exact storage and threading.
     pub unsafe fn into_exclusive(value: T) -> ComBox<IUnknown, T::Threading> {
-        let raw = Self::allocate(value, NcBoxedLifetimeState::new(&Self::CLASS), ());
-        // SAFETY: allocation initialized and transfers exactly one exclusive owner.
+        let raw = Self::allocate(value, NcBoxedLifetimeState::new(&Self::CLASS));
+        // SAFETY: freshly constructed storage owns the sole token and exact table.
         unsafe { ComBox::from_raw_owned(raw) }.expect("new exclusive object is present")
     }
 
-    /// Admits a reader atomically against exclusive owner removal.
+    /// Recovers the exclusive Rust value from an admitted receiver.
     ///
     /// # Safety
-    /// A non-null object identifies this exact storage, retained for the returned
-    /// lifetime. T may already be destroyed; header admission must precede any T reference.
-    pub unsafe fn borrow_ref<'a>(object: *mut c_void) -> Result<ComReadGuard<'a, T, BoxRead>, NcStatus> {
-        // SAFETY: MaybeUninit keeps the retained storage valid even after T dies.
-        let storage = unsafe { object.cast::<Self>().as_ref() }.ok_or(NC_E_POINTER)?;
-        // SAFETY: acquisition checks owner presence and borrowing before referencing T.
-        unsafe { ComReadGuard::acquire_box(object.cast(), &storage.value) }
-    }
-
-    /// Admits the unique writer atomically against owner removal and other calls.
-    ///
-    /// # Safety
-    /// The same matching-storage and retained-storage obligations as borrow_ref apply.
-    pub unsafe fn borrow_mut<'a>(object: *mut c_void) -> Result<ComWriteGuard<'a, T, BoxWrite>, NcStatus> {
-        // SAFETY: caller retains the header; no T reference has been constructed.
-        let storage = unsafe { object.cast::<Self>().as_ref() }.ok_or(NC_E_POINTER)?;
-        // SAFETY: header admission excludes destruction and conflicting borrows.
-        unsafe { ComWriteGuard::acquire_box(object.cast(), &storage.value) }
+    /// A nonnull object identifies this exact live boxed storage. The caller
+    /// supplies exclusive target access and retains the lender for the lifetime.
+    pub unsafe fn borrow_mut<'a>(object: *mut c_void) -> Result<&'a mut T, NcStatus> {
+        let storage = NonNull::new(object.cast::<Self>()).ok_or(NC_E_POINTER)?;
+        // SAFETY: the exclusive loan authorizes a reference to this value slot.
+        // The metadata prefix is independent of the value borrow.
+        Ok(unsafe { (*storage.as_ptr()).value.assume_init_mut() })
     }
 }
 
 #[cfg(test)]
 mod tests {
-    //! Physical layout is an invariant of the common C lifetime header.
     use super::*;
     use core::mem::{offset_of, size_of};
 
-    /// Shared calls retain their gate; exclusive admission adds no second word.
+    /// Both typed policies put metadata first and preserve provider alignment.
     #[test]
-    fn layouts_preserve_header_prefix_and_exclusive_zero_sized_access() {
-        let word = size_of::<usize>();
-        assert_eq!(offset_of!(__ComSharedInner<u8>, control), 0);
-        assert_eq!(offset_of!(__ComBoxedInner<u8>, control), 0);
-        assert_eq!(offset_of!(__ComSharedInner<u8>, value), 4 * word);
-        assert_eq!(offset_of!(__ComBoxedInner<u8>, value), 3 * word);
-        assert_eq!(size_of::<__ComSharedInner<u8>>(), 5 * word);
-        assert_eq!(size_of::<__ComBoxedInner<u8>>(), 4 * word);
+    fn layouts_preserve_policy_prefix_and_value_alignment() {
+        #[repr(align(64))]
+        struct Aligned;
+
+        assert_eq!(offset_of!(__ComSharedInner<Aligned>, control), 0);
+        assert_eq!(offset_of!(__ComBoxedInner<Aligned>, control), 0);
+        assert_eq!(size_of::<NcSharedLifetimeState>(), 3 * size_of::<usize>());
+        assert_eq!(size_of::<NcBoxedLifetimeState>(), size_of::<usize>());
+        assert_eq!(offset_of!(__ComSharedInner<Aligned>, value), 64);
+        assert_eq!(offset_of!(__ComBoxedInner<Aligned>, value), 64);
+    }
+
+    /// Local and projected loans use the same live value slot through cleanup.
+    #[cfg(feature = "std")]
+    #[test]
+    fn boxed_target_reborrows_and_cleanup_share_one_allocation() {
+        use crate::lifetime::EXCLUSIVE_UNKNOWN_VTABLE;
+        use crate::{ComExclusiveObject, IUnknownVTable, LocalBox, ThreadSend};
+        use core::{
+            cell::Cell,
+            sync::atomic::{AtomicUsize, Ordering},
+        };
+        use std::sync::Arc;
+
+        struct Value {
+            count: Cell<u32>,
+            drops: Arc<AtomicUsize>,
+        }
+
+        impl Drop for Value {
+            fn drop(&mut self) {
+                self.drops.fetch_add(1, Ordering::Relaxed);
+            }
+        }
+
+        // SAFETY: this fixture publishes only the canonical boxed root. Cell
+        // makes the target Send only, and every reborrow comes from the owner.
+        unsafe impl ComObject for Value {
+            type Threading = ThreadSend;
+            const UNKNOWN_VTABLE: &'static IUnknownVTable = &EXCLUSIVE_UNKNOWN_VTABLE;
+            const VTABLES: &'static [*const IUnknownVTable] = &[Self::UNKNOWN_VTABLE];
+
+            unsafe fn borrow_abi_ref<'a>(object: *mut c_void) -> Result<&'a Self, NcStatus> {
+                unsafe { __ComBoxedInner::<Self>::borrow_ref(object) }
+            }
+        }
+
+        // SAFETY: the fixture uses the matching boxed layout and one unique owner.
+        unsafe impl ComExclusiveObject for Value {
+            unsafe fn borrow_abi_mut<'a>(object: *mut c_void) -> Result<&'a mut Self, NcStatus> {
+                unsafe { __ComBoxedInner::<Self>::borrow_mut(object) }
+            }
+        }
+
+        let drops = Arc::new(AtomicUsize::new(0));
+        let value = Value {
+            count: Cell::new(1),
+            drops: drops.clone(),
+        };
+        // SAFETY: these are the exact layout and typed owner implemented above.
+        let mut owner = unsafe { LocalBox::<Value>::__from_owned(__ComBoxedInner::into_exclusive(value)) };
+        *owner.get_mut().count.get_mut() = 2;
+        let mut projection = owner.query_mut::<IUnknown>().unwrap();
+        std::thread::scope(|scope| {
+            let mut reborrow = projection.as_com_mut();
+            scope.spawn(move || {
+                // SAFETY: the scoped reborrow uniquely lends this exact boxed value.
+                let value = unsafe { Value::borrow_abi_mut(reborrow.as_com_mut().as_raw().object) }.unwrap();
+                *value.count.get_mut() += 1;
+            });
+        });
+        assert_eq!(owner.get().count.get(), 3);
+        assert_eq!(drops.load(Ordering::Relaxed), 0);
+        let erased = owner.into_interface::<IUnknown>().unwrap();
+        std::thread::scope(|scope| scope.spawn(move || drop(erased)).join().unwrap());
+        assert_eq!(drops.load(Ordering::Relaxed), 1);
     }
 }

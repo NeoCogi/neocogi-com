@@ -245,7 +245,7 @@ pub(super) fn owned_type(graph: &mut Generation<'_>, module: &ResolvedModule, ty
         IdlType::Unit => quote! { () },
         IdlType::Scalar(name) => scalar(&graph.support, name)?,
         IdlType::String => quote! { self::alloc::string::String },
-        IdlType::ComPtr(_) | IdlType::WeakComPtr(_) | IdlType::WeakComBox(_) => owned_object_type(graph, module, ty)?,
+        IdlType::ComPtr(_) | IdlType::WeakComPtr(_) => owned_object_type(graph, module, ty)?,
         IdlType::Named(name) => named_rust_type(graph, module, resolve(graph, module, name)?, false)?,
         IdlType::Vector(value) => {
             let value = owned_type(graph, module, value)?;

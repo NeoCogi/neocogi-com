@@ -11,7 +11,7 @@
 use quote::quote;
 use syn::ItemStruct;
 
-use crate::codegen::args::{ObjectArgs, ObjectOwnership};
+use crate::codegen::args::{InterfaceThreading, ObjectArgs, ObjectOwnership};
 use crate::codegen::util::{PrivateNames, sdk_crate_path};
 
 /// Generates compact interface bindings, typed borrow adapters and legal constructors.
@@ -41,10 +41,13 @@ pub fn expand_com_object(args: ObjectArgs, input: ItemStruct) -> proc_macro2::To
     }
     let declared_threading_model = if let Some(interface) = &args.primary_interface {
         quote! { <#interface as #nc::ComInterface>::Threading }
-    } else if args.thread_safe {
-        quote! { #nc::ThreadSafe }
     } else {
-        quote! { #nc::ThreadLocal }
+        match args.threading {
+            InterfaceThreading::Local => quote! { #nc::ThreadLocal },
+            InterfaceThreading::Shared => quote! { #nc::ThreadSafe },
+            InterfaceThreading::Send => quote! { #nc::ThreadSend },
+            InterfaceThreading::Sync => quote! { #nc::ThreadSync },
+        }
     };
     // Prove the selected class/handle mode. Each generated provider trait
     // separately enforces its interface minimum, even for a local class mode.
@@ -81,11 +84,9 @@ pub fn expand_com_object(args: ObjectArgs, input: ItemStruct) -> proc_macro2::To
         ObjectOwnership::Shared => quote! { &#nc::lifetime::SHARED_UNKNOWN_VTABLE },
         ObjectOwnership::Exclusive => quote! { &#nc::lifetime::EXCLUSIVE_UNKNOWN_VTABLE },
     };
-    let (storage, shared_guard, exclusive_guard, constructors) = match args.ownership {
+    let (storage, constructors) = match args.ownership {
         ObjectOwnership::Shared => (
             quote! { #nc::__ComSharedInner<Self> },
-            quote! { #nc::__ComReadPermit<'a> },
-            quote! { #nc::__ComWritePermit<'a> },
             quote! {
                 /// Owns this exact implementation with checked local access.
                 #object_vis fn into_local(#initial: Self) -> #nc::LocalCom<Self> {
@@ -101,8 +102,6 @@ pub fn expand_com_object(args: ObjectArgs, input: ItemStruct) -> proc_macro2::To
         ),
         ObjectOwnership::Exclusive => (
             quote! { #nc::__ComBoxedInner<Self> },
-            quote! { #nc::lifetime::BoxRead },
-            quote! { #nc::lifetime::BoxWrite },
             quote! {
                 /// Transfers one exclusive owner of a fully initialized value.
                 #object_vis fn into_box(#initial: Self) -> #nc::ComBox<#nc::IUnknown, #pointer_threading_model> {
@@ -118,6 +117,22 @@ pub fn expand_com_object(args: ObjectArgs, input: ItemStruct) -> proc_macro2::To
         ),
     };
 
+    // Shared allocations cannot manufacture a whole-value writer, even if
+    // this class later gains another interface or a typed local projection.
+    let exclusive = matches!(args.ownership, ObjectOwnership::Exclusive).then(|| {
+        quote! {
+            // SAFETY: this class supplies unique storage and native callers lend
+            // an exclusive target through each mutable slot.
+            unsafe impl #impl_generics #nc::ComExclusiveObject for #object_type #where_clause {
+                unsafe fn borrow_abi_mut<'a>(
+                    #object_pointer: *mut ::core::ffi::c_void,
+                ) -> ::core::result::Result<&'a mut Self, #nc::NcStatus> {
+                    // SAFETY: the caller grants live, exclusive access to this allocation.
+                    unsafe { <#storage>::borrow_mut(#object_pointer) }
+                }
+            }
+        }
+    });
     let binding_imports = names.binding_imports();
     quote! {
         #input
@@ -140,8 +155,6 @@ pub fn expand_com_object(args: ObjectArgs, input: ItemStruct) -> proc_macro2::To
             type Threading = #declared_threading_model;
             /// Canonical lifecycle prefix selected with the concrete storage policy.
             const UNKNOWN_VTABLE: &'static #nc::IUnknownVTable = #unknown_vtable;
-            type SharedGuard<'a> = #shared_guard;
-            type ExclusiveGuard<'a> = #exclusive_guard;
             /// One trait-owned static table; no inherent forwarding member is emitted.
             const VTABLES: &'static [*const #nc::IUnknownVTable] = &{
                 // Explicit Rust roots may use aliases. Each provider's nominal
@@ -159,18 +172,14 @@ pub fn expand_com_object(args: ObjectArgs, input: ItemStruct) -> proc_macro2::To
 
             unsafe fn borrow_abi_ref<'a>(
                 #object_pointer: *mut ::core::ffi::c_void,
-            ) -> ::core::result::Result<#nc::ComReadGuard<'a, Self, Self::SharedGuard<'a>>, #nc::NcStatus> {
+            ) -> ::core::result::Result<&'a Self, #nc::NcStatus> {
                 // SAFETY: caller retains the exact storage allocated by our constructor.
                 unsafe { <#storage>::borrow_ref(#object_pointer) }
             }
 
-            unsafe fn borrow_abi_mut<'a>(
-                #object_pointer: *mut ::core::ffi::c_void,
-            ) -> ::core::result::Result<#nc::ComWriteGuard<'a, Self, Self::ExclusiveGuard<'a>>, #nc::NcStatus> {
-                // SAFETY: the selected storage enforces its one admission/borrow authority.
-                unsafe { <#storage>::borrow_mut(#object_pointer) }
-            }
         }
+
+        #exclusive
         };
     }
 }

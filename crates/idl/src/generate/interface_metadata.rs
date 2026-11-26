@@ -22,6 +22,8 @@ pub(super) struct Projection<'a> {
     pub(super) identity: &'a DeclarationIdentity,
     /// Supplying direct parent and position. The first row belongs to the interface itself.
     pub(super) parent: Option<ParentProjection>,
+    /// This interface's own slots include a whole-value writer.
+    pub(super) requires_exclusive: bool,
 }
 
 /// Collects the same distinct order for physical tables and local inspection.
@@ -36,7 +38,11 @@ pub(super) fn ancestry<'a>(graph: &Generation<'a>, module: &'a ResolvedModule, d
         .declaration(&declaration.name)
         .ok_or_else(|| GenerateError::new("bound interface lost its identity"))?;
     let mut seen = HashMap::from([(identity.id, identity)]);
-    let mut projections = vec![Projection { identity, parent: None }];
+    let mut projections = vec![Projection {
+        identity,
+        parent: None,
+        requires_exclusive: interface.declares_mutable_receiver(),
+    }];
     let mut parent_seen = HashMap::new();
     let mut bases = Vec::new();
     for (direct, base) in interface.bases.iter().enumerate() {
@@ -52,6 +58,7 @@ pub(super) fn ancestry<'a>(graph: &Generation<'a>, module: &'a ResolvedModule, d
                     projections.push(Projection {
                         identity: value.identity,
                         parent: Some(ParentProjection { direct, entry }),
+                        requires_exclusive: interface.declares_mutable_receiver(),
                     });
                 }
                 bases.push((value.module, interface.bases.iter()));
@@ -102,7 +109,7 @@ pub(super) fn scoped_prefixes(graph: &Generation<'_>, module: &ResolvedModule, d
         if interface
             .methods
             .iter()
-            .any(|method| method.return_passing == crate::model::ReturnPassing::ScopedLoan)
+            .any(|method| matches!(method.return_passing, crate::model::ReturnPassing::ScopedLoan { .. }))
         {
             prefixes.push(parent.identity.id);
         }

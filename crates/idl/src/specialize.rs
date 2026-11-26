@@ -126,7 +126,6 @@ impl Expansion {
                 IdlType::ComPtr(child)
                 | IdlType::WeakComPtr(child)
                 | IdlType::ComBox(child)
-                | IdlType::WeakComBox(child)
                 | IdlType::Borrowed(child)
                 | IdlType::BorrowedMut(child)
                 | IdlType::Vector(child)
@@ -161,21 +160,26 @@ impl Expansion {
         };
         for method in &mut interface.methods {
             for parameter in &mut method.parameters {
-                parameter.passing = if self.strip_standard_option(&mut parameter.ty, |ty| matches!(ty, IdlType::Borrowed(_))) {
-                    ParameterPassing::SharedLoan { optional: true }
-                } else {
-                    self.parameter_passing(&parameter.ty)?
-                };
+                let optional = self.strip_standard_option(&mut parameter.ty, |ty| matches!(ty, IdlType::Borrowed(_) | IdlType::BorrowedMut(_)));
+                parameter.passing = self.parameter_passing(&parameter.ty, optional)?;
             }
-            let optional = self.strip_standard_option(&mut method.output, |ty| matches!(ty, IdlType::Borrowed(_) | IdlType::ComPtr(_)));
+            let optional = self.strip_standard_option(&mut method.output, |ty| {
+                matches!(ty, IdlType::Borrowed(_) | IdlType::BorrowedMut(_) | IdlType::ComPtr(_))
+            });
             method.return_passing = match &method.output {
                 IdlType::Unit => ReturnPassing::Unit,
                 IdlType::Scalar(_) | IdlType::Named(_) | IdlType::Array { .. } => ReturnPassing::Copied,
                 IdlType::ComPtr(_) => ReturnPassing::SharedOwner { optional },
                 IdlType::ComBox(_) => ReturnPassing::BoxOwner,
-                IdlType::WeakComBox(_) => ReturnPassing::BoxObserver,
                 IdlType::WeakComPtr(_) => ReturnPassing::SharedObserver,
-                IdlType::Borrowed(_) if optional => ReturnPassing::ScopedLoan,
+                IdlType::Borrowed(_) | IdlType::BorrowedMut(_) => {
+                    let mutable = matches!(method.output, IdlType::BorrowedMut(_));
+                    if method.scoped && optional {
+                        ReturnPassing::ScopedLoan { mutable }
+                    } else {
+                        ReturnPassing::BorrowedLoan { mutable, optional }
+                    }
+                }
                 _ => ReturnPassing::Invalid,
             };
         }
@@ -215,7 +219,7 @@ impl Expansion {
 
     /// Explains the method slot spelling before an argument application becomes a stored enum.
     fn reject_optional_loan_argument(&self, name: &NamedType) -> Result<(), ResolutionError> {
-        let Some(IdlType::Borrowed(target)) = self.standard_option_payload(name) else {
+        let Some(IdlType::Borrowed(target) | IdlType::BorrowedMut(target)) = self.standard_option_payload(name) else {
             return Ok(());
         };
         let IdlType::Named(target) = target.as_ref() else {
@@ -228,18 +232,19 @@ impl Expansion {
             diagnostics: vec![
                 Diagnostic::new("EIDL102", "an optional interface loan cannot be used as a generic value argument")
                     .primary(&name.span, "optional loan wrapped here")
-                    .note("put the bundled Option<T> at the method input or scoped result root and specialize T with &I")
+                    .note("put the bundled Option<T> at the method input or result root and specialize T with &I or &mut I")
                     .note("use Option<ComPtr<I>> when the value needs to store an owned interface reference"),
             ],
         })
     }
 
     /// Selects the semantic input once from its already-bound source owner.
-    fn parameter_passing(&self, ty: &IdlType) -> Result<ParameterPassing, ResolutionError> {
+    fn parameter_passing(&self, ty: &IdlType, optional: bool) -> Result<ParameterPassing, ResolutionError> {
         let passing = match ty {
             IdlType::Scalar(_) | IdlType::Named(_) | IdlType::Array { .. } => ParameterPassing::Copied,
             IdlType::Slice(_) => ParameterPassing::InputBuffer,
             IdlType::OutputSlice(_) => ParameterPassing::OutputBuffer,
+            IdlType::Borrowed(_) if optional => ParameterPassing::SharedLoan { optional },
             IdlType::Borrowed(target) => match target.as_ref() {
                 IdlType::Named(name) if name.is_str() => ParameterPassing::BorrowedText,
                 IdlType::Named(name) => {
@@ -251,7 +256,7 @@ impl Expansion {
                 }
                 _ => ParameterPassing::Invalid,
             },
-            IdlType::BorrowedMut(_) => ParameterPassing::MutableLoan,
+            IdlType::BorrowedMut(_) => ParameterPassing::MutableLoan { optional },
             IdlType::ComBox(_) => ParameterPassing::ConsumingBox,
             _ => ParameterPassing::Invalid,
         };
@@ -384,7 +389,6 @@ impl Expansion {
             IdlType::ComPtr(value)
             | IdlType::WeakComPtr(value)
             | IdlType::ComBox(value)
-            | IdlType::WeakComBox(value)
             | IdlType::Borrowed(value)
             | IdlType::BorrowedMut(value)
             | IdlType::Vector(value)
@@ -405,7 +409,6 @@ impl Expansion {
             IdlType::ComPtr(value)
             | IdlType::WeakComPtr(value)
             | IdlType::ComBox(value)
-            | IdlType::WeakComBox(value)
             | IdlType::Borrowed(value)
             | IdlType::BorrowedMut(value)
             | IdlType::Vector(value)
@@ -417,7 +420,6 @@ impl Expansion {
                     IdlType::ComPtr(_) => b"com_ptr",
                     IdlType::WeakComPtr(_) => b"weak_com_ptr",
                     IdlType::ComBox(_) => b"com_box",
-                    IdlType::WeakComBox(_) => b"weak_com_box",
                     IdlType::Borrowed(_) => b"borrow",
                     IdlType::BorrowedMut(_) => b"borrow_mut",
                     IdlType::Vector(_) => b"vector",
@@ -505,7 +507,6 @@ fn substitute_type(
         IdlType::ComPtr(child)
         | IdlType::WeakComPtr(child)
         | IdlType::ComBox(child)
-        | IdlType::WeakComBox(child)
         | IdlType::Borrowed(child)
         | IdlType::BorrowedMut(child)
         | IdlType::Vector(child)
@@ -637,7 +638,6 @@ fn type_signature(graph: &crate::ResolvedModules, ty: &IdlType) -> Result<Contra
         IdlType::ComPtr(value)
         | IdlType::WeakComPtr(value)
         | IdlType::ComBox(value)
-        | IdlType::WeakComBox(value)
         | IdlType::Borrowed(value)
         | IdlType::BorrowedMut(value)
         | IdlType::Vector(value)
@@ -649,7 +649,6 @@ fn type_signature(graph: &crate::ResolvedModules, ty: &IdlType) -> Result<Contra
                 IdlType::ComPtr(_) => b"com_ptr",
                 IdlType::WeakComPtr(_) => b"weak_com_ptr",
                 IdlType::ComBox(_) => b"com_box",
-                IdlType::WeakComBox(_) => b"weak_com_box",
                 IdlType::Borrowed(_) => b"borrow",
                 IdlType::BorrowedMut(_) => b"borrow_mut",
                 IdlType::Vector(_) => b"vector",

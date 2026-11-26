@@ -11,7 +11,7 @@ fn graph(source: &str) -> Result<neocogi_idl::ResolvedModules, neocogi_idl::Modu
 #[test]
 fn weak_shared_identity_and_capabilities_are_distinct() {
     let mut fingerprints = std::collections::BTreeSet::new();
-    for wrapper in ["ComPtr", "WeakComPtr", "ComBox", "WeakComBox"] {
+    for wrapper in ["ComPtr", "WeakComPtr", "ComBox"] {
         let g = graph(&format!(
             "interface IValue {{}} interface Source {{ fn get(&self) -> Result<{wrapper}<IValue>>; }}"
         ))
@@ -69,7 +69,7 @@ fn generated_weak_values_and_results_preserve_lifetime_and_validation() {
         r#"
         interface Counter {
             fn value(&self) -> Result<u32>;
-            fn set_value(&mut self, value: u32) -> Result<()>;
+            fn set_value(&self, value: u32) -> Result<()>;
         }
         #[threading(shared)] interface Shared { fn value(&self) -> Result<u32>; }
         struct References {

@@ -336,7 +336,7 @@ protocol; fieldless enums and bit sets preserve their raw scalar values.
 Record-only `#[persistence(default)]` retains an omitted trailing suffix from a
 host-authored Rust Default. Every NCB record is positional; `persistence(sequence)`
 and the old decoder opt-ins are rejected. Both generic and concrete
-contracts share canonical module encoding v15, including authored assignments,
+contracts share canonical module encoding v16, including authored assignments,
 trailing-default policy and positional generic binders. Exact SHA-256 signatures
 detect contract changes without declaration version numbers; use distinct named
 types for semantic distinctions that the IDL cannot express.

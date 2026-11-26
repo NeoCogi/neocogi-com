@@ -55,7 +55,7 @@ test_contracts::inheritance!();
 /// Concrete storage exposing the complete inherited interface chain.
 struct Toggle {
     /// Authoritative state shared by every COM projection.
-    value: u32,
+    value: Cell<u32>,
     /// Observation retained after the one allocation is finally released.
     drops: Rc<Cell<u32>>,
 }
@@ -68,11 +68,11 @@ impl Drop for Toggle {
 
 impl contract::IWidget for Toggle {
     fn value(&self) -> Result<u32, NcStatus> {
-        Ok(self.value)
+        Ok(self.value.get())
     }
     fn button(&self) -> Result<ComPtr<IButtonAbi>, NcStatus> {
         Toggle::from_value(Toggle {
-            value: self.value,
+            value: Cell::new(self.value.get()),
             drops: Rc::new(Cell::new(0)),
         })
         .query()
@@ -82,20 +82,20 @@ impl contract::IWidget for Toggle {
 impl IAudit for Toggle {
     /// Reads the same implementation value through the sibling interface table.
     fn active(&self) -> Result<bool, NcStatus> {
-        Ok(self.value != 0)
+        Ok(self.value.get() != 0)
     }
 }
 
 impl IButton for Toggle {
-    fn set_value(&mut self, value: u32) -> Result<(), NcStatus> {
-        self.value = value;
+    fn set_value(&self, value: u32) -> Result<(), NcStatus> {
+        self.value.set(value);
         Ok(())
     }
 }
 
 impl IToggle for Toggle {
-    fn copy_value(&mut self, source: ComRef<'_, contract::IWidgetAbi>) -> Result<(), NcStatus> {
-        self.value = source.value()?;
+    fn copy_value(&self, source: ComRef<'_, contract::IWidgetAbi>) -> Result<(), NcStatus> {
+        self.value.set(source.value()?);
         Ok(())
     }
 }
@@ -103,17 +103,23 @@ impl IToggle for Toggle {
 #[test]
 fn inherited_methods_and_queries_share_one_allocation() {
     let drops = Rc::new(Cell::new(0));
-    let unknown = Toggle::from_value(Toggle { value: 7, drops: drops.clone() });
-    let mut toggle = unknown.query::<IToggleAbi>().unwrap();
+    let unknown = Toggle::from_value(Toggle {
+        value: Cell::new(7),
+        drops: drops.clone(),
+    });
+    let toggle = unknown.query::<IToggleAbi>().unwrap();
     let button = toggle.query::<IButtonAbi>().unwrap();
     let widget = toggle.query::<contract::IWidgetAbi>().unwrap();
     assert_eq!(toggle.value(), Ok(7));
     toggle.set_value(19).unwrap();
     assert_eq!(widget.value(), Ok(19));
     assert_eq!(button.value(), Ok(19));
-    let source = Toggle::from_value(Toggle { value: 23, drops: Rc::new(Cell::new(0)) })
-        .query::<contract::IWidgetAbi>()
-        .unwrap();
+    let source = Toggle::from_value(Toggle {
+        value: Cell::new(23),
+        drops: Rc::new(Cell::new(0)),
+    })
+    .query::<contract::IWidgetAbi>()
+    .unwrap();
     toggle.copy_value(source.as_com_ref()).unwrap();
     assert_eq!(toggle.button().unwrap().value(), Ok(23));
     assert_eq!(widget.query::<IUnknown>().unwrap().as_raw(), unknown.as_raw());
@@ -149,7 +155,10 @@ fn interface_table_entries_dispatch_to_their_concrete_implementation() {
     assert_eq!(tables.len(), IToggleAbi::INTERFACE_CHAIN.len());
 
     let drops = Rc::new(Cell::new(0));
-    let owner = Toggle::from_value(Toggle { value: 0, drops: drops.clone() });
+    let owner = Toggle::from_value(Toggle {
+        value: Cell::new(0),
+        drops: drops.clone(),
+    });
     for (index, (&table, descriptor)) in tables.iter().zip(IToggleAbi::INTERFACE_CHAIN).enumerate() {
         let mut output = ComRaw::<IUnknown>::null();
         // SAFETY: these compiler-generated tables implement Toggle's exact allocation
@@ -160,7 +169,7 @@ fn interface_table_entries_dispatch_to_their_concrete_implementation() {
             assert_eq!(((*table).query_interface)(owner.as_raw().object, &IButtonAbi::INTERFACE_ID, &mut output), NC_OK);
         }
         // SAFETY: successful QueryInterface transferred one IButton reference.
-        let mut button = unsafe { ComPtr::<IButtonAbi>::from_raw_owned(output.cast()).unwrap() };
+        let button = unsafe { ComPtr::<IButtonAbi>::from_raw_owned(output.cast()).unwrap() };
         button.set_value(index as u32 + 1).unwrap();
         assert_eq!(owner.query::<contract::IWidgetAbi>().unwrap().value(), Ok(index as u32 + 1));
         assert_eq!(button.as_raw().object, owner.as_raw().object);
@@ -192,7 +201,10 @@ fn interface_pairs_share_one_object_without_embedded_headers() {
     assert_eq!(core::mem::size_of::<ComRef<'_, IToggleAbi>>(), 2 * word);
     assert_eq!(core::mem::size_of::<Option<ComRef<'_, IToggleAbi>>>(), 2 * word);
     assert_eq!(core::mem::size_of::<ComRaw<IToggleAbi>>(), 2 * word);
-    let owner = Toggle::from_value(Toggle { value: 41, drops: Rc::new(Cell::new(0)) });
+    let owner = Toggle::from_value(Toggle {
+        value: Cell::new(41),
+        drops: Rc::new(Cell::new(0)),
+    });
     let toggle = owner.query::<IToggleAbi>().unwrap();
     let button = owner.query::<IButtonAbi>().unwrap();
     let widget = owner.query::<contract::IWidgetAbi>().unwrap();
@@ -220,15 +232,15 @@ fn interface_pairs_share_one_object_without_embedded_headers() {
     assert_eq!(toggle.value(), Ok(41));
     assert_eq!(button.value(), Ok(41));
     assert_eq!(widget.value(), Ok(41));
-    // The common lifetime header and one call gate precede Rust state;
+    // Only the common lifetime header precedes Rust state;
     // adding interface projections contributes no per-object fields.
     let local = Toggle::into_local(Toggle::default());
     let root = local.query::<IUnknown>().unwrap();
-    let state = local.try_borrow().unwrap();
-    let value_address = (&*state as *const Toggle) as usize;
+    let state = local.get();
+    let value_address = (state as *const Toggle) as usize;
     assert_eq!(
         value_address - root.as_raw().object as usize,
-        core::mem::size_of::<neocogi_com_sdk::lifetime::NcSharedLifetimeState>() + word
+        core::mem::size_of::<neocogi_com_sdk::lifetime::NcSharedLifetimeState>()
     );
 }
 
@@ -243,15 +255,15 @@ mod pair_inputs {
     };
 
     #[com_object(IAcceptPair)]
-    /// Local state can be inspected through the same borrow gate as its COM calls.
+    /// Local and COM access observe the same invocation count.
     struct Receiver {
         /// Calls that reached the typed implementation after raw validation.
-        calls: usize,
+        calls: std::cell::Cell<usize>,
     }
     impl IAcceptPair for Receiver {
-        /// Uses an ordinary mutable borrow; raw input validation precedes this method.
-        fn accept(&mut self, value: ComRef<'_, IUnknown>) -> Result<bool, NcStatus> {
-            self.calls += 1;
+        /// Raw input validation precedes writing this call count.
+        fn accept(&self, value: ComRef<'_, IUnknown>) -> Result<bool, NcStatus> {
+            self.calls.set(self.calls.get() + 1);
             let _ = value;
             Ok(true)
         }
@@ -260,7 +272,7 @@ mod pair_inputs {
     /// Required interface inputs admit exactly a complete present pair.
     #[test]
     fn required_pairs_validate_both_words_before_entering_rust() {
-        let local = Receiver::into_local(Receiver { calls: 0 });
+        let local = Receiver::into_local(Receiver { calls: std::cell::Cell::new(0) });
         let receiver = local.query::<IAcceptPairAbi>().unwrap();
         let root: ComPtr<IUnknown> = receiver.query().unwrap();
         let source = receiver.as_raw();
@@ -286,6 +298,6 @@ mod pair_inputs {
             assert_eq!(((*source.vtable).accept)(source.object, present, &mut output), NC_OK);
         }
         assert_eq!(output, 1);
-        assert_eq!(local.try_borrow().unwrap().calls, 1);
+        assert_eq!(local.get().calls.get(), 1);
     }
 }

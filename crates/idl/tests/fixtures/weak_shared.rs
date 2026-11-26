@@ -2,20 +2,22 @@
 mod tests {
     use super::*;
     use neocogi_com_sdk::*;
-    use std::sync::{Arc, atomic::{AtomicUsize, Ordering},
+    use std::{
+        cell::Cell,
+        sync::{Arc, atomic::{AtomicUsize, Ordering}},
     };
 
     #[com_object(Counter)]
     /// Native fields are reachable only through construction-proven local ownership.
     struct CounterObject {
-        /// Plain mutable data guarded by the generated COM gate.
-        value: u32,
+        /// Independently mutable state exposed through the shared receiver.
+        value: Cell<u32>,
         /// Independent observation of exactly-once final value destruction.
         drops: Arc<AtomicUsize>,
     }
     impl Counter for CounterObject {
-        fn value(&self) -> Result<u32, NcStatus> { Ok(self.value) }
-        fn set_value(&mut self, value: u32) -> Result<(), NcStatus> { self.value = value; Ok(()) }
+        fn value(&self) -> Result<u32, NcStatus> { Ok(self.value.get()) }
+        fn set_value(&self, value: u32) -> Result<(), NcStatus> { self.value.set(value); Ok(()) }
     }
     impl Drop for CounterObject {
         fn drop(&mut self) { self.drops.fetch_add(1, Ordering::SeqCst); }
@@ -26,7 +28,7 @@ mod tests {
     impl Shared for SharedObject {
         fn value(&self) -> Result<u32, NcStatus> { Ok(73) }
     }
-    #[com_object(Store)]
+    #[com_object(Store, ownership = exclusive)]
     /// Copies weak facts without owning their producers.
     struct StoreObject {
         /// The entire recursive value remains weak after acquisition.
@@ -58,14 +60,14 @@ mod tests {
     /// Creates an IDL implementation whose concrete and interface observers agree.
     fn counter() -> (LocalCom<CounterObject>, WeakComPtr<CounterAbi>, Arc<AtomicUsize>) {
         let drops = Arc::new(AtomicUsize::new(0));
-        let local = CounterObject::into_local(CounterObject { value: 42, drops: drops.clone() });
+        let local = CounterObject::into_local(CounterObject { value: Cell::new(42), drops: drops.clone() });
         let weak = local.query::<CounterAbi>().unwrap().downgrade().unwrap();
         (local, weak, drops)
     }
     /// Owns only the store; both referenced producers may expire independently.
-    fn store(weak: &WeakComPtr<CounterAbi>) -> ComPtr<StoreAbi> {
+    fn store(weak: &WeakComPtr<CounterAbi>) -> ComBox<StoreAbi> {
         let shared = SharedObject::into_local(SharedObject);
-        StoreObject::from_value(StoreObject {
+        StoreObject::into_box(StoreObject {
             values: references(weak),
             shared: shared.query::<SharedAbi>().unwrap().downgrade().unwrap(),
         }).query().unwrap()
@@ -80,7 +82,7 @@ mod tests {
         let returned = store.get().unwrap();
         assert!(weak.same_object(&returned));
         returned.upgrade().unwrap().unwrap().set_value(43).unwrap();
-        assert_eq!(local_weak.upgrade().unwrap().unwrap().try_borrow().unwrap().value, 43);
+        assert_eq!(local_weak.upgrade().unwrap().unwrap().get().value.get(), 43);
         let facts = references(&weak);
         store.capture(NcValueRef::new(&facts).unwrap()).unwrap();
         drop(local);
@@ -107,7 +109,7 @@ mod tests {
     fn shared_threading_survives_idl_lowering() {
         let (local, weak, _) = counter();
         let shared = SharedObject::into_local(SharedObject);
-        let store = StoreObject::from_value(StoreObject {
+        let store = StoreObject::into_box(StoreObject {
             values: references(&weak),
             shared: shared.query::<SharedAbi>().unwrap().downgrade().unwrap(),
         }).query::<StoreAbi>().unwrap();
@@ -151,8 +153,8 @@ mod tests {
         table.get = null_result;
         let raw = owner.into_raw();
         // SAFETY: the table preserves Store's identity and lifecycle, changes only
-        // the test output, and remains alive until the adopted strong owner drops.
-        let malformed = unsafe { ComPtr::<StoreAbi>::from_raw_owned(ComRaw { object: raw.object, vtable: &table }) }.unwrap();
+        // the test output, and remains alive until the adopted sole owner drops.
+        let malformed = unsafe { ComBox::<StoreAbi>::from_raw_owned(ComRaw { object: raw.object, vtable: &table }) }.unwrap();
         assert_eq!(malformed.get().unwrap_err(), NC_E_POINTER);
         drop(malformed);
     }

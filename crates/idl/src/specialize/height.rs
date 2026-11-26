@@ -104,7 +104,6 @@ impl Budget {
             IdlType::ComPtr(child)
             | IdlType::WeakComPtr(child)
             | IdlType::ComBox(child)
-            | IdlType::WeakComBox(child)
             | IdlType::Vector(child)
             | IdlType::Slice(child)
             | IdlType::OutputSlice(child)

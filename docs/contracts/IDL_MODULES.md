@@ -30,7 +30,8 @@ Handles carry an object address and a selected static interface table. Interface
 add no fields to each object allocation; inherited projections are deduplicated at
 compile time. The [object/table storage guide](COM_INTERFACE_STORAGE.md) explains
 this settled representation and the earlier reverted experiments. Interfaces
-default to local threading. `#[threading(shared)]` requires implementations to
+default to local threading. `#[threading(send)]` requires Send and
+`#[threading(sync)]` requires Sync. `#[threading(shared)]` requires implementations to
 be `Send + Sync`; a derived interface cannot weaken a required shared promise.
 Generated shared provider traits enforce both bounds on their concrete
 implementations, including inherited and required projections. The selected
@@ -281,63 +282,48 @@ value IDs follow a separate policy and may still explicitly use nil.
 ```rust,ignore
 interface Catalog {
     fn find(&self, id: u64) -> Option<ComPtr<IItem>>;
-    fn load(&self, id: u64) -> Result<Option<ComPtr<IItem>>>;
-    fn tooltip(&self) -> Option<&INcString>;
-    fn use_item(&self, item: Option<&IItem>) -> Result<()>;
-    fn edit(&self, item: &mut IItem) -> Result<()>;
-    fn invalidate(&mut self);
+    fn item(&self) -> Option<&IItem>;
+    fn item_mut(&mut self) -> Option<&mut IItem>;
+    fn use_item(&self, item: Option<&mut IItem>) -> Result<()>;
+    #[scoped]
+    fn tooltip(&self) -> Result<Option<&INcString>>;
 }
 ```
 
-An interface name identifies the contract. A live shared input `&I` uses
-`ComRef`; `&mut I` uses move-only `ComMut`. A lender supplies these views via an
-appropriate borrow. Optional shared input has the same native pair and admits
-both-null. Pair shape and exact IID/signature are checked before the provider
-receives a Rust view.
+Shared `&I` and exclusive `&mut I` lower to `ComRef` and `ComMut` in
+generated Rust. Optional loans admit a both-null pair. An ordinary borrowed
+return carries the borrow of its receiver after native return. A mutable
+receiver that returns a shared loan still stays mutably borrowed. A shared
+receiver cannot issue an ordinary mutable return. Generated providers use
+the authored access of receivers, including inherited methods.
 
-A required `ComPtr<I>` result transfers one shared owner. Optional
-`Option<ComPtr<I>>` transfers an owner for a present pair. It uses both-null for
-successful absence. Plain `Option` methods return `None` on either call failure or
-absence. Explicit `Result<Option<ComPtr<I>>>` preserves that distinction. Omitting
-the return or writing `-> ()` projects a checked status-only call to unit. Write
-`Result<()>` to observe failure. Consuming `ComBox` parameters require `Result`
-so the caller can recover the original owners on rejection.
+A `#[scoped]` method delivers an optional loan through a synchronous
+visitor. The generated Rust provider invokes a higher-ranked continuation
+while its lender is active. The declaring marker's `with_...` helper
+requires the proper live receiver loan and passes the returned view to the
+visitor. First-base prefix witnesses preserve the original physical view.
+The visitor result cannot carry the loan beyond the callback.
+Receiver-bound and scoped loan results occupy methods with borrowed or copied
+inputs. Methods that consume boxed inputs or write to output buffers use a
+separate call so their transfer and publication rules stay explicit.
 
-A scoped getter accepts a shared receiver and nonconsuming inputs. It borrows
-an optional value from that receiver. The generated provider's `tooltip` has
-return type `Option<ComRef<'_, INcStringAbi>>`. The caller uses
-`CatalogAbi::with_tooltip(live_source, |loan| ...)` to visit a present loan
-synchronously while the provider holds its receiver read guard. The visitor can
-return owned application data. Its interface loan expires when the visitor
-returns. An uncaught visitor panic terminates the process at the non-unwinding C
-callback boundary. A visitor can return its own `Result` for an application
-error. For example, converting the loan to owned text returns
-`Option<Result<String, NcStatus>>` for the direct getter.
+A required `ComPtr<I>` result transfers one strong owner. An optional
+transfer uses both-null for successful absence. A boxed result transfers
+the sole owner. A borrowed result transfers no ownership. Native success
+initializes the output slot. Shape and exact identity are checked before
+forming a typed loan or adopting a transfer.
 
-```rust,ignore
-use neocogi_com_sdk::ComStringExt;
+Direct optional owned and visitor results project failure as absence.
+The new ordinary borrowed and copied direct results panic after a checked
+dispatch or decoding failure. Optional absence on those methods is a
+successful native value. A checked `Result` projects the actual status.
+A direct unit method uses the existing status-only slot. A consuming boxed
+method requires `Result` to recover its owners on rejection.
 
-let text = CatalogAbi::with_tooltip(live_source, |loan| loan.to_string());
-```
-
-The helper accepts a live `ComRef` of its declaring marker or a derived marker
-whose first-base path reaches it. Every step in that path uses the complete
-physical vtable prefix. The helper dispatches with the original object and table
-and holds the existing receiver admission through the visitor. Secondary bases
-use their separately queried interface. The generated Rust proof also checks
-the exact declaring marker type through imported and specialized parents.
-
-An explicit `Result<Option<&I>>` projects the same native continuation as
-`Result<Option<R>, NcStatus>` at the caller, where `R` is the visitor's result
-type. Write-only buffer parameters and mutable receivers are excluded from the
-initial scoped result contract.
-
-Recognition of slot nullability matches the resolved bundled `neocogi.lang::Option`
-at the method root after generic substitution. Local enums named `Option`,
-ordinary `Option<T>` values and nested or stored enums continue to use ordinary
-enum encoding. The ABI signature records the resolved passing direction,
-access, ownership and presence. Native-equivalent Rust projections differ in
-their generated Rust binding proof.
+The resolved bundled `neocogi.lang::Option` identifies optional positions.
+Stored values and copied options keep their existing enum encoding.
+The ABI signature records direction, access, lifetime form and optionality.
+The Rust binding identity also records the selected status projection.
 
 ### Canonical signatures
 
@@ -347,7 +333,7 @@ slot, and bare unit inputs remain excluded. The
 [recursive value contract](RECURSIVE_VALUE_CONTRACT.md) defines conversion and budgets.
 
 Templates and concrete declarations share the explicit binary declaration
-encoder under `neocogi-idl:module-abi:v15`. The former separate template string
+encoder under `neocogi-idl:module-abi:v16`. The former separate template string
 encoding and its Debug-formatted policy values are removed. Both paths encode
 parameter positions, resolved free identities, member order, authored enum
 assignment presence, and declaration policies. Regenerate bindings and rebuild
@@ -370,7 +356,7 @@ followed by its element type. Base slots retain the explicit bound/free grammar
 described above.
 
 Interfaces have no implementation-role discriminator in their canonical encoding.
-Canonical encoding v15 contains ordinary value and callable-interface contracts;
+Canonical encoding v16 contains ordinary value and callable-interface contracts;
 IDL has no event-reference slots. Rebuild affected contracts, providers and hosts
 together, including built-in persistence bindings. Nominal IDs, the native ABI version, source-graph schema and the host-owned
 runtime registry are separate contracts. Closed generic interfaces work as object
@@ -703,7 +689,7 @@ or scoped loan transfer contract.
 A method can borrow an entire tagged value with `&Option<ComPtr<I>>`.
 Decoding it into an owned value retains a present capability. At a method root,
 the bundled `Option<&I>` instead describes an optional interface input or a
-scoped result. To specialize such a slot, declare `Option<T>` at its root and
+borrowed result. An explicit scoped method delivers within its callback. To specialize such a slot, declare `Option<T>` at its root and
 supply `&I` as the argument. See [interface loans](#interface-loans-and-return-projections)
 and [generic value ownership](IDL_GENERIC_VALUES.md#copied-and-owned-optional-values).
 Regenerate contracts and rebuild consumers after signature changes; contract
@@ -797,8 +783,8 @@ enter generated contract data. Malformed attribute syntax and duplicate explicit
 UUID overrides remain errors.
 
 Generated nominal IDs and signatures change: rebuild contracts, providers and
-hosts together. Compiler encoding v15 records the versionless contract; COM
-discovery uses ABI v2 for SDK 0.3.0, ABI v3 for SDK 0.4.0, and ABI v5 on this development branch. V15 adds callable passing modes after binding and specialization.
+hosts together. Compiler encoding v16 records the versionless contract; COM
+discovery uses ABI v2 for SDK 0.3.0, ABI v3 for SDK 0.4.0, and ABI v4 on this development branch. V16 distinguishes borrowed returns, scoped delivery and threading evidence.
 
 Generated values and interface markers carry a hidden Rust binding proof. A
 consumer checks the actual selected Rust type, including a type reached through
@@ -1201,9 +1187,9 @@ signature. Factory acquisition compares both before calling bootstrap;
 Different disconnected revisions can coexist. The runtime does not register a
 module graph or impose a process-wide single revision for each module.
 
-`WeakComPtr<I>` uses ownership tag 15, distinct from shared strong references
-(9), exclusive owners (12), and exclusive weak observations (13). Closed generic
-identities also preserve this distinction. Existing spellings keep their encoding.
+`WeakComPtr<I>` uses ownership tag 15. Shared strong references use 9 and
+exclusive owners use 12. Tag 13 is reserved. Closed generic identities encode
+the declared ownership category.
 
 ## Implementation and plugin publication
 
@@ -1257,7 +1243,7 @@ Ordinary interface methods own parameterized object construction; there are no
 IDL `class` or `factory` roles, constructor registries or erased argument bags.
 
 Hard provider requirements can be listed as `dependencies = [PLUGIN_ID]`.
-There is no `contracts` list. Plugin descriptor ABI v5 contains the full factory
+There is no `contracts` list. Plugin descriptor ABI v4 contains the full factory
 identity, threading capability, bootstrap pointer, plugin metadata, and provider
 IDs. Its native getter is `nc_get_plugin_descriptor`.
 
@@ -1293,7 +1279,7 @@ for owned values and `std` where required by local code.
 - Each consumer’s build script generates its selected IDL; Cargo builds applications/plugins.
   Its IDL tools can inspect complete source declarations without shipping them.
 - `neocogi-inspect` reads plugin, dependency and factory metadata in
-  [inspection schema 10](../../tools/neocogi-inspect/README.md). It compares exact
+  [inspection schema 11](../../tools/neocogi-inspect/README.md). It compares exact
   factory signatures and plans provider load order.
 
 Use `interface` for public capabilities, required projections and typed object
@@ -1306,7 +1292,7 @@ ordinary interface methods. Use interface `IID`, `INTERFACE_ID` and
 `INTERFACE_DESCRIPTOR`. Low-level
 handwritten `ComInterface` implementations must specify `type Threading`.
 Remove contract registration and `MODULE` imports, and rebuild against runtime
-ABI v5 and the stable `nc_get_plugin_descriptor` getter. No legacy adapter retains the
+ABI v4 and the stable `nc_get_plugin_descriptor` getter. No legacy adapter retains the
 removed runtime contract mechanism.
 
 ### Generated IDL metadata
@@ -1348,13 +1334,13 @@ Rust references and private implementation pointers do not cross COM.
 ## Exclusive object transfers
 
 `ComBox<T>` is a compiler-defined exclusive owner for a closed object contract.
-Factory results transfer the sole owner; container parameters consume it.
-`WeakComBox<T>` results transfer cached observers without retaining the value:
+Factory results transfer the sole owner. Container parameters consume it.
+A container can lend from a child field:
 
 ```rust,ignore
 interface IContainer {
     fn insert(&mut self, child: ComBox<IWidget>) -> Result<()>;
-    fn child(&self, index: u32) -> Result<WeakComBox<IWidget>>;
+    fn child(&self, index: u32) -> Option<&IWidget>;
 }
 
 interface Widgets {
@@ -1362,8 +1348,9 @@ interface Widgets {
 }
 ```
 
-These spellings have distinct canonical fingerprints and COM inspection passing
-modes. They are method transfers, not repeatable struct/enum value fields. A
+Owning and borrowed positions have distinct canonical fingerprints and
+inspection passing modes. Boxed ownership transfers follow method slots
+rather than repeatable value fields. A
 consuming Rust parameter returns its original owner on failure. IDL derives the
 Rust error tuple from the parameters: `Result<R, (NcStatus, ComBox<I>)>` for one
 owner, or `(NcStatus, owner1, owner2, ...)` for several, in parameter order.

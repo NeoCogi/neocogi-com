@@ -4,14 +4,14 @@
 mod test_contracts {
     include!(concat!(env!("OUT_DIR"), "/test_contracts.rs"));
 }
-use neocogi_com_sdk::{com_object, ComPtr, NcStatus, NcValueRef};
+use neocogi_com_sdk::{com_object, ComBox, NcStatus, NcValueRef};
 use std::sync::LazyLock;
 
 extern crate self as fixture_borrowed_values;
 test_contracts::borrowed_values!();
 
 /// Mutable provider state stores the application value without shared mutation.
-#[com_object(IValueReceiver)]
+#[com_object(IValueReceiver, ownership = exclusive)]
 struct Receiver {
     /// None before the first successful acquisition; subsequent calls replace it.
     saved: Option<Message>,
@@ -32,8 +32,8 @@ impl IValueReceiver for Receiver {
 }
 
 /// Construct a real COM object so calls cross generated wrappers and entry thunks.
-fn receiver() -> ComPtr<IValueReceiverAbi> {
-    Receiver::from_value(Receiver { saved: None }).query::<IValueReceiverAbi>().unwrap()
+fn receiver() -> ComBox<IValueReceiverAbi> {
+    Receiver::into_box(Receiver { saved: None }).query::<IValueReceiverAbi>().unwrap()
 }
 
 /// Acquired nested strings survive both guard destruction and source mutation/drop.

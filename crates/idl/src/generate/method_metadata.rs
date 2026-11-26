@@ -70,7 +70,8 @@ fn parameter_type(graph: &Generation<'_>, module: &ResolvedModule, parameter: &c
         ParameterPassing::Copied => "Value",
         ParameterPassing::BorrowedValue | ParameterPassing::BorrowedText | ParameterPassing::SharedLoan { optional: false } => "Borrowed",
         ParameterPassing::SharedLoan { optional: true } => "OptionalBorrowedInterface",
-        ParameterPassing::MutableLoan => "MutableBorrowedInterface",
+        ParameterPassing::MutableLoan { optional: false } => "MutableBorrowedInterface",
+        ParameterPassing::MutableLoan { optional: true } => "OptionalMutableBorrowedInterface",
         ParameterPassing::InputBuffer => "InputBuffer",
         ParameterPassing::OutputBuffer => "OutputBuffer",
         ParameterPassing::ConsumingBox => return exclusive_type(graph, module, ty),
@@ -82,18 +83,19 @@ fn parameter_type(graph: &Generation<'_>, module: &ResolvedModule, parameter: &c
 /// Describes output ownership from the same slot that selects the wire.
 fn return_type(graph: &Generation<'_>, module: &ResolvedModule, method: &Method) -> Result<TokenStream, GenerateError> {
     let kind = match method.return_passing {
-        ReturnPassing::Unit
-        | ReturnPassing::Copied
-        | ReturnPassing::SharedOwner { optional: false }
-        | ReturnPassing::BoxObserver
-        | ReturnPassing::SharedObserver => "Value",
+        ReturnPassing::Unit | ReturnPassing::Copied | ReturnPassing::SharedOwner { optional: false } | ReturnPassing::SharedObserver => "Value",
         ReturnPassing::SharedOwner { optional: true } => "OptionalOwnedInterface",
-        ReturnPassing::ScopedLoan => "ScopedBorrowedInterface",
+        ReturnPassing::BorrowedLoan { mutable: false, optional: false } => "BorrowedInterfaceResult",
+        ReturnPassing::BorrowedLoan { mutable: false, optional: true } => "OptionalBorrowedInterfaceResult",
+        ReturnPassing::BorrowedLoan { mutable: true, optional: false } => "MutableBorrowedInterfaceResult",
+        ReturnPassing::BorrowedLoan { mutable: true, optional: true } => "OptionalMutableBorrowedInterfaceResult",
+        ReturnPassing::ScopedLoan { mutable: false } => "ScopedBorrowedInterface",
+        ReturnPassing::ScopedLoan { mutable: true } => "ScopedMutableBorrowedInterface",
         ReturnPassing::BoxOwner => return exclusive_type(graph, module, method.return_payload()),
         ReturnPassing::Unresolved | ReturnPassing::Invalid => return Err(GenerateError::new("result slot lacks its resolved passing rule")),
     };
     let ty = match method.return_passing {
-        ReturnPassing::BoxObserver | ReturnPassing::SharedObserver => &method.output,
+        ReturnPassing::SharedObserver => &method.output,
         _ => method.return_payload(),
     };
     method_type(graph, module, kind, ty)

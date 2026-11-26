@@ -5,7 +5,7 @@
 //! projection continues to require checked QueryInterface.
 
 use core::marker::PhantomData;
-use crate::{ComInterface, ThreadLocal, ThreadSafe, ThreadingModel};
+use crate::{ComInterface, ThreadLocal, ThreadSafe, ThreadSend, ThreadSync, ThreadingModel};
 
 /// Associates a COM ABI marker with its generated borrowed Rust method wrapper.
 ///
@@ -18,9 +18,8 @@ use crate::{ComInterface, ThreadLocal, ThreadSafe, ThreadingModel};
 /// `Wrapper<M>` must be an unsized `repr(transparent)` wrapper around
 /// `ComInterfacePointer<Self, M>`. Its safe operations use the retained
 /// interface/control/table storage and may not manufacture an owning reference
-/// or an escaping ComRef. A boxed weak wrapper may outlive the concrete value:
-/// every provider entry must admit liveness before accessing it. Inherited
-/// wrappers preserve the exact base vtable prefix and threading capability. Both hooks must lend exactly their input
+/// or extend the live target borrow. Inherited wrappers preserve the exact
+/// base vtable prefix, target access and threading capability. Both hooks lend exactly their input
 /// storage, preserving its lifetime, zero-length metadata and threading marker.
 /// The opaque unsized field prevents safe replacement of the underlying pair,
 /// including generic `mem::swap` from the generated type's own module.
@@ -57,16 +56,15 @@ pub unsafe trait __NcScopedPrefix<const IID: u128>: ComInterface {
 /// Opaque borrowed object/table pointer for generated Rust interface methods.
 ///
 /// This type has no public constructor, Clone, Copy, or ownership conversion.
-/// A view is tied to a live owner/borrow or a retained exclusive weak token.
-/// Exclusive providers must acquire lifetime protection at every ABI entry before
-/// accessing their value; expiration returns NC_E_DROPPED. Its raw pair may
+/// A view is tied to the live target borrow supplied by its owner or lender.
+/// Its raw pair may
 /// address an inherited prefix whose actual projected identity remains derived;
 /// such a pointer must not be adopted as a base COM reference by a cast.
 /// Its unsized tail always has length zero: the dynamic extent is exactly the
 /// pair's two words. References are fat, while all stored handles remain two words.
 #[repr(C)]
 pub struct ComInterfacePointer<T: ComInterface, M: ThreadingModel = ThreadLocal> {
-    /// Same object/table pair kept valid by the lending owner, borrow or weak token.
+    /// Object/table pair kept valid by the lending owner or borrow.
     pointer: crate::ComRaw<T>,
     /// Preserves the handle's thread-affinity restriction in the borrowed view.
     mode: PhantomData<M>,
@@ -78,9 +76,8 @@ impl<T: ComInterface, M: ThreadingModel> ComInterfacePointer<T, M> {
     /// Lends a zero-tail method wrapper over a handle's non-null object/table pair.
     ///
     /// # Safety
-    /// The pair's storage/table must remain valid for the borrow. It must permit
-    /// T's calls under M; an expired exclusive weak view must still have live
-    /// control storage and thunks which reject access before touching its value.
+    /// The pair's value, storage and table must remain valid for the borrow, and
+    /// it must supply shared target access under M.
     pub(crate) unsafe fn borrow_pair(pair: &crate::ptr::NonNullComRaw<T>) -> &Self {
         let pointer = core::ptr::slice_from_raw_parts(core::ptr::from_ref(pair).cast::<()>(), 0);
         // SAFETY: NonNullComRaw and ComRaw are repr(C) pairs of matching thin
@@ -93,8 +90,8 @@ impl<T: ComInterface, M: ThreadingModel> ComInterfacePointer<T, M> {
     /// Lends mutable method lookup without granting mutable access to the pair.
     ///
     /// # Safety
-    /// The same obligations as borrow_pair apply. The exclusive source borrow
-    /// must cover this entire facade borrow; it does not prove object uniqueness.
+    /// The same obligations as borrow_pair apply. The lender must also supply
+    /// exclusive target access for the entire facade borrow.
     pub(crate) unsafe fn borrow_pair_mut(pair: &mut crate::ptr::NonNullComRaw<T>) -> &mut Self {
         let pointer = core::ptr::slice_from_raw_parts_mut(core::ptr::from_mut(pair).cast::<()>(), 0);
         // SAFETY: the same layout/extent proof as borrow_pair, with an exclusive
@@ -118,7 +115,7 @@ impl<T: ComInterface, M: ThreadingModel> ComInterfacePointer<T, M> {
     ///
     /// # Safety
     /// U must satisfy prefix's physical table proof. M and the source borrow
-    /// lifetime are preserved; provider call gates still arbitrate object access.
+    /// lifetime and exclusive target access are preserved.
     #[doc(hidden)]
     pub unsafe fn prefix_mut<U: ComInterface>(&mut self) -> &mut ComInterfacePointer<U, M> {
         // SAFETY: same zero-tail prefix proof, preserving the exclusive reborrow.
@@ -135,9 +132,11 @@ impl<T: ComInterface, M: ThreadingModel> ComInterfacePointer<T, M> {
     }
 }
 
-// SAFETY: A ThreadSafe view can only be lent by a handle whose construction
-// guarantees concurrent method calls are supported. The view has no ownership.
+// SAFETY: A send-capable view inherits its lender’s permission for exclusive
+// transfer. Moving a shared reference to a view requires its Sync mode.
+unsafe impl<T: ComInterface> Send for ComInterfacePointer<T, ThreadSend> {}
 unsafe impl<T: ComInterface> Send for ComInterfacePointer<T, ThreadSafe> {}
 // SAFETY: Sharing the view grants the same synchronous call permission as its
 // ThreadSafe owner; it does not extend the owner's lifetime.
+unsafe impl<T: ComInterface> Sync for ComInterfacePointer<T, ThreadSync> {}
 unsafe impl<T: ComInterface> Sync for ComInterfacePointer<T, ThreadSafe> {}

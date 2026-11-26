@@ -60,6 +60,8 @@ pub(super) fn object(graph: &mut Generation<'_>, module: &ResolvedModule, target
     let mode = match interface.threading {
         Threading::Local => None,
         Threading::Shared => Some(Box::new(syn::parse_quote!(#nc::ThreadSafe))),
+        Threading::Send => Some(Box::new(syn::parse_quote!(#nc::ThreadSend))),
+        Threading::Sync => Some(Box::new(syn::parse_quote!(#nc::ThreadSync))),
     };
     Ok((rust_type(named_rust_type(graph, module, resolved, true)?)?, mode))
 }
@@ -102,7 +104,7 @@ fn argument(graph: &mut Generation<'_>, module: &ResolvedModule, parameter: &Par
                 AbiArgKind::BorrowedValue { value_ty: Box::new(value_ty) },
             )
         }
-        ParameterPassing::SharedLoan { .. } | ParameterPassing::MutableLoan => {
+        ParameterPassing::SharedLoan { .. } | ParameterPassing::MutableLoan { .. } => {
             let (interface, mode_ty) = object(graph, module, ty)?;
             let nc = &graph.support;
             let mode = mode_ty.as_ref().map(|mode| quote! { , #mode });
@@ -112,7 +114,11 @@ fn argument(graph: &mut Generation<'_>, module: &ResolvedModule, parameter: &Par
                     InterfaceBorrow::OptionalShared,
                     quote! { ::core::option::Option<#nc::ComRef<'_, #interface #mode>> },
                 ),
-                ParameterPassing::MutableLoan => (InterfaceBorrow::Mutable, quote! { #nc::ComMut<'_, #interface #mode> }),
+                ParameterPassing::MutableLoan { optional: false } => (InterfaceBorrow::Mutable, quote! { #nc::ComMut<'_, #interface #mode> }),
+                ParameterPassing::MutableLoan { optional: true } => (
+                    InterfaceBorrow::OptionalMutable,
+                    quote! { ::core::option::Option<#nc::ComMut<'_, #interface #mode>> },
+                ),
                 _ => unreachable!("filtered interface loans"),
             };
             (
@@ -173,19 +179,34 @@ fn result(graph: &mut Generation<'_>, module: &ResolvedModule, method: &Method) 
         }
         ReturnPassing::SharedOwner { optional } => (InterfaceOwnership::Shared, quote! { ComPtr }, optional),
         ReturnPassing::BoxOwner => (InterfaceOwnership::Exclusive, quote! { ComBox }, false),
-        ReturnPassing::BoxObserver => (InterfaceOwnership::WeakExclusive, quote! { WeakComBox }, false),
         ReturnPassing::SharedObserver => (InterfaceOwnership::WeakShared, quote! { WeakComPtr }, false),
-        ReturnPassing::ScopedLoan => {
+        ReturnPassing::BorrowedLoan { mutable, .. } | ReturnPassing::ScopedLoan { mutable } => {
             let (interface_ty, mode_ty) = object(graph, module, ty)?;
             let nc = &graph.support;
             let mode = mode_ty.as_ref().map(|mode| quote! { , #mode });
+            let wrapper = if mutable {
+                quote! { ComMut }
+            } else {
+                quote! { ComRef }
+            };
+            let loan = quote! { #nc::#wrapper<'_, #interface_ty #mode> };
+            let optional = !matches!(method.return_passing, ReturnPassing::BorrowedLoan { optional: false, .. });
+            let rust_ty = if optional {
+                quote! { ::core::option::Option<#loan> }
+            } else {
+                loan
+            };
+            let abi_ty = syn::parse_quote!(#nc::ComRaw<#interface_ty>);
+            let interface_ty = Box::new(interface_ty);
+            let kind = if matches!(method.return_passing, ReturnPassing::ScopedLoan { .. }) {
+                AbiReturnKind::ScopedLoan { interface_ty, mode_ty, mutable }
+            } else {
+                AbiReturnKind::BorrowedLoan { interface_ty, mode_ty, mutable, optional }
+            };
             return Ok(AbiReturn {
-                rust_ty: rust_type(quote! { ::core::option::Option<#nc::ComRef<'_, #interface_ty #mode>> })?,
-                abi_ty: syn::parse_quote!(#nc::ComRaw<#interface_ty>),
-                kind: AbiReturnKind::ScopedLoan {
-                    interface_ty: Box::new(interface_ty),
-                    mode_ty,
-                },
+                rust_ty: rust_type(rust_ty)?,
+                abi_ty,
+                kind,
             });
         }
         ReturnPassing::Unresolved | ReturnPassing::Invalid => return Err(GenerateError::new("result slot lacks its resolved passing rule")),

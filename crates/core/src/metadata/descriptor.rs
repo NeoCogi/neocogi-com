@@ -266,8 +266,8 @@ mod tests {
     };
 
     #[test]
-    fn native_abi_version_is_v5() {
-        assert_eq!(NC_COM_ABI_VERSION, 5);
+    fn native_abi_version_is_v4() {
+        assert_eq!(NC_COM_ABI_VERSION, 4);
     }
 
     #[test]
@@ -328,12 +328,32 @@ mod tests {
     fn threading_mode_raw_values_are_stable_and_checked() {
         assert_eq!(NcAbiThreadingMode::ThreadLocal.as_raw(), NC_ABI_THREADING_THREAD_LOCAL);
         assert_eq!(NcAbiThreadingMode::ThreadSafe.as_raw(), NC_ABI_THREADING_THREAD_SAFE);
+        assert_eq!(NcAbiThreadingMode::ThreadSend.as_raw(), 2);
+        assert_eq!(NcAbiThreadingMode::ThreadSync.as_raw(), 3);
         assert_eq!(
             NcAbiThreadingMode::from_raw(NC_ABI_THREADING_THREAD_LOCAL),
             Some(NcAbiThreadingMode::ThreadLocal)
         );
         assert_eq!(NcAbiThreadingMode::from_raw(NC_ABI_THREADING_THREAD_SAFE), Some(NcAbiThreadingMode::ThreadSafe));
+        assert_eq!(NcAbiThreadingMode::from_raw(2), Some(NcAbiThreadingMode::ThreadSend));
+        assert_eq!(NcAbiThreadingMode::from_raw(3), Some(NcAbiThreadingMode::ThreadSync));
         assert_eq!(NcAbiThreadingMode::from_raw(u32::MAX), None);
+    }
+
+    #[test]
+    fn threading_mode_supports_independent_capabilities() {
+        use NcAbiThreadingMode::{ThreadLocal, ThreadSafe, ThreadSend, ThreadSync};
+        for (mode, supported) in [
+            (ThreadLocal, [true, false, false, false]),
+            (ThreadSafe, [true, true, true, true]),
+            (ThreadSend, [true, false, true, false]),
+            (ThreadSync, [true, false, false, true]),
+        ] {
+            assert_eq!(
+                [ThreadLocal, ThreadSafe, ThreadSend, ThreadSync].map(|required| mode.supports(required)),
+                supported
+            );
+        }
     }
 
     #[test]

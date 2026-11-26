@@ -33,8 +33,6 @@ pub enum ValueType {
     Object(&'static str),
     /// Canonical interface identity of shared weak bookkeeping, without a value owner.
     WeakObject(&'static str),
-    /// Canonical interface identity of an exclusive weak observer, without an execution lease.
-    WeakBoxObject(&'static str),
     /// Explicitly indirect owned sequence.
     Sequence(&'static ValueType),
     /// Inline fixed-size array.
@@ -108,10 +106,22 @@ pub enum MethodType {
     OptionalBorrowedInterface(ValueType),
     /// Live interface loan permitting mutable dispatch in an input slot.
     MutableBorrowedInterface(ValueType),
+    /// Optional mutable interface loan in an input slot.
+    OptionalMutableBorrowedInterface(ValueType),
+    /// Shared target loan tied to the receiver borrow.
+    BorrowedInterfaceResult(ValueType),
+    /// Optional shared target loan tied to the receiver borrow.
+    OptionalBorrowedInterfaceResult(ValueType),
+    /// Exclusive target loan tied to the receiver borrow.
+    MutableBorrowedInterfaceResult(ValueType),
+    /// Optional exclusive target loan tied to the receiver borrow.
+    OptionalMutableBorrowedInterfaceResult(ValueType),
     /// Nullable transfer of one shared owner in an output slot.
     OptionalOwnedInterface(ValueType),
     /// Optional read-only interface loan delivered through a synchronous visitor.
     ScopedBorrowedInterface(ValueType),
+    /// Optional exclusive target loan delivered through a synchronous visitor.
+    ScopedMutableBorrowedInterface(ValueType),
     /// Read-only caller-provided element sequence.
     InputBuffer(ValueType),
     /// Caller-provided storage initialized through checked output completion.

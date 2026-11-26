@@ -3,6 +3,7 @@
 extern crate self as getting_started_plugin;
 
 use neocogi_com_sdk::{ComPtr, INcStringAbi, NcStatus, NcString, NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE};
+use std::cell::Cell;
 
 /// Provider-local bindings generated independently from the common source.
 mod contracts {
@@ -13,7 +14,7 @@ mod contracts {
 #[neocogi_com_sdk::com_object(contracts::Calculator)]
 struct Calculator {
     /// Whether the label is still available.
-    labeled: bool,
+    labeled: Cell<bool>,
 }
 
 impl contracts::Calculator for Calculator {
@@ -22,7 +23,7 @@ impl contracts::Calculator for Calculator {
     }
 
     fn find_label(&self, found: bool) -> Option<ComPtr<INcStringAbi>> {
-        (found && self.labeled).then(|| NcString::from_utf8_str("calculator"))
+        (found && self.labeled.get()).then(|| NcString::from_utf8_str("calculator"))
     }
 
     fn load_label(&self, key: i32) -> Result<Option<ComPtr<INcStringAbi>>, NcStatus> {
@@ -32,13 +33,13 @@ impl contracts::Calculator for Calculator {
         Ok(self.find_label(key == 0))
     }
 
-    fn invalidate(&mut self) {
-        self.labeled = false;
+    fn invalidate(&self) {
+        self.labeled.set(false);
     }
 }
 
 /// Supplies one owned calculator through the fixed plugin bootstrap contract.
 #[neocogi_com_sdk::plugin(name = "nc.tutorial.calculator")]
 fn acquire(_runtime: neocogi_com_sdk::RuntimeHandle) -> Result<neocogi_com_sdk::ComPtr<contracts::CalculatorAbi>, neocogi_com_sdk::NcStatus> {
-    Calculator::from_value(Calculator { labeled: true }).query()
+    Calculator::from_value(Calculator { labeled: Cell::new(true) }).query()
 }

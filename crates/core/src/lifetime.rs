@@ -3,27 +3,26 @@
 //! Development ABI: these headers and callbacks are provisional, not frozen.
 //! See [`crate::NC_COM_ABI_VERSION`] for the current native ABI version.
 //!
-//! Shared strong counts contain only counts. Boxed owner/access bits belong to
-//! their own header. Construction and each ABI ownership contract establish the
-//! matching state. No allocation metadata or mutable counter carries a kind tag.
+//! Shared strong counts contain only counts. A boxed prefix carries only provider
+//! metadata. Construction and each ABI ownership contract establish the matching
+//! state. No allocation metadata or mutable counter carries a kind tag.
 //! Concrete provider storage and allocator callbacks stay in their owning binary.
 use core::{
     ffi::c_void,
-    ptr::NonNull,
     sync::atomic::{AtomicUsize, Ordering, fence},
 };
-use crate::{ComRaw, IUnknown, IUnknownVTable, NcInterfaceId, NcStatus, NC_E_DROPPED, NC_E_POINTER, NC_E_INVALID_ARG, NC_OK};
+use crate::{ComRaw, IUnknown, IUnknownVTable, NcInterfaceId, NcStatus, NC_E_POINTER, NC_E_INVALID_ARG, NC_OK};
 
 /// Immutable cleanup callbacks and interface tables for one implementation.
 ///
 /// Both typed lifetime states refer to this record. Their ownership policy is
 /// established by construction or the ABI argument/result contract, never by a
 /// runtime tag. The provider pairs these callbacks with its exact concrete storage.
-/// Metadata and code remain valid through final weak release. Cleanup receives
+/// Metadata and code remain valid through storage deallocation. Cleanup receives
 /// the allocation address, must not unwind and must free in its allocating binary.
 #[repr(C)]
 pub struct NcObjectTypeInfo {
-    /// Destroys the initialized value once, while the implicit weak retains storage.
+    /// Destroys the initialized value once, before storage is deallocated.
     pub destroy_value: unsafe extern "C" fn(*mut c_void),
     /// Frees storage in its allocating provider after value destruction has returned.
     pub deallocate: unsafe extern "C" fn(*mut c_void),
@@ -60,28 +59,40 @@ impl NcSharedLifetimeState {
     }
 }
 
-/// C allocation header for a boxed owner, at offset zero of its storage.
+/// C allocation prefix for a boxed owner, at offset zero of its storage.
 ///
-/// Owner presence and admitted calls share one atomic word so destruction cannot
-/// race a separate access gate. This word contains no shared strong count or
-/// ownership-kind discriminator. Clearing the owner bit rejects new calls;
-/// the dropping owner waits for admitted calls and destroys the value itself.
+/// Immutable metadata locates the exact interface catalog and provider cleanup.
+/// The sole owner and its live loans carry value-access and destruction authority.
 #[repr(C)]
 pub struct NcBoxedLifetimeState {
-    /// Immutable provider metadata for this statically selected lifetime state.
+    /// Exact provider metadata, retained through synchronous cleanup.
     type_info: *const NcObjectTypeInfo,
-    /// Sole-owner presence, writer presence and reader count, updated atomically.
-    owner_and_borrows: AtomicUsize,
-    /// Explicit observers plus the implicit reference through value destruction.
-    weak_count: AtomicUsize,
 }
+
 impl NcBoxedLifetimeState {
-    /// Starts the sole owner and one implicit weak reference before publication.
+    /// Initializes the metadata prefix for an allocation with one boxed owner.
     pub const fn new(type_info: &'static NcObjectTypeInfo) -> Self {
-        Self {
-            type_info,
-            owner_and_borrows: AtomicUsize::new(BOX_OWNER),
-            weak_count: AtomicUsize::new(1),
+        Self { type_info }
+    }
+
+    /// Consumes the unique owner, destroys its value and frees its storage.
+    ///
+    /// # Safety
+    /// A nonnull pointer transfers the sole owner of this exact boxed allocation.
+    /// All loans have ended, and the allocating provider remains loaded through
+    /// both callbacks. The raw pointer avoids protecting a reference across free.
+    pub(crate) unsafe fn release(control: *mut Self) {
+        if control.is_null() {
+            return;
+        }
+        // SAFETY: ownership proves initialized storage and matching static metadata.
+        // Copy both callbacks before destruction and deallocation touch the allocation.
+        let type_info = unsafe { &*(*control).type_info };
+        let destroy = type_info.destroy_value;
+        let deallocate = type_info.deallocate;
+        unsafe {
+            destroy(control.cast());
+            deallocate(control.cast());
         }
     }
 }
@@ -90,7 +101,6 @@ impl NcBoxedLifetimeState {
 ///
 /// Zero and exhaustion return None before mutation. Owning operations convert
 /// this result into fail-stop termination, including ordinary Rust weak clones.
-/// Reader-count exhaustion instead rejects call admission.
 fn retain(counter: &AtomicUsize) -> Option<usize> {
     let mut current = counter.load(Ordering::Relaxed);
     loop {
@@ -145,8 +155,8 @@ unsafe extern "C" fn nc_shared_release(object: *mut c_void) -> u32 {
 /// C adapter consuming the sole exclusive owner; the common slot returns zero.
 ///
 /// # Safety
-/// A nonnull object transfers its sole valid boxed owner and obeys the non-reentrant
-/// destruction/storage obligations of NcBoxedLifetimeState::release.
+/// A nonnull object transfers its sole valid boxed owner and obeys the no-outstanding-loan
+/// obligations of NcBoxedLifetimeState::release.
 unsafe extern "C" fn nc_exclusive_release(object: *mut c_void) -> u32 {
     unsafe { NcBoxedLifetimeState::release(object.cast()) };
     0
@@ -306,7 +316,7 @@ unsafe extern "C" fn reject_shared_query(object: *mut c_void, requested: *const 
     }
 }
 
-/// Exclusive observers do not implement shared weak promotion; preserve invalid-policy errors.
+/// Boxed values do not participate in shared weak ownership.
 ///
 /// # Safety
 /// A nonnull output is aligned/writable for one token; object follows the selected
@@ -366,160 +376,11 @@ impl NcSharedLifetimeState {
     }
 }
 
-/// Boxed owner presence shares one word with admission, but carries no kind tag.
-const BOX_OWNER: usize = 1 << (usize::BITS - 1);
-/// Exclusive writer presence excludes every reader.
-const BOX_WRITER: usize = BOX_OWNER >> 1;
-/// Reader count occupies the remaining bits and must not overflow into writer presence.
-const BOX_READERS: usize = BOX_WRITER - 1;
-/// Outstanding admitted calls keep the dropping owner waiting.
-const BOX_BORROWS: usize = BOX_WRITER | BOX_READERS;
-
-/// One shared implementation borrow, acquired atomically with the lifetime check.
-/// Only generated provider entry points create these guards. Their destruction
-/// releases access; it never destroys the implementation or takes ownership.
-pub struct BoxRead {
-    /// Retained header whose reader count includes this guard.
-    control: NonNull<NcBoxedLifetimeState>,
-}
-
-/// One exclusive implementation borrow, using the same state as readers and Drop.
-pub struct BoxWrite {
-    /// Retained header whose writer bit belongs to this guard.
-    control: NonNull<NcBoxedLifetimeState>,
-}
-
-/// Atomically admits one reader or the unique writer before any T reference exists.
-///
-/// # Safety
-/// A nonnull pointer is genuine boxed storage with matching immutable metadata.
-/// The caller retains storage through the complete returned guard/drop call.
-/// Policy is already proven; owner presence and borrow conflicts are not.
-/// Null is rejected without accessing storage.
-#[inline(never)]
-unsafe fn borrow_box(control: *mut NcBoxedLifetimeState, writer: bool) -> Result<NonNull<NcBoxedLifetimeState>, NcStatus> {
-    let control = NonNull::new(control).ok_or(NC_E_POINTER)?;
-    let header = unsafe { control.as_ref() };
-    let mut state = header.owner_and_borrows.load(Ordering::Acquire);
-    loop {
-        let next = match state {
-            expired if expired & BOX_OWNER == 0 => return Err(NC_E_DROPPED),
-            busy if busy & BOX_WRITER != 0 => return Err(crate::NC_E_BUSY),
-            busy if writer && busy & BOX_READERS != 0 => return Err(crate::NC_E_BUSY),
-            full if !writer && full & BOX_READERS == BOX_READERS => return Err(crate::NC_E_BUSY),
-            live if writer => live | BOX_WRITER,
-            live => live + 1,
-        };
-        match header
-            .owner_and_borrows
-            .compare_exchange_weak(state, next, Ordering::Acquire, Ordering::Relaxed)
-        {
-            Ok(_) => return Ok(control),
-            Err(observed) => state = observed,
-        }
-    }
-}
-impl BoxRead {
-    /// Acquires shared access, rejecting destruction and conflicting mutable calls.
-    ///
-    /// # Safety
-    /// A nonnull `control` points to a genuine complete boxed header with valid
-    /// metadata/code. A typed pointer cast alone does not prove this allocation
-    /// policy. Retain storage through the complete returned guard/drop call.
-    /// Null returns NC_E_POINTER; expired/conflicting access is checked atomically.
-    pub unsafe fn enter(control: *mut NcBoxedLifetimeState) -> Result<Self, NcStatus> {
-        Ok(Self {
-            control: unsafe { borrow_box(control, false) }?,
-        })
-    }
-}
-impl BoxWrite {
-    /// Acquires mutable access only when the live object has no active borrowers.
-    ///
-    /// # Safety
-    /// A nonnull `control` points to a genuine complete boxed header with valid
-    /// metadata/code. A typed pointer cast alone does not prove this allocation
-    /// policy. Retain storage through the complete returned guard/drop call.
-    /// Null returns NC_E_POINTER; expired/conflicting access is checked atomically.
-    pub unsafe fn enter(control: *mut NcBoxedLifetimeState) -> Result<Self, NcStatus> {
-        Ok(Self {
-            control: unsafe { borrow_box(control, true) }?,
-        })
-    }
-}
-impl Drop for BoxRead {
-    /// Publishes completion to the waiting owner without clearing its terminal bit.
-    fn drop(&mut self) {
-        // SAFETY: admission protects T; the caller retains header storage. Nothing
-        // accesses T after this release, which may unblock its owning destructor.
-        let previous = unsafe { self.control.as_ref() }.owner_and_borrows.fetch_sub(1, Ordering::Release);
-        debug_assert!(previous & BOX_READERS != 0 && previous & BOX_WRITER == 0);
-    }
-}
-impl Drop for BoxWrite {
-    /// Releases only mutable access, preserving a concurrent owner's stop transition.
-    fn drop(&mut self) {
-        // A store of zero would resurrect or erase ownership state. Clear exactly
-        // the writer bit and publish all implementation writes before destruction.
-        let previous = unsafe { self.control.as_ref() }.owner_and_borrows.fetch_and(!BOX_WRITER, Ordering::Release);
-        debug_assert!(previous & BOX_WRITER != 0 && previous & BOX_READERS == 0);
-    }
-}
-
-impl NcBoxedLifetimeState {
-    /// Observes whether an exclusive owner still accepts calls. This is a snapshot,
-    /// not a borrow: provider entry must independently acquire checked access.
-    pub fn box_is_alive(&self) -> bool {
-        self.owner_and_borrows.load(Ordering::Acquire) & BOX_OWNER != 0
-    }
-
-    /// Observes an idle exclusive implementation without calling provider code.
-    /// An owner can preflight destruction against reentry. This observation
-    /// reserves no access; Drop still waits for calls admitted concurrently.
-    pub fn box_is_idle(&self) -> bool {
-        self.owner_and_borrows.load(Ordering::Acquire) == BOX_OWNER
-    }
-}
-
-impl NcBoxedLifetimeState {
-    /// Releases the unique owner and destroys its value before returning.
-    ///
-    /// New calls fail as soon as ownership is cleared. Calls already executing on
-    /// other threads finish before destruction. The implicit weak keeps storage alive
-    /// through T's destructor, including destruction of weak-to-self fields.
-    ///
-    /// # Safety
-    /// Transfers the sole owner exactly once. The caller must not be executing a
-    /// method/borrow of this object, or hold a resource required by an active call:
-    /// waiting on such a call would deadlock. Defer destruction until that call returns.
-    pub(crate) unsafe fn release(control: *mut Self) {
-        if control.is_null() {
-            return;
-        }
-        // SAFETY: the caller transfers a valid boxed owner in the current native ABI.
-        let header = unsafe { &*control };
-        let previous = header.owner_and_borrows.fetch_and(!BOX_OWNER, Ordering::AcqRel);
-        assert!(previous & BOX_OWNER != 0, "exclusive owner released twice");
-        // Destruction belongs only to this owner. Borrow release never runs a
-        // destructor, so returning from Drop proves the entire owned value is gone.
-        while header.owner_and_borrows.load(Ordering::Acquire) & BOX_BORROWS != 0 {
-            core::hint::spin_loop();
-            #[cfg(feature = "std")]
-            std::thread::yield_now();
-        }
-        unsafe {
-            ((*header.type_info).destroy_value)(control.cast());
-            Self::weak_release(control);
-        }
-    }
-}
-
 /// Tries an exclusive interface cast, returning its table without retaining ownership.
-/// Retained class metadata permits this cast even after the value is destroyed.
 ///
 /// # Safety
-/// A nonnull pointer identifies genuine complete boxed storage with matching
-/// metadata/tables retained through the call, including after value destruction.
+/// A nonnull pointer identifies genuine, initialized boxed storage with matching
+/// metadata and tables retained by an owner or live loan through the call.
 /// Policy must be proven by construction or the ABI producer/unsafe caller;
 /// casting a pointer does not prove it. Null is rejected without reading storage.
 pub unsafe fn try_box_cast(control: *mut NcBoxedLifetimeState, requested: &NcInterfaceId) -> Result<*const IUnknownVTable, NcStatus> {
@@ -530,35 +391,6 @@ pub unsafe fn try_box_cast(control: *mut NcBoxedLifetimeState, requested: &NcInt
 }
 
 impl NcSharedLifetimeState {
-    /// Adds one weak storage reference without accessing or retaining the value.
-    ///
-    /// # Safety
-    /// The matching allocation, metadata and code are retained by a live owner
-    /// or weak token throughout this call. Policy was established before entry.
-    pub(crate) unsafe fn weak_retain(&self) {
-        retain(&self.weak_count).unwrap_or_else(|| counter_exhausted());
-    }
-
-    /// Consumes one matching weak reference, freeing storage on the final release.
-    ///
-    /// # Safety
-    /// A nonnull pointer transfers one valid weak token of this policy. Final
-    /// release requires that value destruction has returned. Metadata/code remain
-    /// valid through provider-local deallocation; do not access storage afterwards.
-    /// The raw argument avoids protecting a reference across its deallocation.
-    pub(crate) unsafe fn weak_release(control: *mut Self) {
-        if control.is_null() {
-            return;
-        }
-        // The arithmetic borrow returns before a callback can free its backing.
-        if release_weak_count(unsafe { &(*control).weak_count }) {
-            let deallocate = unsafe { (*(*control).type_info).deallocate };
-            unsafe { deallocate(control.cast()) };
-        }
-    }
-}
-
-impl NcBoxedLifetimeState {
     /// Adds one weak storage reference without accessing or retaining the value.
     ///
     /// # Safety

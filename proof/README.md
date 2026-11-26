@@ -1,8 +1,7 @@
 # NeoCogi COM proofs
 
-This Lean 4 project checks the proposed Box-like COM ownership contract. The
-current checkout still runs ABI v5 WIP. The [ABI specification](../docs/abi.md)
-describes that implementation.
+This Lean 4 project checks the Box-like COM ownership model used by ABI v4 WIP.
+The [ABI specification](../docs/abi.md) describes the native implementation.
 
 ## Run the checks
 

@@ -4,7 +4,7 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::{Ident, Lifetime, Path, Type, ext::IdentExt};
 
-use super::{AbiMethod, AbiReturnKind, PrivateNames, safe_arg_preparation, safe_vtable_call_args};
+use super::{AbiMethod, AbiReceiver, AbiReturnKind, PrivateNames, safe_arg_preparation, safe_vtable_call_args};
 use crate::ReturnProjection;
 
 /// Appends the same two native arguments to the vtable slot and its thunk.
@@ -40,14 +40,23 @@ pub(super) fn success_arm(nc: &Path, value: &Ident, context: &Ident, callback: &
     }
 }
 
-/// Emits a shared-only scoped getter accepting its proven physical prefix.
+/// Emits a scoped getter accepting its proven physical prefix and source access.
 pub(super) fn marker_method(nc: &Path, method: &AbiMethod, declaring_id: neocogi_com::NcGuid, names: &mut PrivateNames) -> Option<TokenStream> {
-    let AbiReturnKind::ScopedLoan { interface_ty, mode_ty } = &method.ok.kind else {
+    let AbiReturnKind::ScopedLoan { interface_ty, mode_ty, mutable } = &method.ok.kind else {
         return None;
     };
     let mode = match mode_ty {
         Some(mode) => quote! { #mode },
         None => quote! { #nc::ThreadLocal },
+    };
+    let (output_handle, runtime_helper) = if *mutable {
+        (quote! { ComMut }, quote! { __nc_with_scoped_mut_result })
+    } else {
+        (quote! { ComRef }, quote! { __nc_with_scoped_result })
+    };
+    let source_handle = match method.receiver {
+        AbiReceiver::Shared => quote! { ComRef },
+        AbiReceiver::Mutable => quote! { ComMut },
     };
     let method_ident = &method.ident;
     let helper = format_ident!("with_{}", method_ident.unraw(), span = method_ident.span());
@@ -78,7 +87,7 @@ pub(super) fn marker_method(nc: &Path, method: &AbiMethod, declaring_id: neocogi
         // last through this synchronous call. The raw slot admits the receiver and lends its result
         // through the installed continuation on the calling thread.
         unsafe {
-            #nc::__nc_with_scoped_result::<#interface_ty, #mode, #result>(
+            #nc::#runtime_helper::<#interface_ty, #mode, #result>(
                 #visit,
                 |#context, #callback| {
                     ((*#table).#method_ident)(
@@ -115,7 +124,7 @@ pub(super) fn marker_method(nc: &Path, method: &AbiMethod, declaring_id: neocogi
     Some(quote! {
         #(#docs)*
         /// Runs the visitor once for a present interface loan from this live receiver.
-        /// The receiver's shared admission protects the loan through the visitor.
+        /// The provider keeps the actual lender alive through the complete visitor.
         /// The visitor's output cannot carry that loan beyond the call.
         #[doc = #status_doc]
         ///
@@ -125,9 +134,9 @@ pub(super) fn marker_method(nc: &Path, method: &AbiMethod, declaring_id: neocogi
         /// non-unwinding C callback boundary.
         #[allow(non_camel_case_types, reason = "Generated type parameters can need a numeric hygiene suffix.")]
         pub fn #helper<#source_mode: #nc::ThreadingModel, #result>(
-            #source: #nc::ComRef<'_, impl #nc::__NcScopedPrefix<#iid, Base = Self>, #source_mode>,
+            #source: #nc::#source_handle<'_, impl #nc::__NcScopedPrefix<#iid, Base = Self>, #source_mode>,
             #(#arguments,)*
-            #visit: impl for<#loan> ::core::ops::FnOnce(#nc::ComRef<#loan, #interface_ty, #mode>) -> #result,
+            #visit: impl for<#loan> ::core::ops::FnOnce(#nc::#output_handle<#loan, #interface_ty, #mode>) -> #result,
         ) -> #return_ty {
             #body
         }

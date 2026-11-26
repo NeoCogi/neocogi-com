@@ -97,20 +97,20 @@ test_contracts::abi_policy!();
 /// Private state implementing a class that can only be obtained from a factory.
 struct DescribedValueObject {
     /// Current integer returned by both implemented projections.
-    value: i32,
+    value: std::cell::Cell<i32>,
 }
 
 impl IPolicyValue for DescribedValueObject {
     /// Reads the class's current integer through its required interface.
     fn value(&self) -> Result<i32, NcStatus> {
-        Ok(self.value)
+        Ok(self.value.get())
     }
 }
 
 impl DescribedValue for DescribedValueObject {
-    /// Mutates the class through its generated exclusive-call thunk.
-    fn replace(&mut self, value: i32) -> Result<(), NcStatus> {
-        self.value = value;
+    /// Updates the private value through its shared receiver.
+    fn replace(&self, value: i32) -> Result<(), NcStatus> {
+        self.value.set(value);
         Ok(())
     }
 }
@@ -122,7 +122,7 @@ struct ValueFactoryObject;
 impl ValueFactory for ValueFactoryObject {
     /// Allocates the concrete value directly and returns its typed projection.
     fn create(&self, value: i32) -> Result<ComPtr<DescribedValueAbi>, NcStatus> {
-        DescribedValueObject::from_value(DescribedValueObject { value }).query()
+        DescribedValueObject::from_value(DescribedValueObject { value: std::cell::Cell::new(value) }).query()
     }
 }
 
@@ -136,7 +136,7 @@ fn acquire_root(_runtime: ::neocogi_com_sdk::RuntimeHandle) -> Result<neocogi_co
 #[test]
 fn idl_descriptions_separate_shape_from_construction() {
     let factory: ComPtr<ValueFactoryAbi> = ValueFactoryObject::from_value(ValueFactoryObject).query().unwrap();
-    let mut value = factory.create(11).unwrap();
+    let value = factory.create(11).unwrap();
     assert_eq!(value.value().unwrap(), 11);
     value.replace(29).unwrap();
     assert_eq!(value.value().unwrap(), 29);

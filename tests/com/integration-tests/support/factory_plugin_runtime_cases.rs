@@ -1,57 +1,69 @@
 #[allow(unused_imports, unused_macros)]
-mod test_contracts { include!(concat!(env!("OUT_DIR"), "/test_contracts.rs")); }
+mod test_contracts {
+    include!(concat!(env!("OUT_DIR"), "/test_contracts.rs"));
+}
 extern crate self as example_bindings;
 /// Locally generated protocol and delivery helpers for this final test owner.
-pub mod example { include!(env!("IDL_EXAMPLE_BINDINGS")); include!(concat!(env!("OUT_DIR"), "/example_helpers.rs")); }
+pub mod example {
+    include!(env!("IDL_EXAMPLE_BINDINGS"));
+    include!(concat!(env!("OUT_DIR"), "/example_helpers.rs"));
+}
 // Generated factory registration and acquisition through the selected final runtime.
 extern crate self as fixture_factory_plugin_runtime;
 test_contracts::factory_plugin_runtime!();
 
 use neocogi_com_sdk::{ComPtr, ComRef, ComStringExt, INcStringAbi, NcString, NcStatus, com_object, guid_from_qualified_name};
+use std::cell::{Cell, OnceCell, RefCell};
+use neocogi_com_sdk::NC_E_BUSY;
 use crate::example::{ExampleFactory, ExampleFactoryAbi, ExampleObject, ExampleObjectAbi, Extent, IMeasured};
 
 /// Private mutable implementation of the constructor-free IDL class.
 #[com_object(example::ExampleObject)]
 struct ExampleObjectImplementation {
     /// Current dimensions returned by both callable projections.
-    extent: Extent,
+    extent: Cell<Extent>,
     /// The constructor supplies the sole receiver, retained as private producer state.
-    events: example::notifications::ExtentDelivery,
+    events: OnceCell<example::notifications::ExtentDelivery>,
     /// Caption owned by the provider, excluded from persistent dimensions.
-    caption: Option<ComPtr<INcStringAbi>>,
+    caption: RefCell<Option<ComPtr<INcStringAbi>>>,
 }
 
 impl IMeasured for ExampleObjectImplementation {
     /// Returns a copy of the object's current dimensions.
     fn extent(&self) -> Result<Extent, NcStatus> {
-        Ok(self.extent)
+        Ok(self.extent.get())
     }
     /// Emits a fresh checked prefix using the same contract as the independent plugin.
     fn reports(&self, mut output: neocogi_com_sdk::NcOutputWriter<'_, example::ExtentReport>) -> Result<u32, NcStatus> {
         use crate::example::ExtentReport;
         if output.capacity() >= 2 {
-            output.extend_from_slice(&[ExtentReport::Current { extent: self.extent, usable: true }, ExtentReport::Empty])?;
+            output.extend_from_slice(&[ExtentReport::Current { extent: self.extent.get(), usable: true }, ExtentReport::Empty])?;
         }
         Ok(2)
     }
 }
 
 impl ExampleObject for ExampleObjectImplementation {
-    /// Lends the optional provider-owned text under the receiver's read guard.
-    fn caption(&self) -> Option<ComRef<'_, INcStringAbi>> {
-        self.caption.as_ref().map(ComPtr::as_com_ref)
+    /// Keeps the caption field borrowed throughout the caller's visit.
+    fn caption<R>(&self, lend: impl for<'loan> FnOnce(Result<Option<ComRef<'loan, INcStringAbi>>, NcStatus>) -> R) -> R {
+        match self.caption.try_borrow() {
+            Ok(field) => lend(Ok(field.as_ref().map(ComPtr::as_com_ref))),
+            Err(_) => lend(Err(NC_E_BUSY)),
+        }
     }
 
     /// Copies a caption through the read-only interface into private storage.
-    fn set_caption(&mut self, caption: Option<ComRef<'_, INcStringAbi>>) -> Result<(), NcStatus> {
-        self.caption = caption.map(|text| text.to_string()).transpose()?.map(|text| NcString::from_utf8_str(&text));
+    fn set_caption(&self, caption: Option<ComRef<'_, INcStringAbi>>) -> Result<(), NcStatus> {
+        let caption = caption.map(|text| text.to_string()).transpose()?.map(|text| NcString::from_utf8_str(&text));
+        let old = std::mem::replace(&mut *self.caption.try_borrow_mut().map_err(|_| NC_E_BUSY)?, caption);
+        drop(old);
         Ok(())
     }
 
-    /// Replaces dimensions through the generated exclusive `&mut self` call.
-    fn resize(&mut self, extent: Extent) -> Result<(), NcStatus> {
-        self.extent = extent;
-        self.events.changed(extent)
+    /// Publishes dimensions before calling the observer.
+    fn resize(&self, extent: Extent) -> Result<(), NcStatus> {
+        self.extent.set(extent);
+        self.events.get().expect("factory connected delivery before publication").changed(extent)
     }
 }
 
@@ -61,19 +73,18 @@ struct ExampleFactoryImplementation;
 
 impl ExampleFactory for ExampleFactoryImplementation {
     /// Creates one object directly without a runtime class registry lookup.
-    fn create(
-        &self,
-        extent: Extent,
-        events: neocogi_com_sdk::NcValueRef<'_, example::ExtentBinding>,
-    ) -> Result<ComPtr<ExampleObjectAbi>, NcStatus> {
+    fn create(&self, extent: Extent, events: neocogi_com_sdk::NcValueRef<'_, example::ExtentBinding>) -> Result<ComPtr<ExampleObjectAbi>, NcStatus> {
         let binding = events.to_owned()?;
         let local = ExampleObjectImplementation::into_local(ExampleObjectImplementation {
-            extent,
-            events: example::notifications::ExtentDelivery::Unobserved,
-            caption: None,
+            extent: Cell::new(extent),
+            events: OnceCell::new(),
+            caption: RefCell::new(None),
         });
         let origin = local.query::<ExampleObjectAbi>()?.downgrade()?;
-        local.try_borrow_mut()?.events = example::notifications::ExtentDelivery::new(binding, origin);
+        assert!(
+            local.get().events.set(example::notifications::ExtentDelivery::new(binding, origin)).is_ok(),
+            "new object has no previous delivery"
+        );
         local.query()
     }
 }
@@ -97,14 +108,14 @@ fn generated_contract_factory_acquires_without_a_class_table() {
     let factory = runtime
         .acquire_plugin_root::<ExampleFactoryAbi>(plugin_id)
         .expect("typed root interface acquisition failed");
-    let mut object = factory
+    let object = factory
         .create(
             Extent { width: 20, height: 10 },
             neocogi_com_sdk::NcValueRef::new(&example::ExtentBinding::Unobserved).unwrap(),
         )
         .expect("interface object creation failed");
     assert_eq!(object.extent().expect("extent query failed"), Extent { width: 20, height: 10 });
-    object.resize(Extent { width: 44, height: 31 }).expect("exclusive resize failed");
+    object.resize(Extent { width: 44, height: 31 }).expect("resize failed");
     assert_eq!(object.extent().expect("updated extent query failed"), Extent { width: 44, height: 31 });
 
     let plugins = runtime.plugins().expect("plugin enumeration failed");

@@ -1,7 +1,10 @@
 //! Real runtime cycle identity, ordering, provider failures and destruction.
 
 use neocogi_com_serialization::ncb as binary;
-use std::{cell::Cell, rc::Rc};
+use std::{
+    cell::{Cell, RefCell},
+    rc::Rc,
+};
 use neocogi_com_sdk::{
     com_object, ComInterface, ComPtr, IUnknown, IUnknownVTable, INcBytesAbi, LocalCom, NcBytes, NcGuid, NcStatus, WeakComPtr, NC_E_BUSY, NC_E_INVALID_ARG,
     NC_E_NOT_FOUND, NC_E_OUT_OF_RANGE,
@@ -99,11 +102,11 @@ struct Edge {
     /// Return the exact alternate IUnknown dispatch table for the same allocation.
     alternate: bool,
 }
-/// Concrete provider graph; LocalCom owns mutation and enforces real call gates.
+/// Provider graph with its own field-level borrowing policy.
 #[com_object(interfaces(IPersistable))]
 struct Node {
     /// Ordered child graph exposed by getters.
-    edges: Vec<Edge>,
+    edges: RefCell<Vec<Edge>>,
     /// One exact injected boundary; every other operation is real.
     fail: Option<Stage>,
     /// Selected state byte count for resource admission tests.
@@ -113,7 +116,7 @@ struct Node {
     /// Distinct state/type identity for decoded-tree controls.
     tag: u8,
     /// Explicit provider-owned strong cycles, broken only by fixture teardown.
-    keepalive: Vec<ComPtr<IUnknown>>,
+    keepalive: RefCell<Vec<ComPtr<IUnknown>>>,
 }
 impl Node {
     /// Record the actual provider entry before selecting its injected error.
@@ -150,13 +153,17 @@ impl IPersistable for Node {
     }
     fn child_count(&self) -> Result<u32, NcStatus> {
         self.enter(Stage::Count, &self.metrics.count)?;
-        Ok(self.edges.len() as u32)
+        Ok(self.edges.try_borrow().map_err(|_| NC_E_BUSY)?.len() as u32)
     }
     fn child(&self, index: u32) -> Result<ComPtr<IUnknown>, NcStatus> {
         self.enter(Stage::Child(index as usize), &self.metrics.child)?;
-        let edge = self.edges.get(index as usize).ok_or(NC_E_OUT_OF_RANGE)?;
-        let owner = edge.target.upgrade()?.ok_or(NC_E_NOT_FOUND)?;
-        Ok(if edge.alternate { alternate(owner) } else { owner })
+        let (target, alternate_table) = {
+            let edges = self.edges.try_borrow().map_err(|_| NC_E_BUSY)?;
+            let edge = edges.get(index as usize).ok_or(NC_E_OUT_OF_RANGE)?;
+            (edge.target.clone(), edge.alternate)
+        };
+        let owner = target.upgrade()?.ok_or(NC_E_NOT_FOUND)?;
+        Ok(if alternate_table { alternate(owner) } else { owner })
     }
 }
 
@@ -316,12 +323,12 @@ fn snapshot_state_uses_the_sdk_bounded_copy_contract() {
         ] {
             let metrics = Rc::new(Metrics::default());
             let local = Node::into_local(Node {
-                edges: vec![],
+                edges: RefCell::default(),
                 fail,
                 state_len,
                 metrics: metrics.clone(),
                 tag: 7,
-                keepalive: vec![],
+                keepalive: RefCell::default(),
             });
             let root = local.query::<IUnknown>().unwrap();
             let before = BYTE_ERRORS.with(Cell::get);
@@ -348,12 +355,12 @@ fn save_checks_chunk_offsets_and_discards_partial_writes() {
     for entry in [Entry::Safe, Entry::Raw] {
         for stage in [Stage::ObserveChunks, Stage::RefuseSecondChunk] {
             let root: ComPtr<IUnknown> = Node::from_value(Node {
-                edges: vec![],
+                edges: RefCell::default(),
                 fail: Some(stage),
                 state_len: 8195,
                 metrics: Rc::new(Metrics::default()),
                 tag: 7,
-                keepalive: vec![],
+                keepalive: RefCell::default(),
             });
             COPY_RANGES.with(|ranges| ranges.set([(0, 0); 3]));
             let result = entry.capture(&root, Limits::default());
@@ -410,12 +417,12 @@ impl Entry {
 #[test]
 fn snapshot_checks_root_budget_before_retaining() {
     let local = Node::into_local(Node {
-        edges: vec![],
+        edges: RefCell::default(),
         fail: None,
         state_len: 0,
         metrics: Rc::new(Metrics::default()),
         tag: 0,
-        keepalive: Vec::new(),
+        keepalive: RefCell::default(),
     });
     let mut raw = local.query::<IUnknown>().unwrap().into_raw();
     raw.vtable = &COUNTED_ROOT;
@@ -468,19 +475,19 @@ fn run_graph(
             .enumerate()
             .map(|(index, metrics)| {
                 Node::into_local(Node {
-                    edges: Vec::new(),
+                    edges: RefCell::default(),
                     fail: fail.filter(|(target, _)| *target == index).map(|(_, stage)| stage),
                     state_len,
                     metrics: metrics.clone(),
                     tag: index as u8,
-                    keepalive: Vec::new(),
+                    keepalive: RefCell::default(),
                 })
             })
             .collect();
         let owners: Vec<_> = locals.iter().map(|node| node.query::<IUnknown>().unwrap()).collect();
         let weak: Vec<_> = owners.iter().map(|owner| owner.downgrade().unwrap()).collect();
         for (index, targets) in edges.iter().enumerate() {
-            locals[index].try_borrow_mut().unwrap().edges = targets
+            *locals[index].get().edges.borrow_mut() = targets
                 .iter()
                 .map(|(target, alt)| Edge {
                     target: weak[*target].clone(),
@@ -488,7 +495,7 @@ fn run_graph(
                 })
                 .collect();
             if name.starts_with("strong cycle") {
-                locals[index].try_borrow_mut().unwrap().keepalive = targets.iter().map(|(target, _)| owners[*target].clone()).collect();
+                *locals[index].get().keepalive.borrow_mut() = targets.iter().map(|(target, _)| owners[*target].clone()).collect();
             }
         }
         // Real projection queries have one allocation identity. Exact query of
@@ -532,7 +539,8 @@ fn run_graph(
         // This explicit fixture teardown breaks provider-owned strong cycles;
         // A failed save leaves ownership with the application.
         for local in &locals {
-            local.try_borrow_mut().unwrap().keepalive.clear();
+            let owners = std::mem::take(&mut *local.get().keepalive.borrow_mut());
+            drop(owners);
         }
         drop(owners);
         drop(locals);
@@ -770,19 +778,19 @@ fn retained_allocation_identity_through_actual_safe_and_raw_runtime() {
     );
     for which in [Entry::Safe, Entry::Raw] {
         let local = Node::into_local(Node {
-            edges: vec![],
+            edges: RefCell::default(),
             fail: None,
             state_len: 2,
             metrics: Rc::new(Metrics::default()),
             tag: 0,
-            keepalive: Vec::new(),
+            keepalive: RefCell::default(),
         });
         let root = local.query::<IUnknown>().unwrap();
-        let mutable = local.try_borrow_mut().unwrap();
+        let mutable = local.get().edges.borrow_mut();
         assert_eq!(which.capture(&root, defaults), Err(NC_E_BUSY));
         drop(mutable);
         assert!(which.capture(&root, defaults).is_ok());
-        println!("local borrow {which:?}: BUSY while mutable, success after release");
+        println!("edge field {which:?}: BUSY while mutable, success after release");
     }
 }
 

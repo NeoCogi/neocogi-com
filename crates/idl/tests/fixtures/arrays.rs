@@ -2,30 +2,31 @@
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::cell::Cell;
     use neocogi_com_sdk::{com_object, ComPtr, NcStatus, NcCopyFromBufferOffset, NcOutputWriter, ValueArray, NC_E_INVALID_ARG};
 
     /// Counts accepted input calls, so validation failures cannot hide dispatch.
     #[com_object(IArrays)]
     struct Arrays {
         /// Calls whose inputs passed the generated wire decoder.
-        accepted: usize,
+        accepted: Cell<usize>,
     }
     impl IArrays for Arrays {
         /// Returns the complete copied array unchanged.
-        fn echo(&mut self, value: [bool; 3]) -> Result<[bool; 3], NcStatus> {
-            self.accepted += 1;
+        fn echo(&self, value: [bool; 3]) -> Result<[bool; 3], NcStatus> {
+            self.accepted.set(self.accepted.get() + 1);
             Ok(value)
         }
         /// Preserves arrays inside copied structs as well as direct arrays.
-        fn record(&mut self, value: Flags) -> Result<Flags, NcStatus> { Ok(value) }
+        fn record(&self, value: Flags) -> Result<Flags, NcStatus> { Ok(value) }
         /// Decodes each array element through the normal checked input buffer.
-        fn input(&mut self, values: NcCopyFromBufferOffset<'_, [bool; 3]>) -> Result<u32, NcStatus> {
+        fn input(&self, values: NcCopyFromBufferOffset<'_, [bool; 3]>) -> Result<u32, NcStatus> {
             let decoded = values.as_slice();
-            self.accepted += decoded.len();
+            self.accepted.set(self.accepted.get() + decoded.len());
             Ok(decoded.len() as u32)
         }
         /// Writes owned inline elements through the checked output buffer.
-        fn output(&mut self, mut values: NcOutputWriter<'_, [bool; 3]>) -> Result<(), NcStatus> {
+        fn output(&self, mut values: NcOutputWriter<'_, [bool; 3]>) -> Result<(), NcStatus> {
             values.extend_from_slice(&[[true, false, true]])?;
             Ok(())
         }
@@ -34,8 +35,8 @@ mod tests {
     /// Real generated thunks must reject an invalid nested boolean before dispatch.
     #[test]
     fn copied_arrays_round_trip_and_validate_raw_elements() {
-        let local = Arrays::into_local(Arrays { accepted: 0 });
-        let mut arrays: ComPtr<IArraysAbi> = local.query().unwrap();
+        let local = Arrays::into_local(Arrays { accepted: Cell::new(0) });
+        let arrays: ComPtr<IArraysAbi> = local.query().unwrap();
         assert_eq!(arrays.echo([false, true, false]).unwrap(), [false, true, false]);
         assert_eq!(arrays.record(Flags { bits: [[true, false], [false, true]] }).unwrap().bits, [[true, false], [false, true]]);
         assert_eq!(arrays.input(NcCopyFromBufferOffset::new(0, &[[true; 3]])).unwrap(), 1);
@@ -52,6 +53,6 @@ mod tests {
             assert_eq!(((*raw.vtable).echo)(raw.object, bad, out.as_mut_ptr()), NC_E_INVALID_ARG);
             assert_eq!(((*raw.vtable).input)(raw.object, 0, 1, &bad, &mut count), NC_E_INVALID_ARG);
         }
-        assert_eq!(local.try_borrow().unwrap().accepted, 2);
+        assert_eq!(local.get().accepted.get(), 2);
     }
 }

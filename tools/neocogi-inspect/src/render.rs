@@ -52,10 +52,12 @@ fn render_factory_text(out: &mut String, factory: &FactoryInspection) {
 }
 
 /// Returns the IDL spelling of a validated threading capability.
-fn threading_name(threading: NcAbiThreadingMode) -> &'static str {
+pub(crate) fn threading_name(threading: NcAbiThreadingMode) -> &'static str {
     match threading {
         NcAbiThreadingMode::ThreadLocal => "thread_local",
         NcAbiThreadingMode::ThreadSafe => "thread_safe",
+        NcAbiThreadingMode::ThreadSend => "thread_send",
+        NcAbiThreadingMode::ThreadSync => "thread_sync",
     }
 }
 

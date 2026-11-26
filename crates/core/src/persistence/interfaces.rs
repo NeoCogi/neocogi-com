@@ -10,9 +10,9 @@ pub const MODULE_ID: crate::NcGuid = crate::NcGuid::from_fields(
 );
 /// Transitive canonical ABI fingerprint of this generated module.
 pub const ABI_FINGERPRINT: [::core::primitive::u8; 32] = [
-    63u8, 92u8, 248u8, 3u8, 103u8, 175u8, 80u8, 64u8, 18u8, 43u8, 76u8, 95u8, 116u8,
-    78u8, 127u8, 153u8, 18u8, 50u8, 206u8, 176u8, 21u8, 233u8, 81u8, 222u8, 235u8, 243u8,
-    184u8, 237u8, 188u8, 237u8, 197u8, 192u8,
+    107u8, 105u8, 20u8, 159u8, 154u8, 239u8, 240u8, 248u8, 91u8, 202u8, 73u8, 99u8,
+    248u8, 20u8, 175u8, 152u8, 28u8, 188u8, 163u8, 159u8, 136u8, 223u8, 71u8, 144u8,
+    213u8, 93u8, 127u8, 251u8, 139u8, 118u8, 126u8, 65u8,
 ];
 /// Exact dotted module name derived from the normalized IDL path.
 pub const MODULE_NAME: &::core::primitive::str = "neocogi.com.persistence";
@@ -44,7 +44,10 @@ pub struct IObjectChildrenVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
+    ///`this` must be the live allocation address paired with this table.
+    ///The caller must have shared target access for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
+    ///`out` must be valid writable storage that satisfies the call's aliasing rules.
     ///
     ///On success, `out` receives `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr`.
     #[allow(
@@ -63,7 +66,10 @@ pub struct IObjectChildrenVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
+    ///`this` must be the live allocation address paired with this table.
+    ///The caller must have shared target access for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
+    ///`out` must be valid writable storage that satisfies the call's aliasing rules.
     ///- `index` uses ABI storage `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
     ///
     ///On success, `out` receives `crate :: ComRaw < crate :: IUnknown >` for `crate :: ComPtr < crate :: IUnknown >`. The caller receives one shared owner and releases it when finished.
@@ -128,18 +134,18 @@ unsafe impl crate::ComRustInterface for IObjectChildrenAbi {
 const _: () = {
     #[allow(unused_imports)]
     use ::core::convert::{
-        identity as __nc_dispatch_object, identity as __nc_dispatch_value,
-        identity as __nc_arg_0, identity as __nc_arg_0_owner_slot,
-        identity as __nc_arg_0_owner_table, identity as __nc_arg_0_owner_original,
-        identity as __nc_arg_0_offset, identity as __nc_arg_0_len,
-        identity as __nc_arg_0_ptr, identity as __nc_arg_0_values,
-        identity as __nc_arg_0_written, identity as __nc_this, identity as __nc_status,
-        identity as __nc_value, identity as __nc_raw, identity as __nc_result,
-        identity as __nc_values, identity as __nc_writer, identity as __nc_out,
-        identity as __nc_scoped_context, identity as __nc_scoped_callback,
-        identity as __nc_identity, identity as __nc_this_0, identity as __nc_status_0,
-        identity as __nc_result_0, identity as __nc_prepared, identity as __nc_out_0,
-        identity as __nc_this_1, identity as __nc_status_1, identity as __nc_result_1,
+        identity as __nc_dispatch_value, identity as __nc_arg_0,
+        identity as __nc_arg_0_owner_slot, identity as __nc_arg_0_owner_table,
+        identity as __nc_arg_0_owner_original, identity as __nc_arg_0_offset,
+        identity as __nc_arg_0_len, identity as __nc_arg_0_ptr,
+        identity as __nc_arg_0_values, identity as __nc_arg_0_written,
+        identity as __nc_this, identity as __nc_status, identity as __nc_value,
+        identity as __nc_raw, identity as __nc_result, identity as __nc_values,
+        identity as __nc_writer, identity as __nc_out, identity as __nc_scoped_context,
+        identity as __nc_scoped_callback, identity as __nc_identity,
+        identity as __nc_this_0, identity as __nc_status_0, identity as __nc_result_0,
+        identity as __nc_prepared, identity as __nc_out_0, identity as __nc_this_1,
+        identity as __nc_status_1, identity as __nc_result_1,
         identity as __nc_prepared_0, identity as __nc_out_1,
     };
     impl<__NcThreading: crate::ThreadingModel> IObjectChildrenWrapper<__NcThreading> {
@@ -211,7 +217,7 @@ const _: () = {
 impl IObjectChildrenAbi {
     ///Canonical validation form of this interface's typed ABI contract.
     pub const ABI_SIGNATURE: crate::NcAbiDigest = crate::NcAbiDigest::from_static(
-        b"\xB0HY_r\xA6\x86\t\xD5q\x82\xE6\x17\x18\x0C\x81\xB0%\xB7\x92Ia\xD6\x95\xFBQ\x86j\xD1\xA3\xA2\xEF",
+        b"\xE0\xC4 E\xCEE\xB5\xAB\x95A\xF4\xAF\xC2\x1E\x13\xDD\xFDC\x0F\xDBH\xEF\x80\x88\x1D\x9D\xDE\x93\xF6\x94\xA7R",
     );
     ///Static descriptors for this interface's ABI methods.
     pub const METHOD_DESCRIPTORS: [crate::NcMethodDescriptor; 2usize] = [
@@ -275,9 +281,9 @@ impl IObjectChildrenAbi {
 impl IObjectChildrenAbi {
     #[doc(hidden)]
     pub const __NC_RUST_BINDING: [::core::primitive::u8; 32] = [
-        88u8, 108u8, 235u8, 200u8, 101u8, 70u8, 211u8, 68u8, 94u8, 119u8, 141u8, 106u8,
-        75u8, 151u8, 29u8, 87u8, 116u8, 65u8, 88u8, 202u8, 84u8, 21u8, 193u8, 132u8,
-        105u8, 180u8, 17u8, 164u8, 206u8, 80u8, 9u8, 125u8,
+        48u8, 17u8, 176u8, 15u8, 85u8, 40u8, 218u8, 169u8, 195u8, 6u8, 224u8, 122u8,
+        255u8, 77u8, 101u8, 1u8, 157u8, 19u8, 193u8, 44u8, 153u8, 205u8, 69u8, 116u8,
+        35u8, 237u8, 187u8, 117u8, 151u8, 125u8, 188u8, 186u8,
     ];
 }
 /// Supplies data for an owned object tree. The application keeps the complete saved view stable throughout a synchronous save, including during reentry.
@@ -323,7 +329,10 @@ pub struct IPersistableVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
+    ///`this` must be the live allocation address paired with this table.
+    ///The caller must have shared target access for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
+    ///`out` must be valid writable storage that satisfies the call's aliasing rules.
     ///
     ///On success, `out` receives `< crate :: NcGuid as crate :: ComValue > :: AbiRepr`.
     #[allow(
@@ -342,7 +351,10 @@ pub struct IPersistableVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
+    ///`this` must be the live allocation address paired with this table.
+    ///The caller must have shared target access for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
+    ///`out` must be valid writable storage that satisfies the call's aliasing rules.
     ///
     ///On success, `out` receives `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr`.
     #[allow(
@@ -361,7 +373,10 @@ pub struct IPersistableVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
+    ///`this` must be the live allocation address paired with this table.
+    ///The caller must have shared target access for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
+    ///`out` must be valid writable storage that satisfies the call's aliasing rules.
     ///
     ///On success, `out` receives `crate :: ComRaw < crate :: INcBytesAbi >` for `crate :: ComPtr < crate :: INcBytesAbi >`. The caller receives one shared owner and releases it when finished.
     #[allow(
@@ -380,7 +395,10 @@ pub struct IPersistableVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
+    ///`this` must be the live allocation address paired with this table.
+    ///The caller must have shared target access for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
+    ///`out` must be valid writable storage that satisfies the call's aliasing rules.
     ///
     ///On success, `out` receives `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr`.
     #[allow(
@@ -399,7 +417,10 @@ pub struct IPersistableVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
+    ///`this` must be the live allocation address paired with this table.
+    ///The caller must have shared target access for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
+    ///`out` must be valid writable storage that satisfies the call's aliasing rules.
     ///- `index` uses ABI storage `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
     ///
     ///On success, `out` receives `crate :: ComRaw < crate :: IUnknown >` for `crate :: ComPtr < crate :: IUnknown >`. The caller receives one shared owner and releases it when finished.
@@ -464,18 +485,18 @@ unsafe impl crate::ComRustInterface for IPersistableAbi {
 const _: () = {
     #[allow(unused_imports)]
     use ::core::convert::{
-        identity as __nc_dispatch_object, identity as __nc_dispatch_value,
-        identity as __nc_arg_0, identity as __nc_arg_0_owner_slot,
-        identity as __nc_arg_0_owner_table, identity as __nc_arg_0_owner_original,
-        identity as __nc_arg_0_offset, identity as __nc_arg_0_len,
-        identity as __nc_arg_0_ptr, identity as __nc_arg_0_values,
-        identity as __nc_arg_0_written, identity as __nc_this, identity as __nc_status,
-        identity as __nc_value, identity as __nc_raw, identity as __nc_result,
-        identity as __nc_values, identity as __nc_writer, identity as __nc_out,
-        identity as __nc_scoped_context, identity as __nc_scoped_callback,
-        identity as __nc_identity, identity as __nc_this_0, identity as __nc_status_0,
-        identity as __nc_result_0, identity as __nc_prepared, identity as __nc_out_0,
-        identity as __nc_this_1, identity as __nc_status_1, identity as __nc_result_1,
+        identity as __nc_dispatch_value, identity as __nc_arg_0,
+        identity as __nc_arg_0_owner_slot, identity as __nc_arg_0_owner_table,
+        identity as __nc_arg_0_owner_original, identity as __nc_arg_0_offset,
+        identity as __nc_arg_0_len, identity as __nc_arg_0_ptr,
+        identity as __nc_arg_0_values, identity as __nc_arg_0_written,
+        identity as __nc_this, identity as __nc_status, identity as __nc_value,
+        identity as __nc_raw, identity as __nc_result, identity as __nc_values,
+        identity as __nc_writer, identity as __nc_out, identity as __nc_scoped_context,
+        identity as __nc_scoped_callback, identity as __nc_identity,
+        identity as __nc_this_0, identity as __nc_status_0, identity as __nc_result_0,
+        identity as __nc_prepared, identity as __nc_out_0, identity as __nc_this_1,
+        identity as __nc_status_1, identity as __nc_result_1,
         identity as __nc_prepared_0, identity as __nc_out_1, identity as __nc_this_2,
         identity as __nc_status_2, identity as __nc_result_2,
         identity as __nc_prepared_1, identity as __nc_out_2, identity as __nc_this_3,
@@ -639,7 +660,7 @@ const _: () = {
 impl IPersistableAbi {
     ///Canonical validation form of this interface's typed ABI contract.
     pub const ABI_SIGNATURE: crate::NcAbiDigest = crate::NcAbiDigest::from_static(
-        b"`\xEE\xD86`i\x9A\xAA\xB9-Y\x9C\xB1\xBA\x12s\xD4d0xN\x8Bc\xCB\xC9\xA4j\x8F\xFD!\xF4E",
+        b"\xCC\xFD\xF1\xE0\x94\n\x81.\x1F\x11\xC1U\xC4\xA7\xB8Z\x7F\xDF\x10\xC5\xB7\x08\x05\"\xFFW2\xEF}<5!",
     );
     ///Static descriptors for this interface's ABI methods.
     pub const METHOD_DESCRIPTORS: [crate::NcMethodDescriptor; 5usize] = [
@@ -745,9 +766,9 @@ impl IPersistableAbi {
 impl IPersistableAbi {
     #[doc(hidden)]
     pub const __NC_RUST_BINDING: [::core::primitive::u8; 32] = [
-        11u8, 231u8, 55u8, 21u8, 117u8, 37u8, 133u8, 32u8, 191u8, 51u8, 109u8, 60u8,
-        121u8, 128u8, 121u8, 175u8, 189u8, 188u8, 182u8, 73u8, 111u8, 66u8, 93u8, 74u8,
-        198u8, 82u8, 174u8, 139u8, 251u8, 28u8, 243u8, 253u8,
+        181u8, 81u8, 175u8, 25u8, 228u8, 57u8, 135u8, 206u8, 131u8, 245u8, 74u8, 164u8,
+        76u8, 132u8, 195u8, 130u8, 188u8, 25u8, 183u8, 16u8, 24u8, 85u8, 186u8, 185u8,
+        120u8, 5u8, 244u8, 147u8, 247u8, 207u8, 249u8, 89u8,
     ];
 }
 /// A provider bound to the runtime services required by its construction recipe.
@@ -787,6 +808,8 @@ pub struct IPersistenceFactoryVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table.
+    ///The caller must have shared target access for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
     ///- `version` uses ABI storage `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
     ///- `state` uses ABI storage `* const < :: core :: primitive :: u8 as crate :: ComValue > :: AbiRepr` for `crate :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
     ///- `child_count` uses ABI storage `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
@@ -813,7 +836,10 @@ pub struct IPersistenceFactoryVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage.
+    ///`this` must be the live allocation address paired with this table.
+    ///The caller must have shared target access for the call.
+    ///The receiver and its arguments must jointly obey their borrowing and threading rules, including any outstanding loans of those targets.
+    ///`out` must be valid writable storage that satisfies the call's aliasing rules.
     ///- `version` uses ABI storage `< :: core :: primitive :: u32 as crate :: ComValue > :: AbiRepr` for `:: core :: primitive :: u32`. Passed by value.
     ///- `state` uses ABI storage `* const < :: core :: primitive :: u8 as crate :: ComValue > :: AbiRepr` for `crate :: NcCopyFromBufferOffset < '_ , :: core :: primitive :: u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
     ///- `children` uses ABI storage `crate :: ComRaw < self :: IObjectChildrenAbi >` for `crate :: ComRef < '_ , self :: IObjectChildrenAbi >`. The non-null object/table pair lends live shared access through the call.
@@ -884,41 +910,40 @@ unsafe impl crate::ComRustInterface for IPersistenceFactoryAbi {
 const _: () = {
     #[allow(unused_imports)]
     use ::core::convert::{
-        identity as __nc_dispatch_object, identity as __nc_dispatch_value,
-        identity as __nc_arg_0, identity as __nc_arg_0_owner_slot,
-        identity as __nc_arg_0_owner_table, identity as __nc_arg_0_owner_original,
-        identity as __nc_arg_0_offset, identity as __nc_arg_0_len,
-        identity as __nc_arg_0_ptr, identity as __nc_arg_0_values,
-        identity as __nc_arg_0_written, identity as __nc_arg_1,
-        identity as __nc_arg_1_owner_slot, identity as __nc_arg_1_owner_table,
-        identity as __nc_arg_1_owner_original, identity as __nc_arg_1_offset,
-        identity as __nc_arg_1_len, identity as __nc_arg_1_ptr,
-        identity as __nc_arg_1_values, identity as __nc_arg_1_written,
-        identity as __nc_arg_2, identity as __nc_arg_2_owner_slot,
-        identity as __nc_arg_2_owner_table, identity as __nc_arg_2_owner_original,
-        identity as __nc_arg_2_offset, identity as __nc_arg_2_len,
-        identity as __nc_arg_2_ptr, identity as __nc_arg_2_values,
-        identity as __nc_arg_2_written, identity as __nc_arg_0_0,
-        identity as __nc_arg_0_0_owner_slot, identity as __nc_arg_0_0_owner_table,
-        identity as __nc_arg_0_0_owner_original, identity as __nc_arg_0_0_offset,
-        identity as __nc_arg_0_0_len, identity as __nc_arg_0_0_ptr,
-        identity as __nc_arg_0_0_values, identity as __nc_arg_0_0_written,
-        identity as __nc_arg_1_0, identity as __nc_arg_1_0_owner_slot,
-        identity as __nc_arg_1_0_owner_table, identity as __nc_arg_1_0_owner_original,
-        identity as __nc_arg_1_0_offset, identity as __nc_arg_1_0_len,
-        identity as __nc_arg_1_0_ptr, identity as __nc_arg_1_0_values,
-        identity as __nc_arg_1_0_written, identity as __nc_arg_2_0,
-        identity as __nc_arg_2_0_owner_slot, identity as __nc_arg_2_0_owner_table,
-        identity as __nc_arg_2_0_owner_original, identity as __nc_arg_2_0_offset,
-        identity as __nc_arg_2_0_len, identity as __nc_arg_2_0_ptr,
-        identity as __nc_arg_2_0_values, identity as __nc_arg_2_0_written,
-        identity as __nc_this, identity as __nc_status, identity as __nc_value,
-        identity as __nc_raw, identity as __nc_result, identity as __nc_values,
-        identity as __nc_writer, identity as __nc_out, identity as __nc_scoped_context,
-        identity as __nc_scoped_callback, identity as __nc_identity,
-        identity as __nc_this_0, identity as __nc_status_0, identity as __nc_result_0,
-        identity as __nc_prepared, identity as __nc_out_0, identity as __nc_this_1,
-        identity as __nc_status_1, identity as __nc_result_1,
+        identity as __nc_dispatch_value, identity as __nc_arg_0,
+        identity as __nc_arg_0_owner_slot, identity as __nc_arg_0_owner_table,
+        identity as __nc_arg_0_owner_original, identity as __nc_arg_0_offset,
+        identity as __nc_arg_0_len, identity as __nc_arg_0_ptr,
+        identity as __nc_arg_0_values, identity as __nc_arg_0_written,
+        identity as __nc_arg_1, identity as __nc_arg_1_owner_slot,
+        identity as __nc_arg_1_owner_table, identity as __nc_arg_1_owner_original,
+        identity as __nc_arg_1_offset, identity as __nc_arg_1_len,
+        identity as __nc_arg_1_ptr, identity as __nc_arg_1_values,
+        identity as __nc_arg_1_written, identity as __nc_arg_2,
+        identity as __nc_arg_2_owner_slot, identity as __nc_arg_2_owner_table,
+        identity as __nc_arg_2_owner_original, identity as __nc_arg_2_offset,
+        identity as __nc_arg_2_len, identity as __nc_arg_2_ptr,
+        identity as __nc_arg_2_values, identity as __nc_arg_2_written,
+        identity as __nc_arg_0_0, identity as __nc_arg_0_0_owner_slot,
+        identity as __nc_arg_0_0_owner_table, identity as __nc_arg_0_0_owner_original,
+        identity as __nc_arg_0_0_offset, identity as __nc_arg_0_0_len,
+        identity as __nc_arg_0_0_ptr, identity as __nc_arg_0_0_values,
+        identity as __nc_arg_0_0_written, identity as __nc_arg_1_0,
+        identity as __nc_arg_1_0_owner_slot, identity as __nc_arg_1_0_owner_table,
+        identity as __nc_arg_1_0_owner_original, identity as __nc_arg_1_0_offset,
+        identity as __nc_arg_1_0_len, identity as __nc_arg_1_0_ptr,
+        identity as __nc_arg_1_0_values, identity as __nc_arg_1_0_written,
+        identity as __nc_arg_2_0, identity as __nc_arg_2_0_owner_slot,
+        identity as __nc_arg_2_0_owner_table, identity as __nc_arg_2_0_owner_original,
+        identity as __nc_arg_2_0_offset, identity as __nc_arg_2_0_len,
+        identity as __nc_arg_2_0_ptr, identity as __nc_arg_2_0_values,
+        identity as __nc_arg_2_0_written, identity as __nc_this, identity as __nc_status,
+        identity as __nc_value, identity as __nc_raw, identity as __nc_result,
+        identity as __nc_values, identity as __nc_writer, identity as __nc_out,
+        identity as __nc_scoped_context, identity as __nc_scoped_callback,
+        identity as __nc_identity, identity as __nc_this_0, identity as __nc_status_0,
+        identity as __nc_result_0, identity as __nc_prepared, identity as __nc_out_0,
+        identity as __nc_this_1, identity as __nc_status_1, identity as __nc_result_1,
         identity as __nc_prepared_0, identity as __nc_out_1,
     };
     impl<
@@ -1015,7 +1040,7 @@ const _: () = {
 impl IPersistenceFactoryAbi {
     ///Canonical validation form of this interface's typed ABI contract.
     pub const ABI_SIGNATURE: crate::NcAbiDigest = crate::NcAbiDigest::from_static(
-        b"\xC0\xA9\xE0\xCD\x15a$O\x17\xA7\xD6\x11\x10\x7F\x92>\n\xCD0\x85\n{>\xDD\x10\xD8\xC1\x12\xFF\xE6\xA1\xCC",
+        b"\x0C\xEF\\\xEB\xE3ei\xB7\xFC}\x83+\x9B\xB5\x06)\xF8\xA8\xCE`\xC1\x8B}\x1E\xB0F\x84#\xE3O\x88,",
     );
     ///Static descriptors for this interface's ABI methods.
     pub const METHOD_DESCRIPTORS: [crate::NcMethodDescriptor; 2usize] = [
@@ -1124,8 +1149,8 @@ impl IPersistenceFactoryAbi {
 impl IPersistenceFactoryAbi {
     #[doc(hidden)]
     pub const __NC_RUST_BINDING: [::core::primitive::u8; 32] = [
-        106u8, 149u8, 77u8, 226u8, 122u8, 48u8, 171u8, 62u8, 4u8, 209u8, 206u8, 190u8,
-        232u8, 102u8, 219u8, 143u8, 56u8, 38u8, 135u8, 234u8, 44u8, 87u8, 254u8, 105u8,
-        133u8, 195u8, 203u8, 74u8, 233u8, 186u8, 54u8, 138u8,
+        48u8, 40u8, 4u8, 27u8, 198u8, 85u8, 20u8, 62u8, 34u8, 215u8, 229u8, 71u8, 128u8,
+        223u8, 95u8, 208u8, 90u8, 12u8, 153u8, 3u8, 79u8, 218u8, 153u8, 11u8, 229u8,
+        81u8, 63u8, 21u8, 136u8, 45u8, 184u8, 80u8,
     ];
 }

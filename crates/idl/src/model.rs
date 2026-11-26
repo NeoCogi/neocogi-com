@@ -207,13 +207,36 @@ pub struct Interface {
     pub threading: Threading,
 }
 
+impl Interface {
+    /// Reports whether a method declared here needs a whole-value writer.
+    pub(crate) fn declares_mutable_receiver(&self) -> bool {
+        self.methods.iter().any(|method| method.receiver == Receiver::Mutable)
+    }
+}
+
 /// Threading capability promised by an interface.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Threading {
-    /// Calls and references remain on their creating thread.
+    /// The interface grants neither cross-thread transfer nor shared access.
     Local,
-    /// Calls and references may cross threads concurrently.
+    /// The interface grants both cross-thread transfer and shared access.
     Shared,
+    /// The interface grants cross-thread transfer of exclusive access.
+    Send,
+    /// The interface grants cross-thread use of shared access.
+    Sync,
+}
+
+impl Threading {
+    /// An interface must preserve each independent guarantee of a base.
+    pub(crate) const fn supports(self, required: Self) -> bool {
+        match required {
+            Self::Local => true,
+            Self::Shared => matches!(self, Self::Shared),
+            Self::Send => matches!(self, Self::Send | Self::Shared),
+            Self::Sync => matches!(self, Self::Sync | Self::Shared),
+        }
+    }
 }
 
 /// One COM method declaration.
@@ -233,6 +256,8 @@ pub struct Method {
     pub output: IdlType,
     /// How the generated Rust method exposes the status.
     pub return_projection: ReturnProjection,
+    /// An explicitly scoped visitor, as opposed to a receiver-bound result.
+    pub(crate) scoped: bool,
     /// Native passing selected once for the closed method result.
     pub(crate) return_passing: ReturnPassing,
 }
@@ -304,8 +329,11 @@ pub(crate) enum ParameterPassing {
         /// Both-null denotes absence.
         optional: bool,
     },
-    /// A required mutable loan backed by an exclusively reborrowed handle.
-    MutableLoan,
+    /// A whole-value exclusive loan for the call.
+    MutableLoan {
+        /// Both-null denotes absence.
+        optional: bool,
+    },
     /// An exclusive owner moved from a writable caller slot.
     ConsumingBox,
 }
@@ -328,12 +356,20 @@ pub(crate) enum ReturnPassing {
     },
     /// One exclusive owner transferred in an ordinary out-pair.
     BoxOwner,
-    /// One retained boxed weak observer.
-    BoxObserver,
     /// One retained shared weak control token.
     SharedObserver,
-    /// An optional read loan delivered synchronously to a continuation.
-    ScopedLoan,
+    /// A borrowed out-pair lasting for the source receiver's borrow.
+    BorrowedLoan {
+        /// The result grants whole-value exclusive access.
+        mutable: bool,
+        /// Both-null denotes absence.
+        optional: bool,
+    },
+    /// An optional loan delivered only within a synchronous continuation.
+    ScopedLoan {
+        /// The visitor receives whole-value exclusive access.
+        mutable: bool,
+    },
 }
 
 /// One path naming an IDL declaration or built-in type.
@@ -408,9 +444,7 @@ pub enum IdlType {
     /// One exclusive owner transferred by a factory or into a container.
     /// It cannot be copied into an ordinary struct or enum field.
     ComBox(Box<IdlType>),
-    /// A cached weak interface token returned without retaining the value.
-    WeakComBox(Box<IdlType>),
-    /// A value borrowed only for the duration of one ABI call.
+    /// A read loan resolved according to its callable position.
     Borrowed(
         /// Borrowed referent type.
         Box<IdlType>,
@@ -465,7 +499,6 @@ impl IdlType {
             Self::ComPtr(child)
             | Self::WeakComPtr(child)
             | Self::ComBox(child)
-            | Self::WeakComBox(child)
             | Self::Borrowed(child)
             | Self::BorrowedMut(child)
             | Self::Slice(child)
@@ -484,7 +517,6 @@ impl IdlType {
             Self::ComPtr(value) => format!("ComPtr<{}>", value.source_name()),
             Self::WeakComPtr(value) => format!("WeakComPtr<{}>", value.source_name()),
             Self::ComBox(value) => format!("ComBox<{}>", value.source_name()),
-            Self::WeakComBox(value) => format!("WeakComBox<{}>", value.source_name()),
             Self::Borrowed(value) => format!("&{}", value.source_name()),
             Self::BorrowedMut(value) => format!("&mut {}", value.source_name()),
             Self::Vector(value) => format!("Vec<{}>", value.source_name()),

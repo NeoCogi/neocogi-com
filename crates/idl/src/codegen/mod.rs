@@ -52,6 +52,32 @@ fn method_declaration_with_path(method: &model::AbiMethod, nc: &syn::Path) -> pr
         let ty = &arg.rust_ty;
         quote! { #name: #ty }
     });
+    if let model::AbiReturnKind::ScopedLoan { interface_ty, mode_ty, mutable } = &method.ok.kind {
+        let parameters = parameters.collect::<Vec<_>>();
+        let mut private = util::PrivateNames::new(quote! { #name #(#parameters)* #interface_ty #nc });
+        let result = private.fresh("__NcVisitorResult");
+        let lend = private.binding("__nc_lend");
+        let lifetime = private.fresh("__nc_loan");
+        let lifetime = syn::Lifetime::new(&format!("'{lifetime}"), lifetime.span());
+        let handle = if *mutable {
+            quote! { ComMut }
+        } else {
+            quote! { ComRef }
+        };
+        let mode = mode_ty.as_deref().map_or_else(|| quote! { #nc::ThreadLocal }, |mode| quote! { #mode });
+        let loan = quote! { ::core::option::Option<#nc::#handle<#lifetime, #interface_ty, #mode>> };
+        let delivery = match method.projection {
+            crate::ReturnProjection::Direct => loan,
+            crate::ReturnProjection::Fallible => quote! { ::core::result::Result<#loan, #nc::NcStatus> },
+        };
+        return quote! {
+            #(#docs)*
+            fn #name<#result>(
+                #receiver, #(#parameters,)*
+                #lend: impl for<#lifetime> ::core::ops::FnOnce(#delivery) -> #result,
+            ) -> #result;
+        };
+    }
     let output = &method.ok.rust_ty;
     let owners = method
         .args

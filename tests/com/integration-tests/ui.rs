@@ -13,9 +13,7 @@ fn ui_errors_are_stable() {
 
     t.compile_fail("integration-tests/ui/class_explicit_iunknown.rs");
     t.compile_fail("integration-tests/ui/class_duplicate_interface.rs");
-    t.compile_fail("integration-tests/ui/local_guard_owner_lifetime.rs");
     t.compile_fail("integration-tests/ui/box_query_ref_escape.rs");
-    t.compile_fail("integration-tests/ui/query_ref_thread_affinity.rs");
     t.compile_fail("integration-tests/ui/weak_local_thread_affinity.rs");
     t.compile_fail("integration-tests/ui/weak_local_construction_proof.rs");
     t.pass("integration-tests/ui/enum_case_folded_variant.rs");
@@ -48,7 +46,6 @@ fn rust_ownership_rejections_match_the_invalid_expressions() {
             "object_ownership_constructors",
             [("E0599", "Service::into_box"), ("E0599", "Widget::from_value")].as_slice(),
         ),
-        ("weak_box_borrow_escape", [("lifetime may not live long enough", "weak.with_mut")].as_slice()),
         (
             "interface_value_ref_escape",
             [("lifetime may not live long enough", "self.saved = Some(value)")].as_slice(),
@@ -57,6 +54,8 @@ fn rust_ownership_rejections_match_the_invalid_expressions() {
         ("object_generic_threading", [("E0277", "Generic::from_value")].as_slice()),
         ("comptr_thread_local_send", [("E0277", "std::thread::spawn")].as_slice()),
         ("local_guard_thread_affinity", [("E0277", "scope.spawn")].as_slice()),
+        ("local_guard_owner_lifetime", [("E0505", "drop(owner)")].as_slice()),
+        ("query_ref_thread_affinity", [("E0277", "owner.query_ref")].as_slice()),
     ];
     let mut manifest = format!(
         "[package]\nname='ownership-rejections'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com-sdk={{path={:?}}}\n",
@@ -94,7 +93,7 @@ fn rust_ownership_rejections_match_the_invalid_expressions() {
         assert!(!output.status.success(), "invalid ownership compiled: {diagnostics}");
         let matches = |error: &serde_json::Value, reason: &str, expression: &str| {
             let line = source.lines().position(|line| line.contains(expression)).unwrap() as u64 + 1;
-            // E0277 covers all trait bounds. These four cases specifically
+            // E0277 covers all trait bounds. The threading cases specifically
             // require a Send/Sync rejection, not another trait error at the call.
             let threading = reason != "E0277"
                 || ["cannot be sent between threads safely", "cannot be shared between threads safely"]

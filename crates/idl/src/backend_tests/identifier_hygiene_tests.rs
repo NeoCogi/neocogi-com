@@ -128,10 +128,10 @@ fn printed_object_bindings_keep_storage_and_support_names_private() {
             let shared = shared.query::<IValueAbi>().unwrap();
             assert_eq!(shared.value(), ::core::result::Result::Ok(73));
             let exclusive = Exclusive::into_box(Exclusive { value: 91, _state: () });
-            let projection = exclusive.query_weak::<IValueAbi>().unwrap();
+            let projection = exclusive.query_ref::<IValueAbi>().unwrap();
             assert_eq!(projection.value(), ::core::result::Result::Ok(91));
-            drop(exclusive);
-            assert_eq!(projection.value(), ::core::result::Result::Err(neocogi_com_sdk::NC_E_DROPPED));
+            let owner = exclusive.query::<IValueAbi>().unwrap();
+            assert_eq!(owner.value(), ::core::result::Result::Ok(91));
         }
     "#;
     fs::write(consumer.directory.path().join("src/lib.rs"), generated).unwrap();

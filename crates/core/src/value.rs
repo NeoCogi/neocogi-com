@@ -715,40 +715,6 @@ unsafe impl<T: crate::ComInterface + 'static, M: crate::ThreadingModel> ComValue
     }
 }
 
-// SAFETY: the wire borrows exclusive lifetime bookkeeping and an immutable
-// projection. The producer proves boxed backing; acquisition checks identity,
-// then retains only the weak header, including after the value has expired.
-unsafe impl<T: crate::ComInterface + 'static, M: crate::ThreadingModel> ComValue for crate::WeakComBox<T, M> {
-    type AbiRepr = crate::ComRaw<T>;
-    type KeepAlive = ();
-    /// The native observer keeps both the header and provider metadata alive.
-    fn encode_value(&self, budget: &mut ValueBudget) -> Result<(Self::AbiRepr, ()), NcStatus> {
-        budget.value(|_| Ok((self.as_raw(), ())))
-    }
-    /// Acquires an observer without borrowing, promoting or resurrecting its value.
-    unsafe fn decode_value(wire: &Self::AbiRepr, budget: &mut ValueBudget) -> Result<Self, NcStatus> {
-        budget.value(|_| {
-            // SAFETY: the caller lends initialized common header/table storage.
-            // Validate the supplied pair before finding the canonical projection.
-            unsafe { crate::raw::validate_interface(*wire) }?;
-            let control = wire.object.cast::<crate::lifetime::NcBoxedLifetimeState>();
-            // SAFETY: the ABI value contract already establishes boxed backing;
-            // canonical lookup checks its exact requested interface independently.
-            let table = unsafe { crate::lifetime::try_box_cast(control, &T::INTERFACE_ID) }?;
-            // SAFETY: successful validation proves live weak bookkeeping. Only
-            // the canonical provider table is retained, never the caller's table.
-            unsafe { (*control).weak_retain() };
-            Ok(unsafe {
-                Self::from_raw_owned(crate::ComRaw {
-                    object: wire.object,
-                    vtable: table.cast(),
-                })
-            }
-            .expect("validated exclusive observer is present"))
-        })
-    }
-}
-
 // SAFETY: optional and array wires remain self-contained when their elements do.
 unsafe impl<T: ComInlineValue> ComInlineValue for Option<T> {}
 unsafe impl<T: ComInlineValue, const N: usize> ComInlineValue for [T; N] {}

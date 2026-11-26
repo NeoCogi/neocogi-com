@@ -109,7 +109,7 @@ fn generic_interface_accepts_scalar_arguments_in_valid_positions() {
     let source = module(
         "test/scalars.ncidl",
         r#"
-        interface IValue<T> { fn get(&self) -> Result<T>; fn set(&mut self, value: T) -> Result<()>; }
+        interface IValue<T> { fn get(&self) -> Result<T>; fn set(&self, value: T) -> Result<()>; }
         interface Counter: IValue<u32> {}
     "#,
     );
@@ -124,7 +124,7 @@ fn closed_generic_calls_cross_generated_module_boundaries() {
     use std::{fs, process::Command};
     let template = module(
         "proof/contracts.ncidl",
-        "interface IValue<T> { fn get(&self) -> Result<T>; fn set(&mut self, value: T) -> Result<()>; }",
+        "interface IValue<T> { fn get(&self) -> Result<T>; fn set(&self, value: T) -> Result<()>; }",
     );
     let source = "extern proof.contracts; use proof.contracts::IValue; interface Counter: IValue<u32> {}";
     let graph = resolve_modules(vec![template, module("proof/producer.ncidl", source), module("proof/consumer.ncidl", source)]).unwrap();
@@ -156,18 +156,18 @@ fn closed_generic_calls_cross_generated_module_boundaries() {
         pub mod consumer;
         #[neocogi_com_sdk::com_object(producer::Counter)]
         /// Concrete storage implements one generated specialization.
-        struct Counter {{ value: u32 }}
+        struct Counter {{ value: std::cell::Cell<u32> }}
         impl producer::Counter for Counter {{}}
         impl producer::{contract} for Counter {{
             /// Reads ordinary exclusively owned state through COM.
-            fn get(&self) -> Result<u32, neocogi_com_sdk::NcStatus> {{ Ok(self.value) }}
+            fn get(&self) -> Result<u32, neocogi_com_sdk::NcStatus> {{ Ok(self.value.get()) }}
             /// Mutates the same state through either independently generated wrapper.
-            fn set(&mut self, value: u32) -> Result<(), neocogi_com_sdk::NcStatus> {{ self.value = value; Ok(()) }}
+            fn set(&self, value: u32) -> Result<(), neocogi_com_sdk::NcStatus> {{ self.value.set(value); Ok(()) }}
         }}
         #[neocogi_com_sdk::plugin(name = "proof.closed.generic")]
         /// Closed generic projections are ordinary plugin roots.
         fn acquire_root(_runtime: ::neocogi_com_sdk::RuntimeHandle) -> Result<neocogi_com_sdk::ComPtr<producer::{contract}Abi>, neocogi_com_sdk::NcStatus> {{
-            Counter::from_value(Counter {{ value: 7 }}).query()
+            Counter::from_value(Counter {{ value: 7.into() }}).query()
         }}
         #[test]
         fn calls_peer_specialization() {{
@@ -176,7 +176,7 @@ fn closed_generic_calls_cross_generated_module_boundaries() {
             assert_eq!(unsafe {{ (plugin_descriptor().acquire.unwrap())(neocogi_com_host::initialize_process(), &mut raw) }}, neocogi_com_sdk::NC_OK);
             // SAFETY: the adapter transferred the exact generated specialization.
             let owner = unsafe {{ neocogi_com_sdk::ComPtr::<producer::{contract}Abi>::__nc_from_raw_owned_checked(raw.cast()) }}.unwrap();
-            let mut peer = owner.query::<consumer::{contract}Abi>().unwrap();
+            let peer = owner.query::<consumer::{contract}Abi>().unwrap();
             assert_eq!(peer.get(), Ok(7));
             peer.set(41).unwrap();
             assert_eq!(owner.query::<producer::{contract}Abi>().unwrap().get(), Ok(41));
@@ -350,7 +350,7 @@ fn parameter_renames_preserve_cross_module_calls_and_event_adapters() {
             let copied = neocogi_com_sdk::NcValueRef::new(&value).unwrap().to_owned().unwrap();
             let producer::{change}::Set(node) = copied else {{ panic!("selected alternative changed") }};
             assert_eq!(node.children[0].value, "child");
-            #[neocogi_com_sdk::com_object(consumer::Receiver)]
+            #[neocogi_com_sdk::com_object(consumer::Receiver, ownership = exclusive)]
             /// Consumer-owned concrete queue is compiled against renamed template parameters.
             struct Queue;
             impl consumer::Receiver for Queue {{}}
@@ -363,7 +363,7 @@ fn parameter_renames_preserve_cross_module_calls_and_event_adapters() {
                     Ok(())
                 }}
             }}
-            let receiver = Queue::from_value(Queue);
+            let receiver = Queue::into_box(Queue);
             let mut producer_view = receiver.query::<producer::{receiver}Abi>().unwrap();
             producer_view.as_com_mut().accept(neocogi_com_sdk::NcValueRef::new(&value).unwrap()).unwrap();
             let descriptor = producer::ReceiverAbi::IDL_INTERFACE;

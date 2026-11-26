@@ -1,14 +1,22 @@
 # Changelog
 
-Development uses provisional **[ABI v5](docs/abi.md#abi-identities-and-versions)**.
+Development uses provisional **[ABI v4](docs/abi.md#abi-identities-and-versions)**.
 Entries below record development; later entries can supersede older implementation details.
 Historical draft numbers do not define additional supported COM baselines.
 
 ## 0.5.0-wip-alpha.1 (development)
 
+- Give `ComBox` one owner with Rust-style lending. Remove independent
+  boxed observers and the boxed access counters they required.
+- Distinguish receiver-bound borrowed results from explicitly scoped visitors.
+  Independent transfer and sharing modes follow Rust's Send and Sync rules.
+- Use a fresh header marker for ABI v4 WIP so earlier drafts reusing version 4
+  are rejected before their descriptor tails are read. Inspector schema 11
+  separates artifacts produced by the current marker.
+
 - Save live trees through the ordinary serializer with an active-path stack and
   bounded state copies. Use four positional values for each object and keep
-  the same NCB v1 bytes. ABI v5 opens the writer before object getters and
+  the same NCB v1 bytes. Open the writer before object getters and
   returns the originating save status.
 - Call the object persistence operations `save_object_tree` and
   `restore_object_tree`, and the serializable record `SavedObject`. These

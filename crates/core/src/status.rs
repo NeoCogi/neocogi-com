@@ -142,8 +142,7 @@ pub const NC_E_CLOSED: NcStatus = NcStatus::from_code(-13);
 
 /// The target has no live owner; new access or promotion is rejected.
 /// Ownership ended through Drop; weak handles cannot resurrect the value.
-/// Weak bookkeeping may remain allocated. Concurrent calls admitted before Drop
-/// may still be finishing while the dropping thread waits for destruction.
+/// Shared weak bookkeeping may remain allocated until its last weak release.
 pub const NC_E_DROPPED: NcStatus = NcStatus::from_code(-14);
 
 #[cfg(test)]

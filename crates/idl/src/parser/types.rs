@@ -142,7 +142,7 @@ fn value(input: ParseStream<'_>, descent: usize) -> syn::Result<Value> {
             input.parse::<Token![>]>()?;
             return child.wrap(path.span, |element| IdlType::Array { element, len });
         }
-        if matches!(name, "ComPtr" | "WeakComPtr" | "ComBox" | "WeakComBox" | "Vec" | "Slice") {
+        if matches!(name, "ComPtr" | "WeakComPtr" | "ComBox" | "Vec" | "Slice") {
             input.parse::<Token![<]>()?;
             let child = value(input, descent + 1)?;
             if input.peek(Token![,]) {
@@ -153,7 +153,6 @@ fn value(input: ParseStream<'_>, descent: usize) -> syn::Result<Value> {
                 "ComPtr" => IdlType::ComPtr(child),
                 "WeakComPtr" => IdlType::WeakComPtr(child),
                 "ComBox" => IdlType::ComBox(child),
-                "WeakComBox" => IdlType::WeakComBox(child),
                 "Vec" => IdlType::Vector(child),
                 "Slice" => IdlType::UnsizedSlice(child),
                 _ => unreachable!("checked intrinsic"),

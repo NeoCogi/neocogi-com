@@ -11,18 +11,18 @@ pub struct IObjectChildrenVtblFor<__NcProvider>(
 const _: () = {
     #[allow(unused_imports)]
     use ::core::convert::{
-        identity as __nc_dispatch_object, identity as __nc_dispatch_value,
-        identity as __nc_arg_0, identity as __nc_arg_0_owner_slot,
-        identity as __nc_arg_0_owner_table, identity as __nc_arg_0_owner_original,
-        identity as __nc_arg_0_offset, identity as __nc_arg_0_len,
-        identity as __nc_arg_0_ptr, identity as __nc_arg_0_values,
-        identity as __nc_arg_0_written, identity as __nc_this, identity as __nc_status,
-        identity as __nc_value, identity as __nc_raw, identity as __nc_result,
-        identity as __nc_values, identity as __nc_writer, identity as __nc_out,
-        identity as __nc_scoped_context, identity as __nc_scoped_callback,
-        identity as __nc_identity, identity as __nc_this_0, identity as __nc_status_0,
-        identity as __nc_result_0, identity as __nc_prepared, identity as __nc_out_0,
-        identity as __nc_this_1, identity as __nc_status_1, identity as __nc_result_1,
+        identity as __nc_dispatch_value, identity as __nc_arg_0,
+        identity as __nc_arg_0_owner_slot, identity as __nc_arg_0_owner_table,
+        identity as __nc_arg_0_owner_original, identity as __nc_arg_0_offset,
+        identity as __nc_arg_0_len, identity as __nc_arg_0_ptr,
+        identity as __nc_arg_0_values, identity as __nc_arg_0_written,
+        identity as __nc_this, identity as __nc_status, identity as __nc_value,
+        identity as __nc_raw, identity as __nc_result, identity as __nc_values,
+        identity as __nc_writer, identity as __nc_out, identity as __nc_scoped_context,
+        identity as __nc_scoped_callback, identity as __nc_identity,
+        identity as __nc_this_0, identity as __nc_status_0, identity as __nc_result_0,
+        identity as __nc_prepared, identity as __nc_out_0, identity as __nc_this_1,
+        identity as __nc_status_1, identity as __nc_result_1,
         identity as __nc_prepared_0, identity as __nc_out_1,
     };
     impl<__NcProvider> IObjectChildrenVtblFor<__NcProvider>
@@ -63,14 +63,14 @@ const _: () = {
         }
         /// Returns the number of fully initialized child objects.
         /// IDL source: `neocogi/com/persistence/objects.ncidl:4:8` (module `neocogi.com.persistence`).
-        /// Validates raw pointers, borrows the concrete provider through its
-        /// object-wide gate, invokes its typed method, and lowers the result.
-        /// Owned results transfer after release of the receiver guard. Scoped
-        /// loans are delivered before release. Error statuses are normalized.
+        /// Validates arguments and dispatches through the caller's live target borrow.
+        /// Ordinary borrowed results retain the caller's receiver lifetime.
+        /// Scoped delivery completes before its provider-side lender ends.
         ///
         /// # Safety
-        /// The interface belongs to T's live generated storage. Non-null ABI
-        /// arguments must satisfy their method's readable/writable contracts.
+        /// The interface belongs to the exact live provider storage. The
+        /// receiver and every input must jointly satisfy their declared
+        /// lifetime and aliasing contracts through the call and any returned loan.
         unsafe extern "C" fn count_thunk(
             __nc_this: *mut ::core::ffi::c_void,
             __nc_out: *mut <::core::primitive::u32 as crate::ComValue>::AbiRepr,
@@ -78,20 +78,15 @@ const _: () = {
             if __nc_this.is_null() || __nc_out.is_null() {
                 return crate::NC_E_POINTER;
             }
-            let __nc_dispatch_object = __nc_this;
-            if __nc_dispatch_object.is_null() {
-                return crate::NC_E_POINTER;
-            }
-            let mut __nc_dispatch_value = match unsafe {
-                <__NcProvider as crate::ComObject>::borrow_abi_ref(__nc_dispatch_object)
+            let __nc_dispatch_value = match unsafe {
+                <__NcProvider as crate::ComObject>::borrow_abi_ref(__nc_this)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
             let __nc_result = <__NcProvider as IObjectChildren>::count(
-                &*__nc_dispatch_value,
+                __nc_dispatch_value,
             );
-            ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
                 ::core::result::Result::Ok(__nc_value) => {
                     let __nc_raw = match crate::encode_inline(&__nc_value) {
@@ -108,14 +103,14 @@ const _: () = {
         }
         /// Returns an owned reference; indices must be less than count.
         /// IDL source: `neocogi/com/persistence/objects.ncidl:6:8` (module `neocogi.com.persistence`).
-        /// Validates raw pointers, borrows the concrete provider through its
-        /// object-wide gate, invokes its typed method, and lowers the result.
-        /// Owned results transfer after release of the receiver guard. Scoped
-        /// loans are delivered before release. Error statuses are normalized.
+        /// Validates arguments and dispatches through the caller's live target borrow.
+        /// Ordinary borrowed results retain the caller's receiver lifetime.
+        /// Scoped delivery completes before its provider-side lender ends.
         ///
         /// # Safety
-        /// The interface belongs to T's live generated storage. Non-null ABI
-        /// arguments must satisfy their method's readable/writable contracts.
+        /// The interface belongs to the exact live provider storage. The
+        /// receiver and every input must jointly satisfy their declared
+        /// lifetime and aliasing contracts through the call and any returned loan.
         unsafe extern "C" fn get_thunk(
             __nc_this: *mut ::core::ffi::c_void,
             __nc_arg_0: <::core::primitive::u32 as crate::ComValue>::AbiRepr,
@@ -124,27 +119,22 @@ const _: () = {
             if __nc_this.is_null() || __nc_out.is_null() {
                 return crate::NC_E_POINTER;
             }
-            let __nc_dispatch_object = __nc_this;
-            if __nc_dispatch_object.is_null() {
-                return crate::NC_E_POINTER;
-            }
             let __nc_arg_0 = match unsafe {
                 crate::decode_inline::<::core::primitive::u32>(&__nc_arg_0)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
-            let mut __nc_dispatch_value = match unsafe {
-                <__NcProvider as crate::ComObject>::borrow_abi_ref(__nc_dispatch_object)
+            let __nc_dispatch_value = match unsafe {
+                <__NcProvider as crate::ComObject>::borrow_abi_ref(__nc_this)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
             let __nc_result = <__NcProvider as IObjectChildren>::get(
-                &*__nc_dispatch_value,
+                __nc_dispatch_value,
                 __nc_arg_0,
             );
-            ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
                 ::core::result::Result::Ok(__nc_value) => {
                     unsafe {
@@ -166,18 +156,18 @@ pub struct IPersistableVtblFor<__NcProvider>(
 const _: () = {
     #[allow(unused_imports)]
     use ::core::convert::{
-        identity as __nc_dispatch_object, identity as __nc_dispatch_value,
-        identity as __nc_arg_0, identity as __nc_arg_0_owner_slot,
-        identity as __nc_arg_0_owner_table, identity as __nc_arg_0_owner_original,
-        identity as __nc_arg_0_offset, identity as __nc_arg_0_len,
-        identity as __nc_arg_0_ptr, identity as __nc_arg_0_values,
-        identity as __nc_arg_0_written, identity as __nc_this, identity as __nc_status,
-        identity as __nc_value, identity as __nc_raw, identity as __nc_result,
-        identity as __nc_values, identity as __nc_writer, identity as __nc_out,
-        identity as __nc_scoped_context, identity as __nc_scoped_callback,
-        identity as __nc_identity, identity as __nc_this_0, identity as __nc_status_0,
-        identity as __nc_result_0, identity as __nc_prepared, identity as __nc_out_0,
-        identity as __nc_this_1, identity as __nc_status_1, identity as __nc_result_1,
+        identity as __nc_dispatch_value, identity as __nc_arg_0,
+        identity as __nc_arg_0_owner_slot, identity as __nc_arg_0_owner_table,
+        identity as __nc_arg_0_owner_original, identity as __nc_arg_0_offset,
+        identity as __nc_arg_0_len, identity as __nc_arg_0_ptr,
+        identity as __nc_arg_0_values, identity as __nc_arg_0_written,
+        identity as __nc_this, identity as __nc_status, identity as __nc_value,
+        identity as __nc_raw, identity as __nc_result, identity as __nc_values,
+        identity as __nc_writer, identity as __nc_out, identity as __nc_scoped_context,
+        identity as __nc_scoped_callback, identity as __nc_identity,
+        identity as __nc_this_0, identity as __nc_status_0, identity as __nc_result_0,
+        identity as __nc_prepared, identity as __nc_out_0, identity as __nc_this_1,
+        identity as __nc_status_1, identity as __nc_result_1,
         identity as __nc_prepared_0, identity as __nc_out_1, identity as __nc_this_2,
         identity as __nc_status_2, identity as __nc_result_2,
         identity as __nc_prepared_1, identity as __nc_out_2, identity as __nc_this_3,
@@ -227,14 +217,14 @@ const _: () = {
         }
         /// Identifies the registered construction recipe, not this object instance.
         /// IDL source: `neocogi/com/persistence/objects.ncidl:12:8` (module `neocogi.com.persistence`).
-        /// Validates raw pointers, borrows the concrete provider through its
-        /// object-wide gate, invokes its typed method, and lowers the result.
-        /// Owned results transfer after release of the receiver guard. Scoped
-        /// loans are delivered before release. Error statuses are normalized.
+        /// Validates arguments and dispatches through the caller's live target borrow.
+        /// Ordinary borrowed results retain the caller's receiver lifetime.
+        /// Scoped delivery completes before its provider-side lender ends.
         ///
         /// # Safety
-        /// The interface belongs to T's live generated storage. Non-null ABI
-        /// arguments must satisfy their method's readable/writable contracts.
+        /// The interface belongs to the exact live provider storage. The
+        /// receiver and every input must jointly satisfy their declared
+        /// lifetime and aliasing contracts through the call and any returned loan.
         unsafe extern "C" fn type_id_thunk(
             __nc_this: *mut ::core::ffi::c_void,
             __nc_out: *mut <crate::NcGuid as crate::ComValue>::AbiRepr,
@@ -242,20 +232,15 @@ const _: () = {
             if __nc_this.is_null() || __nc_out.is_null() {
                 return crate::NC_E_POINTER;
             }
-            let __nc_dispatch_object = __nc_this;
-            if __nc_dispatch_object.is_null() {
-                return crate::NC_E_POINTER;
-            }
-            let mut __nc_dispatch_value = match unsafe {
-                <__NcProvider as crate::ComObject>::borrow_abi_ref(__nc_dispatch_object)
+            let __nc_dispatch_value = match unsafe {
+                <__NcProvider as crate::ComObject>::borrow_abi_ref(__nc_this)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
             let __nc_result = <__NcProvider as IPersistable>::type_id(
-                &*__nc_dispatch_value,
+                __nc_dispatch_value,
             );
-            ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
                 ::core::result::Result::Ok(__nc_value) => {
                     let __nc_raw = match crate::encode_inline(&__nc_value) {
@@ -272,14 +257,14 @@ const _: () = {
         }
         /// Identifies the persistent initialization schema, independently of COM ABI.
         /// IDL source: `neocogi/com/persistence/objects.ncidl:14:8` (module `neocogi.com.persistence`).
-        /// Validates raw pointers, borrows the concrete provider through its
-        /// object-wide gate, invokes its typed method, and lowers the result.
-        /// Owned results transfer after release of the receiver guard. Scoped
-        /// loans are delivered before release. Error statuses are normalized.
+        /// Validates arguments and dispatches through the caller's live target borrow.
+        /// Ordinary borrowed results retain the caller's receiver lifetime.
+        /// Scoped delivery completes before its provider-side lender ends.
         ///
         /// # Safety
-        /// The interface belongs to T's live generated storage. Non-null ABI
-        /// arguments must satisfy their method's readable/writable contracts.
+        /// The interface belongs to the exact live provider storage. The
+        /// receiver and every input must jointly satisfy their declared
+        /// lifetime and aliasing contracts through the call and any returned loan.
         unsafe extern "C" fn schema_version_thunk(
             __nc_this: *mut ::core::ffi::c_void,
             __nc_out: *mut <::core::primitive::u32 as crate::ComValue>::AbiRepr,
@@ -287,20 +272,15 @@ const _: () = {
             if __nc_this.is_null() || __nc_out.is_null() {
                 return crate::NC_E_POINTER;
             }
-            let __nc_dispatch_object = __nc_this;
-            if __nc_dispatch_object.is_null() {
-                return crate::NC_E_POINTER;
-            }
-            let mut __nc_dispatch_value = match unsafe {
-                <__NcProvider as crate::ComObject>::borrow_abi_ref(__nc_dispatch_object)
+            let __nc_dispatch_value = match unsafe {
+                <__NcProvider as crate::ComObject>::borrow_abi_ref(__nc_this)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
             let __nc_result = <__NcProvider as IPersistable>::schema_version(
-                &*__nc_dispatch_value,
+                __nc_dispatch_value,
             );
-            ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
                 ::core::result::Result::Ok(__nc_value) => {
                     let __nc_raw = match crate::encode_inline(&__nc_value) {
@@ -317,14 +297,14 @@ const _: () = {
         }
         /// Exports initialization data without process-local resources. The returned length and contents stay stable throughout the save.
         /// IDL source: `neocogi/com/persistence/objects.ncidl:16:8` (module `neocogi.com.persistence`).
-        /// Validates raw pointers, borrows the concrete provider through its
-        /// object-wide gate, invokes its typed method, and lowers the result.
-        /// Owned results transfer after release of the receiver guard. Scoped
-        /// loans are delivered before release. Error statuses are normalized.
+        /// Validates arguments and dispatches through the caller's live target borrow.
+        /// Ordinary borrowed results retain the caller's receiver lifetime.
+        /// Scoped delivery completes before its provider-side lender ends.
         ///
         /// # Safety
-        /// The interface belongs to T's live generated storage. Non-null ABI
-        /// arguments must satisfy their method's readable/writable contracts.
+        /// The interface belongs to the exact live provider storage. The
+        /// receiver and every input must jointly satisfy their declared
+        /// lifetime and aliasing contracts through the call and any returned loan.
         unsafe extern "C" fn save_state_thunk(
             __nc_this: *mut ::core::ffi::c_void,
             __nc_out: *mut crate::ComRaw<crate::INcBytesAbi>,
@@ -332,20 +312,15 @@ const _: () = {
             if __nc_this.is_null() || __nc_out.is_null() {
                 return crate::NC_E_POINTER;
             }
-            let __nc_dispatch_object = __nc_this;
-            if __nc_dispatch_object.is_null() {
-                return crate::NC_E_POINTER;
-            }
-            let mut __nc_dispatch_value = match unsafe {
-                <__NcProvider as crate::ComObject>::borrow_abi_ref(__nc_dispatch_object)
+            let __nc_dispatch_value = match unsafe {
+                <__NcProvider as crate::ComObject>::borrow_abi_ref(__nc_this)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
             let __nc_result = <__NcProvider as IPersistable>::save_state(
-                &*__nc_dispatch_value,
+                __nc_dispatch_value,
             );
-            ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
                 ::core::result::Result::Ok(__nc_value) => {
                     unsafe {
@@ -358,14 +333,14 @@ const _: () = {
         }
         /// Returns the number of owned persistent children; parent links are excluded.
         /// IDL source: `neocogi/com/persistence/objects.ncidl:18:8` (module `neocogi.com.persistence`).
-        /// Validates raw pointers, borrows the concrete provider through its
-        /// object-wide gate, invokes its typed method, and lowers the result.
-        /// Owned results transfer after release of the receiver guard. Scoped
-        /// loans are delivered before release. Error statuses are normalized.
+        /// Validates arguments and dispatches through the caller's live target borrow.
+        /// Ordinary borrowed results retain the caller's receiver lifetime.
+        /// Scoped delivery completes before its provider-side lender ends.
         ///
         /// # Safety
-        /// The interface belongs to T's live generated storage. Non-null ABI
-        /// arguments must satisfy their method's readable/writable contracts.
+        /// The interface belongs to the exact live provider storage. The
+        /// receiver and every input must jointly satisfy their declared
+        /// lifetime and aliasing contracts through the call and any returned loan.
         unsafe extern "C" fn child_count_thunk(
             __nc_this: *mut ::core::ffi::c_void,
             __nc_out: *mut <::core::primitive::u32 as crate::ComValue>::AbiRepr,
@@ -373,20 +348,15 @@ const _: () = {
             if __nc_this.is_null() || __nc_out.is_null() {
                 return crate::NC_E_POINTER;
             }
-            let __nc_dispatch_object = __nc_this;
-            if __nc_dispatch_object.is_null() {
-                return crate::NC_E_POINTER;
-            }
-            let mut __nc_dispatch_value = match unsafe {
-                <__NcProvider as crate::ComObject>::borrow_abi_ref(__nc_dispatch_object)
+            let __nc_dispatch_value = match unsafe {
+                <__NcProvider as crate::ComObject>::borrow_abi_ref(__nc_this)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
             let __nc_result = <__NcProvider as IPersistable>::child_count(
-                &*__nc_dispatch_value,
+                __nc_dispatch_value,
             );
-            ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
                 ::core::result::Result::Ok(__nc_value) => {
                     let __nc_raw = match crate::encode_inline(&__nc_value) {
@@ -403,14 +373,14 @@ const _: () = {
         }
         /// Returns one child in the order described by the parent's initialization.
         /// IDL source: `neocogi/com/persistence/objects.ncidl:20:8` (module `neocogi.com.persistence`).
-        /// Validates raw pointers, borrows the concrete provider through its
-        /// object-wide gate, invokes its typed method, and lowers the result.
-        /// Owned results transfer after release of the receiver guard. Scoped
-        /// loans are delivered before release. Error statuses are normalized.
+        /// Validates arguments and dispatches through the caller's live target borrow.
+        /// Ordinary borrowed results retain the caller's receiver lifetime.
+        /// Scoped delivery completes before its provider-side lender ends.
         ///
         /// # Safety
-        /// The interface belongs to T's live generated storage. Non-null ABI
-        /// arguments must satisfy their method's readable/writable contracts.
+        /// The interface belongs to the exact live provider storage. The
+        /// receiver and every input must jointly satisfy their declared
+        /// lifetime and aliasing contracts through the call and any returned loan.
         unsafe extern "C" fn child_thunk(
             __nc_this: *mut ::core::ffi::c_void,
             __nc_arg_0: <::core::primitive::u32 as crate::ComValue>::AbiRepr,
@@ -419,27 +389,22 @@ const _: () = {
             if __nc_this.is_null() || __nc_out.is_null() {
                 return crate::NC_E_POINTER;
             }
-            let __nc_dispatch_object = __nc_this;
-            if __nc_dispatch_object.is_null() {
-                return crate::NC_E_POINTER;
-            }
             let __nc_arg_0 = match unsafe {
                 crate::decode_inline::<::core::primitive::u32>(&__nc_arg_0)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
-            let mut __nc_dispatch_value = match unsafe {
-                <__NcProvider as crate::ComObject>::borrow_abi_ref(__nc_dispatch_object)
+            let __nc_dispatch_value = match unsafe {
+                <__NcProvider as crate::ComObject>::borrow_abi_ref(__nc_this)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
             let __nc_result = <__NcProvider as IPersistable>::child(
-                &*__nc_dispatch_value,
+                __nc_dispatch_value,
                 __nc_arg_0,
             );
-            ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
                 ::core::result::Result::Ok(__nc_value) => {
                     unsafe {
@@ -461,41 +426,40 @@ pub struct IPersistenceFactoryVtblFor<__NcProvider>(
 const _: () = {
     #[allow(unused_imports)]
     use ::core::convert::{
-        identity as __nc_dispatch_object, identity as __nc_dispatch_value,
-        identity as __nc_arg_0, identity as __nc_arg_0_owner_slot,
-        identity as __nc_arg_0_owner_table, identity as __nc_arg_0_owner_original,
-        identity as __nc_arg_0_offset, identity as __nc_arg_0_len,
-        identity as __nc_arg_0_ptr, identity as __nc_arg_0_values,
-        identity as __nc_arg_0_written, identity as __nc_arg_1,
-        identity as __nc_arg_1_owner_slot, identity as __nc_arg_1_owner_table,
-        identity as __nc_arg_1_owner_original, identity as __nc_arg_1_offset,
-        identity as __nc_arg_1_len, identity as __nc_arg_1_ptr,
-        identity as __nc_arg_1_values, identity as __nc_arg_1_written,
-        identity as __nc_arg_2, identity as __nc_arg_2_owner_slot,
-        identity as __nc_arg_2_owner_table, identity as __nc_arg_2_owner_original,
-        identity as __nc_arg_2_offset, identity as __nc_arg_2_len,
-        identity as __nc_arg_2_ptr, identity as __nc_arg_2_values,
-        identity as __nc_arg_2_written, identity as __nc_arg_0_0,
-        identity as __nc_arg_0_0_owner_slot, identity as __nc_arg_0_0_owner_table,
-        identity as __nc_arg_0_0_owner_original, identity as __nc_arg_0_0_offset,
-        identity as __nc_arg_0_0_len, identity as __nc_arg_0_0_ptr,
-        identity as __nc_arg_0_0_values, identity as __nc_arg_0_0_written,
-        identity as __nc_arg_1_0, identity as __nc_arg_1_0_owner_slot,
-        identity as __nc_arg_1_0_owner_table, identity as __nc_arg_1_0_owner_original,
-        identity as __nc_arg_1_0_offset, identity as __nc_arg_1_0_len,
-        identity as __nc_arg_1_0_ptr, identity as __nc_arg_1_0_values,
-        identity as __nc_arg_1_0_written, identity as __nc_arg_2_0,
-        identity as __nc_arg_2_0_owner_slot, identity as __nc_arg_2_0_owner_table,
-        identity as __nc_arg_2_0_owner_original, identity as __nc_arg_2_0_offset,
-        identity as __nc_arg_2_0_len, identity as __nc_arg_2_0_ptr,
-        identity as __nc_arg_2_0_values, identity as __nc_arg_2_0_written,
-        identity as __nc_this, identity as __nc_status, identity as __nc_value,
-        identity as __nc_raw, identity as __nc_result, identity as __nc_values,
-        identity as __nc_writer, identity as __nc_out, identity as __nc_scoped_context,
-        identity as __nc_scoped_callback, identity as __nc_identity,
-        identity as __nc_this_0, identity as __nc_status_0, identity as __nc_result_0,
-        identity as __nc_prepared, identity as __nc_out_0, identity as __nc_this_1,
-        identity as __nc_status_1, identity as __nc_result_1,
+        identity as __nc_dispatch_value, identity as __nc_arg_0,
+        identity as __nc_arg_0_owner_slot, identity as __nc_arg_0_owner_table,
+        identity as __nc_arg_0_owner_original, identity as __nc_arg_0_offset,
+        identity as __nc_arg_0_len, identity as __nc_arg_0_ptr,
+        identity as __nc_arg_0_values, identity as __nc_arg_0_written,
+        identity as __nc_arg_1, identity as __nc_arg_1_owner_slot,
+        identity as __nc_arg_1_owner_table, identity as __nc_arg_1_owner_original,
+        identity as __nc_arg_1_offset, identity as __nc_arg_1_len,
+        identity as __nc_arg_1_ptr, identity as __nc_arg_1_values,
+        identity as __nc_arg_1_written, identity as __nc_arg_2,
+        identity as __nc_arg_2_owner_slot, identity as __nc_arg_2_owner_table,
+        identity as __nc_arg_2_owner_original, identity as __nc_arg_2_offset,
+        identity as __nc_arg_2_len, identity as __nc_arg_2_ptr,
+        identity as __nc_arg_2_values, identity as __nc_arg_2_written,
+        identity as __nc_arg_0_0, identity as __nc_arg_0_0_owner_slot,
+        identity as __nc_arg_0_0_owner_table, identity as __nc_arg_0_0_owner_original,
+        identity as __nc_arg_0_0_offset, identity as __nc_arg_0_0_len,
+        identity as __nc_arg_0_0_ptr, identity as __nc_arg_0_0_values,
+        identity as __nc_arg_0_0_written, identity as __nc_arg_1_0,
+        identity as __nc_arg_1_0_owner_slot, identity as __nc_arg_1_0_owner_table,
+        identity as __nc_arg_1_0_owner_original, identity as __nc_arg_1_0_offset,
+        identity as __nc_arg_1_0_len, identity as __nc_arg_1_0_ptr,
+        identity as __nc_arg_1_0_values, identity as __nc_arg_1_0_written,
+        identity as __nc_arg_2_0, identity as __nc_arg_2_0_owner_slot,
+        identity as __nc_arg_2_0_owner_table, identity as __nc_arg_2_0_owner_original,
+        identity as __nc_arg_2_0_offset, identity as __nc_arg_2_0_len,
+        identity as __nc_arg_2_0_ptr, identity as __nc_arg_2_0_values,
+        identity as __nc_arg_2_0_written, identity as __nc_this, identity as __nc_status,
+        identity as __nc_value, identity as __nc_raw, identity as __nc_result,
+        identity as __nc_values, identity as __nc_writer, identity as __nc_out,
+        identity as __nc_scoped_context, identity as __nc_scoped_callback,
+        identity as __nc_identity, identity as __nc_this_0, identity as __nc_status_0,
+        identity as __nc_result_0, identity as __nc_prepared, identity as __nc_out_0,
+        identity as __nc_this_1, identity as __nc_status_1, identity as __nc_result_1,
         identity as __nc_prepared_0, identity as __nc_out_1,
     };
     impl<__NcProvider> IPersistenceFactoryVtblFor<__NcProvider>
@@ -536,14 +500,14 @@ const _: () = {
         }
         /// Rejects unsupported revisions before any child object is constructed.
         /// IDL source: `neocogi/com/persistence/objects.ncidl:26:8` (module `neocogi.com.persistence`).
-        /// Validates raw pointers, borrows the concrete provider through its
-        /// object-wide gate, invokes its typed method, and lowers the result.
-        /// Owned results transfer after release of the receiver guard. Scoped
-        /// loans are delivered before release. Error statuses are normalized.
+        /// Validates arguments and dispatches through the caller's live target borrow.
+        /// Ordinary borrowed results retain the caller's receiver lifetime.
+        /// Scoped delivery completes before its provider-side lender ends.
         ///
         /// # Safety
-        /// The interface belongs to T's live generated storage. Non-null ABI
-        /// arguments must satisfy their method's readable/writable contracts.
+        /// The interface belongs to the exact live provider storage. The
+        /// receiver and every input must jointly satisfy their declared
+        /// lifetime and aliasing contracts through the call and any returned loan.
         unsafe extern "C" fn validate_thunk(
             __nc_this: *mut ::core::ffi::c_void,
             __nc_arg_0: <::core::primitive::u32 as crate::ComValue>::AbiRepr,
@@ -553,10 +517,6 @@ const _: () = {
             __nc_arg_2: <::core::primitive::u32 as crate::ComValue>::AbiRepr,
         ) -> crate::NcStatus {
             if __nc_this.is_null() {
-                return crate::NC_E_POINTER;
-            }
-            let __nc_dispatch_object = __nc_this;
-            if __nc_dispatch_object.is_null() {
                 return crate::NC_E_POINTER;
             }
             let __nc_arg_0 = match unsafe {
@@ -583,19 +543,18 @@ const _: () = {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
-            let mut __nc_dispatch_value = match unsafe {
-                <__NcProvider as crate::ComObject>::borrow_abi_ref(__nc_dispatch_object)
+            let __nc_dispatch_value = match unsafe {
+                <__NcProvider as crate::ComObject>::borrow_abi_ref(__nc_this)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
             let __nc_result = <__NcProvider as IPersistenceFactory>::validate(
-                &*__nc_dispatch_value,
+                __nc_dispatch_value,
                 __nc_arg_0,
                 __nc_arg_1,
                 __nc_arg_2,
             );
-            ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
                 ::core::result::Result::Ok(()) => crate::NC_OK,
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
@@ -604,14 +563,14 @@ const _: () = {
         /// Returns a fully initialized object; every child is already constructed.
         /// Failure must release resources acquired by this call and publish no root.
         /// IDL source: `neocogi/com/persistence/objects.ncidl:29:8` (module `neocogi.com.persistence`).
-        /// Validates raw pointers, borrows the concrete provider through its
-        /// object-wide gate, invokes its typed method, and lowers the result.
-        /// Owned results transfer after release of the receiver guard. Scoped
-        /// loans are delivered before release. Error statuses are normalized.
+        /// Validates arguments and dispatches through the caller's live target borrow.
+        /// Ordinary borrowed results retain the caller's receiver lifetime.
+        /// Scoped delivery completes before its provider-side lender ends.
         ///
         /// # Safety
-        /// The interface belongs to T's live generated storage. Non-null ABI
-        /// arguments must satisfy their method's readable/writable contracts.
+        /// The interface belongs to the exact live provider storage. The
+        /// receiver and every input must jointly satisfy their declared
+        /// lifetime and aliasing contracts through the call and any returned loan.
         unsafe extern "C" fn restore_thunk(
             __nc_this: *mut ::core::ffi::c_void,
             __nc_arg_0_0: <::core::primitive::u32 as crate::ComValue>::AbiRepr,
@@ -622,10 +581,6 @@ const _: () = {
             __nc_out: *mut crate::ComRaw<crate::IUnknown>,
         ) -> crate::NcStatus {
             if __nc_this.is_null() || __nc_out.is_null() {
-                return crate::NC_E_POINTER;
-            }
-            let __nc_dispatch_object = __nc_this;
-            if __nc_dispatch_object.is_null() {
                 return crate::NC_E_POINTER;
             }
             let __nc_arg_0_0 = match unsafe {
@@ -655,19 +610,18 @@ const _: () = {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
-            let mut __nc_dispatch_value = match unsafe {
-                <__NcProvider as crate::ComObject>::borrow_abi_ref(__nc_dispatch_object)
+            let __nc_dispatch_value = match unsafe {
+                <__NcProvider as crate::ComObject>::borrow_abi_ref(__nc_this)
             } {
                 ::core::result::Result::Ok(__nc_value) => __nc_value,
                 ::core::result::Result::Err(__nc_status) => return __nc_status,
             };
             let __nc_result = <__NcProvider as IPersistenceFactory>::restore(
-                &*__nc_dispatch_value,
+                __nc_dispatch_value,
                 __nc_arg_0_0,
                 __nc_arg_1_0,
                 __nc_arg_2_0,
             );
-            ::core::mem::drop(__nc_dispatch_value);
             match __nc_result {
                 ::core::result::Result::Ok(__nc_value) => {
                     unsafe {

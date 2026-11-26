@@ -140,10 +140,10 @@ fn copied_arrays_compile_and_cross_real_com_thunks() {
         r#"
         struct Flags { bits: Array<[bool; 2], 2> }
         interface IArrays {
-            fn echo(&mut self, value: Array<bool, 3>) -> Result<[bool; 3]>;
-            fn record(&mut self, value: Flags) -> Result<Flags>;
-            fn input(&mut self, values: &[Array<bool, 3>]) -> Result<u32>;
-            fn output(&mut self, values: &mut [[bool; 3]]) -> Result<()>;
+            fn echo(&self, value: Array<bool, 3>) -> Result<[bool; 3]>;
+            fn record(&self, value: Flags) -> Result<Flags>;
+            fn input(&self, values: &[Array<bool, 3>]) -> Result<u32>;
+            fn output(&self, values: &mut [[bool; 3]]) -> Result<()>;
         }
     "#,
     );

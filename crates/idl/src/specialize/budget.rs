@@ -231,7 +231,6 @@ impl Budget {
             IdlType::ComPtr(child)
             | IdlType::WeakComPtr(child)
             | IdlType::ComBox(child)
-            | IdlType::WeakComBox(child)
             | IdlType::Borrowed(child)
             | IdlType::BorrowedMut(child)
             | IdlType::Vector(child)
@@ -332,6 +331,7 @@ impl Budget {
                     parameters,
                     output,
                     return_projection: _,
+                    scoped: _,
                     return_passing: _,
                 } in methods
                 {

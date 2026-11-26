@@ -4,9 +4,10 @@ mod test_contracts {
     include!(concat!(env!("OUT_DIR"), "/test_contracts.rs"));
 }
 use neocogi_com_sdk::{com_object, ComPtr, IUnknown, NcStatus, WeakComPtr, NC_E_CLOSED};
+use std::cell::{Cell, OnceCell};
 use std::sync::{
     Arc,
-    atomic::{AtomicUsize, Ordering},
+    atomic::{AtomicU32, AtomicUsize, Ordering},
 };
 
 extern crate self as fixture_weak_com;
@@ -18,16 +19,16 @@ struct Value {
     /// Destruction observations remain valid independently of the COM value.
     drops: Arc<AtomicUsize>,
     /// A closed object can still be successfully promoted while strongly retained.
-    closed: bool,
+    closed: Cell<bool>,
     /// Optional self origin connected after allocation, before the factory returns.
-    origin: Option<WeakComPtr<IDerivedAbi>>,
+    origin: OnceCell<WeakComPtr<IDerivedAbi>>,
 }
 impl IValue for Value {
     fn value(&self) -> Result<u32, NcStatus> {
-        if self.closed { Err(NC_E_CLOSED) } else { Ok(42) }
+        if self.closed.get() { Err(NC_E_CLOSED) } else { Ok(42) }
     }
-    fn close(&mut self) -> Result<(), NcStatus> {
-        self.closed = true;
+    fn close(&self) -> Result<(), NcStatus> {
+        self.closed.set(true);
         Ok(())
     }
 }
@@ -45,16 +46,16 @@ fn weak_tokens_do_not_retain_values_and_all_projections_share_identity() {
     let drops = Arc::new(AtomicUsize::new(0));
     let owner = Value::from_value(Value {
         drops: drops.clone(),
-        closed: false,
-        origin: None,
+        closed: Cell::new(false),
+        origin: OnceCell::new(),
     });
     let derived = owner.query::<IDerivedAbi>().unwrap();
     let base = owner.query::<IValueAbi>().unwrap();
     assert!(derived.as_com_ref().same_object(base.as_com_ref()));
     let unrelated = Value::from_value(Value {
         drops: Arc::new(AtomicUsize::new(0)),
-        closed: false,
-        origin: None,
+        closed: Cell::new(false),
+        origin: OnceCell::new(),
     });
     assert!(!derived.as_com_ref().same_object(unrelated.as_com_ref()));
     drop(unrelated);
@@ -72,8 +73,8 @@ fn weak_tokens_do_not_retain_values_and_all_projections_share_identity() {
     // A new object never resolves an old token, even if its allocator would reuse addresses.
     let replacement = Value::from_value(Value {
         drops: drops.clone(),
-        closed: false,
-        origin: None,
+        closed: Cell::new(false),
+        origin: OnceCell::new(),
     });
     assert!(!weak_root.same_object(&replacement.downgrade().unwrap()));
     assert!(weak_root.upgrade().unwrap().is_none());
@@ -85,10 +86,10 @@ fn weak_tokens_do_not_retain_values_and_all_projections_share_identity() {
 #[test]
 fn logical_close_does_not_expire_a_retained_object() {
     let drops = Arc::new(AtomicUsize::new(0));
-    let mut owner: ComPtr<IValueAbi> = Value::from_value(Value {
+    let owner: ComPtr<IValueAbi> = Value::from_value(Value {
         drops: drops.clone(),
-        closed: false,
-        origin: None,
+        closed: Cell::new(false),
+        origin: OnceCell::new(),
     })
     .query()
     .unwrap();
@@ -110,12 +111,12 @@ fn weak_self_connection_after_allocation_drops_without_a_cycle() {
     let drops = Arc::new(AtomicUsize::new(0));
     let local = Value::into_local(Value {
         drops: drops.clone(),
-        closed: false,
-        origin: None,
+        closed: Cell::new(false),
+        origin: OnceCell::new(),
     });
     let origin = local.query::<IDerivedAbi>().unwrap().downgrade().unwrap();
-    local.try_borrow_mut().unwrap().origin = Some(origin);
-    let weak = local.try_borrow().unwrap().origin.as_ref().unwrap().clone();
+    assert!(local.get().origin.set(origin).is_ok());
+    let weak = local.get().origin.get().unwrap().clone();
     assert_eq!(weak.upgrade().unwrap().unwrap().value().unwrap(), 42);
     drop(local);
     assert_eq!(drops.load(Ordering::SeqCst), 1);
@@ -126,13 +127,13 @@ fn weak_self_connection_after_allocation_drops_without_a_cycle() {
 /// Shared implementation contains only synchronized destruction observations.
 struct SharedValue {
     /// Ordinary initialized data observed only after successful promotion.
-    published: u32,
+    published: AtomicU32,
     /// Incremented exactly once when the last successful promotion/owner disappears.
     drops: Arc<AtomicUsize>,
 }
 impl IShared for SharedValue {
     fn value(&self) -> Result<u32, NcStatus> {
-        Ok(self.published)
+        Ok(self.published.load(Ordering::Acquire))
     }
 }
 impl Drop for SharedValue {
@@ -146,9 +147,12 @@ impl Drop for SharedValue {
 fn shared_promotion_races_final_release_without_resurrection() {
     for _ in 0..64 {
         let drops = Arc::new(AtomicUsize::new(0));
-        let owner = SharedValue::from_value(SharedValue { published: 7, drops: drops.clone() })
-            .query::<ISharedAbi>()
-            .unwrap();
+        let owner = SharedValue::from_value(SharedValue {
+            published: AtomicU32::new(7),
+            drops: drops.clone(),
+        })
+        .query::<ISharedAbi>()
+        .unwrap();
         let weak = owner.downgrade().unwrap();
         let barrier = Arc::new(std::sync::Barrier::new(2));
         let peer_weak = weak.clone();
@@ -184,7 +188,7 @@ fn strong_handles_keep_two_words_and_weak_handles_use_one() {
     );
     assert_eq!(
         std::mem::size_of::<neocogi_com_sdk::lifetime::NcBoxedLifetimeState>(),
-        3 * std::mem::size_of::<usize>()
+        std::mem::size_of::<usize>()
     );
     assert_eq!(
         std::mem::size_of::<neocogi_com_sdk::lifetime::NcObjectTypeInfo>(),
@@ -212,8 +216,8 @@ fn weak_queries_check_exact_interface_revision() {
     let drops = Arc::new(AtomicUsize::new(0));
     let owner = Value::from_value(Value {
         drops: drops.clone(),
-        closed: false,
-        origin: None,
+        closed: Cell::new(false),
+        origin: OnceCell::new(),
     });
     let weak = owner.downgrade().unwrap();
     assert_eq!(weak.query::<WrongRevision>().unwrap_err(), neocogi_com_sdk::NC_E_ABI_VERSION);
@@ -231,11 +235,11 @@ fn failed_factory_after_connection_drops_the_value_and_expires_its_weak_identity
     let result = (|| -> Result<ComPtr<IValueAbi>, NcStatus> {
         let local = Value::into_local(Value {
             drops: drops.clone(),
-            closed: false,
-            origin: None,
+            closed: Cell::new(false),
+            origin: OnceCell::new(),
         });
         let origin = local.query::<IDerivedAbi>()?.downgrade()?;
-        local.try_borrow_mut()?.origin = Some(origin.clone());
+        assert!(local.get().origin.set(origin.clone()).is_ok());
         escaped = Some(origin);
         Err(neocogi_com_sdk::NC_E_INVALID_ARG)
     })();
@@ -251,8 +255,8 @@ fn typed_promotion_balances_owners_and_expiration() {
     let drops = Arc::new(AtomicUsize::new(0));
     let owner = Value::from_value(Value {
         drops: drops.clone(),
-        closed: false,
-        origin: None,
+        closed: Cell::new(false),
+        origin: OnceCell::new(),
     });
     let weak = owner.query::<IValueAbi>().unwrap().downgrade().unwrap();
     assert_eq!(weak.query::<ISharedAbi>().unwrap_err(), NC_E_NOINTERFACE);
@@ -280,12 +284,12 @@ struct AlignedValue {
     value: Value,
 }
 impl IValue for AlignedValue {
-    /// Forwards a read through the same generated call gate as ordinary storage.
+    /// Reads through the generated shared receiver on over-aligned storage.
     fn value(&self) -> Result<u32, NcStatus> {
         self.value.value()
     }
     /// Domain closure remains independent of the allocation's alignment and lifetime.
-    fn close(&mut self) -> Result<(), NcStatus> {
+    fn close(&self) -> Result<(), NcStatus> {
         self.value.close()
     }
 }
@@ -297,8 +301,8 @@ fn aligned_objects_keep_typed_weak_lifetimes() {
     let owner = AlignedValue::from_value(AlignedValue {
         value: Value {
             drops: drops.clone(),
-            closed: false,
-            origin: None,
+            closed: Cell::new(false),
+            origin: OnceCell::new(),
         },
     });
     let weak = owner.query::<IValueAbi>().unwrap().downgrade().unwrap();
@@ -318,8 +322,8 @@ fn weak_unknown_conversion_preserves_identity_without_retaining_the_value() {
     let drops = Arc::new(AtomicUsize::new(0));
     let owner = Value::from_value(Value {
         drops: drops.clone(),
-        closed: false,
-        origin: None,
+        closed: Cell::new(false),
+        origin: OnceCell::new(),
     });
     let derived = owner.query::<IDerivedAbi>().unwrap().downgrade().unwrap();
     let identity = derived.clone().into_unknown();
@@ -341,8 +345,8 @@ fn unrelated_classes_publish_the_same_lifetime_functions() {
     let drops = Arc::new(AtomicUsize::new(0));
     let make = || Value {
         drops: drops.clone(),
-        closed: false,
-        origin: None,
+        closed: Cell::new(false),
+        origin: OnceCell::new(),
     };
     let first = Value::from_value(make());
     let second = AlignedValue::from_value(AlignedValue { value: make() });
@@ -363,8 +367,11 @@ fn unrelated_classes_publish_the_same_lifetime_functions() {
 #[test]
 fn weak_identity_sent_after_configuration_observes_the_complete_value() {
     let drops = Arc::new(AtomicUsize::new(0));
-    let local = SharedValue::into_local(SharedValue { published: 0, drops: drops.clone() });
-    local.try_borrow_mut().unwrap().published = 0x12345678;
+    let local = SharedValue::into_local(SharedValue {
+        published: AtomicU32::new(0),
+        drops: drops.clone(),
+    });
+    local.get().published.store(0x12345678, Ordering::Release);
     let origin = local.query::<ISharedAbi>().unwrap().downgrade().unwrap();
     let peer = std::thread::spawn(move || origin.upgrade().unwrap().unwrap().value().unwrap());
     assert_eq!(peer.join().unwrap(), 0x12345678);
@@ -391,8 +398,8 @@ fn checked_weak_wire_preserves_expiration_and_rejects_wrong_contracts() {
     let drops = Arc::new(AtomicUsize::new(0));
     let owner = Value::from_value(Value {
         drops: drops.clone(),
-        closed: false,
-        origin: None,
+        closed: Cell::new(false),
+        origin: OnceCell::new(),
     });
     let weak = owner.query::<IValueAbi>().unwrap().downgrade().unwrap();
     let mut owner = Some(owner);

@@ -29,7 +29,7 @@ interface IPolicyService {
 /// Constructor-free class shape used to exercise IDL implementation storage.
 interface DescribedValue: IPolicyValue {
     /// Replaces the stored value through the class's primary projection.
-    fn replace(&mut self, value: i32) -> Result<()>;
+    fn replace(&self, value: i32) -> Result<()>;
 }
 
 #[id("564e2ee9-f2de-4e30-959f-a82315a64394")]

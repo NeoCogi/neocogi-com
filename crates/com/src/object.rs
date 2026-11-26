@@ -1,11 +1,4 @@
-//! Reference-count primitives and object hooks used by generated COM classes.
-//!
-//! Generated class storage uses the common COM strong/weak control header and no interface headers.
-//! Object/table handles select each implemented interface. Shared lifetime functions
-//! live in COM core; the unsafe implementation contract describes how generated thunks
-//! access the concrete Rust value from the allocation address, perform
-//! interface negotiation, and destroy storage on the final release. They are
-//! public only as hidden macro support and are not the ordinary end-user API.
+//! Typed storage hooks and reference-count primitives used by generated classes.
 
 #[cfg(feature = "alloc")]
 mod storage;
@@ -13,410 +6,47 @@ mod storage;
 pub use storage::{__ComBoxedInner, __ComSharedInner};
 
 use core::ffi::c_void;
-use core::{cell::UnsafeCell, mem::MaybeUninit};
-use core::sync::atomic::{AtomicUsize, Ordering};
-
-use neocogi_com::{NC_E_BUSY, NcStatus, ThreadingModel};
-
-/// Sentinel held while one generated COM method has exclusive object access.
-const EXCLUSIVE_CALL: usize = usize::MAX;
-
-#[doc(hidden)]
-/// Object-wide reader/writer gate for shared COM classes.
-/// Exclusive classes store their borrow state in the common lifetime header.
-///
-/// Shared calls may overlap. A mutable call succeeds only while no other call
-/// is active, which prevents cloned COM pointers or foreign reentry from
-/// manufacturing overlapping Rust borrows of the stored implementation.
-/// One state covers every interface projection and construction-proven local
-/// borrow of the same allocation. Reader acquisition increments the atomic
-/// count; writer acquisition changes idle to the exclusive sentinel. Conflicts
-/// return `NC_E_BUSY` without blocking until an existing call finishes.
-/// Dropping the selected permit restores reader capacity or the idle state.
-///
-/// This state controls access to T, not ownership. Shared-object callers retain
-/// a strong owner for the entire borrow. Exclusive allocations instead combine
-/// borrow admission with owner-presence checks in their common lifetime header.
-pub struct ComBorrowGate {
-    /// Zero means idle, `EXCLUSIVE_CALL` means mutable, and other values count readers.
-    state: AtomicUsize,
-}
-
-impl ComBorrowGate {
-    /// Creates idle borrow state for a newly allocated COM object.
-    pub const fn new() -> Self {
-        Self { state: AtomicUsize::new(0) }
-    }
-
-    /// Acquires one reader slot without blocking or permitting counter overflow.
-    fn try_shared(&self) -> Result<__ComReadPermit<'_>, NcStatus> {
-        let mut current = self.state.load(Ordering::Acquire);
-        loop {
-            if current == EXCLUSIVE_CALL || current == EXCLUSIVE_CALL - 1 {
-                return Err(NC_E_BUSY);
-            }
-            match self.state.compare_exchange_weak(current, current + 1, Ordering::Acquire, Ordering::Relaxed) {
-                Ok(_) => return Ok(__ComReadPermit { gate: self }),
-                Err(observed) => current = observed,
-            }
-        }
-    }
-
-    /// Acquires the unique writer sentinel without waiting on active readers.
-    fn try_exclusive(&self) -> Result<__ComWritePermit<'_>, NcStatus> {
-        self.state
-            .compare_exchange(0, EXCLUSIVE_CALL, Ordering::Acquire, Ordering::Relaxed)
-            .map(|_| __ComWritePermit { gate: self })
-            .map_err(|_| NC_E_BUSY)
-    }
-}
-
-#[doc(hidden)]
-/// Read access to a generated COM implementation while its admission token is held.
-///
-/// Generated thunks keep this guard alive for exactly one Rust method call. Keeping
-/// the typed value slot and admission token in one type ties every value reborrow
-/// to the guard. The guard must not store `&T`: moving such a guard into a drop
-/// function can protect that reference until after its gate has been released.
-/// G selects the allocation's existing read-admission token; it adds no second
-/// gate. This provider-local Rust guard never crosses a COM interface boundary.
-pub struct ComReadGuard<'a, T, G = __ComReadPermit<'a>> {
-    /// Retained storage remains valid after T is destroyed. UnsafeCell permits
-    /// a newly admitted writer/destructor after this guard releases its gate.
-    value: &'a UnsafeCell<MaybeUninit<T>>,
-    /// Reader slot whose destructor releases the shared gate acquisition.
-    _call: G,
-}
-
-impl<'a, T> ComReadGuard<'a, T> {
-    /// Acquires shared access to `value` through `gate`.
-    ///
-    /// # Safety
-    ///
-    /// `value` must contain initialized T while admission is held and belong to
-    /// the same allocation as `gate`. Every value access uses this gate. The
-    /// caller retains slot storage through the complete guard/drop invocation;
-    /// a newly admitted writer may change T immediately after guard release.
-    pub unsafe fn acquire(gate: &'a ComBorrowGate, value: &'a UnsafeCell<MaybeUninit<T>>) -> Result<Self, NcStatus> {
-        let call = gate.try_shared()?;
-        Ok(Self { value, _call: call })
-    }
-}
-
-impl<'a, T> ComReadGuard<'a, T, crate::lifetime::BoxRead> {
-    /// Acquires lifetime and Rust borrowing in one atomic header transition.
-    ///
-    /// # Safety
-    /// `control` and `value` belong to this retained exclusive allocation; all
-    /// implementation access participates in its common borrowing protocol.
-    /// Storage must outlive the complete guard/drop call, not only gate release.
-    pub unsafe fn acquire_box(control: *mut crate::lifetime::NcBoxedLifetimeState, value: &'a UnsafeCell<MaybeUninit<T>>) -> Result<Self, NcStatus> {
-        // SAFETY: the caller retains the matching control and value slot. A
-        // successful admission guarantees initialized T until the guard releases.
-        let call = unsafe { crate::lifetime::BoxRead::enter(control) }?;
-        Ok(Self { value, _call: call })
-    }
-}
-
-impl<T, G> core::ops::Deref for ComReadGuard<'_, T, G> {
-    type Target = T;
-
-    /// Borrows the implementation for no longer than the active shared guard.
-    fn deref(&self) -> &Self::Target {
-        // SAFETY: admission proves initialization and excludes writers/destruction.
-        // This T loan ends with the borrow of the guard, before gate release;
-        // only a reference to the interior-mutable storage travels through Drop.
-        unsafe { (&*self.value.get()).assume_init_ref() }
-    }
-}
-
-#[doc(hidden)]
-/// Write access to a generated COM implementation while its admission token is held.
-///
-/// Generated thunks use this guard instead of a closure-shaped borrow API, so one
-/// borrow implementation is emitted per concrete class rather than per ABI method.
-/// G selects the existing writer token for shared storage or exclusive-header
-/// admission. This provider-local Rust guard never crosses the COM interface ABI.
-pub struct ComWriteGuard<'a, T, G = __ComWritePermit<'a>> {
-    /// Typed retained slot, without a T reference protected across gate release.
-    value: &'a UnsafeCell<MaybeUninit<T>>,
-    /// Writer slot whose destructor restores the gate to its idle state.
-    _call: G,
-}
-
-impl<'a, T> ComWriteGuard<'a, T> {
-    /// Acquires exclusive access to `value` through `gate`.
-    ///
-    /// # Safety
-    ///
-    /// `value` must contain initialized T while admission is held and belong to
-    /// the same allocation as `gate`. Every value access uses this gate. The
-    /// caller retains slot storage through the complete guard/drop invocation,
-    /// including after a new operation can obtain admission.
-    pub unsafe fn acquire(gate: &'a ComBorrowGate, value: &'a UnsafeCell<MaybeUninit<T>>) -> Result<Self, NcStatus> {
-        let call = gate.try_exclusive()?;
-        Ok(Self { value, _call: call })
-    }
-}
-
-impl<'a, T> ComWriteGuard<'a, T, crate::lifetime::BoxWrite> {
-    /// Acquires lifetime and Rust borrowing in one atomic header transition.
-    ///
-    /// # Safety
-    /// `control` and `value` belong to this retained exclusive allocation; all
-    /// implementation access participates in its common borrowing protocol.
-    /// Storage must outlive the complete guard/drop call, not only gate release.
-    pub unsafe fn acquire_box(control: *mut crate::lifetime::NcBoxedLifetimeState, value: &'a UnsafeCell<MaybeUninit<T>>) -> Result<Self, NcStatus> {
-        // SAFETY: the caller retains matching storage; admission excludes every
-        // competing value access before Deref/DerefMut may create a T loan.
-        let call = unsafe { crate::lifetime::BoxWrite::enter(control) }?;
-        Ok(Self { value, _call: call })
-    }
-}
-
-impl<T, G> core::ops::Deref for ComWriteGuard<'_, T, G> {
-    type Target = T;
-
-    /// Borrows the implementation for no longer than the active exclusive guard.
-    fn deref(&self) -> &Self::Target {
-        // SAFETY: the held writer guard proves initialization and excludes all
-        // other value access. The returned reference borrows this guard only.
-        unsafe { (&*self.value.get()).assume_init_ref() }
-    }
-}
-
-impl<T, G> core::ops::DerefMut for ComWriteGuard<'_, T, G> {
-    /// Mutably borrows the implementation while the guard owns the writer slot.
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        // SAFETY: the unique guard reborrow and writer admission jointly grant this
-        // T loan. No T reference remains stored in the guard during its Drop.
-        unsafe { (&mut *self.value.get()).assume_init_mut() }
-    }
-}
-
-// SAFETY: these are the same value/guard bounds as the former &T field. The
-// gate excludes mutation; moving the guard transfers its admission token and loans.
-unsafe impl<T: Sync, G: Send> Send for ComReadGuard<'_, T, G> {}
-// SAFETY: shared guard access can create only &T; the held guard excludes writers.
-unsafe impl<T: Sync, G: Sync> Sync for ComReadGuard<'_, T, G> {}
-// SAFETY: these are the former &mut T bounds. Moving exclusive access is valid
-// for Send T only when the selected guard may itself move to that thread.
-unsafe impl<T: Send, G: Send> Send for ComWriteGuard<'_, T, G> {}
-// SAFETY: sharing &guard exposes only &T. DerefMut still requires unique access
-// to the guard, while G's Sync proof governs sharing the admission token.
-unsafe impl<T: Sync, G: Sync> Sync for ComWriteGuard<'_, T, G> {}
-
-impl Default for ComBorrowGate {
-    /// Creates the same idle state as [`ComBorrowGate::new`].
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-/// Reader permit for a shared object's borrow gate.
-/// Releases its reader slot on drop.
-pub struct __ComReadPermit<'a> {
-    /// Gate whose reader count this token owns.
-    gate: &'a ComBorrowGate,
-}
-
-impl Drop for __ComReadPermit<'_> {
-    /// Releases exactly one reader slot after the delegated Rust call ends.
-    fn drop(&mut self) {
-        let previous = self.gate.state.fetch_sub(1, Ordering::Release);
-        debug_assert!(previous > 0 && previous != EXCLUSIVE_CALL);
-    }
-}
-
-/// Writer permit for a shared object's borrow gate.
-/// Restores the idle gate on drop.
-pub struct __ComWritePermit<'a> {
-    /// Gate whose exclusive sentinel this token owns.
-    gate: &'a ComBorrowGate,
-}
-
-impl Drop for __ComWritePermit<'_> {
-    /// Releases the exclusive sentinel after the delegated Rust call ends.
-    fn drop(&mut self) {
-        let previous = self.gate.state.swap(0, Ordering::Release);
-        debug_assert_eq!(previous, EXCLUSIVE_CALL);
-    }
-}
+use neocogi_com::{NcStatus, ThreadingModel};
 
 pub use neocogi_com::{__com_add_ref_count, __com_release_ref_count};
 
-/// Implementation proof emitted together with typed storage bindings.
+/// Construction proof connecting generated projections to a concrete Rust value.
 ///
 /// # Safety
 ///
-/// Implementors must map opaque generated storage pointers back to the exact
-/// allocation and Rust value that produced them. Each allocation begins with its
-/// declared policy's `lifetime::NcSharedLifetimeState` or `lifetime::NcBoxedLifetimeState`.
-/// Immutable type information lists its matching interface tables and concrete
-/// destruction/deallocation callbacks. Shared lifetime operations must
-/// keep the allocation alive until the final `Release`, and `QueryInterface`
-/// must only return tables paired with that same allocation address. UNKNOWN_VTABLE
-/// selects the canonical shared/exclusive prefix matching the header and guards;
-/// every VTABLES entry copies that same callback family. Every
-/// instance of one implementation must use its declared lifetime policy:
-/// shared instances require a strong owner throughout each call; exclusive
-/// instances acquire their reader/writer bit in the lifetime header before
-/// referencing the value and release it only after all T loans have ended.
-/// Guards must not store a T reference protected across their release operation;
-/// callers retain storage through the complete guard/drop invocation even when
-/// a concurrent owner destroys T immediately after admission is released.
-///
-/// Interface thunks receive an opaque object pointer and use this trait to
-/// recover the Rust implementation. VTABLES must contain canonical IUnknown and
-/// exactly the immutable, signature-checked tables paired with this storage.
-/// Threading must hold for every projection, call and final destruction.
+/// An implementation recovers the exact initialized value from its class's
+/// shared or boxed storage. The canonical tables and the lifetime header must
+/// agree for every instance. Shared storage permits only shared value access.
+/// The declared threading capability must cover every projection and final
+/// destruction.
 pub unsafe trait ComObject: Sized + 'static {
-    /// Strongest threading permission the generated provider can expose.
+    /// Threading capability selected at construction.
     type Threading: ThreadingModel;
-    /// Canonical IUnknown prefix for this implementation's shared or exclusive policy.
-    /// Every generated projection copies its callbacks; it must match the storage header.
+    /// Canonical IUnknown prefix for the declared ownership policy.
     const UNKNOWN_VTABLE: &'static crate::IUnknownVTable;
-    /// Compact immutable interface tables paired with this concrete storage.
-    /// Includes canonical IUnknown; full inspection schemas are compile-time only.
+    /// Immutable exact interface tables paired with this concrete storage.
     const VTABLES: &'static [*const crate::IUnknownVTable];
-    /// Shared borrowing policy: the shared class gate or exclusive header reader.
-    /// This provider-local guard never crosses the C ABI.
-    type SharedGuard<'a>;
-    /// Mutable borrowing policy: the shared class gate or exclusive header writer.
-    type ExclusiveGuard<'a>;
 
-    /// Acquires shared access to the Rust value in generated storage.
+    /// Recovers the live target for a shared borrow.
     ///
     /// # Safety
-    ///
-    /// `object` must be an opaque storage pointer originally produced by the
-    /// matching generated `#[com_object]` implementation. The object allocation
-    /// must remain live until the returned guard is dropped. A shared class
-    /// requires a retained strong owner; an exclusive class admits a call before
-    /// accessing its value and rejects calls after owner removal.
-    unsafe fn borrow_abi_ref<'a>(object: *mut c_void) -> Result<ComReadGuard<'a, Self, Self::SharedGuard<'a>>, NcStatus>;
-
-    /// Acquires exclusive access to the Rust value in generated storage.
-    ///
-    /// # Safety
-    ///
-    /// `object` must be an opaque storage pointer originally produced by the
-    /// matching generated `#[com_object]` implementation. The object allocation
-    /// must remain live until the returned guard is dropped. A shared class
-    /// requires a retained strong owner; an exclusive class admits a call before
-    /// accessing its value and rejects calls after owner removal.
-    unsafe fn borrow_abi_mut<'a>(object: *mut c_void) -> Result<ComWriteGuard<'a, Self, Self::ExclusiveGuard<'a>>, NcStatus>;
+    /// A nonnull object must address the exact matching initialized storage.
+    /// The caller must retain the provider and grant shared target access for
+    /// the requested lifetime. A null receiver is rejected.
+    unsafe fn borrow_abi_ref<'a>(object: *mut c_void) -> Result<&'a Self, NcStatus>;
 }
 
-#[cfg(test)]
-mod tests {
-    use super::{ComBorrowGate, ComWriteGuard, ComReadGuard};
-    use core::{cell::UnsafeCell, mem::MaybeUninit};
-    use crate::NC_E_BUSY;
-
-    /// Releases actual admission and immediately gives a new writer the slot.
-    /// This makes the old reference-bearing guard's protected-drop bug
-    /// deterministic under Miri, without a scheduler or timing assumption.
-    struct WriteAfterRelease<'a, G> {
-        /// Admission being handed off, consumed exactly once in Drop.
-        call: Option<G>,
-        /// The same real gate must admit the following write.
-        gate: &'a ComBorrowGate,
-        /// Typed storage, deliberately containing no reference to the value.
-        value: &'a UnsafeCell<MaybeUninit<u32>>,
-    }
-    impl<G> Drop for WriteAfterRelease<'_, G> {
-        fn drop(&mut self) {
-            drop(self.call.take());
-            // SAFETY: the previous admission has ended; this fresh writer uses
-            // the same gate and initialized slot before changing its value.
-            let mut next = unsafe { ComWriteGuard::acquire(self.gate, self.value) }.unwrap();
-            *next = 99;
-        }
-    }
-
-    /// Passing a guard by value to Drop must not protect T after gate release.
-    #[test]
-    fn guard_release_does_not_keep_a_protected_value_reference() {
-        let gate = ComBorrowGate::new();
-        let value = UnsafeCell::new(MaybeUninit::new(7));
-        // SAFETY: all accesses participate in this gate and storage outlives
-        // every guard, including the release callback's next admission.
-        let first = unsafe { ComReadGuard::acquire(&gate, &value) }.unwrap();
-        let guard = ComReadGuard {
-            value: first.value,
-            _call: WriteAfterRelease {
-                call: Some(first._call),
-                gate: &gate,
-                value: &value,
-            },
-        };
-        assert_eq!(*guard, 7);
-        drop(guard);
-        let first = unsafe { ComWriteGuard::acquire(&gate, &value) }.unwrap();
-        let mut guard = ComWriteGuard {
-            value: first.value,
-            _call: WriteAfterRelease {
-                call: Some(first._call),
-                gate: &gate,
-                value: &value,
-            },
-        };
-        assert_eq!(*guard, 99);
-        *guard = 8;
-        drop(guard);
-        let observed = unsafe { ComReadGuard::acquire(&gate, &value) }.unwrap();
-        assert_eq!(*observed, 99);
-    }
-
-    /// The typed slot keeps the old reference's positive threading bounds;
-    /// local owner modes and non-Send guards still impose their own restriction.
-    #[test]
-    fn shared_storage_guard_threading_capabilities_are_preserved() {
-        fn shared<T: Send + Sync>() {}
-        shared::<ComReadGuard<'_, u32>>();
-        shared::<ComWriteGuard<'_, u32>>();
-    }
-
-    /// Provider policy must not reintroduce optional tokens or boxed admission
-    /// into shared calls: these helper records never need an enum discriminator.
-    #[test]
-    fn call_guards_store_only_the_selected_lifetime_policy() {
-        use core::mem::size_of;
-        use crate::lifetime::{BoxRead, BoxWrite};
-        assert_eq!(size_of::<ComReadGuard<'_, u32>>(), 2 * size_of::<usize>());
-        assert_eq!(size_of::<ComWriteGuard<'_, u32>>(), 2 * size_of::<usize>());
-        assert_eq!(size_of::<ComReadGuard<'_, u32, BoxRead>>(), 2 * size_of::<usize>());
-        assert_eq!(size_of::<ComWriteGuard<'_, u32, BoxWrite>>(), 2 * size_of::<usize>());
-    }
-
-    /// Confirms shared calls compose while an exclusive call requires an idle object.
-    #[test]
-    fn borrow_state_enforces_rust_borrowing_across_reentry() {
-        let gate = ComBorrowGate::new();
-        let value = UnsafeCell::new(MaybeUninit::new(7));
-
-        // SAFETY: `value` remains live and every test access participates in
-        // this local gate for the complete lifetime of each returned guard.
-        let shared = unsafe { ComReadGuard::acquire(&gate, &value) }.unwrap();
-        // SAFETY: A second shared guard observes the same live immutable value.
-        let nested_shared = unsafe { ComReadGuard::acquire(&gate, &value) }.unwrap();
-        assert_eq!(*nested_shared, 7);
-        // SAFETY: The pointer is valid, but the active reader guards must reject
-        // this exclusive acquisition before exposing a mutable reference.
-        assert!(matches!(unsafe { ComWriteGuard::acquire(&gate, &value) }, Err(NC_E_BUSY)));
-        drop(nested_shared);
-        drop(shared);
-
-        // SAFETY: No guard remains and `value` is still owned by this scope.
-        let mut exclusive = unsafe { ComWriteGuard::acquire(&gate, &value) }.unwrap();
-        *exclusive = 9;
-        // SAFETY: The pointer is valid, but the writer guard must reject another reader.
-        assert!(matches!(unsafe { ComReadGuard::acquire(&gate, &value) }, Err(NC_E_BUSY)));
-        drop(exclusive);
-
-        // SAFETY: Dropping the writer restored the idle state and the value remains live.
-        let shared = unsafe { ComReadGuard::acquire(&gate, &value) }.unwrap();
-        assert_eq!(*shared, 9);
-    }
+/// Construction proof for the exclusive access of a uniquely owned COM value.
+///
+/// # Safety
+/// The class must use boxed storage. Every mutable access derives from the
+/// sole owner or an already authorized exclusive reborrow.
+pub unsafe trait ComExclusiveObject: ComObject {
+    /// Recovers an exclusive reborrow of the live target.
+    ///
+    /// # Safety
+    /// A nonnull object must address the exact matching initialized storage.
+    /// The caller must retain the provider and grant exclusive target access
+    /// for the requested lifetime. A null receiver is rejected.
+    unsafe fn borrow_abi_mut<'a>(object: *mut c_void) -> Result<&'a mut Self, NcStatus>;
 }

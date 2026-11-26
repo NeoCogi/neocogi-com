@@ -1,15 +1,15 @@
 #[id("227cc2e8-b8b2-59b6-b28c-1631c7b5671e")]
 /// Shared read capability reached by every left and right ancestry path.
 interface IA0 {
-    /// Reads the one concrete counter under the common borrow gate.
+    /// Reads the one concrete counter through the shared counter field.
     fn value(&self) -> Result<u32>;
 }
 
 #[id("1e504dfd-5403-5c0f-9b8b-375c6008117a")]
-/// Shared mutation capability; the implementation uses exclusive mutable access.
+/// Shared mutation capability using interior mutability.
 interface IB0 {
     /// Replaces the one concrete counter through any acquired projection.
-    fn set_value(&mut self, value: u32) -> Result<()>;
+    fn set_value(&self, value: u32) -> Result<()>;
 }
 
 #[id("4975ebe0-71bc-5d9a-a9c7-d7045ca53140")]

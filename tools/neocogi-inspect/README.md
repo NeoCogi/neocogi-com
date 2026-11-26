@@ -6,7 +6,7 @@ dependencies, the native ABI version, and full factory IID/signature and
 threading capability. There are no contract libraries or module graphs to load.
 Opened libraries remain pinned until the short-lived process exits.
 
-This checkout inspects WIP ABI v5. Build it from the same SDK revision
+This checkout inspects WIP ABI v4. Build it from the same SDK revision
 as the provider with `cargo build -p neocogi-inspect`.
 
 Version `0.4.0` inspects providers using
@@ -45,7 +45,8 @@ exit with status 1. Exact differences and incompatible comparisons write their
 report and exit with status 1. Other successful operations exit with status 0.
 Errors go to stderr when the stream is writable.
 
-Inspection JSON uses strict schema 10. Live inspection checks the
+Inspection JSON uses strict schema 11. This format requires inspection through
+the current native header family. Live inspection checks the
 [current native ABI](../../docs/abi.md#abi-identities-and-versions).
 Saved artifacts record one `abi_version` field that `diff` compares.
 Unknown fields and unsupported schema versions are rejected. The artifact records

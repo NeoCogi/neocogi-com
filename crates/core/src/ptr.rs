@@ -7,18 +7,16 @@
 //!
 //! # Thread-safety table
 //!
-//! | Rust handle | Ownership and reference-count behavior | `Send` | `Sync` | Safe weakening |
-//! |---|---|:---:|:---:|---|
-//! | `ComPtr<T, ThreadLocal>` | Owns one reference; clone calls `AddRef`, drop calls `Release` | No | No | None |
-//! | `ComPtr<T, ThreadSafe>` | Owns one reference; clone calls `AddRef`, drop calls `Release` | Yes | Yes | `into_thread_local` or `as_thread_local_ref` |
-//! | `ComRef<'a, T, ThreadLocal>` | Borrows a reference; copy and drop do not touch the count | No | No | None |
-//! | `ComRef<'a, T, ThreadSafe>` | Borrows a reference; copy and drop do not touch the count | Yes | Yes | `into_thread_local` |
-//! | `ComMut<'a, T, ThreadLocal>` | Mutably borrows a lender; moving and dropping the loan leave the count unchanged | No | No | None |
-//! | `ComMut<'a, T, ThreadSafe>` | Mutably borrows a lender; moving and dropping the loan leave the count unchanged | Yes | Yes | `into_thread_local` |
+//! | Rust handle | Modes that implement `Send` | Modes that implement `Sync` |
+//! |---|---|---|
+//! | `ComPtr`, `WeakComPtr` | `ThreadSafe` | `ThreadSafe` |
+//! | `ComBox`, `ComMut` | `ThreadSend`, `ThreadSafe` | `ThreadSync`, `ThreadSafe` |
+//! | `ComRef` | `ThreadSync`, `ThreadSafe` | `ThreadSync`, `ThreadSafe` |
 //!
 //! [`ComPtr::query`] preserves the source marker because
 //! `QueryInterface` selects another interface on the same object; it cannot
-//! strengthen that object's threading guarantee.
+//! strengthen that object's threading guarantee. The `into_threading` method
+//! on each handle removes permissions while preserving ownership and lifetime.
 //!
 //! # Why the marker is necessary
 //!
@@ -66,12 +64,33 @@ use crate::{ComRaw, ComInterface, NC_E_POINTER, NcAbiThreadingMode, NcStatus};
 ///
 /// The marker is part of the Rust type only; C ABI interface pairs have the
 /// same representation regardless of threading mode. Sealing is important
-/// because the crate's safe `Send` and `Sync` implementations recognize the two
-/// supported capabilities and must not accept downstream-invented modes with
+/// because the crate's safe `Send` and `Sync` implementations recognize only
+/// these capabilities and must not accept downstream-invented modes with
 /// unspecified semantics.
 pub trait ThreadingModel: sealed::Sealed + 'static {
     /// Canonical ABI signature identity for this pointer threading mode.
     const ABI_THREADING_MODE: NcAbiThreadingMode;
+}
+
+/// A threading mode that supplies all the permissions of `Target`.
+///
+/// Every mode can be weakened to [`ThreadLocal`] or retained unchanged.
+/// [`ThreadSafe`] also supplies either intermediate mode. Only the SDK can
+/// implement this relation.
+///
+/// ```compile_fail
+/// use neocogi_com::{ComBox, IUnknown, ThreadSend, ThreadSync};
+/// fn strengthen(owner: ComBox<IUnknown, ThreadSend>) {
+///     let _ = owner.into_threading::<ThreadSync>();
+/// }
+/// ```
+pub trait CanWeakenThreading<Target: ThreadingModel>: ThreadingModel + sealed::WeakensTo<Target> {}
+
+impl<Source, Target> CanWeakenThreading<Target> for Source
+where
+    Source: ThreadingModel + sealed::WeakensTo<Target>,
+    Target: ThreadingModel,
+{
 }
 
 /// Default pointer mode carrying no permission for cross-thread use.
@@ -94,6 +113,20 @@ pub struct ThreadLocal {
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct ThreadSafe;
 
+/// Permits moving a unique owner or mutable loan to another thread.
+///
+/// A shared target loan remains thread-local. The provider permits use and
+/// destruction on the thread that receives the unique owner.
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct ThreadSend;
+
+/// Permits sharing a live target reference across threads.
+///
+/// A whole owner or writable loan stays on its original thread. The shared
+/// access guarantee applies while a live lender remains in place.
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct ThreadSync;
+
 impl ThreadingModel for ThreadLocal {
     const ABI_THREADING_MODE: NcAbiThreadingMode = NcAbiThreadingMode::ThreadLocal;
 }
@@ -102,12 +135,34 @@ impl ThreadingModel for ThreadSafe {
     const ABI_THREADING_MODE: NcAbiThreadingMode = NcAbiThreadingMode::ThreadSafe;
 }
 
+impl ThreadingModel for ThreadSend {
+    const ABI_THREADING_MODE: NcAbiThreadingMode = NcAbiThreadingMode::ThreadSend;
+}
+
+impl ThreadingModel for ThreadSync {
+    const ABI_THREADING_MODE: NcAbiThreadingMode = NcAbiThreadingMode::ThreadSync;
+}
+
 mod sealed {
+    use super::{ThreadLocal, ThreadSafe, ThreadSend, ThreadSync, ThreadingModel};
+
     /// Prevents downstream crates from inventing unsupported threading modes.
     pub trait Sealed {}
 
-    impl Sealed for super::ThreadLocal {}
-    impl Sealed for super::ThreadSafe {}
+    impl Sealed for ThreadLocal {}
+    impl Sealed for ThreadSafe {}
+    impl Sealed for ThreadSend {}
+    impl Sealed for ThreadSync {}
+
+    /// Defines the weakening allowed by the safe handle conversions.
+    pub trait WeakensTo<Target: ThreadingModel> {}
+
+    impl<Source: ThreadingModel> WeakensTo<ThreadLocal> for Source {}
+    impl WeakensTo<ThreadSafe> for ThreadSafe {}
+    impl WeakensTo<ThreadSend> for ThreadSafe {}
+    impl WeakensTo<ThreadSync> for ThreadSafe {}
+    impl WeakensTo<ThreadSend> for ThreadSend {}
+    impl WeakensTo<ThreadSync> for ThreadSync {}
 }
 
 /// Private non-null object/table pair shared by Rust owners and borrowed wrappers.
@@ -131,7 +186,7 @@ impl<T: ComInterface + ?Sized> NonNullComRaw<T> {
     /// Checks both pointers without reading foreign storage or proving identity.
     /// Presence alone establishes no value liveness, callable table, ownership or
     /// threading capability; the enclosing handle's construction supplies those
-    /// obligations. Expired boxed weak handles retain dispatch/control storage.
+    /// obligations.
     pub(crate) fn new(raw: ComRaw<T>) -> Option<Self> {
         Some(Self {
             object: core::ptr::NonNull::new(raw.object)?,
@@ -149,9 +204,9 @@ impl<T: ComInterface + ?Sized> NonNullComRaw<T> {
 
 /// Owning, typed `{ object, interface_vtable }` COM handle.
 ///
-/// Clone acquires one reference and Drop releases one. The count and mutable-call
-/// guard live once in the object. Borrowed handles use the same pair with a
-/// lender's lifetime. The interface marker and threading mode remain static.
+/// Clone acquires one reference and Drop releases one. A counted owner may lend
+/// shared access for its borrow lifetime. The interface marker and threading
+/// mode remain static.
 ///
 /// # Why two pointers are intentional
 ///
@@ -204,7 +259,7 @@ unsafe impl<T: ComInterface + ?Sized> Sync for ComPtr<T, ThreadSafe> {}
 ///
 /// Copying the view leaves ownership unchanged. Shared owners, boxed owners
 /// and call-scoped providers can all supply a live loan. Calls use the
-/// provider's shared admission to access its implementation.
+/// shared target borrow supplied by its lender.
 ///
 /// ```compile_fail
 /// use neocogi_com::{ComPtr, ComRef, IUnknown};
@@ -228,15 +283,16 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> Clone for ComRef<'_, T, M> {
     }
 }
 // SAFETY: construction establishes cross-thread permission for the borrow's lifetime.
+unsafe impl<T: ComInterface + ?Sized> Send for ComRef<'_, T, ThreadSync> {}
 unsafe impl<T: ComInterface + ?Sized> Send for ComRef<'_, T, ThreadSafe> {}
 // SAFETY: concurrent access follows that same producer guarantee.
+unsafe impl<T: ComInterface + ?Sized> Sync for ComRef<'_, T, ThreadSync> {}
 unsafe impl<T: ComInterface + ?Sized> Sync for ComRef<'_, T, ThreadSafe> {}
 
-/// Mutable method access borrowed from a live COM lender.
+/// Exclusive target access borrowed from a live COM lender.
 ///
-/// This loan can move between calls while it borrows its lender. Aliases can
-/// still have their own handles. The provider's admission gate grants a writer
-/// access to the underlying implementation for each mutable call.
+/// The loan holds exclusive authority for its lifetime. It can move between
+/// calls and make shorter shared or exclusive reborrows.
 pub struct ComMut<'a, T: ComInterface + ?Sized, M: ThreadingModel = ThreadLocal> {
     /// Present pair borrowed for the declared lifetime.
     raw: NonNullComRaw<T>,
@@ -247,8 +303,10 @@ pub struct ComMut<'a, T: ComInterface + ?Sized, M: ThreadingModel = ThreadLocal>
 }
 
 // SAFETY: Construction establishes cross-thread permission for the loan's life.
+unsafe impl<T: ComInterface + ?Sized> Send for ComMut<'_, T, ThreadSend> {}
 unsafe impl<T: ComInterface + ?Sized> Send for ComMut<'_, T, ThreadSafe> {}
 // SAFETY: Shared access to the loan grants only shared method lookup.
+unsafe impl<T: ComInterface + ?Sized> Sync for ComMut<'_, T, ThreadSync> {}
 unsafe impl<T: ComInterface + ?Sized> Sync for ComMut<'_, T, ThreadSafe> {}
 
 impl<T: crate::ComRustInterface, M: ThreadingModel> core::ops::Deref for ComPtr<T, M> {
@@ -257,13 +315,6 @@ impl<T: crate::ComRustInterface, M: ThreadingModel> core::ops::Deref for ComPtr<
     fn deref(&self) -> &Self::Target {
         // SAFETY: this owner retains the pair/table and its threading evidence.
         T::__nc_wrapper_ref(unsafe { crate::ComInterfacePointer::borrow_pair(&self.raw) })
-    }
-}
-impl<T: crate::ComRustInterface, M: ThreadingModel> core::ops::DerefMut for ComPtr<T, M> {
-    /// Lends mutable method lookup; the object-wide gate arbitrates aliased callers.
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        // SAFETY: the exclusive handle borrow bounds the opaque facade borrow.
-        T::__nc_wrapper_mut(unsafe { crate::ComInterfacePointer::borrow_pair_mut(&mut self.raw) })
     }
 }
 impl<T: crate::ComRustInterface, M: ThreadingModel> core::ops::Deref for ComRef<'_, T, M> {
@@ -283,7 +334,7 @@ impl<T: crate::ComRustInterface, M: ThreadingModel> core::ops::Deref for ComMut<
     }
 }
 impl<T: crate::ComRustInterface, M: ThreadingModel> core::ops::DerefMut for ComMut<'_, T, M> {
-    /// Lends mutable lookup while the provider arbitrates aliased calls.
+    /// Lends mutable lookup using this exclusive target borrow.
     fn deref_mut(&mut self) -> &mut Self::Target {
         // SAFETY: mutable lookup cannot replace the opaque unsized pair storage.
         T::__nc_wrapper_mut(unsafe { crate::ComInterfacePointer::borrow_pair_mut(&mut self.raw) })
@@ -385,18 +436,24 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> ComPtr<T, M> {
             _mode: PhantomData,
         }
     }
-    /// Mutably borrows this owner for method calls without changing the count.
-    pub fn as_com_mut(&mut self) -> ComMut<'_, T, M> {
-        ComMut {
-            raw: self.raw,
-            _interface: PhantomData,
-            _mode: PhantomData,
-        }
-    }
     /// Transfers this owner's pair; the recipient must eventually release it once.
     pub fn into_raw(self) -> ComRaw<T> {
         core::mem::ManuallyDrop::new(self).raw.as_raw()
     }
+
+    /// Transfers this owner with weaker threading evidence and no count change.
+    pub fn into_threading<N: ThreadingModel>(self) -> ComPtr<T, N>
+    where
+        M: CanWeakenThreading<N>,
+    {
+        let this = core::mem::ManuallyDrop::new(self);
+        ComPtr {
+            raw: this.raw,
+            _interface: PhantomData,
+            _mode: PhantomData,
+        }
+    }
+
     /// Selects another contract on the same allocation and acquires one reference.
     /// The object address stays unchanged; the selected interface table may differ.
     pub fn query<U: ComInterface>(&self) -> Result<ComPtr<U, M>, NcStatus> {
@@ -439,28 +496,19 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> ComPtr<T, M> {
 impl<T: ComInterface + ?Sized> ComPtr<T, ThreadSafe> {
     /// Transfers ownership while weakening cross-thread permission, with no count change.
     pub fn into_thread_local(self) -> ComPtr<T, ThreadLocal> {
-        let this = core::mem::ManuallyDrop::new(self);
-        ComPtr {
-            raw: this.raw,
-            _interface: PhantomData,
-            _mode: PhantomData,
-        }
+        self.into_threading()
     }
     /// Lends the same pair with thread-local permission only.
     pub fn as_thread_local_ref(&self) -> ComRef<'_, T, ThreadLocal> {
-        ComRef {
-            raw: self.raw,
-            _interface: PhantomData,
-            _mode: PhantomData,
-        }
+        self.as_com_ref().into_threading()
     }
 }
 impl<'a, T: ComInterface + ?Sized, M: ThreadingModel> ComRef<'a, T, M> {
     /// Validates an incoming borrowed contract before exposing typed methods.
     ///
     /// # Safety
-    /// A present pair has a readable common prefix. Its lender keeps the
-    /// implementation value, storage and code live for 'a with threading mode M.
+    /// A present pair has a readable common prefix. Its lender keeps the value,
+    /// storage, and code live and grants shared target access for 'a under M.
     #[doc(hidden)]
     pub unsafe fn __nc_from_raw_borrowed_checked(raw: ComRaw<T>) -> Result<Self, NcStatus> {
         // SAFETY: the caller supplies readable common storage for the borrow.
@@ -471,8 +519,8 @@ impl<'a, T: ComInterface + ?Sized, M: ThreadingModel> ComRef<'a, T, M> {
     /// Checks a nullable shared-method loan from a declared ABI argument.
     ///
     /// # Safety
-    /// For a present pair, the caller grants a readable common prefix and
-    /// retains the value, allocation, table and provider code for 'a under M.
+    /// A present pair satisfies the shared-loan constructor's backing, target
+    /// borrow and threading requirements.
     #[doc(hidden)]
     pub unsafe fn __nc_from_raw_optional_borrowed_checked(raw: ComRaw<T>) -> Result<Option<Self>, NcStatus> {
         if raw.is_null() {
@@ -485,8 +533,8 @@ impl<'a, T: ComInterface + ?Sized, M: ThreadingModel> ComRef<'a, T, M> {
     /// Wraps a borrowed pair without retaining it.
     ///
     /// # Safety
-    /// A present pair must implement T. Its lender keeps the implementation
-    /// value, allocation, table and provider code live for 'a with threading mode M.
+    /// A present pair implements T and grants shared target access. Its lender
+    /// keeps the value, allocation, table and provider code live for 'a under M.
     pub unsafe fn from_raw_borrowed(raw: ComRaw<T>) -> Option<Self> {
         Some(Self {
             raw: NonNullComRaw::new(raw)?,
@@ -504,15 +552,22 @@ impl<'a, T: ComInterface + ?Sized, M: ThreadingModel> ComRef<'a, T, M> {
     pub fn same_object<U: ComInterface + ?Sized, N: ThreadingModel>(&self, other: ComRef<'_, U, N>) -> bool {
         self.raw.object == other.raw.object
     }
-}
-impl<'a, T: ComInterface + ?Sized> ComRef<'a, T, ThreadSafe> {
-    /// Removes cross-thread permission without changing the borrow or count.
-    pub fn into_thread_local(self) -> ComRef<'a, T, ThreadLocal> {
+
+    /// Preserves the shared loan with weaker threading evidence.
+    pub fn into_threading<N: ThreadingModel>(self) -> ComRef<'a, T, N>
+    where
+        M: CanWeakenThreading<N>,
+    {
         ComRef {
             raw: self.raw,
             _interface: PhantomData,
             _mode: PhantomData,
         }
+    }
+
+    /// Removes cross-thread permission without changing the borrow or count.
+    pub fn into_thread_local(self) -> ComRef<'a, T, ThreadLocal> {
+        self.into_threading()
     }
 }
 impl<'a, T: ComInterface + ?Sized, M: ThreadingModel> From<&'a ComPtr<T, M>> for ComRef<'a, T, M> {
@@ -525,8 +580,8 @@ impl<'a, T: ComInterface + ?Sized, M: ThreadingModel> ComMut<'a, T, M> {
     /// Validates a raw mutable loan before exposing typed methods.
     ///
     /// # Safety
-    /// A present pair has a readable common prefix. The caller lends the live
-    /// interface with mutable dispatch permission and threading mode M for 'a.
+    /// A present pair has a readable common prefix. The caller grants exclusive
+    /// target access under M and keeps the value, table and code live for 'a.
     #[doc(hidden)]
     pub unsafe fn __nc_from_raw_borrowed_checked(raw: ComRaw<T>) -> Result<Self, NcStatus> {
         // SAFETY: The raw caller supplies the readable live common prefix.
@@ -536,12 +591,26 @@ impl<'a, T: ComInterface + ?Sized, M: ThreadingModel> ComMut<'a, T, M> {
         unsafe { Self::from_raw_borrowed(raw) }.ok_or(NC_E_POINTER)
     }
 
+    /// Checks an optional exclusive target loan. Both-null denotes absence.
+    ///
+    /// # Safety
+    /// A present pair satisfies the exclusive-loan constructor's backing,
+    /// target borrow and threading requirements.
+    #[doc(hidden)]
+    pub unsafe fn __nc_from_raw_optional_borrowed_checked(raw: ComRaw<T>) -> Result<Option<Self>, NcStatus> {
+        if raw.is_null() {
+            return Ok(None);
+        }
+        // SAFETY: the caller supplies the live exclusive lender for this pair.
+        unsafe { Self::__nc_from_raw_borrowed_checked(raw) }.map(Some)
+    }
+
     /// Wraps one mutable loan from a live lender.
     ///
     /// # Safety
     /// A present pair implements T. Its lender keeps the implementation value,
-    /// allocation, table and code live for 'a and supplies mutable dispatch
-    /// permission with threading mode M for the duration of the loan.
+    /// allocation, table and code live and grants exclusive target access under
+    /// M for the full loan lifetime 'a.
     pub(crate) unsafe fn from_raw_borrowed(raw: ComRaw<T>) -> Option<Self> {
         Some(Self {
             raw: NonNullComRaw::new(raw)?,
@@ -559,20 +628,35 @@ impl<'a, T: ComInterface + ?Sized, M: ThreadingModel> ComMut<'a, T, M> {
         }
     }
 
-    /// Borrows the raw pair without transferring ownership.
-    pub fn as_raw(&self) -> ComRaw<T> {
-        self.raw.as_raw()
-    }
-}
-
-impl<'a, T: ComInterface + ?Sized> ComMut<'a, T, ThreadSafe> {
-    /// Weakens threading permission for the remainder of the mutable loan.
-    pub fn into_thread_local(self) -> ComMut<'a, T, ThreadLocal> {
+    /// Lends exclusive target access for the duration of this shorter reborrow.
+    pub fn as_com_mut(&mut self) -> ComMut<'_, T, M> {
         ComMut {
             raw: self.raw,
             _interface: PhantomData,
             _mode: PhantomData,
         }
+    }
+
+    /// Borrows the raw pair without transferring ownership.
+    pub fn as_raw(&self) -> ComRaw<T> {
+        self.raw.as_raw()
+    }
+
+    /// Moves the exclusive loan with weaker threading evidence.
+    pub fn into_threading<N: ThreadingModel>(self) -> ComMut<'a, T, N>
+    where
+        M: CanWeakenThreading<N>,
+    {
+        ComMut {
+            raw: self.raw,
+            _interface: PhantomData,
+            _mode: PhantomData,
+        }
+    }
+
+    /// Weakens threading permission for the remainder of the mutable loan.
+    pub fn into_thread_local(self) -> ComMut<'a, T, ThreadLocal> {
+        self.into_threading()
     }
 }
 
@@ -782,6 +866,28 @@ mod tests {
         release,
         downgrade: None,
     };
+
+    /// Shared ownership and loans weaken their mode without lifecycle calls.
+    #[test]
+    fn weakening_threading_preserves_pair_and_strong_count() {
+        let mut source = Probe {
+            references: AtomicU32::new(1),
+            destination: core::ptr::null_mut(),
+        };
+        let raw = ComRaw {
+            object: core::ptr::from_mut(&mut source).cast(),
+            vtable: &TABLE,
+        };
+        // SAFETY: The fixture lives through the only owner. Its lifecycle count
+        // is atomic, its destination field stays null, and all tables are static.
+        let owner = unsafe { ComPtr::<IUnknown, ThreadSafe>::from_raw_owned(raw) }.unwrap();
+        let owner = owner.into_threading::<ThreadSync>();
+        assert_eq!(owner.as_raw(), raw);
+        assert_eq!(owner.as_com_ref().into_threading::<ThreadLocal>().as_raw(), raw);
+        assert_eq!(source.references.load(Ordering::Relaxed), 1);
+        drop(owner);
+        assert_eq!(source.references.load(Ordering::Relaxed), 0);
+    }
 
     /// Typed and discovered queries reject substitution and release its extra owner.
     #[test]

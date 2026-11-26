@@ -424,7 +424,7 @@ fn resolve_ordered_modules(modules: Vec<Module>, limits: crate::specialize::budg
 /// an object-reference wrapper must always target a closed contract.
 fn validate_closed_argument(graph: &ResolvedModules, ty: &IdlType, span: &SourceSpan) -> Result<(), ResolutionError> {
     match ty {
-        IdlType::ComPtr(value) | IdlType::WeakComPtr(value) | IdlType::ComBox(value) | IdlType::WeakComBox(value) => {
+        IdlType::ComPtr(value) | IdlType::WeakComPtr(value) | IdlType::ComBox(value) => {
             let valid = match value.as_ref() {
                 IdlType::Named(name) => {
                     builtin_object(name).is_some()
@@ -1008,7 +1008,6 @@ fn collect_type_references<'a>(ty: &'a IdlType, output: &mut Vec<&'a NamedType>)
         IdlType::ComPtr(_)
         | IdlType::WeakComPtr(_)
         | IdlType::ComBox(_)
-        | IdlType::WeakComBox(_)
         | IdlType::Borrowed(_)
         | IdlType::BorrowedMut(_)
         | IdlType::Vector(_)
@@ -1200,12 +1199,12 @@ fn validate_interface_bases(interface: &crate::Interface, entries: &[ModuleEntry
             ));
         }
         if let DeclarationKind::Interface(required) = &entries[symbol.module].module.declarations[symbol.declaration].kind {
-            if matches!((interface.threading, required.threading), (Threading::Local, Threading::Shared)) {
+            if !interface.threading.supports(required.threading) {
                 return Err(source_error(
                     "EIDL052",
                     &base.span,
-                    format!("{owner} cannot weaken the shared threading promise of {}", base.rust_path()),
-                    "declare this interface with #[threading(shared)]",
+                    format!("{owner} cannot weaken the threading promise of {}", base.rust_path()),
+                    "declare an interface mode that includes every guarantee of this base",
                 ));
             }
         }
@@ -1275,16 +1274,16 @@ fn validate_methods(
         let context = format!("{owner}::{} result", method.name);
         collect_diagnostics(&mut diagnostics, validate_result(method, entries, values, values_with_empty_arrays, &context));
         let consumes_owner = method.parameters.iter().any(|parameter| parameter.passing == ParameterPassing::ConsumingBox);
-        if method.return_passing == ReturnPassing::ScopedLoan {
+        if matches!(method.return_passing, ReturnPassing::BorrowedLoan { .. } | ReturnPassing::ScopedLoan { .. }) {
             let writes_output = method.parameters.iter().any(|parameter| parameter.passing == ParameterPassing::OutputBuffer);
-            if method.receiver != crate::Receiver::Shared || consumes_owner || writes_output {
+            if consumes_owner || writes_output {
                 collect_diagnostics(
                     &mut diagnostics,
                     Err(source_error(
                         "EIDL062",
                         &method.span,
-                        format!("{context}: a scoped result requires &self without consuming inputs or writable buffers"),
-                        "unsupported scoped call",
+                        format!("{context}: a borrowed result cannot accompany consuming inputs or writable buffers"),
+                        "unsupported borrowed result",
                     )),
                 );
             }
@@ -1402,9 +1401,7 @@ fn validate_field_type(ty: &IdlType, entries: &[ModuleEntry], context: &str, spa
     validate_field_form(ty, context, span)?;
     match ty {
         IdlType::Unit | IdlType::Scalar(_) | IdlType::String => Ok(()),
-        IdlType::ComPtr(value) | IdlType::WeakComPtr(value) | IdlType::ComBox(value) | IdlType::WeakComBox(value) => {
-            validate_object_target(value, entries, context, span)
-        }
+        IdlType::ComPtr(value) | IdlType::WeakComPtr(value) | IdlType::ComBox(value) => validate_object_target(value, entries, context, span),
         IdlType::Named(name) => {
             if builtin_object(name).is_some() {
                 return Err(source_error(
@@ -1538,10 +1535,6 @@ fn resolve_value_graph(entries: &[ModuleEntry], admitted: &HashMap<String, Canon
         Ok(match ty {
             IdlType::WeakComPtr(value) => match field(value, entries)? {
                 V::Object(name) => V::WeakObject(name),
-                other => other,
-            },
-            IdlType::WeakComBox(value) => match field(value, entries)? {
-                V::Object(name) => V::WeakBoxObject(name),
                 other => other,
             },
             IdlType::ComPtr(value) | IdlType::ComBox(value) => match field(value, entries)? {
@@ -1680,7 +1673,7 @@ fn validate_parameter(
     let payload = parameter.payload();
     let span = type_span(ty).unwrap_or(&parameter.span);
     match parameter.passing {
-        ParameterPassing::SharedLoan { optional: true } | ParameterPassing::MutableLoan | ParameterPassing::ConsumingBox => {
+        ParameterPassing::SharedLoan { optional: true } | ParameterPassing::MutableLoan { .. } | ParameterPassing::ConsumingBox => {
             validate_object_target(payload, entries, context, span)
         }
         ParameterPassing::SharedLoan { optional: false } | ParameterPassing::BorrowedText => Ok(()),
@@ -1719,10 +1712,6 @@ fn validate_parameter(
         },
         ParameterPassing::Invalid => {
             let (message, label) = match ty {
-                IdlType::WeakComBox(_) => (
-                    format!("{context}: weak box inputs must use a live interface borrow"),
-                    "unsupported ownership transfer",
-                ),
                 IdlType::Borrowed(_) => (format!("{context} has an unsupported borrowed type"), "unsupported borrow"),
                 _ => (format!("{context} has no valid input ownership"), "invalid parameter type"),
             };
@@ -1732,7 +1721,7 @@ fn validate_parameter(
     }
 }
 
-/// Validates result payload and the initial direct Rust projection forms.
+/// Validates result payload and distinguishes receiver-bound and visitor loans.
 fn validate_result(
     method: &Method,
     entries: &[ModuleEntry],
@@ -1742,16 +1731,36 @@ fn validate_result(
 ) -> Result<(), ResolutionError> {
     let ty = &method.output;
     let span = type_span(ty).unwrap_or(&method.span);
+    if method.scoped && !matches!(method.return_passing, ReturnPassing::ScopedLoan { .. }) {
+        return Err(source_error(
+            "EIDL062",
+            &method.span,
+            format!("{context}: #[scoped] requires Option<&I> or Option<&mut I>, optionally wrapped in Result"),
+            "a visitor needs an optional interface loan",
+        ));
+    }
+    if matches!(method.return_passing, ReturnPassing::BorrowedLoan { mutable: true, .. }) && method.receiver != crate::Receiver::Mutable {
+        return Err(source_error(
+            "EIDL062",
+            span,
+            format!("{context}: a receiver-bound mutable result requires &mut self"),
+            "borrow the receiver exclusively for the returned loan",
+        ));
+    }
     if method.return_projection == ReturnProjection::Direct
         && !matches!(
             method.return_passing,
-            ReturnPassing::Unit | ReturnPassing::SharedOwner { optional: true } | ReturnPassing::ScopedLoan
+            ReturnPassing::Unit
+                | ReturnPassing::Copied
+                | ReturnPassing::SharedOwner { optional: true }
+                | ReturnPassing::BorrowedLoan { .. }
+                | ReturnPassing::ScopedLoan { .. }
         )
     {
         return Err(source_error(
             "EIDL062",
             span,
-            format!("{context}: a direct return must be unit, Option<ComPtr<I>>, or Option<&I>"),
+            format!("{context}: a direct return must be unit, a copied value, an interface loan, or Option<ComPtr<I>>"),
             "wrap other supported results in Result",
         ));
     }
@@ -1760,9 +1769,9 @@ fn validate_result(
         ReturnPassing::Copied => validate_value_type(ty, entries, values, values_with_empty_arrays, context, span),
         ReturnPassing::SharedOwner { .. }
         | ReturnPassing::BoxOwner
-        | ReturnPassing::BoxObserver
         | ReturnPassing::SharedObserver
-        | ReturnPassing::ScopedLoan => validate_object_target(method.return_payload(), entries, context, span),
+        | ReturnPassing::BorrowedLoan { .. }
+        | ReturnPassing::ScopedLoan { .. } => validate_object_target(method.return_payload(), entries, context, span),
         ReturnPassing::Invalid => {
             let (message, label) = match ty {
                 IdlType::String => (
@@ -1864,8 +1873,8 @@ fn fingerprint_modules(entries: &[ModuleEntry]) -> Result<Vec<ContractDigests>, 
 /// This compiler/build-time encoding revision is independent of runtime and
 /// the native ABI version. Documentation checks use this same prefix;
 /// changing source provenance or Cargo name mangling must not change its bytes.
-/// Revision 15 distinguishes callable interface loans and optional owner or scoped results.
-pub const MODULE_ABI_ENCODING_DOMAIN: &[u8] = b"neocogi-idl:module-abi:v15\0";
+/// Revision 16 distinguishes receiver-bound loans, visitor loans and independent threading guarantees.
+pub const MODULE_ABI_ENCODING_DOMAIN: &[u8] = b"neocogi-idl:module-abi:v16\0";
 
 /// Encodes the native contract and its Rust-only projection in canonical order.
 fn encode_module(index: usize, entries: &[ModuleEntry], dependencies: &[(usize, ContractDigests)]) -> Result<ContractDigests, ResolutionError> {
@@ -2080,6 +2089,8 @@ fn encode_methods(
     encoder.tag(match threading {
         Threading::Local => 0,
         Threading::Shared => 1,
+        Threading::Send => 2,
+        Threading::Sync => 3,
     });
     encoder.u32(u32_len(bases.len(), &entries[scope.module].name, "base count")?);
     for base in bases {
@@ -2087,7 +2098,9 @@ fn encode_methods(
     }
     encoder.u32(u32_len(methods.len(), &entries[scope.module].name, "method count")?);
     for method in methods {
-        encoder.tag(0);
+        // Uninstantiated templates have no directional passing yet. The
+        // authored annotation still distinguishes their continuation contract.
+        encoder.tag(u8::from(method.scoped));
         encoder.text(&method.name, &entries[scope.module].name)?;
         encoder.tag(match method.receiver {
             crate::Receiver::Shared => 0,
@@ -2099,7 +2112,8 @@ fn encode_methods(
             let passing = match parameter.passing {
                 ParameterPassing::SharedLoan { optional: false } => Some(TypeTag::SharedLoan),
                 ParameterPassing::SharedLoan { optional: true } => Some(TypeTag::OptionalSharedLoan),
-                ParameterPassing::MutableLoan => Some(TypeTag::MutableLoan),
+                ParameterPassing::MutableLoan { optional: false } => Some(TypeTag::MutableLoan),
+                ParameterPassing::MutableLoan { optional: true } => Some(TypeTag::OptionalMutableLoan),
                 _ => None,
             };
             if let Some(passing) = passing {
@@ -2111,7 +2125,12 @@ fn encode_methods(
         }
         let passing = match method.return_passing {
             ReturnPassing::SharedOwner { optional: true } => Some(TypeTag::OptionalSharedOwner),
-            ReturnPassing::ScopedLoan => Some(TypeTag::ScopedLoan),
+            ReturnPassing::BorrowedLoan { mutable: false, optional: false } => Some(TypeTag::SharedLoanOut),
+            ReturnPassing::BorrowedLoan { mutable: false, optional: true } => Some(TypeTag::OptionalSharedLoanOut),
+            ReturnPassing::BorrowedLoan { mutable: true, optional: false } => Some(TypeTag::MutableLoanOut),
+            ReturnPassing::BorrowedLoan { mutable: true, optional: true } => Some(TypeTag::OptionalMutableLoanOut),
+            ReturnPassing::ScopedLoan { mutable: false } => Some(TypeTag::ScopedLoan),
+            ReturnPassing::ScopedLoan { mutable: true } => Some(TypeTag::ScopedMutableLoan),
             _ => None,
         };
         if let Some(passing) = passing {
@@ -2127,7 +2146,7 @@ fn encode_methods(
 /// Disjoint alternatives of the recursive type-expression grammar.
 /// Explicit values are contract bytes. Rust rejects duplicate discriminants;
 /// changing this enum also requires a module encoding revision and regeneration.
-/// Values 7 and 8 are reserved for retired ownership forms.
+/// Values 7, 8 and 13 are reserved for retired ownership forms.
 #[repr(u8)]
 #[derive(Clone, Copy)]
 enum TypeTag {
@@ -2153,8 +2172,6 @@ enum TypeTag {
     UnsizedSlice = 11,
     /// Exclusive object transfer.
     ComBox = 12,
-    /// Exclusive weak control token.
-    WeakComBox = 13,
     /// Fresh copied output buffer, including initialized-prefix completion.
     OutputSlice = 14,
     /// Shared weak control token.
@@ -2173,6 +2190,18 @@ enum TypeTag {
     OptionalSharedOwner = 21,
     /// A nullable shared loan delivered by synchronous continuation.
     ScopedLoan = 22,
+    /// A required shared result borrowed from the receiver.
+    SharedLoanOut = 23,
+    /// A nullable shared result borrowed from the receiver.
+    OptionalSharedLoanOut = 24,
+    /// A required whole-value exclusive result borrowed from the receiver.
+    MutableLoanOut = 25,
+    /// A nullable whole-value exclusive result borrowed from the receiver.
+    OptionalMutableLoanOut = 26,
+    /// A nullable whole-value exclusive input loan.
+    OptionalMutableLoan = 27,
+    /// A nullable whole-value exclusive loan delivered by synchronous continuation.
+    ScopedMutableLoan = 28,
 }
 
 /// Encodes one recursively structured ABI type.
@@ -2222,12 +2251,8 @@ fn encode_type(scope: EncodingScope<'_>, ty: &IdlType, entries: &[ModuleEntry], 
             encoder.u32(*len);
             encode_type(scope, element, entries, encoder)?;
         }
-        IdlType::ComBox(target) | IdlType::WeakComBox(target) => {
-            encoder.type_tag(match ty {
-                IdlType::ComBox(_) => TypeTag::ComBox,
-                IdlType::WeakComBox(_) => TypeTag::WeakComBox,
-                _ => unreachable!(),
-            });
+        IdlType::ComBox(target) => {
+            encoder.type_tag(TypeTag::ComBox);
             encode_type(scope, target, entries, encoder)?;
         }
         IdlType::ComPtr(target) => {
@@ -2235,7 +2260,7 @@ fn encode_type(scope: EncodingScope<'_>, ty: &IdlType, entries: &[ModuleEntry], 
             encode_type(scope, target, entries, encoder)?;
         }
         IdlType::WeakComPtr(target) => {
-            // New ownership spelling cannot alias strong or exclusive weak transfers.
+            // Shared weak transport has its own encoding and control record.
             encoder.type_tag(TypeTag::WeakComPtr);
             encode_type(scope, target, entries, encoder)?;
         }
@@ -2442,7 +2467,6 @@ pub(crate) fn is_reserved_name(name: &str) -> bool {
             | "ComPtr"
             | "WeakComPtr"
             | "ComBox"
-            | "WeakComBox"
             | "Vec"
             | "Slice"
             | "Array"
@@ -2464,7 +2488,6 @@ fn type_span(ty: &IdlType) -> Option<&SourceSpan> {
         IdlType::ComPtr(value)
         | IdlType::WeakComPtr(value)
         | IdlType::ComBox(value)
-        | IdlType::WeakComBox(value)
         | IdlType::Borrowed(value)
         | IdlType::BorrowedMut(value)
         | IdlType::Vector(value)
@@ -2617,7 +2640,6 @@ mod reference_encoding_tests {
             (IdlType::Vector(unit()), 10),
             (IdlType::UnsizedSlice(unit()), 11),
             (IdlType::ComBox(unit()), 12),
-            (IdlType::WeakComBox(unit()), 13),
             (IdlType::OutputSlice(unit()), 14),
             (IdlType::WeakComPtr(unit()), 15),
             (named(Binding::Parameter { position: 0 }), 16),

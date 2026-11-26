@@ -163,6 +163,11 @@ fn floor_semantics(runner: &Runner) -> Result<()> {
             "provider_threading",
             vec!["shared_provider_minimum_is_independent_of_class_mode"],
         ),
+        (
+            "neocogi-com-tests",
+            "exclusive_com",
+            vec![abi_sentinel("exclusive_com"), "scoped_mutable_result_holds_field_guard_through_joined_worker"],
+        ),
     ];
     // This SDK-local regression needs unwinding enabled to distinguish a caught
     // print panic from the required abort. The floor uses ordinary stable std.

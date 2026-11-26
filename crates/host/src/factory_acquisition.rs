@@ -5,8 +5,7 @@
 //! complete factory interface identity before transferring ownership to a host.
 
 use neocogi_com::{
-    IUnknown, NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE, NC_E_NOINTERFACE, NC_E_NOT_FOUND, NC_E_POINTER, NC_OK, NcAcquirePluginFactory,
-    NcGuid, NcInterfaceId, NcStatus, raw,
+    IUnknown, NC_E_NOINTERFACE, NC_E_NOT_FOUND, NC_E_POINTER, NC_OK, NcAbiThreadingMode, NcAcquirePluginFactory, NcGuid, NcInterfaceId, NcStatus, raw,
 };
 
 use crate::plugin_registry::PluginRegistry;
@@ -37,11 +36,10 @@ pub(crate) fn resolve_factory(
 
 /// Applies the declared factory capability to one host threading request.
 fn threading_request_is_compatible(declared: u32, requested: u32) -> bool {
-    match requested {
-        NC_ABI_THREADING_THREAD_LOCAL => true,
-        NC_ABI_THREADING_THREAD_SAFE => declared == NC_ABI_THREADING_THREAD_SAFE,
-        _ => false,
-    }
+    let (Some(declared), Some(requested)) = (NcAbiThreadingMode::from_raw(declared), NcAbiThreadingMode::from_raw(requested)) else {
+        return false;
+    };
+    declared.supports(requested)
 }
 
 /// Invokes a resolved plugin root and verifies its exact interface contract.
@@ -98,6 +96,25 @@ mod tests {
     use super::*;
     use crate::plugin_registry::PluginOrigin;
     use crate::factory_registration::prepare_factory_plugin;
+
+    /// Registration declares positive evidence. Local and fully thread-safe
+    /// endpoints can be used with weaker evidence, and Send and Sync are distinct.
+    #[test]
+    fn factory_threading_requires_at_least_the_requested_capability() {
+        use NcAbiThreadingMode::{ThreadLocal, ThreadSafe, ThreadSend, ThreadSync};
+        for (declared, expected) in [
+            (ThreadLocal, [true, false, false, false]),
+            (ThreadSend, [true, true, false, false]),
+            (ThreadSync, [true, false, true, false]),
+            (ThreadSafe, [true; 4]),
+        ] {
+            let compatible =
+                [ThreadLocal, ThreadSend, ThreadSync, ThreadSafe].map(|requested| threading_request_is_compatible(declared.as_raw(), requested.as_raw()));
+            assert_eq!(compatible, expected);
+        }
+        assert!(!threading_request_is_compatible(u32::MAX, ThreadLocal.as_raw()));
+        assert!(!threading_request_is_compatible(ThreadSafe.as_raw(), u32::MAX));
+    }
 
     /// Stable fake factory interface used by raw acquisition validation.
     const FACTORY_ID: NcGuid = NcGuid::from_fields(1, 2, 3, [4; 8]);

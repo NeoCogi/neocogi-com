@@ -5,7 +5,7 @@
 //! value. Logical domain closure is deliberately independent of this protocol.
 use core::{marker::PhantomData, ptr::NonNull};
 use crate::lifetime::NcSharedLifetimeState;
-use crate::{ComInterface, ComPtr, ComRaw, IUnknown, NcStatus, ThreadLocal, ThreadSafe, ThreadingModel, NC_E_NOINTERFACE, NC_E_POINTER};
+use crate::{CanWeakenThreading, ComInterface, ComPtr, ComRaw, IUnknown, NcStatus, ThreadLocal, ThreadSafe, ThreadingModel, NC_E_NOINTERFACE, NC_E_POINTER};
 
 /// An ABI token for one nullable shared lifetime header.
 ///
@@ -146,11 +146,20 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> WeakComPtr<T, M> {
         })
     }
 
+    /// Transfers this weak token with weaker threading evidence and no count change.
+    pub fn into_threading<N: ThreadingModel>(self) -> WeakComPtr<T, N>
+    where
+        M: CanWeakenThreading<N>,
+    {
+        WeakComPtr {
+            control: core::mem::ManuallyDrop::new(self).control,
+            marker: PhantomData,
+        }
+    }
+
     /// Restricts cross-thread permission without changing weak ownership or identity.
     pub fn into_thread_local(self) -> WeakComPtr<T, ThreadLocal> {
-        let control = self.control;
-        core::mem::forget(self);
-        WeakComPtr { control, marker: PhantomData }
+        self.into_threading()
     }
 
     /// Compares canonical lifetime identities without promoting either object.

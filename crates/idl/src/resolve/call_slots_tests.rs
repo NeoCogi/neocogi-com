@@ -23,23 +23,31 @@ fn methods<'a>(graph: &'a ResolvedModules, name: &str) -> &'a [Method] {
 fn standard_optional_root_uses_directional_passing() {
     let graph = resolve(
         "interface ISource {
-            fn receive(&self, read: &INcString, write: &mut ISource, optional: Option<&INcString>, text: &str);
+            fn receive(&self, read: &INcString, write: &mut ISource, optional: Option<&INcString>,
+                       edit: Option<&mut ISource>, text: &str);
             fn echo(&self, value: Option<u32>) -> Result<Option<u32>>;
             fn child(&self) -> Option<ComPtr<INcString>>;
             fn loan(&self) -> Result<neocogi::lang::Option<&INcString>>;
+            fn required(&self) -> &INcString;
+            fn required_edit(&mut self) -> &mut ISource;
+            fn optional_edit(&mut self) -> Option<&mut ISource>;
+            #[scoped] fn visit(&self) -> Option<&INcString>;
+            #[scoped] fn visit_edit(&self) -> Result<Option<&mut ISource>>;
+            fn cursor(&mut self) -> Option<()>;
         }
         struct Stored { owner: Option<ComPtr<INcString>> }",
     )
     .unwrap();
-    let [receive, echo, child, loan] = methods(&graph, "ISource") else {
+    let [receive, echo, child, loan, required, required_edit, optional_edit, visit, visit_edit, cursor] = methods(&graph, "ISource") else {
         panic!("method count")
     };
     assert_eq!(
         receive.parameters.iter().map(|parameter| parameter.passing).collect::<Vec<_>>(),
         [
             ParameterPassing::SharedLoan { optional: false },
-            ParameterPassing::MutableLoan,
+            ParameterPassing::MutableLoan { optional: false },
             ParameterPassing::SharedLoan { optional: true },
+            ParameterPassing::MutableLoan { optional: true },
             ParameterPassing::BorrowedText,
         ]
     );
@@ -56,7 +64,16 @@ fn standard_optional_root_uses_directional_passing() {
     );
     assert_eq!(
         (loan.return_passing, loan.return_projection),
-        (ReturnPassing::ScopedLoan, ReturnProjection::Fallible)
+        (ReturnPassing::BorrowedLoan { mutable: false, optional: true }, ReturnProjection::Fallible)
+    );
+    assert_eq!(required.return_passing, ReturnPassing::BorrowedLoan { mutable: false, optional: false });
+    assert_eq!(required_edit.return_passing, ReturnPassing::BorrowedLoan { mutable: true, optional: false });
+    assert_eq!(optional_edit.return_passing, ReturnPassing::BorrowedLoan { mutable: true, optional: true });
+    assert_eq!(visit.return_passing, ReturnPassing::ScopedLoan { mutable: false });
+    assert_eq!(visit_edit.return_passing, ReturnPassing::ScopedLoan { mutable: true });
+    assert_eq!(
+        (cursor.return_passing, cursor.return_projection),
+        (ReturnPassing::Copied, ReturnProjection::Direct)
     );
     assert_eq!(
         graph
@@ -67,8 +84,8 @@ fn standard_optional_root_uses_directional_passing() {
             .iter()
             .filter(|declaration| declaration.specialization.is_some())
             .count(),
-        2,
-        "only the ordinary scalar and stored-owner Option values specialize"
+        3,
+        "only ordinary scalar, unit and stored-owner Option values specialize"
     );
 }
 
@@ -104,7 +121,11 @@ fn optional_slot_resolution_preserves_shadowing_and_closes_after_substitution() 
         .map(|(_, method)| method.return_passing)
         .collect::<Vec<_>>();
     assert_eq!(lookup.len(), 3);
-    for expected in [ReturnPassing::SharedOwner { optional: true }, ReturnPassing::ScopedLoan, ReturnPassing::Copied] {
+    for expected in [
+        ReturnPassing::SharedOwner { optional: true },
+        ReturnPassing::BorrowedLoan { mutable: false, optional: true },
+        ReturnPassing::Copied,
+    ] {
         let index = lookup.iter().position(|passing| *passing == expected).unwrap();
         lookup.swap_remove(index);
     }
@@ -124,6 +145,7 @@ fn wrapped_generic_loans_report_the_argument_using_bound_option_identity() {
     for (import, argument) in [
         ("", "ComPtr<ILookup<Option<&INcString>>>"),
         ("use neocogi.lang::Option;", "Phantom<Option<&ILoan>>"),
+        ("use neocogi.lang::Option;", "Phantom<Option<&mut ILoan>>"),
         ("", "Phantom<Vec<neocogi::lang::Option<&ILoan>>>"),
     ] {
         let source = format!(
@@ -141,7 +163,7 @@ fn wrapped_generic_loans_report_the_argument_using_bound_option_identity() {
         assert_eq!(diagnostic.labels[0].span.start().line, 5);
         assert!(error.to_string().contains("specialize T with &I"), "{error}");
     }
-    for argument in ["Option<&str>", "Option<&mut ILoan>", "Option<ComBox<ILoan>>"] {
+    for argument in ["Option<&str>", "Option<&mut str>", "Option<ComBox<ILoan>>"] {
         let source = format!("interface ILoan {{}} struct Phantom<T> {{ n: u32 }} struct Use {{ field: Phantom<{argument}> }}");
         let error = resolve(&source).unwrap_err().to_string();
         assert!(!error.contains("EIDL102"), "{error}");
@@ -158,7 +180,7 @@ fn transitive_specialization_keeps_optional_loan_slots() {
         Path::new("proof/leaf.ncidl"),
         "use neocogi.lang::Option;
         interface ILookup<T> {
-            fn read(&self, value: Option<T>) -> Result<Option<T>>;
+            fn read(&mut self, value: Option<T>) -> Result<Option<T>>;
         }",
     )
     .unwrap();
@@ -169,7 +191,7 @@ fn transitive_specialization_keeps_optional_loan_slots() {
     .unwrap();
     let consumer = parse_module(
         Path::new("proof/loans.ncidl"),
-        "extern proof.bridge; use proof.bridge::IWrapped; struct Root { lookup: ComPtr<IWrapped<&INcString>> }",
+        "extern proof.bridge; use proof.bridge::IWrapped; struct Root { lookup: ComPtr<IWrapped<&mut INcString>> }",
     )
     .unwrap();
     let graph = resolve_modules(vec![leaf, bridge, consumer]).unwrap();
@@ -182,24 +204,46 @@ fn transitive_specialization_keeps_optional_loan_slots() {
         .find(|decl| decl.specialization.as_ref().is_some_and(|origin| origin.template.segments == ["ILookup"]))
         .unwrap();
     let method = &methods(&graph, &instance.name)[0];
-    assert_eq!(method.parameters[0].passing, ParameterPassing::SharedLoan { optional: true });
-    assert_eq!(method.return_passing, ReturnPassing::ScopedLoan);
+    assert_eq!(method.parameters[0].passing, ParameterPassing::MutableLoan { optional: true });
+    assert_eq!(method.return_passing, ReturnPassing::BorrowedLoan { mutable: true, optional: true });
+}
+
+/// Every inherited guarantee survives and each mode has a distinct native digest.
+#[test]
+fn threading_modes_form_a_two_guarantee_lattice() {
+    let mut signatures = std::collections::BTreeSet::new();
+    for (name, permits_send, permits_sync) in [("local", false, false), ("send", true, false), ("sync", false, true), ("shared", true, true)] {
+        let source = format!("#[threading({name})] interface ILoan {{}}");
+        let graph = resolve(&source).unwrap();
+        let identity = graph.module("proof.loans").unwrap().declaration("ILoan").unwrap();
+        assert!(signatures.insert(identity.abi_signature));
+        for (base, allowed) in [
+            ("local", true),
+            ("send", permits_send),
+            ("sync", permits_sync),
+            ("shared", permits_send && permits_sync),
+        ] {
+            let source = format!("#[threading({base})] interface IBase {{}} #[threading({name})] interface ILoan: IBase {{}}");
+            assert_eq!(resolve(&source).is_ok(), allowed, "{source}");
+        }
+    }
 }
 
 /// The admitted subset leaves no escaping borrow or lost consuming owner.
 #[test]
 fn invalid_direct_and_scoped_forms_reject_before_generation() {
     for source in [
-        "interface IService { fn get(&self) -> u32; }",
         "interface IService { fn get(&self) -> ComPtr<INcString>; }",
-        "interface IService { fn get(&self) -> Option<u32>; }",
         "interface IService { fn get(&self) -> Result<Option<ComBox<INcString>>>; }",
         "interface IService { fn get(&self) -> Result<Option<WeakComPtr<INcString>>>; }",
-        "interface IService { fn get(&self) -> Result<&INcString>; }",
-        "interface IService { fn get(&mut self) -> Option<&INcString>; }",
+        "interface IService { fn get(&self) -> &mut INcString; }",
+        "interface IService { fn get(&self) -> Option<&mut INcString>; }",
+        "interface IService { #[scoped] fn get(&self) -> &INcString; }",
+        "interface IService { #[scoped] fn get(&self) -> Option<u32>; }",
+        "interface IService { #[scoped] fn get(&self) -> u32; }",
         "interface IService { fn get(&self, bytes: &mut [u8]) -> Result<Option<&INcString>>; }",
         "interface IService { fn get(&self, child: ComBox<INcString>) -> Result<Option<&INcString>>; }",
-        "interface IService { fn accept(&self, child: Option<&mut INcString>); }",
+        "interface IService { #[scoped] fn get(&self, bytes: &mut [u8]) -> Result<Option<&INcString>>; }",
         "interface IService { fn accept(&self, child: &mut u32); }",
         "interface IService { fn accept(&self, child: &mut str); }",
         "interface IService { fn get(&self) -> Option<&str>; }",
@@ -221,10 +265,10 @@ fn invalid_direct_and_scoped_forms_reject_before_generation() {
 fn scoped_getter_coexists_with_inherited_with_prefix_method() {
     let graph = resolve(
         "interface IBase { fn with_caption(&self) -> Result<u32>; }
-         interface IDerived: IBase { fn caption(&self) -> Option<&INcString>; }",
+         interface IDerived: IBase { #[scoped] fn caption(&self) -> Option<&INcString>; }",
     )
     .unwrap();
-    assert_eq!(methods(&graph, "IDerived")[0].return_passing, ReturnPassing::ScopedLoan);
+    assert_eq!(methods(&graph, "IDerived")[0].return_passing, ReturnPassing::ScopedLoan { mutable: false });
 }
 
 /// Only native slot differences enter the interface and specialization identities.
@@ -245,6 +289,12 @@ fn native_identity_distinguishes_slots_but_ignores_rust_status_projection() {
             "fn get(&self) -> Result<neocogi::lang::Option<ComPtr<INcString>>>;",
         ),
         ("fn get(&self) -> Option<&INcString>;", "fn get(&self) -> Result<Option<&INcString>>;"),
+        ("fn get(&self) -> u32;", "fn get(&self) -> Result<u32>;"),
+        ("fn get(&mut self) -> &mut INcString;", "fn get(&mut self) -> Result<&mut INcString>;"),
+        (
+            "#[scoped] fn get(&self) -> Option<&INcString>;",
+            "#[scoped] fn get(&self) -> Result<Option<&INcString>>;",
+        ),
     ] {
         let plain = identities(plain);
         let checked = identities(checked);
@@ -255,9 +305,15 @@ fn native_identity_distinguishes_slots_but_ignores_rust_status_projection() {
         identities("fn get(&self, value: &INcString) -> Result<()>;"),
         identities("fn get(&self, value: &mut INcString) -> Result<()>;"),
         identities("fn get(&self, value: Option<&INcString>) -> Result<()>;"),
+        identities("fn get(&self, value: Option<&mut INcString>) -> Result<()>;"),
         identities("fn get(&self) -> Result<ComPtr<INcString>>;"),
         identities("fn get(&self) -> Result<Option<ComPtr<INcString>>>;"),
         identities("fn get(&self) -> Result<Option<&INcString>>;"),
+        identities("fn get(&self) -> Result<&INcString>;"),
+        identities("fn get(&mut self) -> Result<&mut INcString>;"),
+        identities("fn get(&mut self) -> Result<Option<&mut INcString>>;"),
+        identities("#[scoped] fn get(&self) -> Result<Option<&INcString>>;"),
+        identities("#[scoped] fn get(&self) -> Result<Option<&mut INcString>>;"),
     ];
     for first in 0..differing.len() {
         for second in first + 1..differing.len() {

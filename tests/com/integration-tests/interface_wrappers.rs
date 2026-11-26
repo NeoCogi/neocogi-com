@@ -7,7 +7,8 @@ mod test_contracts {
 extern crate self as fixture_weak_com;
 test_contracts::weak_com!();
 
-use neocogi_com_sdk::{com_object, ComPtr, NcStatus, ThreadSafe, NC_E_BUSY, NC_E_CLOSED, NC_E_DROPPED};
+use neocogi_com_sdk::{com_object, ComPtr, NcStatus, ThreadSafe, NC_E_CLOSED};
+use std::cell::Cell;
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
@@ -16,7 +17,7 @@ use std::sync::{
 /// Ordinary provider state; only destruction observation is shared externally.
 struct State {
     /// Explicit logical closure is independent of object ownership.
-    closed: bool,
+    closed: Cell<bool>,
     /// Survives final release so each ownership mode's destruction is observable.
     drops: Arc<AtomicUsize>,
 }
@@ -32,7 +33,7 @@ struct SharedValue {
     state: State,
 }
 
-/// Exclusive weak calls use the same facade but retain their own token policy.
+/// A unique box exposes the same shared receiver methods.
 #[com_object(IDerived, ownership = exclusive)]
 struct ExclusiveValue {
     state: State,
@@ -43,10 +44,10 @@ macro_rules! value_methods {
     ($provider:ty) => {
         impl IValue for $provider {
             fn value(&self) -> Result<u32, NcStatus> {
-                if self.state.closed { Err(NC_E_CLOSED) } else { Ok(42) }
+                if self.state.closed.get() { Err(NC_E_CLOSED) } else { Ok(42) }
             }
-            fn close(&mut self) -> Result<(), NcStatus> {
-                self.state.closed = true;
+            fn close(&self) -> Result<(), NcStatus> {
+                self.state.closed.set(true);
                 Ok(())
             }
         }
@@ -137,7 +138,10 @@ unsafe impl neocogi_com_sdk::ComInterface for OtherDerivedRevision {
 fn shared_identity_queries_retain_once_and_reject_the_last_digest_byte() {
     let drops = Arc::new(AtomicUsize::new(0));
     let root = SharedValue::from_value(SharedValue {
-        state: State { closed: false, drops: drops.clone() },
+        state: State {
+            closed: Cell::new(false),
+            drops: drops.clone(),
+        },
     });
     // SAFETY: COUNTED_TABLE has the exact generated IDerived identity and method
     // thunks for this concrete allocation. Move, rather than duplicate, the root owner.
@@ -179,11 +183,13 @@ fn shared_identity_queries_retain_once_and_reject_the_last_digest_byte() {
 fn boxed_identity_queries_transfer_once_and_reject_the_last_digest_byte() {
     let drops = Arc::new(AtomicUsize::new(0));
     let owner = ExclusiveValue::into_box(ExclusiveValue {
-        state: State { closed: false, drops: drops.clone() },
+        state: State {
+            closed: Cell::new(false),
+            drops: drops.clone(),
+        },
     })
     .query::<IDerivedAbi>()
     .unwrap();
-    let weak = owner.downgrade();
     let original = owner.as_raw();
     let (status, owner) = owner.query::<OtherDerivedRevision>().unwrap_err();
     assert_eq!(status, neocogi_com_sdk::NC_E_ABI_VERSION);
@@ -197,24 +203,24 @@ fn boxed_identity_queries_transfer_once_and_reject_the_last_digest_byte() {
     assert_eq!(drops.load(Ordering::SeqCst), 0);
     drop(owner);
     assert_eq!(drops.load(Ordering::SeqCst), 1);
-    assert_eq!(weak.value(), Err(NC_E_DROPPED));
-    drop(weak);
-    assert_eq!(drops.load(Ordering::SeqCst), 1);
 }
 
-/// Borrowing and inherited mutable lookup never acquire another lifecycle token.
+/// Borrowing and inherited lookup never acquire another lifecycle token.
 #[test]
 fn method_view_reborrows_have_no_lifecycle_traffic() {
     let drops = Arc::new(AtomicUsize::new(0));
     let owner = SharedValue::from_value(SharedValue {
-        state: State { closed: false, drops: drops.clone() },
+        state: State {
+            closed: Cell::new(false),
+            drops: drops.clone(),
+        },
     })
     .query::<IDerivedAbi>()
     .unwrap();
     let raw = owner.into_raw();
     // SAFETY: this table has the exact generated identity, method thunks and
     // allocation type. It consumes the original owner token without retaining.
-    let mut owner = unsafe {
+    let owner = unsafe {
         ComPtr::<IDerivedAbi>::from_raw_owned(neocogi_com_sdk::ComRaw {
             object: raw.object,
             vtable: &COUNTED_TABLE,
@@ -234,8 +240,8 @@ fn method_view_reborrows_have_no_lifecycle_traffic() {
     let named: &IDerivedWrapper = wrapper;
     assert_eq!(named.value(), Ok(42));
     {
-        let mut borrowed = owner.as_com_mut();
-        let base: &mut IValueWrapper = &mut borrowed;
+        let borrowed = owner.as_com_ref();
+        let base: &IValueWrapper = &borrowed;
         assert_eq!(base.value(), Ok(42));
         base.close().unwrap();
         assert_eq!(borrowed.as_raw(), pair);
@@ -260,33 +266,23 @@ impl IShared for SharedCapability {
     }
 }
 
-/// Every mutable inherited call crosses the actual generated ABI and call gate.
+/// Shared receivers can change the same interior state behind either owner.
 #[test]
-fn mutable_inherited_views_preserve_identity_and_lifecycle() {
+fn shared_inherited_views_preserve_identity_and_lifecycle() {
     let drops = Arc::new(AtomicUsize::new(0));
     let local = SharedValue::into_local(SharedValue {
-        state: State { closed: false, drops: drops.clone() },
+        state: State {
+            closed: Cell::new(false),
+            drops: drops.clone(),
+        },
     });
-    let mut owner = local.query::<IDerivedAbi>().unwrap();
+    let owner = local.query::<IDerivedAbi>().unwrap();
     let original = owner.as_raw();
-    assert_eq!(owner.value(), Ok(42));
-    {
-        let held = local.try_borrow().unwrap();
-        assert_eq!(owner.close(), Err(NC_E_BUSY));
-        assert_eq!(owner.as_com_mut().close(), Err(NC_E_BUSY));
-        drop(held);
-        let held = local.try_borrow_mut().unwrap();
-        assert_eq!(owner.value(), Err(NC_E_BUSY));
-        drop(held);
-    }
-    {
-        let mut borrowed = owner.as_com_mut();
-        borrowed.close().unwrap();
-        assert_eq!(borrowed.as_com_ref().value(), Err(NC_E_CLOSED));
-        assert_eq!(borrowed.as_raw(), original);
-        assert_eq!(std::mem::size_of_val(&borrowed), 2 * std::mem::size_of::<usize>());
-    }
-    assert_eq!(owner.as_raw(), original);
+    let borrowed = owner.as_com_ref();
+    assert_eq!(borrowed.as_raw(), original);
+    borrowed.close().unwrap();
+    assert_eq!(local.get().value(), Err(NC_E_CLOSED));
+    assert_eq!(std::mem::size_of_val(&borrowed), 2 * std::mem::size_of::<usize>());
     assert_eq!(std::mem::size_of_val(&*owner), 2 * std::mem::size_of::<usize>());
     assert_eq!(std::mem::align_of_val(&*owner), std::mem::align_of::<usize>());
     assert_eq!(std::mem::size_of::<Option<ComPtr<IDerivedAbi>>>(), std::mem::size_of_val(&owner));
@@ -298,25 +294,19 @@ fn mutable_inherited_views_preserve_identity_and_lifecycle() {
     let exclusive_drops = Arc::new(AtomicUsize::new(0));
     let mut exclusive = ExclusiveValue::into_box(ExclusiveValue {
         state: State {
-            closed: false,
+            closed: Cell::new(false),
             drops: exclusive_drops.clone(),
         },
     })
     .query::<IDerivedAbi>()
     .unwrap();
     let original = exclusive.as_raw();
-    let mut weak = exclusive.downgrade();
-    assert_eq!(weak.value(), Ok(42));
-    weak.close().unwrap();
+    let borrowed = exclusive.as_com_mut();
+    assert_eq!(borrowed.value(), Ok(42));
+    borrowed.close().unwrap();
+    assert_eq!(borrowed.as_raw(), original);
     assert_eq!(exclusive.value(), Err(NC_E_CLOSED));
-    exclusive.close().unwrap();
-    assert_eq!(exclusive.as_raw(), original);
-    assert_eq!(weak.as_raw(), original);
     drop(exclusive);
-    assert_eq!(exclusive_drops.load(Ordering::SeqCst), 1);
-    assert_eq!(weak.value(), Err(NC_E_DROPPED));
-    assert_eq!(weak.close(), Err(NC_E_DROPPED));
-    drop(weak);
     assert_eq!(exclusive_drops.load(Ordering::SeqCst), 1);
 }
 
@@ -331,7 +321,10 @@ fn whole_owner_swaps_and_thread_safe_wrapper_references_remain_valid() {
     let drops = Arc::new(AtomicUsize::new(0));
     let new = || {
         SharedValue::from_value(SharedValue {
-            state: State { closed: false, drops: drops.clone() },
+            state: State {
+                closed: Cell::new(false),
+                drops: drops.clone(),
+            },
         })
         .query::<IDerivedAbi>()
         .unwrap()

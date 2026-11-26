@@ -5,7 +5,7 @@ component ABI. It provides typed COM pointers, generated interface/object
 support, typed plugin roots, and optional API wrappers for
 host-supplied runtime services.
 
-The `0.5.0-wip-alpha.1` SDK uses **provisional ABI v5**.
+The `0.5.0-wip-alpha.1` SDK uses **provisional ABI v4**.
 Published 0.3.0 uses ABI v2/core generation 19.
 
 The [standalone walkthrough](https://github.com/NeoCogi/neocogi-com/blob/v0.4.0/examples/getting-started/README.md)
@@ -84,13 +84,14 @@ impl IObjectChildren for EmptyChildren {
 
 let owner: ComBox<IObjectChildrenAbi> = EmptyChildren::into_box(EmptyChildren).query().unwrap();
 assert_eq!(owner.count().unwrap(), 0);
-let observed = owner.downgrade();
+let loan = owner.as_com_ref();
+assert_eq!(loan.count().unwrap(), 0);
 drop(owner);
-assert!(!observed.is_alive());
 ```
 
 Owners and loans use one generated `IFooWrapper` method view. A live owner's
-`as_com_ref()` lends shared methods, and `as_com_mut()` lends mutable methods.
+`as_com_ref()` lends shared access. A unique box's `as_com_mut()` lends
+exclusive access to the target.
 Both use `pointer.method()` without an interface-specific trait import.
 Derived wrappers lend their physical base wrapper for inherited lookup. Owned
 base projections require checked `QueryInterface`.
@@ -105,8 +106,8 @@ capture implementation support or positional locals. See the
 construct. Handwritten helpers such as `ComStringExt::to_string` remain
 separate because they add bounded copying, allocation, and UTF-8 validation
 rather than duplicate a generated interface method.
-These shared objects contain state, lifetime counters, and one call-borrow guard;
-interfaces add no fields to each allocation. Owners and live loans carry
+Shared objects contain their state and lifetime counters. Interface tables
+add no fields to the allocation. Owners and live loans carry
 `{object, interface_vtable}` (16 bytes on 64-bit targets), while raw calls use
 `ComRaw<T>`. Query changes the table and preserves the object address. Methods
 receive that address directly: there are no embedded headers or owner offsets.
@@ -119,19 +120,14 @@ rustdoc for the architectural rationale, ownership rules, and cost tradeoff.
 
 When the creating binary also needs the concrete implementation, use
 `Implementation::into_local(value)` to obtain `LocalCom<Implementation>`.
-Query and cache COM interfaces from that owner; use `try_borrow()` or
-`try_borrow_mut()` between interface calls to access ordinary Rust fields.
-These guards share the generated COM call gate and report `NC_E_BUSY` on
-conflicting access. They perform no allocation, query, or reference-count
-operation and cannot outlive or escape the threading mode of the local owner.
-Cloning the local handle retains the same allocation. There is no safe downcast
-from an arbitrary foreign interface to a local implementation.
+Query COM interfaces and use `get()` for concrete shared access. A local
+box also provides `get_mut()` from an exclusive borrow of its owner.
 
 `local.downgrade()?` creates a `WeakLocalCom<Implementation>` without retaining
 the implementation. `weak.upgrade()?` returns `Some(LocalCom<Implementation>)`
 while any local or interface strong owner remains, and `None` after final release.
-Promotion acquires ownership without borrowing the value: a busy object still
-upgrades, but conflicting access through its local guards reports `NC_E_BUSY`.
+Promotion acquires ownership. After promotion, `get()` lends the concrete
+value for shared access and the provider controls admission to any guarded field.
 Clone and Debug operate on weak bookkeeping only. Threading and concrete Rust
 type restrictions remain those of the original local owner; a foreign weak
 interface cannot be converted into a typed local handle. To pass a weak reference
@@ -175,8 +171,8 @@ These values remain usable independently of subsequent catalog lookups.
 
 ## Boundary rules
 
-- Methods return `Result<T, NcStatus>`; `Result<()>` is the status-only form.
-- Mutable operations use `&mut self` and the generated exclusive call gate.
+- Checked methods use `Result<T, NcStatus>`. Unit uses a status-only native slot.
+- Whole-value mutation requires an exclusive receiver. Shared receivers can use Rust interior mutability.
 - Use fixed-width ABI values and generated records/enums.
 - Use `ComRef<'_, IFooAbi>` for shared loans, `ComMut<'_, IFooAbi>` for mutable
   loans, and `ComPtr<IFooAbi>` for shared-owner returns.
@@ -188,10 +184,10 @@ These values remain usable independently of subsequent catalog lookups.
   signature. Declaration names/versions are inputs to IDL identity and
   signature generation; plugin release-version text is diagnostic.
 
-Objects are thread-local by default. An IDL interface declared with
-`#[threading(shared)]` produces `ComPtr<T, ThreadSafe>` and its implementation must satisfy
-`Send + Sync`. A safe pointer may be weakened to thread-local; it cannot be
-upgraded.
+Objects are thread-local by default. NCIDL supports send-only, sync-only
+and combined evidence. The generated provider must satisfy the matching
+Rust trait bounds. Shared ownership crosses threads only with both
+guarantees. Read loans require Sync to cross threads.
 
 ## IDL implementation and factory plugin
 
@@ -270,7 +266,7 @@ release version, static/dynamic origin, single `FactoryInfo` and hard dependency
 GUIDs. `RuntimeHandle::plugins()` returns these complete owned records in registration
 order, without separate factory or dependency queries. Repeated provider loads reuse the
 first registration and origin; conflicting providers are rejected. See
-[runtime ABI v5](../../docs/abi.md#runtime-and-global-registry).
+[runtime ABI v4](../../docs/abi.md#runtime-and-global-registry).
 
 Inspection is a separate operation that can report errors without registering
 or acquiring a plugin factory. Its fallible result does not make live loading optional.
@@ -378,11 +374,9 @@ there are no cyclic constructors or unpublished-value promotion states. See
 [the construction contract](https://github.com/NeoCogi/neocogi-com/blob/v0.4.0/docs/contracts/COM_OBJECT_CONSTRUCTION.md).
 Factories always remain shared.
 
-Exclusive providers use `into_box` to construct a non-clonable `ComBox`. `WeakComBox` caches its interface table and accesses the
-provider through checked call entries, without promoting to a shared owner.
-Factories can return boxes and containers can consume them through generated
-ABI methods. Ordinary shared services continue using `ComPtr`. See
-the ownership rationale.
+Exclusive providers use `into_box` to construct a unique `ComBox`. It lends
+shared or exclusive interface access while its owner remains borrowed.
+Dropping the owner destroys the value and releases its storage in the provider.
 
 ## Lifetime failure categories
 

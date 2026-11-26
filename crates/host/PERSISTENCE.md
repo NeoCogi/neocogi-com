@@ -73,7 +73,7 @@ Persistence is implemented in `neocogi-com-host` and called through
 `NcPersistenceApi`, supplied in the admitted host API description. Enable the
 facade's `runtime` feature for callers. The application links the host rlib and passes
 its access to registry creation and capture.
-WIP ABI v5 identifies the current table layouts and
+WIP ABI v4 identifies the current table layouts and
 calling/ownership contract; these remain provisional until release freeze.
 The explicit codec requirement adds no table field, callback, interface signature or NCB-v1
 wire change. COM `0.2.0` embedded the codec; applications upgrading must now

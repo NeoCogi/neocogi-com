@@ -2,6 +2,7 @@
 pub mod contract;
 #[cfg(test)]
 mod tests {
+    use std::cell::RefCell;
     use super::contract::*;
     use neocogi_com_sdk::{com_object, ComPtr, ComValue, NcValueRef, NcStatus, NcCopyFromBufferOffset, NC_E_INVALID_TAG, NC_E_INVALID_ARG};
 
@@ -12,38 +13,38 @@ mod tests {
         /// Returns a value after the producer has released its handle.
         fn value(&self) -> Result<u32, NcStatus> { Ok(42) }
     }
-    /// Application ownership is explicit and mutated only through exclusive methods.
+    /// Shared receiver methods retain owned fields under their own mutation rules.
     #[com_object(IValues)]
     struct Values {
         /// Independently retained optional capabilities, surviving the producer call.
-        tokens: Vec<ComPtr<ITokenAbi>>,
+        tokens: RefCell<Vec<ComPtr<ITokenAbi>>>,
         /// Complete text snapshots decoded from ordinary active variants.
-        text: Vec<String>,
+        text: RefCell<Vec<String>>,
     }
     impl IValues for Values {
         /// Copied results use the same checked enum wire as copied arguments.
-        fn number(&mut self, value: MaybeCount) -> Result<MaybeCount, NcStatus> { Ok(value) }
+        fn number(&self, value: MaybeCount) -> Result<MaybeCount, NcStatus> { Ok(value) }
         /// Acquires text only from the selected payload, with ordinary value budgets.
-        fn text(&mut self, value: NcValueRef<'_, MaybeText>) -> Result<(), NcStatus> {
-            match value.to_owned()? { MaybeText::None => {}, MaybeText::Some(text) => self.text.push(text) }
+        fn text(&self, value: NcValueRef<'_, MaybeText>) -> Result<(), NcStatus> {
+            match value.to_owned()? { MaybeText::None => {}, MaybeText::Some(text) => self.text.borrow_mut().push(text) }
             Ok(())
         }
         /// Retains the supplied object through the explicit owned payload codec.
-        fn capability(&mut self, value: NcValueRef<'_, MaybeToken>) -> Result<u32, NcStatus> {
+        fn capability(&self, value: NcValueRef<'_, MaybeToken>) -> Result<u32, NcStatus> {
             match value.to_owned()? {
                 MaybeToken::None => Ok(0),
-                MaybeToken::Some(token) => { let result = token.value()?; self.tokens.push(token); Ok(result) },
+                MaybeToken::Some(token) => { let result = token.value()?; self.tokens.borrow_mut().push(token); Ok(result) },
             }
         }
         /// Input buffer elements have already passed the copied enum decoder.
-        fn flags(&mut self, values: NcCopyFromBufferOffset<'_, MaybeFlag>) -> Result<u32, NcStatus> { Ok(values.len() as u32) }
+        fn flags(&self, values: NcCopyFromBufferOffset<'_, MaybeFlag>) -> Result<u32, NcStatus> { Ok(values.len() as u32) }
     }
 
     /// Both absence and presence survive copied results, owned snapshots, and typed COM storage.
     #[test]
     fn ordinary_option_calls_preserve_values_and_receiver_ownership() {
-        let local = Values::into_local(Values { tokens: vec![], text: vec![] });
-        let mut interface: ComPtr<IValuesAbi> = local.query().unwrap();
+        let local = Values::into_local(Values { tokens: RefCell::default(), text: RefCell::default() });
+        let interface: ComPtr<IValuesAbi> = local.query().unwrap();
         for input in [MaybeCount::None, MaybeCount::Some(7)] {
             assert_eq!(interface.number(input).unwrap(), input);
         }
@@ -56,14 +57,14 @@ mod tests {
         assert_eq!(interface.capability(NcValueRef::new(&MaybeToken::None).unwrap()).unwrap(), 0);
         let flags = [MaybeFlag::None, MaybeFlag::Some(true)];
         assert_eq!(interface.flags(NcCopyFromBufferOffset::new(0, &flags)).unwrap(), 2);
-        assert_eq!(local.try_borrow().unwrap().tokens[0].value().unwrap(), 42);
-        assert_eq!(local.try_borrow().unwrap().text, ["retained"]);
+        assert_eq!(local.get().tokens.borrow()[0].value().unwrap(), 42);
+        assert_eq!(*local.get().text.borrow(), ["retained"]);
     }
 
     /// No nullable-pointer shortcut or unchecked active enum payload survives lowering.
     #[test]
     fn invalid_optional_tags_are_rejected_by_generated_thunks() {
-        let local = Values::into_local(Values { tokens: vec![], text: vec![] });
+        let local = Values::into_local(Values { tokens: RefCell::default(), text: RefCell::default() });
         let interface: ComPtr<IValuesAbi> = local.query().unwrap();
         let mut raw = MaybeCount::None.encode_value(&mut Default::default()).unwrap().0;
         raw.tag = 9;

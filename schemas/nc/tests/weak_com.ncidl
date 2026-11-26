@@ -4,7 +4,7 @@ interface IValue {
     /// Reads only while the domain is open.
     fn value(&self) -> Result<u32>;
     /// Logically closes a retained object without changing COM lifetime.
-    fn close(&mut self) -> Result<()>;
+    fn close(&self) -> Result<()>;
 }
 
 #[id("ec2fde94-50bc-55c7-96d0-6fac60425d4f")]
@@ -17,6 +17,6 @@ interface IDerived: IValue {
 #[threading(shared)]
 /// Minimal shared contract used to race final release with promotion.
 interface IShared {
-    /// Reads the initialized object under its ordinary shared COM call gate.
+    /// Reads the initialized object through a live shared receiver.
     fn value(&self) -> Result<u32>;
 }

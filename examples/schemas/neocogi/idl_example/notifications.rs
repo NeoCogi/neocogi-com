@@ -24,7 +24,7 @@ impl ExtentDelivery {
     }
     /// Sends a copied domain fact after the caller commits the new dimensions.
     /// Receiver errors propagate without rolling back producer state.
-    pub fn changed(&mut self, extent: Extent) -> Result<(), NcStatus> {
+    pub fn changed(&self, extent: Extent) -> Result<(), NcStatus> {
         match self {
             Self::Unobserved => Ok(()),
             Self::Observed { observer, source } => {

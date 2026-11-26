@@ -18,8 +18,8 @@ pub struct ObjectArgs {
     pub interfaces: Vec<ObjectInterface>,
     /// Constructor and call-lifetime policy fixed for every instance of this class.
     pub ownership: ObjectOwnership,
-    /// Whether generated object storage may be shared across threads.
-    pub thread_safe: bool,
+    /// Threading evidence declared by an explicit-list provider.
+    pub threading: InterfaceThreading,
     /// Optional path overriding automatic `neocogi-com-sdk` crate discovery.
     pub runtime_crate: Option<Path>,
     /// Optional generated ABI path for a factory-created interface contract.
@@ -31,7 +31,7 @@ pub struct ObjectArgs {
 pub enum ObjectOwnership {
     /// Strong references keep the implementation alive throughout each call.
     Shared,
-    /// One owner controls retirement; weak calls need temporary admission.
+    /// One owner lends access and destroys the value after its borrows end.
     Exclusive,
 }
 
@@ -42,6 +42,10 @@ pub enum InterfaceThreading {
     Local,
     /// References and calls may cross threads.
     Shared,
+    /// Move the target or its exclusive loan across threads.
+    Send,
+    /// Lend shared access across threads without moving the target.
+    Sync,
 }
 
 /// Generated contract and statically typed provider paths for one object interface.
@@ -79,7 +83,7 @@ impl Parse for ObjectArgs {
     /// of those interfaces and defaults to shared; an implementation can select exclusive.
     fn parse(input: ParseStream<'_>) -> Result<Self> {
         let mut interfaces = None;
-        let mut thread_safe = false;
+        let mut threading = None;
         let mut runtime_crate = None;
         let mut primary = None;
         let mut ownership = None;
@@ -89,7 +93,11 @@ impl Parse for ObjectArgs {
             let starts_named_path = if input.peek(Ident) {
                 let lookahead = input.fork();
                 let candidate: Ident = lookahead.parse()?;
-                lookahead.peek(Token![::]) || !matches!(candidate.to_string().as_str(), "interfaces" | "thread_safe" | "neocogi_com" | "ownership")
+                lookahead.peek(Token![::])
+                    || !matches!(
+                        candidate.to_string().as_str(),
+                        "interfaces" | "thread_safe" | "thread_send" | "thread_sync" | "neocogi_com" | "ownership"
+                    )
             } else {
                 false
             };
@@ -116,11 +124,21 @@ impl Parse for ObjectArgs {
                 let paths = content.parse_terminated(Path::parse_mod_style, Token![,])?;
                 validate_object_interface_paths(paths.iter())?;
                 interfaces = Some(paths.into_iter().map(ObjectInterface::from_path).collect::<Result<Vec<_>>>()?);
-            } else if keyword == "thread_safe" {
-                if thread_safe {
-                    return Err(syn::Error::new(keyword.span(), "duplicate thread_safe"));
+            } else if keyword == "thread_safe" || keyword == "thread_send" || keyword == "thread_sync" {
+                if let Some((_, previous)) = &threading {
+                    let message = if previous == &keyword {
+                        format!("duplicate {keyword}")
+                    } else {
+                        "declare one threading mode for the object".into()
+                    };
+                    return Err(syn::Error::new(keyword.span(), message));
                 }
-                thread_safe = true;
+                let mode = match keyword.to_string().as_str() {
+                    "thread_safe" => InterfaceThreading::Shared,
+                    "thread_send" => InterfaceThreading::Send,
+                    _ => InterfaceThreading::Sync,
+                };
+                threading = Some((mode, keyword));
             } else if keyword == "ownership" {
                 if ownership.is_some() {
                     return Err(syn::Error::new(keyword.span(), "duplicate ownership = ..."));
@@ -141,7 +159,7 @@ impl Parse for ObjectArgs {
             } else {
                 return Err(syn::Error::new(
                     keyword.span(),
-                    "expected a primary interface path, interfaces(...), ownership = shared/exclusive, thread_safe, or neocogi_com = path",
+                    "expected a primary interface path, interfaces(...), ownership = shared/exclusive, a threading mode, or neocogi_com = path",
                 ));
             }
 
@@ -156,10 +174,10 @@ impl Parse for ObjectArgs {
         let interfaces_were_declared = interfaces.is_some();
         let mut interfaces = interfaces.unwrap_or_default();
         if let Some(selected) = primary.clone() {
-            if thread_safe {
+            if let Some((_, mode)) = &threading {
                 return Err(syn::Error::new(
                     input.span(),
-                    "the primary interface owns its threading promise; remove thread_safe",
+                    format!("the primary interface owns its threading promise; remove {mode}"),
                 ));
             }
             let primary = ObjectInterface::from_path(selected)?;
@@ -175,7 +193,7 @@ impl Parse for ObjectArgs {
 
         Ok(Self {
             interfaces,
-            thread_safe,
+            threading: threading.map_or(InterfaceThreading::Local, |(mode, _)| mode),
             runtime_crate,
             primary_interface,
             ownership: ownership.unwrap_or(ObjectOwnership::Shared),

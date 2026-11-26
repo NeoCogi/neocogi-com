@@ -13,12 +13,12 @@ fn unit_values_use_checked_storage_in_copied_calls() {
         struct StoredEmpty { empty: [(); 0] }
         interface IUnits {
             fn status(&self) -> Result<()>;
-            fn completion(&mut self, value: Completion) -> Result<Completion>;
+            fn completion(&self, value: Completion) -> Result<Completion>;
             fn optional(&self, value: Option<()>) -> Result<Option<()>>;
-            fn mixed(&mut self, value: Mixed) -> Result<Mixed>;
+            fn mixed(&self, value: Mixed) -> Result<Mixed>;
             fn arrays(&self, value: Arrays) -> Result<Arrays>;
             fn direct(&self, value: [(); 2]) -> Result<[(); 2]>;
-            fn buffers(&mut self, input: &[()], output: &mut [()]) -> Result<()>;
+            fn buffers(&self, input: &[()], output: &mut [()]) -> Result<()>;
             fn finish(&self, output: &mut [Completion]) -> Result<ComPtr<IUnknown>>;
         }
     "#;

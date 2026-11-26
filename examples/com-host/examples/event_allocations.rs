@@ -68,7 +68,7 @@ fn count(operation: impl FnOnce()) -> usize {
 }
 
 /// Emits and drains scalar events; assertion formatting only runs on a failure.
-fn deliver(object: &mut ComPtr<ExampleObjectAbi>, messages: &std::sync::mpsc::Receiver<neocogi_example_com_host::contracts::ExtentNotification>) {
+fn deliver(object: &ComPtr<ExampleObjectAbi>, messages: &std::sync::mpsc::Receiver<neocogi_example_com_host::contracts::ExtentNotification>) {
     for width in 0..10_000 {
         object.resize(Extent { width, height: 1 }).unwrap();
         let message = messages.try_recv().unwrap();
@@ -96,7 +96,7 @@ fn main(runtime: RuntimeHandle) {
         .acquire_plugin_root::<ExampleFactoryAbi>(guid_from_qualified_name("nc.examples.factory_plugin_component"))
         .unwrap();
     let unobserved = neocogi_example_com_host::contracts::ExtentBinding::Unobserved;
-    let mut silent = factory.create(Extent { width: 0, height: 0 }, NcValueRef::new(&unobserved).unwrap()).unwrap();
+    let silent = factory.create(Extent { width: 0, height: 0 }, NcValueRef::new(&unobserved).unwrap()).unwrap();
     let silent_delivery = count(|| {
         for width in 0..10_000 {
             silent.resize(Extent { width, height: 1 }).unwrap();
@@ -108,8 +108,8 @@ fn main(runtime: RuntimeHandle) {
     let binding = count(|| inbox = Some(notification_channel::channel()));
     let (queue, messages) = inbox.unwrap();
     let events = neocogi_example_com_host::contracts::ExtentBinding::Observed(queue);
-    let mut object = factory.create(Extent { width: 0, height: 0 }, NcValueRef::new(&events).unwrap()).unwrap();
-    let delivery = count(|| deliver(&mut object, &messages));
+    let object = factory.create(Extent { width: 0, height: 0 }, NcValueRef::new(&events).unwrap()).unwrap();
+    let delivery = count(|| deliver(&object, &messages));
     println!("common receiver and channel: {binding} allocations");
     println!("10,000 scalar events including channel storage: {delivery} allocations");
 }

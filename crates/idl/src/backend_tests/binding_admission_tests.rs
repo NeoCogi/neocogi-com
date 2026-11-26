@@ -337,15 +337,15 @@ fn native_compatible_projection_changes_reach_transitive_rust_imports() {
 }
 
 /// Independent bindings exercise scoped dispatch through live first-base loans.
-/// Unrelated or secondary projections, weak sources and escaping loans fail.
+/// Unrelated or secondary projections, unborrowed sources and escaping loans fail.
 #[test]
 fn scoped_marker_requires_a_live_first_base_lender_and_a_scoped_visitor() {
     let contract = "
         interface Loan { fn value(&self) -> Result<u32>; }
         interface Base {
-            fn tooltip(&self, visible: bool) -> Option<&Loan>;
-            fn checked(&self, state: u32) -> Result<Option<&Loan>>;
-            fn update(&mut self) -> Result<()>;
+            #[scoped] fn tooltip(&self, visible: bool) -> Option<&Loan>;
+            #[scoped] fn checked(&self, state: u32) -> Result<Option<&Loan>>;
+            fn update(&self) -> Result<()>;
         }
         interface Derived: Base { fn with_tooltip(&self) -> Result<u32>; }
         interface Unrelated {}
@@ -361,28 +361,42 @@ fn scoped_marker_requires_a_live_first_base_lender_and_a_scoped_visitor() {
         r#"
         use binding_helper::selected::*;
         pub use binding_helper::selected::DerivedAbi;
-        use neocogi_com_sdk::{com_object, ComPtr, ComRef, LocalCom, NcStatus, NC_E_CLOSED};
+        use neocogi_com_sdk::{com_object, ComPtr, ComRef, LocalCom, NcStatus, NC_E_BUSY, NC_E_CLOSED};
+        use std::cell::RefCell;
 
         #[com_object(Loan)] struct Tip;
         impl Loan for Tip {
             fn value(&self) -> Result<u32, NcStatus> { Ok(23) }
         }
-        #[com_object(Derived)] pub struct Probe(ComPtr<LoanAbi>);
+        #[com_object(Derived)] pub struct Probe(RefCell<ComPtr<LoanAbi>>);
         impl Base for Probe {
-            fn tooltip(&self, visible: bool) -> Option<ComRef<'_, LoanAbi>> {
-                visible.then(|| self.0.as_com_ref())
+            fn tooltip<R>(&self, visible: bool, lend: impl for<'a> FnOnce(Option<ComRef<'a, LoanAbi>>) -> R) -> R {
+                match self.0.try_borrow() {
+                    Ok(tip) => lend(visible.then(|| tip.as_com_ref())),
+                    Err(_) => lend(None),
+                }
             }
-            fn checked(&self, state: u32) -> Result<Option<ComRef<'_, LoanAbi>>, NcStatus> {
-                if state == 2 { return Err(NC_E_CLOSED); }
-                Ok(self.tooltip(state == 1))
+            fn checked<R>(&self, state: u32, lend: impl for<'a> FnOnce(Result<Option<ComRef<'a, LoanAbi>>, NcStatus>) -> R) -> R {
+                if state == 2 { return lend(Err(NC_E_CLOSED)); }
+                match self.0.try_borrow() {
+                    Ok(tip) => lend(Ok((state == 1).then(|| tip.as_com_ref()))),
+                    Err(_) => lend(Err(NC_E_BUSY)),
+                }
             }
-            fn update(&mut self) -> Result<(), NcStatus> { Ok(()) }
+            fn update(&self) -> Result<(), NcStatus> {
+                let _tip = self.0.try_borrow_mut().map_err(|_| NC_E_BUSY)?;
+                Ok(())
+            }
         }
         impl Derived for Probe {
             fn with_tooltip(&self) -> Result<u32, NcStatus> { Ok(47) }
         }
         pub fn local() -> LocalCom<Probe> {
-            Probe::into_local(Probe(Tip::from_value(Tip).query().unwrap()))
+            Probe::into_local(Probe(RefCell::new(Tip::from_value(Tip).query().unwrap())))
+        }
+        pub fn with_writer<R>(local: &LocalCom<Probe>, run: impl FnOnce() -> R) -> R {
+            let _tip = local.get().0.borrow_mut();
+            run()
         }
         "#,
     );
@@ -413,7 +427,7 @@ fn scoped_marker_requires_a_live_first_base_lender_and_a_scoped_visitor() {
             let local = binding_provider::local();
             let base = local.query::<BaseAbi>().unwrap();
             let derived = local.query::<DerivedAbi>().unwrap();
-            let mut writer = derived.clone();
+            let writer = derived.clone();
             assert_eq!(BaseAbi::with_tooltip::<neocogi_com_sdk::ThreadLocal, _>(base.as_com_ref(), true, |tip| tip.value()), Some(Ok(23)));
 
             let raw = derived.as_raw();
@@ -435,10 +449,10 @@ fn scoped_marker_requires_a_live_first_base_lender_and_a_scoped_visitor() {
             assert_eq!(BaseAbi::with_checked(source, 1, |tip| tip.value()), Ok(Some(Ok(23))));
             assert_eq!(BaseAbi::with_checked(source, 2, |_| panic!("unexpected failed delivery")), Err::<Option<()>, _>(NC_E_CLOSED));
 
-            // A live writer makes the real provider thunk return a raw status.
-            let _active_writer = local.try_borrow_mut().unwrap();
-            assert_eq!(BaseAbi::with_tooltip(source, true, |_| panic!("busy direct delivery")), None::<()>);
-            assert_eq!(BaseAbi::with_checked(source, 1, |_| panic!("busy checked delivery")), Err::<Option<()>, _>(NC_E_BUSY));
+            binding_provider::with_writer(&local, || {
+                assert_eq!(BaseAbi::with_tooltip(source, true, |_| panic!("busy direct delivery")), None::<()>);
+                assert_eq!(BaseAbi::with_checked(source, 1, |_| panic!("busy checked delivery")), Err::<Option<()>, _>(NC_E_BUSY));
+            });
             assert_eq!(QUERIES.load(Relaxed), 0);
             assert_eq!(RETAINS.load(Relaxed), 0);
         }
@@ -450,7 +464,7 @@ fn scoped_marker_requires_a_live_first_base_lender_and_a_scoped_visitor() {
     let imports = "
         mod value;
         use value::{BaseAbi, LoanAbi, UnrelatedAbi, SecondaryAbi};
-        use neocogi_com_sdk::{ComRef, WeakComBox};
+        use neocogi_com_sdk::{ComRef, ComPtr};
     ";
     for (declaration, error) in [
         (
@@ -466,7 +480,7 @@ fn scoped_marker_requires_a_live_first_base_lender_and_a_scoped_visitor() {
             "E0271",
         ),
         (
-            "pub fn reject(source: WeakComBox<BaseAbi>) { BaseAbi::with_tooltip(source, true, |_| ()); }",
+            "pub fn reject(source: ComPtr<BaseAbi>) { BaseAbi::with_tooltip(source, true, |_| ()); }",
             "E0308",
         ),
         (
@@ -533,10 +547,7 @@ fn imported_interface_identity_rejects_stale_markers() {
             "exclusive transfer",
             "interface Service { fn value(&self, value: ComBox<proof::value::Base>) -> Result<ComBox<proof::value::Base>>; }",
         ),
-        (
-            "exclusive weak result",
-            "interface Service { fn value(&self) -> Result<WeakComBox<proof::value::Base>>; }",
-        ),
+        ("receiver-bound result", "interface Service { fn value(&self) -> Result<&proof::value::Base>; }"),
     ] {
         fixture.provider(CURRENT_BASE, &format!("extern proof.value; {source}"), "binding_helper::selected", "");
         fixture.rejected(label, "proof.value.Base");
@@ -613,22 +624,28 @@ fn inherited_calls_use_checked_marker_associations_instead_of_stale_names() {
         r#"
         pub mod service;
         #[test] fn inherited_and_queried_calls_agree() {
-            let root = binding_provider::root();
-            let mut derived = root.query::<service::ServiceAbi>().unwrap();
-            let mut base = root.query::<binding_helper::selected::BaseAbi>().unwrap();
-            assert_eq!((derived.height().unwrap(), derived.width().unwrap()), (3, 4));
-            assert_eq!((base.height().unwrap(), base.width().unwrap()), (3, 4));
-            derived.set(19).unwrap();
-            assert_eq!((derived.height().unwrap(), base.height().unwrap()), (19, 19));
-            base.set(23).unwrap();
-            assert_eq!(derived.height().unwrap(), 23);
+            use binding_helper::selected::BaseAbi;
+            use neocogi_com_sdk::{ComBox, IUnknown};
+            use service::ServiceAbi;
+
+            let mut root = binding_provider::root();
+            let dimensions = |root: &ComBox<IUnknown>| {
+                let derived = root.query_ref::<ServiceAbi>().unwrap();
+                let base = root.query_ref::<BaseAbi>().unwrap();
+                ((derived.height().unwrap(), derived.width().unwrap()), (base.height().unwrap(), base.width().unwrap()))
+            };
+            assert_eq!(dimensions(&root), ((3, 4), (3, 4)));
+            root.query_mut::<ServiceAbi>().unwrap().set(19).unwrap();
+            assert_eq!(dimensions(&root), ((19, 4), (19, 4)));
+            root.query_mut::<BaseAbi>().unwrap().set(23).unwrap();
+            assert_eq!(dimensions(&root), ((23, 4), (23, 4)));
         }
     "#,
     );
     for printed in [false, true] {
         let object = if printed {
             let expanded = crate::codegen::expand_com_object(
-                syn::parse_quote!(service::Service),
+                syn::parse_quote!(service::Service, ownership = exclusive),
                 syn::parse_quote!(
                     struct Counter {
                         height: u32,
@@ -637,7 +654,7 @@ fn inherited_calls_use_checked_marker_associations_instead_of_stale_names() {
             );
             prettyplease::unparse(&syn::parse2(expanded).unwrap())
         } else {
-            "#[neocogi_com_sdk::com_object(service::Service)] struct Counter { height: u32 }".to_owned()
+            "#[neocogi_com_sdk::com_object(service::Service, ownership = exclusive)] struct Counter { height: u32 }".to_owned()
         };
         fixture.provider(
             &current,
@@ -652,7 +669,7 @@ fn inherited_calls_use_checked_marker_associations_instead_of_stale_names() {
                 fn width(&self) -> Result<u32, neocogi_com_sdk::NcStatus> {{ Ok(4) }}
             }}
             impl service::Service for Counter {{}}
-            pub fn root() -> neocogi_com_sdk::ComPtr<neocogi_com_sdk::IUnknown> {{ Counter::from_value(Counter {{ height: 3 }}) }}
+            pub fn root() -> neocogi_com_sdk::ComBox<neocogi_com_sdk::IUnknown> {{ Counter::into_box(Counter {{ height: 3 }}) }}
         "#
             ),
         );

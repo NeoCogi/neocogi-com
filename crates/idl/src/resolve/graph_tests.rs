@@ -57,9 +57,8 @@ fn assert_same_identities(first: &ResolvedModules, second: &ResolvedModules) {
     }
 }
 
-/// Canonical v15 digests for a diamond, an unused external edge and a
-/// disconnected component,
-/// including canonical ordering when source dependency/input order differs.
+/// Canonical v16 digests for a diamond, an unused external edge and a
+/// disconnected component, including canonical ordering when source inputs differ.
 #[test]
 fn authored_graph_fingerprints_match_the_current_encoding() {
     let mut modules = [
@@ -77,11 +76,11 @@ fn authored_graph_fingerprints_match_the_current_encoding() {
     let reversed = resolve_modules(modules).unwrap();
     assert_same_identities(&first, &reversed);
     for (name, expected) in [
-        ("proof.idle", "dcaacc3398fb144fcaf70aa1b986053538edb201688d3e9e1f11af92502c55d5"),
-        ("proof.leaf", "e19dcbb12e21022c273f7ce1cbfef28c3c0d24cf797e99fbbed138d6a98c2681"),
-        ("proof.left", "4295302027c6e7c17466f177ec3a67cc11539a0cea11fab8f4be46b4dfd8c9b5"),
-        ("proof.right", "86fef0f479c7db6497778569c19db41779e39a74e0f43bd9dad4f5eb0ddacfe9"),
-        ("proof.root", "955e0163c7fdc01fcaae0687109cf6ac8afb40328b301827caad244a7d2ebce3"),
+        ("proof.idle", "53510d025e98e3a959013e3cf44d02a5a0b796ac6f556a44b7b1a2c3cfb03d25"),
+        ("proof.leaf", "fa3e1138b531142aec563346361a7a2510473ce3e303ffc416cc6d6d02748de7"),
+        ("proof.left", "637d3434f6c2e978a74685c19e3d0c3a6d22a9dcac23a3e8e6a1a184ab02e271"),
+        ("proof.right", "ff0a70685c7264015276623f56f248a950f41aa12909628e4a3ca7a52d2c8158"),
+        ("proof.root", "b686fa46244c45da7b651ec066cc722a875ecd6c2d39f85fdb06589119ab3e9c"),
     ] {
         assert_eq!(first.module(name).unwrap().fingerprint_hex(), expected, "{name}");
     }

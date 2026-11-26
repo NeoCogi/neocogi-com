@@ -5,7 +5,7 @@ runtime. Its default configuration is allocation-free; optional `alloc` helpers
 own decoded values and binary documents. Most authors use the `neocogi-com-sdk`
 facade. The [current object ABI](../../docs/abi.md) remains experimental.
 
-The `0.5.0-wip-alpha.1` SDK uses **provisional ABI v5**.
+The `0.5.0-wip-alpha.1` SDK uses **provisional ABI v4**.
 Published 0.3.0 uses ABI v2/core generation 19.
 
 Core defines statuses, GUIDs, exact signatures, typed metadata, raw object/table pairs
@@ -15,12 +15,12 @@ provider's typed Rust acquisition function supplies its exact contract and
 initializes private object state without separate bootstrap or role traits.
 
 Common-lifetime providers choose `NcSharedLifetimeState` or
-`NcBoxedLifetimeState`. The shared header has a numeric `strong_count`; the boxed
-header has `owner_and_borrows`. Each has its own `weak_count` and leading immutable
-`NcObjectTypeInfo` pointer. Construction and ABI ownership contracts establish the
-matching header; the four-word metadata record has no ownership tag. Checked raw
-adoption validates interfaces and releases only that declared policy. Cleanup
-remains in the allocating provider.
+`NcBoxedLifetimeState`. Shared allocations count strong and weak
+references. A boxed allocation starts with its metadata pointer and
+has one owner. Construction and the ABI slot identify the backing.
+The four-word type information contains exact tables and cleanup
+callbacks. Checked adoption preserves the declared ownership policy,
+and the allocating provider performs cleanup.
 
 Consumers generate Rust bindings and fixed signatures from shared IDL sources
 in their own crates. They can instead import bindings exposed by an existing
@@ -30,7 +30,7 @@ required. The IDL build helper hashes the complete transitive graph and derives
 each declaration's final 32 bytes. Core compares those bytes at factory/interface
 boundaries and does not hash or reconstruct an IDL graph.
 
-Plugin descriptor ABI v5 publishes plugin identity/version, hard dependencies,
+Plugin descriptor ABI v4 publishes plugin identity/version, hard dependencies,
 full root-factory IID/signature, threading, and one acquisition bootstrap.
 The safe Rust acquisition function takes the host-supplied `RuntimeHandle`; its raw
 C adapter takes a host API pointer and a caller-owned factory output slot.
@@ -43,7 +43,7 @@ bootstrap function or live factory reference. These records have different roles
 and do not own the storage behind their pointers.
 
 Runtime discovery supplies three tables: complete plugin operations, debug,
-and persistence. See [runtime ABI v5](../../docs/abi.md#runtime-and-global-registry) for descriptor
+and persistence. See [runtime ABI v4](../../docs/abi.md#runtime-and-global-registry) for descriptor
 lifetimes, inspection and acquisition, and the
 [ABI specification entrypoint](../../docs/abi.md) for object layouts.
 
@@ -310,11 +310,9 @@ there are no cyclic constructors or unpublished-value promotion states. See
 [the construction contract](https://github.com/NeoCogi/neocogi-com/blob/v0.4.0/docs/contracts/COM_OBJECT_CONSTRUCTION.md).
 Factories always remain shared.
 
-Exclusive providers use `into_box` to construct a non-clonable `ComBox`. `WeakComBox` caches its interface table and accesses the
-provider through checked call entries, without promoting to a shared owner.
-Factories can return boxes and containers can consume them through generated
-ABI methods. Ordinary shared services continue using `ComPtr`. See
-the ownership rationale.
+Exclusive providers use `into_box` to construct a unique `ComBox`. It lends
+shared or exclusive interface access while its owner remains borrowed.
+Dropping the owner destroys the value and releases its storage in the provider.
 
 ## Lifetime failure categories
 

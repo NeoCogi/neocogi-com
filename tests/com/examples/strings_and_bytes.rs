@@ -10,39 +10,39 @@ mod bindings {
 }
 use bindings::*;
 
-/// A local stream whose generated mutable receiver admits one cursor update at a time.
+/// A local byte stream with an independent cursor.
 #[com_object(interfaces(IByteStream))]
 pub struct MemoryByteStream {
     /// Immutable source copied into independently owned byte chunks.
     bytes: Vec<u8>,
     /// Next unread byte, always at most bytes.len(); equality is terminal EOF.
-    offset: usize,
+    offset: std::cell::Cell<usize>,
 }
 
 impl MemoryByteStream {
     /// Owns the complete source and returns its checked stream projection.
     fn create_stream(bytes: Vec<u8>) -> ComPtr<IByteStreamAbi> {
-        let unknown: ComPtr<IUnknown> = MemoryByteStream::from_value(Self { bytes, offset: 0 });
+        let unknown: ComPtr<IUnknown> = MemoryByteStream::from_value(Self { bytes, offset: std::cell::Cell::new(0) });
         unknown.query::<IByteStreamAbi>().expect("MemoryByteStream exposes IByteStream")
     }
 }
 
 impl IByteStream for MemoryByteStream {
-    /// Copies an admitted prefix and advances only while the writer gate is held.
-    fn next_chunk(&mut self, max_len: u64) -> Result<ComPtr<INcBytesAbi>, NcStatus> {
+    /// Copies a prefix and advances its cursor without calling outside the object.
+    fn next_chunk(&self, max_len: u64) -> Result<ComPtr<INcBytesAbi>, NcStatus> {
         // Zero remains invalid at EOF and must never advance the cursor.
         if max_len == 0 {
             return Err(NC_E_EXAMPLE_INVALID_ARG);
         }
 
-        let start = self.offset;
+        let start = self.offset.get();
         if start >= self.bytes.len() {
             return Ok(NcBytes::from_vec(Vec::new()));
         }
 
         let requested = if max_len > usize::MAX as u64 { usize::MAX } else { max_len as usize };
         let end = start + requested.min(self.bytes.len() - start);
-        self.offset = end;
+        self.offset.set(end);
 
         Ok(NcBytes::from_slice(&self.bytes[start..end]))
     }
@@ -67,8 +67,8 @@ fn main() -> Result<(), NcStatus> {
 
     let counter_unknown: ComPtr<IUnknown> = ByteCounter::from_value(ByteCounter);
     let counter = counter_unknown.query::<IByteConsumerAbi>()?;
-    let mut stream = MemoryByteStream::create_stream(b"chunked stream over COM".to_vec());
-    let mut peer = stream.clone();
+    let stream = MemoryByteStream::create_stream(b"chunked stream over COM".to_vec());
+    let peer = stream.clone();
     assert!(matches!(stream.next_chunk(0), Err(status) if status == NC_E_EXAMPLE_INVALID_ARG));
     let mut expected = [b"chunked ".as_slice(), b"stream o", b"ver COM"].into_iter();
 
@@ -89,9 +89,9 @@ fn main() -> Result<(), NcStatus> {
     assert!(peer.next_chunk(8)?.to_vec()?.is_empty());
     assert!(matches!(stream.next_chunk(0), Err(status) if status == NC_E_EXAMPLE_INVALID_ARG));
 
-    let mut empty = MemoryByteStream::create_stream(Vec::new());
+    let empty = MemoryByteStream::create_stream(Vec::new());
     assert!(empty.next_chunk(8)?.to_vec()?.is_empty());
-    let mut short = MemoryByteStream::create_stream(b"tail".to_vec());
+    let short = MemoryByteStream::create_stream(b"tail".to_vec());
     let remainder = short.next_chunk(u64::MAX)?;
     assert!(short.next_chunk(1)?.to_vec()?.is_empty());
     drop(short);

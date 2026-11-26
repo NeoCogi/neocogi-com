@@ -119,7 +119,7 @@ fn assert_native_output_paths(inspector: &Path, plugin: &Path, intended: &Path, 
             let artifact: serde_json::Value = serde_json::from_slice(&std::fs::read(intended).unwrap()).expect("command-specific output JSON");
             match command {
                 "dump" => {
-                    assert_eq!(artifact["schema_version"], 10);
+                    assert_eq!(artifact["schema_version"], 11);
                     assert_eq!(artifact["plugin"]["name"], "nc.examples.factory_plugin_component");
                 }
                 "plan" => {
@@ -494,7 +494,7 @@ fn inspects_a_standalone_plugin_and_its_exact_factory_signature() {
         .expect("failed to inspect relocated plugin");
     assert_success("standalone plugin inspection", &output);
     let artifact: serde_json::Value = serde_json::from_slice(&output.stdout).expect("inspection JSON");
-    assert_eq!(artifact["schema_version"], 10);
+    assert_eq!(artifact["schema_version"], 11);
     assert_eq!(artifact["abi_version"], neocogi_com::NC_COM_ABI_VERSION);
     assert_eq!(artifact["plugin"]["name"], "nc.examples.factory_plugin_component");
     let factory = &artifact["factory"];
@@ -673,7 +673,7 @@ fn generated_root_threading_change_is_context_for_a_breaking_digest() {
     let target = prepare_calculator_workspace(root);
     let source = root.join("host/src/main.rs");
     let old = std::fs::read_to_string(&source).unwrap();
-    let expected = r#"    let mut calculator = runtime
+    let expected = r#"    let calculator = runtime
         .acquire_plugin_root::<contracts::CalculatorAbi>(plugin)
         .expect("compatible calculator factory");"#;
     assert!(old.contains(expected));
@@ -687,7 +687,7 @@ fn generated_root_threading_change_is_context_for_a_breaking_digest() {
         println!("observed exact contract rejection");
         return;
     }
-    let mut calculator = root.expect("compatible calculator factory");"#,
+    let calculator = root.expect("compatible calculator factory");"#,
         ),
     )
     .unwrap();
@@ -708,12 +708,15 @@ fn generated_root_threading_change_is_context_for_a_breaking_digest() {
     let source = root.join("plugin/src/lib.rs");
     let old = std::fs::read_to_string(&source).unwrap();
     assert!(old.contains("ComPtr<contracts::CalculatorAbi>"));
-    assert!(old.contains("com_object(contracts::Calculator)"));
+    assert!(old.contains("labeled: Cell<bool>"));
+    // The macro takes the thread mode from the interface. The same label
+    // state needs a thread-safe representation in this generated variant.
     let shared_provider = old
-        .replace(
-            "com_object(contracts::Calculator)",
-            "com_object(interfaces(contracts::Calculator), thread_safe)",
-        )
+        .replace("use std::cell::Cell;", "use std::sync::atomic::{AtomicBool, Ordering};")
+        .replace("labeled: Cell<bool>", "labeled: AtomicBool")
+        .replace("Cell::new(true)", "AtomicBool::new(true)")
+        .replace("self.labeled.get()", "self.labeled.load(Ordering::Relaxed)")
+        .replace("self.labeled.set(false)", "self.labeled.store(false, Ordering::Relaxed)")
         .replace(
             "ComPtr<contracts::CalculatorAbi>",
             "ComPtr<contracts::CalculatorAbi, neocogi_com_sdk::ThreadSafe>",

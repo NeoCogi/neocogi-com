@@ -627,9 +627,14 @@ int32_t nc_c_exercise_host_bootstrap(const NcHostApi *host, const NcPluginDescri
     status = plugin->acquire((const NcHostApi *)&old_host, &out);
     if (status != incompatible || out.object != NULL || out.vtable != NULL) return 0;
     const struct { size_t size; uint32_t marker, version; } marked_v4_host = {
-        sizeof(NcHostApi), NC_COM_ABI_MAGIC, 4
+        sizeof(NcHostApi), UINT32_C(0x4e434f4d), 4
     };
     status = plugin->acquire((const NcHostApi *)&marked_v4_host, &out);
+    if (status != incompatible || out.object || out.vtable) return 0;
+    const struct { size_t size; uint32_t marker, version; } marked_v5_host = {
+        sizeof(NcHostApi), UINT32_C(0x4e434f4d), 5
+    };
+    status = plugin->acquire((const NcHostApi *)&marked_v5_host, &out);
     return status == incompatible && out.object == NULL && out.vtable == NULL;
 }
 
@@ -649,19 +654,15 @@ typedef struct NcSharedLifetimeState {
 } NcSharedLifetimeState;
 typedef struct NcBoxedLifetimeState {
     const NcObjectTypeInfo *type_info;
-    uintptr_t owner_and_borrows;
-    uintptr_t weak_count;
 } NcBoxedLifetimeState;
 _Static_assert(sizeof(NcObjectTypeInfo) == 4 * sizeof(void *), "object type information size");
 _Static_assert(offsetof(NcObjectTypeInfo, destroy_value) == 0, "object cleanup callback offset");
 _Static_assert(sizeof(NcSharedLifetimeState) == 3 * sizeof(void *), "shared lifetime size");
-_Static_assert(sizeof(NcBoxedLifetimeState) == 3 * sizeof(void *), "boxed lifetime size");
+_Static_assert(sizeof(NcBoxedLifetimeState) == sizeof(void *), "boxed lifetime size");
 _Static_assert(offsetof(NcSharedLifetimeState, type_info) == 0, "shared metadata prefix");
 _Static_assert(offsetof(NcBoxedLifetimeState, type_info) == 0, "boxed metadata prefix");
 _Static_assert(offsetof(NcSharedLifetimeState, strong_count) == sizeof(void *), "strong count offset");
-_Static_assert(offsetof(NcBoxedLifetimeState, owner_and_borrows) == sizeof(void *), "boxed access offset");
 _Static_assert(offsetof(NcSharedLifetimeState, weak_count) == 2 * sizeof(void *), "shared weak offset");
-_Static_assert(offsetof(NcBoxedLifetimeState, weak_count) == 2 * sizeof(void *), "boxed weak offset");
 
 typedef struct NcLifecycleCounters { unsigned destroyed, freed; } NcLifecycleCounters;
 typedef struct NcSharedCAllocation {
@@ -698,9 +699,7 @@ int nc_c_exercise_split_lifetimes(
     NcStatus dropped, NcStatus invalid,
     void (*shared_retain)(NcSharedLifetimeState *),
     void (*shared_release)(NcSharedLifetimeState *),
-    NcStatus (*upgrade)(NcSharedLifetimeState *, const NcInterfaceId *, IUnknown *),
-    void (*boxed_retain)(NcBoxedLifetimeState *),
-    void (*boxed_release)(NcBoxedLifetimeState *)) {
+    NcStatus (*upgrade)(NcSharedLifetimeState *, const NcInterfaceId *, IUnknown *)) {
     if (shared_root->release == exclusive_root->release ||
         shared_root->add_ref == exclusive_root->add_ref) return 0;
     const IUnknownVTable *shared_tables[1] = {shared_root};
@@ -716,8 +715,6 @@ int nc_c_exercise_split_lifetimes(
     shared->lifetime.weak_count = 1;
     shared->counters = &shared_counts;
     boxed->lifetime.type_info = &boxed_info;
-    boxed->lifetime.owner_and_borrows = ((uintptr_t)1) << (8 * sizeof(uintptr_t) - 1);
-    boxed->lifetime.weak_count = 1;
     boxed->counters = &boxed_counts;
 
     shared_retain(&shared->lifetime);
@@ -734,30 +731,35 @@ int nc_c_exercise_split_lifetimes(
     shared_release(&shared->lifetime);
     if (shared_counts.freed != 1) return 0;
 
-    boxed_retain(&boxed->lifetime);
-    uintptr_t owner = boxed->lifetime.owner_and_borrows;
-    if (exclusive_root->add_ref(boxed) != 0 || boxed->lifetime.owner_and_borrows != owner) return 0;
+    if (exclusive_root->add_ref(boxed) != 0) return 0;
     output.object = boxed;
     output.vtable = exclusive_root;
     if (exclusive_root->query_interface(boxed, exclusive_root->interface_id, &output) != invalid ||
         output.object || output.vtable) return 0;
     NcSharedWeakRaw rejected = {0};
     if (!exclusive_root->downgrade || exclusive_root->downgrade(boxed, &rejected) != invalid ||
-        rejected.control || boxed->lifetime.weak_count != 2) return 0;
-    if (exclusive_root->release(boxed) != 0 || boxed_counts.destroyed != 1 || boxed_counts.freed != 0) return 0;
-    if (boxed->lifetime.owner_and_borrows != 0 || boxed->lifetime.weak_count != 1) return 0;
-    /* Expired boxed observers can still clone/drop their own retained shell. */
-    boxed_retain(&boxed->lifetime);
-    if (boxed->lifetime.weak_count != 2) return 0;
-    boxed_release(&boxed->lifetime);
-    if (boxed->lifetime.weak_count != 1) return 0;
-    boxed_release(&boxed->lifetime);
+        rejected.control) return 0;
+    if (exclusive_root->release(boxed) != 0) return 0;
     return boxed_counts.freed == 1 && shared_counts.destroyed == 1 && boxed_counts.destroyed == 1;
 }
 
-/* Represent each v4 result/loan slot independently of generated Rust types. */
+/* Represent each return and loan slot independently of generated Rust types. */
 typedef void (*NativeValueVisit)(void *context, INativeValueAbi loan);
 typedef struct NativeCapability NativeCapability;
+typedef struct NativeBoxedActionsTable NativeBoxedActionsTable;
+typedef struct NativeBoxedActions {
+    void *object;
+    const NativeBoxedActionsTable *vtable;
+} NativeBoxedActions;
+typedef void (*NativeBoxedVisit)(void *context, NativeBoxedActions loan);
+struct NativeBoxedActionsTable {
+    IUnknownVTable unknown;
+    NcStatus (*find)(void *, INativeValueAbi *);
+    NcStatus (*invalidate)(void *);
+    NcStatus (*child)(void *, NativeBoxedActions *);
+    NcStatus (*child_mut)(void *, NativeBoxedActions *);
+    NcStatus (*visit_child)(void *, void *, NativeBoxedVisit);
+};
 typedef struct NativeCapabilityTable {
     IUnknownVTable unknown;
     NcStatus (*find)(void *, uint32_t, INativeValueAbi *);
@@ -765,18 +767,32 @@ typedef struct NativeCapabilityTable {
     NcStatus (*observed)(void *, uint32_t, void *, NativeValueVisit);
     NcStatus (*read)(void *, INativeValueAbi, int32_t *);
     NcStatus (*invalidate)(void *);
-    NcStatus (*invalidate_borrowed)(void *, NativeCapability);
+    NcStatus (*invalidate_borrowed)(void *, NativeBoxedActions);
+    NcStatus (*stable)(void *, uint32_t, INativeValueAbi *);
 } NativeCapabilityTable;
 struct NativeCapability {
     void *object;
     const NativeCapabilityTable *vtable;
 };
-typedef struct NativeVisitState { unsigned calls; int32_t value; } NativeVisitState;
+/* The Rust harness supplies a portable thread-local address probe. */
+typedef const void *(*NativeThreadProbe)(void);
+typedef struct NativeVisitState {
+    NativeThreadProbe thread;
+    const void *initiating_thread;
+    unsigned calls;
+    int32_t value;
+} NativeVisitState;
+
+static int record_native_visit(NativeVisitState *state) {
+    if (state->thread() != state->initiating_thread) return 0;
+    state->calls++;
+    return 1;
+}
 
 /* Delivery never retains the loan. Both null words are observable as absence. */
 static void visit_native_value(void *context, INativeValueAbi loan) {
     NativeVisitState *state = context;
-    state->calls++;
+    if (!record_native_visit(state)) return;
     state->value = -1;
     if (loan.object != NULL && loan.vtable != NULL) {
         if (loan.vtable->value(loan.object, &state->value) != 0) {
@@ -785,13 +801,24 @@ static void visit_native_value(void *context, INativeValueAbi loan) {
     }
 }
 
-int32_t nc_c_exercise_v4_callable_slots(NativeCapability receiver, NcStatus pointer, NcStatus dropped) {
+/* Use the exclusive result only inside the visit. The pair owns nothing. */
+static void visit_native_boxed_actions(void *context, NativeBoxedActions loan) {
+    NativeVisitState *state = context;
+    if (!record_native_visit(state)) return;
+    if (loan.object && loan.vtable) {
+        state->value = loan.vtable->invalidate(loan.object);
+    } else {
+        state->value = loan.object || loan.vtable ? -2 : -1;
+    }
+}
+
+int32_t nc_c_exercise_callable_slots(NativeCapability receiver, NcStatus pointer, NcStatus dropped, NativeThreadProbe thread) {
     const NativeCapabilityTable *table = receiver.vtable;
     void *object = receiver.object;
     INativeValueAbi output = {0};
     INativeValueAbi absent = {0};
     INativeValueAbi half = {object, NULL};
-    NativeVisitState visitor = {0};
+    NativeVisitState visitor = {thread, thread(), 0, 0};
     int32_t value;
     if (table->load(object, 0, &output) != 0 || !output.object || !output.vtable) return 1;
     INativeValueAbi other = output;
@@ -810,7 +837,60 @@ int32_t nc_c_exercise_v4_callable_slots(NativeCapability receiver, NcStatus poin
     if (table->observed(object, 0, NULL, NULL) != pointer) return 10;
     if (table->invalidate(object) != 0) return 11;
     if (output.vtable->value(output.object, &value) != 0 || value != 42) return 12;
+    INativeValueAbi loan = {0};
+    if (table->stable(object, 0, &loan) != 0 ||
+        loan.object != output.object || loan.vtable != output.vtable) return 13;
+    /* The source remains live after the slot returns. This pair owns nothing. */
+    if (loan.vtable->value(loan.object, &value) != 0 || value != 42) return 14;
+    other = loan;
+    if (table->stable(object, 2, &other) != dropped ||
+        other.object != loan.object || other.vtable != loan.vtable) return 15;
+    if (table->stable(object, 1, &other) != 0 || other.object || other.vtable) return 16;
     output.vtable->unknown.release(output.object);
+    return 0;
+}
+
+/* Exercise independent C dispatch through two receiver-bound out pairs and a
+ * distinct callback slot. Each exclusive loan ends before the next root call. */
+int32_t nc_c_exercise_boxed_loan_slots(NativeCapability receiver, NativeBoxedActions root,
+                                     NcStatus pointer, NcStatus dropped, NativeThreadProbe thread) {
+    const NativeBoxedActionsTable *table = root.vtable;
+    NativeBoxedActions read = {0};
+    INativeValueAbi value = {0};
+    if (table->child(root.object, &read) != 0 || !read.object || !read.vtable) return 1;
+    if (read.vtable->find(read.object, &value) != 0 || !value.object || !value.vtable) return 2;
+    int32_t number;
+    NcStatus status = value.vtable->value(value.object, &number);
+    value.vtable->unknown.release(value.object);
+    if (status != 0 || number != 42) return 3;
+
+    NativeBoxedActions edit = {0};
+    if (table->child_mut(root.object, &edit) != 0 || !edit.object || !edit.vtable) return 4;
+    /* The shared child loan has ended. Transfer this reborrow for the call. */
+    if (receiver.vtable->invalidate_borrowed(receiver.object, edit) != 0) return 5;
+    if (edit.vtable->find(edit.object, &value) != 0 || value.object || value.vtable) return 6;
+
+    NativeVisitState visitor = {thread, thread(), 0, 0};
+    if (table->visit_child(root.object, &visitor, visit_native_boxed_actions) != 0 ||
+        visitor.calls != 1 || visitor.value != 0) return 7;
+    if (table->child_mut(root.object, NULL) != pointer) return 8;
+
+    /* The child is a leaf. Its failed slot never writes an out pair. */
+    if (table->child(root.object, &read) != 0) return 9;
+    NativeBoxedActions unchanged = root;
+    if (read.vtable->child(read.object, &unchanged) != dropped ||
+        unchanged.object != root.object || unchanged.vtable != root.vtable) return 10;
+    if (table->child_mut(root.object, &edit) != 0) return 11;
+    if (edit.vtable->visit_child(edit.object, &visitor, visit_native_boxed_actions) != 0 ||
+        visitor.calls != 2 || visitor.value != -1) return 12;
+    return 0;
+}
+
+/* An independently written C provider can violate a required out-pair slot by
+ * delivering the shape only admitted by an optional slot. */
+NcStatus nc_c_absent_required_boxed_result(void *object, NativeBoxedActions *out) {
+    (void)object;
+    *out = (NativeBoxedActions){0};
     return 0;
 }
 

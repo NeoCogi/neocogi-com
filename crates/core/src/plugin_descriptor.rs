@@ -332,11 +332,18 @@ mod tests {
     fn rejects_unsupported_versions_from_the_prefix_alone() {
         assert_eq!(core::mem::offset_of!(NcPluginDescriptor, abi_magic), 0);
         assert_eq!(core::mem::offset_of!(NcPluginDescriptor, abi_version), 4);
-        for unmarked in [0_u32, 1, 2, 3, 4, 5, 18, 19, 21, 22, 23, 24, u32::MAX] {
+        for unmarked in [0_u32, 1, 2, 3, 4, 5, 18, 19, 21, 22, 23, 24, 0x4e43_4f4d, u32::MAX] {
             // SAFETY: An unrecognized first word requires no trailing storage.
             assert_eq!(unsafe { validate_plugin_descriptor(ptr::from_ref(&unmarked).cast()) }, NC_E_ABI_VERSION);
         }
-        for header in [[4, 23], [NC_COM_ABI_MAGIC, 3], [NC_COM_ABI_MAGIC, 4], [NC_COM_ABI_MAGIC, 24]] {
+        for header in [
+            [4, 23],
+            [NC_COM_ABI_MAGIC, 3],
+            [0x4e43_4f4d, 4],
+            [0x4e43_4f4d, 5],
+            [NC_COM_ABI_MAGIC, 5],
+            [NC_COM_ABI_MAGIC, 24],
+        ] {
             // SAFETY: Each prefix holds both words. Neither header grants metadata.
             assert_eq!(unsafe { validate_plugin_descriptor(header.as_ptr().cast()) }, NC_E_ABI_VERSION);
         }

@@ -30,27 +30,29 @@ fn main(runtime: RuntimeHandle) {
         .expect("compatible example factory");
     let (queue, messages) = notification_channel::channel();
     let binding = neocogi_example_com_host::contracts::ExtentBinding::Observed(queue.clone());
-    let mut object = factory
+    let object = factory
         .create(Extent { width: 20, height: 10 }, NcValueRef::new(&binding).unwrap())
         .expect("typed object construction");
-    assert_eq!(ExampleObjectAbi::with_caption(object.as_com_ref(), |_| ()), None);
+    assert_eq!(ExampleObjectAbi::with_caption(object.as_com_ref(), |_| ()), Ok(None));
     let first = NcString::from_utf8_str("initial caption");
     let second = NcString::from_utf8_str("replacement caption");
     object.set_caption(Some(first.as_com_ref())).unwrap();
-    let mut alias = object.clone();
+    let alias = object.clone();
     let caption = ExampleObjectAbi::with_caption(object.as_com_ref(), |caption| {
-        // The provider's read guard covers the user's visitor, including a
-        // mutable dispatch attempted through a distinct shared owner.
+        // An independent owner can call the provider, but it cannot replace the
+        // caption while the visited field is shared-borrowed.
         assert_eq!(alias.set_caption(Some(second.as_com_ref())), Err(NC_E_BUSY));
+        assert_eq!(alias.extent(), Ok(Extent { width: 20, height: 10 }));
         caption.to_string().unwrap()
-    });
+    })
+    .unwrap();
     assert_eq!(caption.as_deref(), Some("initial caption"));
     alias.set_caption(Some(second.as_com_ref())).unwrap();
-    let caption = ExampleObjectAbi::with_caption(object.as_com_ref(), |caption| caption.to_string().unwrap());
+    let caption = ExampleObjectAbi::with_caption(object.as_com_ref(), |caption| caption.to_string().unwrap()).unwrap();
     assert_eq!(caption.as_deref(), Some("replacement caption"));
     drop(alias);
 
-    object.resize(Extent { width: 44, height: 31 }).expect("exclusive object mutation");
+    object.resize(Extent { width: 44, height: 31 }).expect("replace dimensions");
     let extent = object.extent().expect("inherited interface call");
     assert_eq!(extent, Extent { width: 44, height: 31 });
     // This assertion runs with independently selected compilers, private-layout

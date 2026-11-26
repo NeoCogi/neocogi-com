@@ -37,7 +37,6 @@ fn bind_type(index: usize, parameters: &[String], ty: &mut IdlType, entries: &[M
         IdlType::ComPtr(value)
         | IdlType::WeakComPtr(value)
         | IdlType::ComBox(value)
-        | IdlType::WeakComBox(value)
         | IdlType::Borrowed(value)
         | IdlType::BorrowedMut(value)
         | IdlType::Vector(value)

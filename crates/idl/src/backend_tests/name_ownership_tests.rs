@@ -200,33 +200,33 @@ pub(crate) fn contract(source: &str) -> String {
 /// Concrete generic object binders remain private in both implementation modes.
 #[test]
 fn object_bindings_preserve_owned_generic_state_after_printing() {
-    let bindings = contract("interface IValue { fn value(&self) -> Result<u32>; fn replace(&mut self, value: u32) -> Result<()>; }");
+    let bindings = contract("interface IValue { fn value(&self) -> Result<u32>; fn replace(&self, value: u32) -> Result<()>; }");
     let implementations = r#"
         #[neocogi_com_sdk::com_object(interfaces(IValue))]
-        struct Object<const value: usize, const contracts: usize, const __nc_initial_value: usize> { saved: u32 }
+        struct Object<const value: usize, const contracts: usize, const __nc_initial_value: usize> { saved: ::std::cell::Cell<u32> }
         #[neocogi_com_sdk::com_object(interfaces(IValue), ownership = exclusive)]
-        struct Exclusive<const value: usize, const contracts: usize, const __nc_initial_value: usize> { saved: u32 }
+        struct Exclusive<const value: usize, const contracts: usize, const __nc_initial_value: usize> { saved: ::std::cell::Cell<u32> }
         macro_rules! implement {
             ($object:ident) => {
                 impl<const value: usize, const contracts: usize, const __nc_initial_value: usize> $object<value, contracts, __nc_initial_value> { const COM_VTABLES: u8 = 91; }
                 impl<const value: usize, const contracts: usize, const __nc_initial_value: usize> IValue for $object<value, contracts, __nc_initial_value> {
-                    fn value(&self) -> Result<u32, neocogi_com_sdk::NcStatus> { Ok(self.saved) }
-                    fn replace(&mut self, replacement: u32) -> Result<(), neocogi_com_sdk::NcStatus> { self.saved=replacement; Ok(()) }
+                    fn value(&self) -> Result<u32, neocogi_com_sdk::NcStatus> { Ok(self.saved.get()) }
+                    fn replace(&self, replacement: u32) -> Result<(), neocogi_com_sdk::NcStatus> { self.saved.set(replacement); Ok(()) }
                 }
             };
         }
         implement!(Object); implement!(Exclusive);
         // The binder belongs to the application; only the generated count is primitive usize.
         #[neocogi_com_sdk::com_object(interfaces(IValue))]
-        struct Generic<usize: Copy + From<::core::primitive::u32> + Into<::core::primitive::u32> + 'static> { saved: usize }
+        struct Generic<usize: Copy + From<::core::primitive::u32> + Into<::core::primitive::u32> + 'static> { saved: ::std::cell::Cell<usize> }
         #[neocogi_com_sdk::com_object(interfaces(IValue), ownership = exclusive)]
-        struct GenericExclusive<usize: Copy + From<::core::primitive::u32> + Into<::core::primitive::u32> + 'static> { saved: usize }
+        struct GenericExclusive<usize: Copy + From<::core::primitive::u32> + Into<::core::primitive::u32> + 'static> { saved: ::std::cell::Cell<usize> }
         macro_rules! generic {
             ($object:ident) => {
                 impl<usize: Copy + From<::core::primitive::u32> + Into<::core::primitive::u32> + 'static> IValue for $object<usize> {
-                    fn value(&self) -> Result<::core::primitive::u32, neocogi_com_sdk::NcStatus> { Ok(self.saved.into()) }
-                    fn replace(&mut self, replacement: ::core::primitive::u32) -> Result<(), neocogi_com_sdk::NcStatus> {
-                        self.saved = replacement.into(); Ok(())
+                    fn value(&self) -> Result<::core::primitive::u32, neocogi_com_sdk::NcStatus> { Ok(self.saved.get().into()) }
+                    fn replace(&self, replacement: ::core::primitive::u32) -> Result<(), neocogi_com_sdk::NcStatus> {
+                        self.saved.set(replacement.into()); Ok(())
                     }
                 }
             };
@@ -243,21 +243,20 @@ fn object_bindings_preserve_owned_generic_state_after_printing() {
             {bindings}
             {definitions}
             #[test] fn real_shared_and_exclusive_calls() {{
-                let mut shared = Object::<1,2,3>::from_value(Object {{saved:73}}).query::<IValueAbi>().unwrap();
-                let mut exclusive = Exclusive::<1,2,3>::into_box(Exclusive {{saved:91}}).query::<IValueAbi>().unwrap();
+                let shared = Object::<1,2,3>::from_value(Object {{saved: ::std::cell::Cell::new(73)}}).query::<IValueAbi>().unwrap();
+                let exclusive = Exclusive::<1,2,3>::into_box(Exclusive {{saved: ::std::cell::Cell::new(91)}}).query::<IValueAbi>().unwrap();
                 assert_eq!(shared.value().unwrap(), 73); assert_eq!(exclusive.value().unwrap(), 91);
                 shared.replace(17).unwrap(); exclusive.replace(29).unwrap();
                 assert_eq!(shared.value().unwrap(),17); assert_eq!(exclusive.value().unwrap(),29);
                 assert_eq!(Object::<1,2,3>::COM_VTABLES,91); assert_eq!(Exclusive::<1,2,3>::COM_VTABLES,91);
-                let mut shared = Generic::<::core::primitive::u32>::from_value(Generic {{saved:107}}).query::<IValueAbi>().unwrap();
-                let mut exclusive = GenericExclusive::<::core::primitive::u32>::into_box(GenericExclusive {{saved:109}}).query::<IValueAbi>().unwrap();
+                let shared = Generic::<::core::primitive::u32>::from_value(Generic {{saved: ::std::cell::Cell::new(107)}}).query::<IValueAbi>().unwrap();
+                let exclusive = GenericExclusive::<::core::primitive::u32>::into_box(GenericExclusive {{saved: ::std::cell::Cell::new(109)}}).query::<IValueAbi>().unwrap();
                 assert_eq!(shared.value(), Ok(107)); assert_eq!(exclusive.value(), Ok(109));
                 shared.replace(127).unwrap(); exclusive.replace(131).unwrap();
                 assert_eq!(shared.value(), Ok(127)); assert_eq!(exclusive.value(), Ok(131));
-                let weak_shared = shared.downgrade().unwrap(); let weak_exclusive = exclusive.downgrade();
+                let weak_shared = shared.downgrade().unwrap();
                 drop(shared); drop(exclusive);
                 assert!(weak_shared.upgrade().unwrap().is_none());
-                assert_eq!(weak_exclusive.value(), Err(neocogi_com_sdk::NC_E_DROPPED));
             }}
         "#
             ),

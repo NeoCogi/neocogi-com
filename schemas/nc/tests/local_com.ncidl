@@ -4,7 +4,7 @@ interface ICounter {
     /// Reads the authoritative value under the shared COM gate.
     fn value(&self) -> Result<u32>;
     /// Changes that same value under the exclusive COM gate.
-    fn set_value(&mut self, value: u32) -> Result<()>;
+    fn set_value(&self, value: u32) -> Result<()>;
 }
 
 #[id("2097ce5e-b2ba-5d0d-aa9c-1f0d1afd13fb")]

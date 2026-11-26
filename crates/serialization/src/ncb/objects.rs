@@ -1,4 +1,4 @@
-//! Owned NCB COM objects. Ordinary mutable object gates serialize foreign calls.
+//! Owned NCB COM sessions whose boxes lend exclusive access to codec state.
 use neocogi_com_sdk::serialization::*;
 use crate::ncb as binary;
 use neocogi_com_sdk::{ComBox, NcStatus, NC_E_INVALID_ARG, NcOutputWriter};
@@ -6,7 +6,7 @@ use neocogi_com_sdk::{ComBox, NcStatus, NC_E_INVALID_ARG, NcOutputWriter};
 /// Owns one NCB document session; finishing freezes its bytes for output queries.
 #[neocogi_com_sdk::com_object(interfaces(ISerializer, ISerializationOutput, ISerializationDiagnostics), ownership = exclusive)]
 pub struct NcbSerializer {
-    /// Concrete codec state, accessed through the ordinary object-wide call gate.
+    /// Concrete codec state, accessed through the session's exclusive loan.
     encoder: binary::Encoder<'static>,
     /// Optional application message copied only on a schema failure.
     message: Option<neocogi_com_sdk::__alloc::string::String>,

@@ -49,7 +49,9 @@ fn retired_host_prefixes_are_rejected_before_authored_acquisition() {
         [4, 22],
         [4, 23],
         [24, 0],
-        [NC_COM_ABI_MAGIC, 4],
+        [0x4e43_4f4d, 4],
+        [0x4e43_4f4d, 5],
+        [NC_COM_ABI_MAGIC, 5],
         [NC_COM_ABI_MAGIC, 24],
     ] {
         let prefix = RejectedHostPrefix {

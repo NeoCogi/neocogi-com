@@ -507,7 +507,7 @@ fn rejects_recursive_and_weakened_required_interfaces() {
         ("interface Root: Child {} interface Child: Root {}", "recursive interface projections"),
         (
             "#[threading(shared)] interface Shared {} interface Local: Shared {}",
-            "cannot weaken the shared threading promise",
+            "cannot weaken the threading promise",
         ),
     ] {
         let parsed = module("example/contracts.ncidl", source);

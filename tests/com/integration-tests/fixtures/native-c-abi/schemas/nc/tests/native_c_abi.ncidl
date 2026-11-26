@@ -55,14 +55,20 @@ interface INativeChoice {
 interface INativeCapability {
     fn find(&self, mode: u32) -> Option<ComPtr<INativeValue>>;
     fn load(&self, mode: u32) -> Result<Option<ComPtr<INativeValue>>>;
+    #[scoped]
     fn observed(&self, mode: u32) -> Result<Option<&INativeValue>>;
     fn read(&self, loan: Option<&INativeValue>) -> Result<i32>;
-    fn invalidate(&mut self);
-    fn invalidate_borrowed(&self, target: &mut INativeCapability);
+    fn invalidate(&self) -> Result<()>;
+    fn invalidate_borrowed(&self, target: &mut INativeBoxedActions);
+    fn stable(&self, mode: u32) -> Result<Option<&INativeValue>>;
 }
 
-/// Status visibility on a boxed receiver whose weak dispatch can expire.
+/// Required loans from a unique receiver, with optional scoped mutation.
 interface INativeBoxedActions {
     fn find(&self) -> Option<ComPtr<INativeValue>>;
     fn invalidate(&mut self);
+    fn child(&self) -> Result<&INativeBoxedActions>;
+    fn child_mut(&mut self) -> Result<&mut INativeBoxedActions>;
+    #[scoped]
+    fn visit_child(&mut self) -> Option<&mut INativeBoxedActions>;
 }
