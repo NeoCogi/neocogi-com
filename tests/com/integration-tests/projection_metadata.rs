@@ -25,6 +25,7 @@ fn linked_fixture(manifest: &Path, target: &Path, inspect: bool) -> Vec<u8> {
         // All four authored interfaces survive explicit inspection; IBase occurs once.
         assert_eq!(stdout.matches("test.projection.MetadataRetentionSentinel").count(), 4);
         assert_eq!(stdout.matches("metadata_retention_sentinel_method").count(), 1);
+        assert!(stdout.lines().any(|line| line == "test.projection.ILoanMethods"));
     } else {
         assert_eq!(stdout, "value=42\n");
     }
@@ -41,7 +42,12 @@ fn ordinary_objects_discard_schemas_but_explicit_inspection_retains_them() {
         .unwrap_or_else(|| root.join("../../target"));
     let ordinary = linked_fixture(&manifest, &target, false);
     let inspected = linked_fixture(&manifest, &target, true);
-    for marker in [b"MetadataRetentionSentinel".as_slice(), b"metadata_retention_sentinel_method".as_slice()] {
+    for marker in [
+        b"MetadataRetentionSentinel".as_slice(),
+        b"metadata_retention_sentinel_method".as_slice(),
+        b"test.projection.ILoanMethods".as_slice(),
+        b"loan_optional_mut".as_slice(),
+    ] {
         assert!(
             !ordinary.windows(marker.len()).any(|bytes| bytes == marker),
             "ordinary construction/query retained schema text"

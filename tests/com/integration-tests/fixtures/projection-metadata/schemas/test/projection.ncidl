@@ -22,3 +22,20 @@ interface MetadataRetentionSentinelRight: MetadataRetentionSentinelBase {
 interface MetadataRetentionSentinelTop: MetadataRetentionSentinelLeft + MetadataRetentionSentinelRight {
 
 }
+
+#[threading(sync)]
+interface ILoan {}
+
+interface ILookup<T> {
+    fn loan_optional_mut(&mut self, arg: Option<T>) -> Result<Option<T>>;
+}
+
+interface ILoanMethods: ILookup<&mut ILoan> {
+    fn loan_read(&self) -> &ILoan;
+    fn loan_find(&self, arg: &ILoan) -> Option<&ILoan>;
+    fn loan_write(&mut self, arg: &mut ILoan) -> &mut ILoan;
+    #[scoped]
+    fn loan_visit(&self, arg: Option<&ILoan>) -> Option<&ILoan>;
+    #[scoped]
+    fn loan_visit_mut(&self) -> Result<Option<&mut ILoan>>;
+}

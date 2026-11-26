@@ -5,5 +5,4 @@ fn main() {
     let graph = neocogi_idl::resolve_modules(vec![module]).unwrap();
     let bindings = neocogi_idl::generate_rust(&graph, "test.projection").unwrap();
     std::fs::write(std::path::PathBuf::from(std::env::var_os("OUT_DIR").unwrap()).join("contracts.rs"), bindings).unwrap();
-
 }
