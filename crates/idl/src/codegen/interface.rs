@@ -612,9 +612,13 @@ fn expand_parts(plan: InterfacePlan, dispatch: ProviderDispatch, nc: &syn::Path)
             }
         } else {
             let invoke = quote! { <#provider as #trait_ident>::#method_ident(#receiver, #(#arg_names),*) };
-            let invoke = match method.projection {
-                crate::ReturnProjection::Fallible => invoke,
-                crate::ReturnProjection::Direct => quote! { ::core::result::Result::Ok::<_, #nc::NcStatus>(#invoke) },
+            let invoke = match (method.projection, &method.ok.kind) {
+                (crate::ReturnProjection::Fallible, _) => invoke,
+                (crate::ReturnProjection::Direct, AbiReturnKind::Void) => quote! {{
+                    #invoke;
+                    ::core::result::Result::Ok::<(), #nc::NcStatus>(())
+                }},
+                (crate::ReturnProjection::Direct, _) => quote! { ::core::result::Result::Ok::<_, #nc::NcStatus>(#invoke) },
             };
             // Stack providers retain their separate call gate. Owner-backed
             // dispatch has only a short reborrow of the caller's loan.
@@ -1127,9 +1131,10 @@ fn safe_wrapper_method_body(nc: &syn::Path, method: &AbiMethod, names: &mut Priv
         ::core::result::Result::Ok(#result_local)
     };
     let checked_return = quote! { ::core::result::Result<#rust_ret, #error_type> };
-    let (return_ty, body) = match method.projection {
-        crate::ReturnProjection::Fallible => (checked_return, body),
+    let (return_clause, body) = match method.projection {
+        crate::ReturnProjection::Fallible => (quote! { -> #checked_return }, body),
         crate::ReturnProjection::Direct => {
+            let return_clause = (!matches!(method.ok.kind, AbiReturnKind::Void)).then(|| quote! { -> #rust_ret });
             let project = match method.ok.kind {
                 AbiReturnKind::Void => quote! { let _ = #result_local; },
                 AbiReturnKind::ComPtr { optional: true, .. } => quote! { #result_local.ok().flatten() },
@@ -1141,7 +1146,7 @@ fn safe_wrapper_method_body(nc: &syn::Path, method: &AbiMethod, names: &mut Priv
                 _ => unreachable!("unsupported direct return"),
             };
             (
-                quote! { #rust_ret },
+                quote! { #return_clause },
                 quote! {
                     let #result_local: #checked_return = (|| { #body })();
                     #project
@@ -1150,7 +1155,7 @@ fn safe_wrapper_method_body(nc: &syn::Path, method: &AbiMethod, names: &mut Priv
         }
     };
     quote! {
-        fn #method_ident (#receiver, #(#args),*) -> #return_ty {
+        fn #method_ident (#receiver, #(#args),*) #return_clause {
             #body
         }
     }

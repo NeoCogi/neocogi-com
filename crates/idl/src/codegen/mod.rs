@@ -92,11 +92,12 @@ fn method_declaration_with_path(method: &model::AbiMethod, nc: &syn::Path) -> pr
     } else {
         quote! { (#nc::NcStatus, #(#owners),*) }
     };
-    let returns = match method.projection {
-        crate::ReturnProjection::Fallible => quote! { ::core::result::Result<#output, #error> },
-        crate::ReturnProjection::Direct => quote! { #output },
+    let returns = match (method.projection, &method.ok.kind) {
+        (crate::ReturnProjection::Fallible, _) => quote! { -> ::core::result::Result<#output, #error> },
+        (crate::ReturnProjection::Direct, model::AbiReturnKind::Void) => quote! {},
+        (crate::ReturnProjection::Direct, _) => quote! { -> #output },
     };
-    quote! { #(#docs)* fn #name(#receiver, #(#parameters),*) -> #returns; }
+    quote! { #(#docs)* fn #name(#receiver, #(#parameters),*) #returns; }
 }
 
 /// Emits a checked codec from compiler-bound IDL value alternatives.
