@@ -22,9 +22,9 @@ use crate::abi_digest::NcAbiDigest;
 
 /// Native ABI version shared by plugin descriptors, host services, and COM objects.
 ///
-/// Both sides check this before accessing complete records. ABI v6 is in
+/// Both sides check this before accessing complete records. ABI v4 is in
 /// development. Hosts and providers must be rebuilt together until release freeze.
-pub const NC_COM_ABI_VERSION: u32 = 6;
+pub const NC_COM_ABI_VERSION: u32 = 4;
 
 /// Fixed marker before the version in native plugin descriptors and host APIs.
 ///

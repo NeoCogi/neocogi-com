@@ -796,7 +796,7 @@ UUID overrides remain errors.
 
 Generated nominal IDs and signatures change: rebuild contracts, providers and
 hosts together. Compiler encoding v16 records the versionless contract; COM
-discovery uses ABI v2 for SDK 0.3.0, ABI v3 for SDK 0.4.0, and ABI v6 on this development branch. V16 distinguishes borrowed returns, scoped delivery and threading evidence.
+discovery uses ABI v2 for SDK 0.3.0, ABI v3 for SDK 0.4.0, and ABI v4 on this development branch. V16 distinguishes borrowed returns, scoped delivery and threading evidence.
 
 Generated values and interface markers carry a hidden Rust binding proof. A
 consumer checks the actual selected Rust type, including a type reached through
@@ -1255,7 +1255,7 @@ Ordinary interface methods own parameterized object construction; there are no
 IDL `class` or `factory` roles, constructor registries or erased argument bags.
 
 Hard provider requirements can be listed as `dependencies = [PLUGIN_ID]`.
-There is no `contracts` list. Plugin descriptor ABI v6 contains the full factory
+There is no `contracts` list. Plugin descriptor ABI v4 contains the full factory
 identity, threading capability, bootstrap pointer, plugin metadata, and provider
 IDs. Its native getter is `nc_get_plugin_descriptor`.
 
@@ -1304,7 +1304,7 @@ ordinary interface methods. Use interface `IID`, `INTERFACE_ID` and
 `INTERFACE_DESCRIPTOR`. Low-level
 handwritten `ComInterface` implementations must specify `type Threading`.
 Remove contract registration and `MODULE` imports, and rebuild against runtime
-ABI v6 and the stable `nc_get_plugin_descriptor` getter. No legacy adapter retains the
+ABI v4 and the stable `nc_get_plugin_descriptor` getter. No legacy adapter retains the
 removed runtime contract mechanism.
 
 ### Generated IDL metadata

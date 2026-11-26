@@ -29,7 +29,7 @@ The compatibility rule is separate from Cargo versions. SDK `0.3.0` uses ABI
 v2 with runtime and descriptor family 2, core generation 19, and
 `nc_get_plugin_descriptor_v2`. SDK `0.4.0` uses provisional ABI v3 with runtime
 and descriptor family 3, core generation 21, and
-`nc_get_plugin_descriptor_v3`. The development candidate uses ABI v6 (WIP)
+`nc_get_plugin_descriptor_v3`. The development candidate uses ABI v4 (WIP)
 with the stable `nc_get_plugin_descriptor` export.
 Deploy hosts, providers and generated bindings from one SDK revision. Current
 hosts reject older libraries before acquisition. Interface signatures, IDL encoding

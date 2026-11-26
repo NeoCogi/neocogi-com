@@ -6,7 +6,7 @@ implementation of caller-owned persistence contexts. It contains
 no contract-module registry, native contract descriptions, or event seeding.
 Applications use `neocogi_com_sdk::RuntimeHandle`.
 
-Version `0.5.0-wip-alpha.1` uses **provisional ABI v6**.
+Version `0.5.0-wip-alpha.1` uses **provisional ABI v4**.
 Version `0.3.0` uses ABI v2/core generation 19. Deploy matching hosts and providers.
 
 ## Host implementation and shared SDK
@@ -76,7 +76,7 @@ and ABI identities do not authenticate native code: providers and their native
 dependencies must be trusted. See the
 [native loading contract](../../docs/abi.md#runtime-and-global-registry).
 
-[Runtime ABI v6](../../docs/abi.md#runtime-and-global-registry) has three C tables:
+[Runtime ABI v4](../../docs/abi.md#runtime-and-global-registry) has three C tables:
 complete plugin operations, diagnostics and persistence. Plugin lookup and
 enumeration share one projection containing identity, factory and dependencies. Loading
 returns a plugin GUID. Plugin inspection reports static origin or the first

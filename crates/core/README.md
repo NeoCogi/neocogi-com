@@ -5,7 +5,7 @@ runtime. Its default configuration is allocation-free; optional `alloc` helpers
 own decoded values and binary documents. Most authors use the `neocogi-com-sdk`
 facade. The [current object ABI](../../docs/abi.md) remains experimental.
 
-The `0.5.0-wip-alpha.1` SDK uses **provisional ABI v6**.
+The `0.5.0-wip-alpha.1` SDK uses **provisional ABI v4**.
 Published 0.3.0 uses ABI v2/core generation 19.
 
 Core defines statuses, GUIDs, exact signatures, typed metadata, raw object/table pairs
@@ -30,7 +30,7 @@ required. The IDL build helper hashes the complete transitive graph and derives
 each declaration's final 32 bytes. Core compares those bytes at factory/interface
 boundaries and does not hash or reconstruct an IDL graph.
 
-Plugin descriptor ABI v6 publishes plugin identity/version, hard dependencies,
+Plugin descriptor ABI v4 publishes plugin identity/version, hard dependencies,
 full root-factory IID/signature, threading, and one acquisition bootstrap.
 The safe Rust acquisition function takes the host-supplied `RuntimeHandle`; its raw
 C adapter takes a host API pointer and a caller-owned factory output slot.
@@ -43,7 +43,7 @@ bootstrap function or live factory reference. These records have different roles
 and do not own the storage behind their pointers.
 
 Runtime discovery supplies three tables: complete plugin operations, debug,
-and persistence. See [runtime ABI v6](../../docs/abi.md#runtime-and-global-registry) for descriptor
+and persistence. See [runtime ABI v4](../../docs/abi.md#runtime-and-global-registry) for descriptor
 lifetimes, inspection and acquisition, and the
 [ABI specification entrypoint](../../docs/abi.md) for object layouts.
 

@@ -1,6 +1,6 @@
 # Typed lifetime contracts
 
-ABI v6 uses the three-word shared header, one-word boxed metadata prefix and
+ABI v4 uses the three-word shared header, one-word boxed metadata prefix and
 four-word `NcObjectTypeInfo`. Rebuild hosts and providers using the same ABI
 version. [Current ABI authorities](../abi.md#abi-identities-and-versions)
 
