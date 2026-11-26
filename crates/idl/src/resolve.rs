@@ -61,7 +61,7 @@ pub struct ResolvedDependency {
 /// One semantically valid IDL module with canonical ABI identities.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ResolvedModule {
-    /// Parsed source model retained for generation and inspection.
+    /// Normalized closed declarations and retained open templates for generation and inspection.
     pub source: Module,
     /// Stable identity derived from the normalized module name.
     pub module_id: NcGuid,
@@ -1273,9 +1273,18 @@ fn validate_methods(
         }
         let context = format!("{owner}::{} result", method.name);
         collect_diagnostics(&mut diagnostics, validate_result(method, entries, values, values_with_empty_arrays, &context));
-        let consumes_owner = method.parameters.iter().any(|parameter| parameter.passing == ParameterPassing::ConsumingBox);
-        if matches!(method.return_passing, ReturnPassing::BorrowedLoan { .. } | ReturnPassing::ScopedLoan { .. }) {
-            let writes_output = method.parameters.iter().any(|parameter| parameter.passing == ParameterPassing::OutputBuffer);
+        let consumes_owner = method
+            .parameters
+            .iter()
+            .any(|parameter| parameter.passing() == Some(ParameterPassing::ConsumingBox));
+        if matches!(
+            method.return_passing(),
+            Some(ReturnPassing::BorrowedLoan { .. } | ReturnPassing::ScopedLoan { .. })
+        ) {
+            let writes_output = method
+                .parameters
+                .iter()
+                .any(|parameter| parameter.passing() == Some(ParameterPassing::OutputBuffer));
             if consumes_owner || writes_output {
                 collect_diagnostics(
                     &mut diagnostics,
@@ -1672,16 +1681,16 @@ fn validate_parameter(
     let ty = &parameter.ty;
     let payload = parameter.payload();
     let span = type_span(ty).unwrap_or(&parameter.span);
-    match parameter.passing {
-        ParameterPassing::SharedLoan { optional: true } | ParameterPassing::MutableLoan { .. } | ParameterPassing::ConsumingBox => {
+    match parameter.passing() {
+        Some(ParameterPassing::SharedLoan { optional: true } | ParameterPassing::MutableLoan { .. } | ParameterPassing::ConsumingBox) => {
             validate_object_target(payload, entries, context, span)
         }
-        ParameterPassing::SharedLoan { optional: false } | ParameterPassing::BorrowedText => Ok(()),
-        ParameterPassing::BorrowedValue => validate_live_array_lengths(payload, entries, values_with_empty_arrays, context, span),
-        ParameterPassing::InputBuffer | ParameterPassing::OutputBuffer => {
+        Some(ParameterPassing::SharedLoan { optional: false } | ParameterPassing::BorrowedText) => Ok(()),
+        Some(ParameterPassing::BorrowedValue) => validate_live_array_lengths(payload, entries, values_with_empty_arrays, context, span),
+        Some(ParameterPassing::InputBuffer | ParameterPassing::OutputBuffer) => {
             validate_value_type(payload, entries, values, values_with_empty_arrays, context, span)
         }
-        ParameterPassing::Copied => match ty {
+        Some(ParameterPassing::Copied) => match ty {
             IdlType::Named(name) if name.is_str() => Err(source_error(
                 "EIDL061",
                 span,
@@ -1710,14 +1719,13 @@ fn validate_parameter(
             }
             _ => validate_value_type(ty, entries, values, values_with_empty_arrays, context, span),
         },
-        ParameterPassing::Invalid => {
+        None => {
             let (message, label) = match ty {
                 IdlType::Borrowed(_) => (format!("{context} has an unsupported borrowed type"), "unsupported borrow"),
                 _ => (format!("{context} has no valid input ownership"), "invalid parameter type"),
             };
             Err(source_error("EIDL061", span, message, label))
         }
-        ParameterPassing::Unresolved => unreachable!("closed parameters have a passing classification"),
     }
 }
 
@@ -1730,8 +1738,9 @@ fn validate_result(
     context: &str,
 ) -> Result<(), ResolutionError> {
     let ty = &method.output;
+    let passing = method.return_passing();
     let span = type_span(ty).unwrap_or(&method.span);
-    if method.scoped && !matches!(method.return_passing, ReturnPassing::ScopedLoan { .. }) {
+    if method.is_scoped() && !matches!(passing, Some(ReturnPassing::ScopedLoan { .. })) {
         return Err(source_error(
             "EIDL062",
             &method.span,
@@ -1739,7 +1748,7 @@ fn validate_result(
             "a visitor needs an optional interface loan",
         ));
     }
-    if matches!(method.return_passing, ReturnPassing::BorrowedLoan { mutable: true, .. }) && method.receiver != crate::Receiver::Mutable {
+    if matches!(passing, Some(ReturnPassing::BorrowedLoan { mutable: true, .. })) && method.receiver != crate::Receiver::Mutable {
         return Err(source_error(
             "EIDL062",
             span,
@@ -1749,12 +1758,14 @@ fn validate_result(
     }
     if method.return_projection == ReturnProjection::Direct
         && !matches!(
-            method.return_passing,
-            ReturnPassing::Unit
-                | ReturnPassing::Copied
-                | ReturnPassing::SharedOwner { optional: true }
-                | ReturnPassing::BorrowedLoan { .. }
-                | ReturnPassing::ScopedLoan { .. }
+            passing,
+            Some(
+                ReturnPassing::Unit
+                    | ReturnPassing::Copied
+                    | ReturnPassing::SharedOwner { optional: true }
+                    | ReturnPassing::BorrowedLoan { .. }
+                    | ReturnPassing::ScopedLoan { .. }
+            )
         )
     {
         return Err(source_error(
@@ -1764,15 +1775,17 @@ fn validate_result(
             "wrap other supported results in Result",
         ));
     }
-    match method.return_passing {
-        ReturnPassing::Unit => Ok(()),
-        ReturnPassing::Copied => validate_value_type(ty, entries, values, values_with_empty_arrays, context, span),
-        ReturnPassing::SharedOwner { .. }
-        | ReturnPassing::BoxOwner
-        | ReturnPassing::SharedObserver
-        | ReturnPassing::BorrowedLoan { .. }
-        | ReturnPassing::ScopedLoan { .. } => validate_object_target(method.return_payload(), entries, context, span),
-        ReturnPassing::Invalid => {
+    match passing {
+        Some(ReturnPassing::Unit) => Ok(()),
+        Some(ReturnPassing::Copied) => validate_value_type(ty, entries, values, values_with_empty_arrays, context, span),
+        Some(
+            ReturnPassing::SharedOwner { .. }
+            | ReturnPassing::BoxOwner
+            | ReturnPassing::SharedObserver
+            | ReturnPassing::BorrowedLoan { .. }
+            | ReturnPassing::ScopedLoan { .. },
+        ) => validate_object_target(method.return_payload(), entries, context, span),
+        None => {
             let (message, label) = match ty {
                 IdlType::String => (
                     format!("{context}: return ComPtr<INcString> for an owned COM string"),
@@ -1786,7 +1799,6 @@ fn validate_result(
             };
             Err(source_error("EIDL062", span, message, label))
         }
-        ReturnPassing::Unresolved => unreachable!("closed results have a passing classification"),
     }
 }
 
@@ -2109,11 +2121,11 @@ fn encode_methods(
         encoder.u32(u32_len(method.parameters.len(), &entries[scope.module].name, "parameter count")?);
         for parameter in &method.parameters {
             encoder.text(&parameter.name, &entries[scope.module].name)?;
-            let passing = match parameter.passing {
-                ParameterPassing::SharedLoan { optional: false } => Some(TypeTag::SharedLoan),
-                ParameterPassing::SharedLoan { optional: true } => Some(TypeTag::OptionalSharedLoan),
-                ParameterPassing::MutableLoan { optional: false } => Some(TypeTag::MutableLoan),
-                ParameterPassing::MutableLoan { optional: true } => Some(TypeTag::OptionalMutableLoan),
+            let passing = match parameter.passing() {
+                Some(ParameterPassing::SharedLoan { optional: false }) => Some(TypeTag::SharedLoan),
+                Some(ParameterPassing::SharedLoan { optional: true }) => Some(TypeTag::OptionalSharedLoan),
+                Some(ParameterPassing::MutableLoan { optional: false }) => Some(TypeTag::MutableLoan),
+                Some(ParameterPassing::MutableLoan { optional: true }) => Some(TypeTag::OptionalMutableLoan),
                 _ => None,
             };
             if let Some(passing) = passing {
@@ -2123,14 +2135,14 @@ fn encode_methods(
                 encode_type(scope, &parameter.ty, entries, encoder)?;
             }
         }
-        let passing = match method.return_passing {
-            ReturnPassing::SharedOwner { optional: true } => Some(TypeTag::OptionalSharedOwner),
-            ReturnPassing::BorrowedLoan { mutable: false, optional: false } => Some(TypeTag::SharedLoanOut),
-            ReturnPassing::BorrowedLoan { mutable: false, optional: true } => Some(TypeTag::OptionalSharedLoanOut),
-            ReturnPassing::BorrowedLoan { mutable: true, optional: false } => Some(TypeTag::MutableLoanOut),
-            ReturnPassing::BorrowedLoan { mutable: true, optional: true } => Some(TypeTag::OptionalMutableLoanOut),
-            ReturnPassing::ScopedLoan { mutable: false } => Some(TypeTag::ScopedLoan),
-            ReturnPassing::ScopedLoan { mutable: true } => Some(TypeTag::ScopedMutableLoan),
+        let passing = match method.return_passing() {
+            Some(ReturnPassing::SharedOwner { optional: true }) => Some(TypeTag::OptionalSharedOwner),
+            Some(ReturnPassing::BorrowedLoan { mutable: false, optional: false }) => Some(TypeTag::SharedLoanOut),
+            Some(ReturnPassing::BorrowedLoan { mutable: false, optional: true }) => Some(TypeTag::OptionalSharedLoanOut),
+            Some(ReturnPassing::BorrowedLoan { mutable: true, optional: false }) => Some(TypeTag::MutableLoanOut),
+            Some(ReturnPassing::BorrowedLoan { mutable: true, optional: true }) => Some(TypeTag::OptionalMutableLoanOut),
+            Some(ReturnPassing::ScopedLoan { mutable: false }) => Some(TypeTag::ScopedLoan),
+            Some(ReturnPassing::ScopedLoan { mutable: true }) => Some(TypeTag::ScopedMutableLoan),
             _ => None,
         };
         if let Some(passing) = passing {

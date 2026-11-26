@@ -78,6 +78,14 @@ accessor or reinsertion path into these owners. This invariant applies before
 bundled-source attachment, binding, specialization and generation. Migrate direct
 field readers to these accessors.
 
+Use `Method::is_scoped()` to read the authored delivery annotation.
+`Method::return_passing()` and `Parameter::passing()` return the normalized
+slot rules for validated closed methods. Parsed declarations and retained open
+templates return `None` from those passing queries. For example, a resolved
+`Option<&IItem>` exposes its loan payload in `Method::output` and its nullability
+in `ReturnPassing::BorrowedLoan`. `ReturnProjection` describes whether Rust
+exposes the call status separately.
+
 Generated copied-value layout proofs use shallow sequential constant statements.
 Each predicate retains left-to-right short-circuit evaluation, including field,
 size/alignment and offset checks; field breadth does not become a linear binary

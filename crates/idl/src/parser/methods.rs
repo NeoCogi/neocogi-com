@@ -59,7 +59,7 @@ pub(super) fn method(input: ParseStream<'_>, attributes: &[Attribute]) -> syn::R
             span: SourceSpan::from_parser(ident.span()),
             name,
             ty,
-            passing: crate::model::ParameterPassing::Unresolved,
+            passing: None,
         });
         if !body.is_empty() {
             body.parse::<Token![,]>()?;
@@ -88,7 +88,7 @@ pub(super) fn method(input: ParseStream<'_>, attributes: &[Attribute]) -> syn::R
             output,
             return_projection,
             scoped,
-            return_passing: crate::model::ReturnPassing::Unresolved,
+            return_passing: None,
         },
         name.span(),
     ))

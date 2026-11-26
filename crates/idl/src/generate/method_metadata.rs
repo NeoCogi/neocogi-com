@@ -66,7 +66,10 @@ pub(super) fn descriptions(graph: &Generation<'_>, module: &ResolvedModule, decl
 /// Describes each input using its resolved direction and payload.
 fn parameter_type(graph: &Generation<'_>, module: &ResolvedModule, parameter: &crate::Parameter) -> Result<TokenStream, GenerateError> {
     let ty = parameter.payload();
-    let kind = match parameter.passing {
+    let passing = parameter
+        .passing()
+        .ok_or_else(|| GenerateError::new("input slot lacks its resolved passing rule"))?;
+    let kind = match passing {
         ParameterPassing::Copied => "Value",
         ParameterPassing::BorrowedValue | ParameterPassing::BorrowedText | ParameterPassing::SharedLoan { optional: false } => "Borrowed",
         ParameterPassing::SharedLoan { optional: true } => "OptionalBorrowedInterface",
@@ -75,14 +78,16 @@ fn parameter_type(graph: &Generation<'_>, module: &ResolvedModule, parameter: &c
         ParameterPassing::InputBuffer => "InputBuffer",
         ParameterPassing::OutputBuffer => "OutputBuffer",
         ParameterPassing::ConsumingBox => return exclusive_type(graph, module, ty),
-        ParameterPassing::Unresolved | ParameterPassing::Invalid => return Err(GenerateError::new("input slot lacks its resolved passing rule")),
     };
     method_type(graph, module, kind, ty)
 }
 
 /// Describes output ownership from the same slot that selects the wire.
 fn return_type(graph: &Generation<'_>, module: &ResolvedModule, method: &Method) -> Result<TokenStream, GenerateError> {
-    let kind = match method.return_passing {
+    let passing = method
+        .return_passing()
+        .ok_or_else(|| GenerateError::new("result slot lacks its resolved passing rule"))?;
+    let kind = match passing {
         ReturnPassing::Unit | ReturnPassing::Copied | ReturnPassing::SharedOwner { optional: false } | ReturnPassing::SharedObserver => "Value",
         ReturnPassing::SharedOwner { optional: true } => "OptionalOwnedInterface",
         ReturnPassing::BorrowedLoan { mutable: false, optional: false } => "BorrowedInterfaceResult",
@@ -92,9 +97,8 @@ fn return_type(graph: &Generation<'_>, module: &ResolvedModule, method: &Method)
         ReturnPassing::ScopedLoan { mutable: false } => "ScopedBorrowedInterface",
         ReturnPassing::ScopedLoan { mutable: true } => "ScopedMutableBorrowedInterface",
         ReturnPassing::BoxOwner => return exclusive_type(graph, module, method.return_payload()),
-        ReturnPassing::Unresolved | ReturnPassing::Invalid => return Err(GenerateError::new("result slot lacks its resolved passing rule")),
     };
-    let ty = match method.return_passing {
+    let ty = match passing {
         ReturnPassing::SharedObserver => &method.output,
         _ => method.return_payload(),
     };

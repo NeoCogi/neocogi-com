@@ -258,8 +258,8 @@ pub struct Method {
     pub return_projection: ReturnProjection,
     /// An explicitly scoped visitor, as opposed to a receiver-bound result.
     pub(crate) scoped: bool,
-    /// Native passing selected once for the closed method result.
-    pub(crate) return_passing: ReturnPassing,
+    /// Native passing selected once for an admitted closed method result.
+    pub(crate) return_passing: Option<ReturnPassing>,
 }
 
 /// Rust source projection of the native status and successful payload.
@@ -289,11 +289,18 @@ pub struct Parameter {
     pub name: String,
     /// Parsed ABI type expression.
     pub ty: IdlType,
-    /// Native passing selected once for this closed input position.
-    pub(crate) passing: ParameterPassing,
+    /// Native passing selected once for this admitted closed input position.
+    pub(crate) passing: Option<ParameterPassing>,
 }
 
 impl Parameter {
+    /// Returns the resolved passing rule for a closed input.
+    ///
+    /// Parsed declarations and retained open templates have no passing rule.
+    pub const fn passing(&self) -> Option<ParameterPassing> {
+        self.passing
+    }
+
     /// Provides the type's runtime operand without interpreting its passing.
     pub(crate) fn payload(&self) -> &IdlType {
         self.ty.call_payload()
@@ -301,6 +308,18 @@ impl Parameter {
 }
 
 impl Method {
+    /// Reports whether the source declares visitor delivery with `#[scoped]`.
+    pub const fn is_scoped(&self) -> bool {
+        self.scoped
+    }
+
+    /// Returns the resolved success-passing rule independently of status projection.
+    ///
+    /// Parsed declarations and retained open templates have no passing rule.
+    pub const fn return_passing(&self) -> Option<ReturnPassing> {
+        self.return_passing
+    }
+
     /// Provides the type's runtime operand without interpreting its passing.
     pub(crate) fn return_payload(&self) -> &IdlType {
         self.output.call_payload()
@@ -309,11 +328,7 @@ impl Method {
 
 /// Bound direction and access of a single method input.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum ParameterPassing {
-    /// An authored expression whose template arguments are not yet closed.
-    Unresolved,
-    /// A closed input that cannot be admitted in this position.
-    Invalid,
+pub enum ParameterPassing {
     /// A self-contained value supplied by copy.
     Copied,
     /// A checked, borrowed aggregate wire.
@@ -340,11 +355,7 @@ pub(crate) enum ParameterPassing {
 
 /// Successful native method completion, independent of Rust status projection.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum ReturnPassing {
-    /// An authored expression whose template arguments are not yet closed.
-    Unresolved,
-    /// A closed result that cannot be admitted in this position.
-    Invalid,
+pub enum ReturnPassing {
     /// Native completion is status-only.
     Unit,
     /// A self-contained copied value out slot.

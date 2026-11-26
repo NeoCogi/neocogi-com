@@ -86,7 +86,10 @@ fn buffer(element_ty: syn::Type, output: bool, nc: &syn::Path) -> (syn::Type, sy
 /// Ownership alternatives are exhaustive over the validated IDL input grammar.
 fn argument(graph: &mut Generation<'_>, module: &ResolvedModule, parameter: &Parameter) -> Result<AbiArg, GenerateError> {
     let ty = parameter.payload();
-    let (rust_ty, abi_ty, kind) = match parameter.passing {
+    let passing = parameter
+        .passing()
+        .ok_or_else(|| GenerateError::new("input slot lacks its resolved passing rule"))?;
+    let (rust_ty, abi_ty, kind) = match passing {
         ParameterPassing::Copied => {
             let ty = rust_type(value_type(graph, module, ty)?)?;
             let nc = &graph.support;
@@ -108,7 +111,7 @@ fn argument(graph: &mut Generation<'_>, module: &ResolvedModule, parameter: &Par
             let (interface, mode_ty) = object(graph, module, ty)?;
             let nc = &graph.support;
             let mode = mode_ty.as_ref().map(|mode| quote! { , #mode });
-            let (access, rust_ty) = match parameter.passing {
+            let (access, rust_ty) = match passing {
                 ParameterPassing::SharedLoan { optional: false } => (InterfaceBorrow::Shared, quote! { #nc::ComRef<'_, #interface #mode> }),
                 ParameterPassing::SharedLoan { optional: true } => (
                     InterfaceBorrow::OptionalShared,
@@ -144,7 +147,6 @@ fn argument(graph: &mut Generation<'_>, module: &ResolvedModule, parameter: &Par
                 },
             )
         }
-        ParameterPassing::Unresolved | ParameterPassing::Invalid => return Err(GenerateError::new("input slot lacks its resolved passing rule")),
     };
     let ident = rust_ident(&parameter.name)?;
     // The backend assigns collision-free positional bindings before emission.
@@ -160,7 +162,10 @@ fn argument(graph: &mut Generation<'_>, module: &ResolvedModule, parameter: &Par
 /// Uses the bound return slot to emit exactly one transfer or loan contract.
 fn result(graph: &mut Generation<'_>, module: &ResolvedModule, method: &Method) -> Result<AbiReturn, GenerateError> {
     let ty = method.return_payload();
-    let (ownership, wrapper, optional) = match method.return_passing {
+    let passing = method
+        .return_passing()
+        .ok_or_else(|| GenerateError::new("result slot lacks its resolved passing rule"))?;
+    let (ownership, wrapper, optional) = match passing {
         ReturnPassing::Unit => {
             return Ok(AbiReturn {
                 rust_ty: syn::parse_quote!(()),
@@ -190,7 +195,7 @@ fn result(graph: &mut Generation<'_>, module: &ResolvedModule, method: &Method) 
                 quote! { ComRef }
             };
             let loan = quote! { #nc::#wrapper<'_, #interface_ty #mode> };
-            let optional = !matches!(method.return_passing, ReturnPassing::BorrowedLoan { optional: false, .. });
+            let optional = !matches!(passing, ReturnPassing::BorrowedLoan { optional: false, .. });
             let rust_ty = if optional {
                 quote! { ::core::option::Option<#loan> }
             } else {
@@ -198,7 +203,7 @@ fn result(graph: &mut Generation<'_>, module: &ResolvedModule, method: &Method) 
             };
             let abi_ty = syn::parse_quote!(#nc::ComRaw<#interface_ty>);
             let interface_ty = Box::new(interface_ty);
-            let kind = if matches!(method.return_passing, ReturnPassing::ScopedLoan { .. }) {
+            let kind = if matches!(passing, ReturnPassing::ScopedLoan { .. }) {
                 AbiReturnKind::ScopedLoan { interface_ty, mode_ty, mutable }
             } else {
                 AbiReturnKind::BorrowedLoan { interface_ty, mode_ty, mutable, optional }
@@ -209,7 +214,6 @@ fn result(graph: &mut Generation<'_>, module: &ResolvedModule, method: &Method) 
                 kind,
             });
         }
-        ReturnPassing::Unresolved | ReturnPassing::Invalid => return Err(GenerateError::new("result slot lacks its resolved passing rule")),
     };
     let (interface, mode_ty) = object(graph, module, ty)?;
     let nc = &graph.support;

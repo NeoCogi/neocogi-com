@@ -42,7 +42,7 @@ fn standard_optional_root_uses_directional_passing() {
         panic!("method count")
     };
     assert_eq!(
-        receive.parameters.iter().map(|parameter| parameter.passing).collect::<Vec<_>>(),
+        receive.parameters.iter().map(|parameter| parameter.passing().unwrap()).collect::<Vec<_>>(),
         [
             ParameterPassing::SharedLoan { optional: false },
             ParameterPassing::MutableLoan { optional: false },
@@ -53,26 +53,35 @@ fn standard_optional_root_uses_directional_passing() {
     );
     assert!(matches!(receive.parameters[2].payload(), IdlType::Named(_)));
     assert_eq!(
-        (receive.return_passing, receive.return_projection),
+        (receive.return_passing().unwrap(), receive.return_projection),
         (ReturnPassing::Unit, ReturnProjection::Direct)
     );
-    assert_eq!(echo.parameters[0].passing, ParameterPassing::Copied);
-    assert_eq!(echo.return_passing, ReturnPassing::Copied);
+    assert_eq!(echo.parameters[0].passing().unwrap(), ParameterPassing::Copied);
+    assert_eq!(echo.return_passing().unwrap(), ReturnPassing::Copied);
     assert_eq!(
-        (child.return_passing, child.return_projection),
+        (child.return_passing().unwrap(), child.return_projection),
         (ReturnPassing::SharedOwner { optional: true }, ReturnProjection::Direct)
     );
     assert_eq!(
-        (loan.return_passing, loan.return_projection),
+        (loan.return_passing().unwrap(), loan.return_projection),
         (ReturnPassing::BorrowedLoan { mutable: false, optional: true }, ReturnProjection::Fallible)
     );
-    assert_eq!(required.return_passing, ReturnPassing::BorrowedLoan { mutable: false, optional: false });
-    assert_eq!(required_edit.return_passing, ReturnPassing::BorrowedLoan { mutable: true, optional: false });
-    assert_eq!(optional_edit.return_passing, ReturnPassing::BorrowedLoan { mutable: true, optional: true });
-    assert_eq!(visit.return_passing, ReturnPassing::ScopedLoan { mutable: false });
-    assert_eq!(visit_edit.return_passing, ReturnPassing::ScopedLoan { mutable: true });
     assert_eq!(
-        (cursor.return_passing, cursor.return_projection),
+        required.return_passing().unwrap(),
+        ReturnPassing::BorrowedLoan { mutable: false, optional: false }
+    );
+    assert_eq!(
+        required_edit.return_passing().unwrap(),
+        ReturnPassing::BorrowedLoan { mutable: true, optional: false }
+    );
+    assert_eq!(
+        optional_edit.return_passing().unwrap(),
+        ReturnPassing::BorrowedLoan { mutable: true, optional: true }
+    );
+    assert_eq!(visit.return_passing().unwrap(), ReturnPassing::ScopedLoan { mutable: false });
+    assert_eq!(visit_edit.return_passing().unwrap(), ReturnPassing::ScopedLoan { mutable: true });
+    assert_eq!(
+        (cursor.return_passing().unwrap(), cursor.return_projection),
         (ReturnPassing::Copied, ReturnProjection::Direct)
     );
     assert_eq!(
@@ -107,7 +116,7 @@ fn optional_slot_resolution_preserves_shadowing_and_closes_after_substitution() 
         }",
     )
     .unwrap();
-    assert_eq!(methods(&graph, "ILocal")[0].return_passing, ReturnPassing::Copied);
+    assert_eq!(methods(&graph, "ILocal")[0].return_passing().unwrap(), ReturnPassing::Copied);
     let actual = graph.module("proof.loans").unwrap().source.declarations.iter().filter_map(|declaration| {
         let DeclarationKind::Interface(interface) = &declaration.kind else {
             return None;
@@ -118,7 +127,7 @@ fn optional_slot_resolution_preserves_shadowing_and_closes_after_substitution() 
     let mut lookup = actual
         .clone()
         .filter(|(template, _)| *template == "ILookup")
-        .map(|(_, method)| method.return_passing)
+        .map(|(_, method)| method.return_passing().unwrap())
         .collect::<Vec<_>>();
     assert_eq!(lookup.len(), 3);
     for expected in [
@@ -130,11 +139,19 @@ fn optional_slot_resolution_preserves_shadowing_and_closes_after_substitution() 
         lookup.swap_remove(index);
     }
     assert_eq!(
-        actual.clone().find(|(template, _)| *template == "IGeneric").unwrap().1.return_passing,
+        actual
+            .clone()
+            .find(|(template, _)| *template == "IGeneric")
+            .unwrap()
+            .1
+            .return_passing()
+            .unwrap(),
         ReturnPassing::SharedOwner { optional: true }
     );
     assert_eq!(
-        actual.clone().find(|(template, _)| *template == "IBuffer").unwrap().1.parameters[0].passing,
+        actual.clone().find(|(template, _)| *template == "IBuffer").unwrap().1.parameters[0]
+            .passing()
+            .unwrap(),
         ParameterPassing::OutputBuffer
     );
 }
@@ -204,8 +221,8 @@ fn transitive_specialization_keeps_optional_loan_slots() {
         .find(|decl| decl.specialization.as_ref().is_some_and(|origin| origin.template.segments == ["ILookup"]))
         .unwrap();
     let method = &methods(&graph, &instance.name)[0];
-    assert_eq!(method.parameters[0].passing, ParameterPassing::MutableLoan { optional: true });
-    assert_eq!(method.return_passing, ReturnPassing::BorrowedLoan { mutable: true, optional: true });
+    assert_eq!(method.parameters[0].passing().unwrap(), ParameterPassing::MutableLoan { optional: true });
+    assert_eq!(method.return_passing().unwrap(), ReturnPassing::BorrowedLoan { mutable: true, optional: true });
 }
 
 /// Every inherited guarantee survives and each mode has a distinct native digest.
@@ -268,7 +285,10 @@ fn scoped_getter_coexists_with_inherited_with_prefix_method() {
          interface IDerived: IBase { #[scoped] fn caption(&self) -> Option<&INcString>; }",
     )
     .unwrap();
-    assert_eq!(methods(&graph, "IDerived")[0].return_passing, ReturnPassing::ScopedLoan { mutable: false });
+    assert_eq!(
+        methods(&graph, "IDerived")[0].return_passing().unwrap(),
+        ReturnPassing::ScopedLoan { mutable: false }
+    );
 }
 
 /// Only native slot differences enter the interface and specialization identities.

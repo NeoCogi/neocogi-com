@@ -167,20 +167,20 @@ impl Expansion {
                 matches!(ty, IdlType::Borrowed(_) | IdlType::BorrowedMut(_) | IdlType::ComPtr(_))
             });
             method.return_passing = match &method.output {
-                IdlType::Unit => ReturnPassing::Unit,
-                IdlType::Scalar(_) | IdlType::Named(_) | IdlType::Array { .. } => ReturnPassing::Copied,
-                IdlType::ComPtr(_) => ReturnPassing::SharedOwner { optional },
-                IdlType::ComBox(_) => ReturnPassing::BoxOwner,
-                IdlType::WeakComPtr(_) => ReturnPassing::SharedObserver,
+                IdlType::Unit => Some(ReturnPassing::Unit),
+                IdlType::Scalar(_) | IdlType::Named(_) | IdlType::Array { .. } => Some(ReturnPassing::Copied),
+                IdlType::ComPtr(_) => Some(ReturnPassing::SharedOwner { optional }),
+                IdlType::ComBox(_) => Some(ReturnPassing::BoxOwner),
+                IdlType::WeakComPtr(_) => Some(ReturnPassing::SharedObserver),
                 IdlType::Borrowed(_) | IdlType::BorrowedMut(_) => {
                     let mutable = matches!(method.output, IdlType::BorrowedMut(_));
-                    if method.scoped && optional {
+                    Some(if method.is_scoped() && optional {
                         ReturnPassing::ScopedLoan { mutable }
                     } else {
                         ReturnPassing::BorrowedLoan { mutable, optional }
-                    }
+                    })
                 }
-                _ => ReturnPassing::Invalid,
+                _ => None,
             };
         }
         Ok(())
@@ -238,8 +238,9 @@ impl Expansion {
         })
     }
 
-    /// Selects the semantic input once from its already-bound source owner.
-    fn parameter_passing(&self, ty: &IdlType, optional: bool) -> Result<ParameterPassing, ResolutionError> {
+    /// Selects the semantic input from its bound source owner. Closed validation
+    /// diagnoses unsupported shapes that have no passing rule.
+    fn parameter_passing(&self, ty: &IdlType, optional: bool) -> Result<Option<ParameterPassing>, ResolutionError> {
         let passing = match ty {
             IdlType::Scalar(_) | IdlType::Named(_) | IdlType::Array { .. } => ParameterPassing::Copied,
             IdlType::Slice(_) => ParameterPassing::InputBuffer,
@@ -254,13 +255,13 @@ impl Expansion {
                         ParameterPassing::BorrowedValue
                     }
                 }
-                _ => ParameterPassing::Invalid,
+                _ => return Ok(None),
             },
             IdlType::BorrowedMut(_) => ParameterPassing::MutableLoan { optional },
             IdlType::ComBox(_) => ParameterPassing::ConsumingBox,
-            _ => ParameterPassing::Invalid,
+            _ => return Ok(None),
         };
-        Ok(passing)
+        Ok(Some(passing))
     }
 
     /// Charges only newly introduced generated dependency metadata.

@@ -109,7 +109,7 @@ pub(super) fn scoped_prefixes(graph: &Generation<'_>, module: &ResolvedModule, d
         if interface
             .methods
             .iter()
-            .any(|method| matches!(method.return_passing, crate::model::ReturnPassing::ScopedLoan { .. }))
+            .any(|method| matches!(method.return_passing(), Some(crate::model::ReturnPassing::ScopedLoan { .. })))
         {
             prefixes.push(parent.identity.id);
         }

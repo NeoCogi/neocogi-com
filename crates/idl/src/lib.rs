@@ -32,7 +32,7 @@ pub use standard::is_bundled_module;
 
 pub use model::{
     PersistencePolicy, IdlType, BitEnum, BitFlag, Declaration, DeclarationKind, Enum, EnumNames, EnumRepr, EnumVariant, ExternalModule, Field, Import,
-    Interface, Method, NamedType, Parameter, Receiver, ReturnProjection, Struct, Threading, VariantFields, Specialization,
+    Interface, Method, NamedType, Parameter, ParameterPassing, Receiver, ReturnPassing, ReturnProjection, Struct, Threading, VariantFields, Specialization,
 };
 pub use diagnostic::{Diagnostic, DiagnosticLabel, DiagnosticSeverity, LabelStyle, SourceFile, SourcePosition, SourceSpan};
 pub use parser::{ModuleSource, ParseError, parse_module, parse_module_parts};
