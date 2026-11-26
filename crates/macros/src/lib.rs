@@ -70,8 +70,9 @@ pub fn com_object(attr: TokenStream, item: TokenStream) -> TokenStream {
 
 /// Describes one plugin using a safe typed acquisition function.
 /// The function takes one supplied `RuntimeHandle` argument and explicitly returns
-/// `Result<ComPtr<InterfaceAbi>, NcStatus>`. Its return interface supplies the
-/// root identity, ABI signature and threading. `name` derives the plugin ID;
+/// `Result<ComPtr<RootAbi, <RootAbi as ComInterface>::Threading>, NcStatus>`.
+/// A local root may omit the mode. The interface supplies the root identity,
+/// ABI signature and threading. `name` derives the plugin ID;
 /// optional `version` defaults to the Cargo package version. Explicit
 /// `dependencies = [PLUGIN_ID, ...]` are hard registration dependencies.
 ///

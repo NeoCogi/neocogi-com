@@ -739,9 +739,11 @@ tables because their callback and caller-owned context lifecycles differ.
 version, hard dependency records, the exact root factory interface/threading
 contract, and its bootstrap function. `#[plugin]` derives the root
 contract from the typed Rust acquisition return and creates this immutable descriptor.
-The root is any closed ordinary interface: a finished service or a provider with
-typed construction methods. Existing wire field names such as `root_factory`
-describe that root and impose no IDL construction role.
+A generated root is a closed ordinary interface backed by shared storage. Its
+own and inherited methods all take shared receivers. It may expose a finished
+service or typed construction methods, including methods that return boxed
+products with exclusive access. Existing wire field names such as
+`root_factory` describe the root.
 The accessor and native export return metadata without registration or acquisition.
 
 | Provider boundary | Current contract |
@@ -947,8 +949,9 @@ stores `acquire: Option<NcAcquirePluginFactory>`; generated bootstrap code adapt
 the implementation's typed construction policy to that fixed supplied-host ABI.
 The raw bootstrap is
 `unsafe extern "C" fn(*const NcHostApi, *mut ComRaw<IUnknown>) -> NcStatus`.
-The authored `#[plugin]` function accepts one `RuntimeHandle` and returns its existing
-exact typed `Result<ComPtr<FactoryAbi>, NcStatus>`. Its adapter clears output
+The authored `#[plugin]` function accepts one `RuntimeHandle` and returns
+`Result<ComPtr<RootAbi, <RootAbi as ComInterface>::Threading>, NcStatus>`.
+For a local root, `ComPtr<RootAbi>` uses the default local mode. Its adapter clears output
 before admitting host access; invalid access enters no provider code and
 transfers no owner. `write_plugin_root` invokes an unboxed `FnOnce` only after
 output preflight. Metadata discovery needs no host or acquisition.
@@ -957,7 +960,10 @@ A provider may create a fresh factory or retain an existing instance. The runtim
 promises no singleton and no identity reuse between successful calls.
 
 The runtime compares the requested IID, full signature and threading capability
-before invoking bootstrap. It releases the catalog guard before plugin code runs.
+before invoking bootstrap. Raw callers may request any mode supported by the
+declared mode after exact IID and signature matching. The typed facade requests
+the interface's associated mode. The runtime releases the catalog guard before
+plugin code runs.
 The successful bootstrap pair itself must advertise the declared root IID and
 full signature. Acquisition validates it without calling `QueryInterface` or
 retaining another reference, and transfers that original pair. A wrong IID returns

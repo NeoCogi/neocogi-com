@@ -80,13 +80,16 @@ fn acquire_root(_runtime: neocogi_com_sdk::RuntimeHandle) -> Result<neocogi_com_
 ```
 
 `#[plugin]` requires a safe Rust function taking one host-supplied `RuntimeHandle`
-argument, with an explicit `Result<ComPtr<InterfaceAbi>, NcStatus>` return.
+argument, with an explicit
+`Result<ComPtr<RootAbi, <RootAbi as ComInterface>::Threading>, NcStatus>` return.
+A local root can omit the mode.
 Its generated C adapter accepts the host API pointer and a factory output slot;
 the provider uses the host's registry rather than initializing another runtime.
 The macro derives metadata from that
 interface, defaults version to the Cargo package version, and optionally accepts
 `version = "..."`, `plugin_id(...)`, `dependencies = [ID, ...]` and
-`neocogi_com = facade_path`. The typed return must match the interface's threading.
+`neocogi_com = facade_path`. A generated root uses shared storage and shared
+receivers, including inherited methods. Its methods can return boxed products.
 Initialization failure leaves the ABI output empty. Success transfers exactly one
 reference; acquiring an existing service and constructing a provider are both valid.
 

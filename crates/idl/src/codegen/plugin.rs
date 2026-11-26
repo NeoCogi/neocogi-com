@@ -142,7 +142,7 @@ pub fn expand_plugin(args: PluginArgs, input: ItemFn) -> Result<proc_macro2::Tok
     let ReturnType::Type(_, output) = &signature.output else {
         return Err(syn::Error::new_spanned(
             signature,
-            "plugin acquisition must return Result<ComPtr<InterfaceAbi>, NcStatus>",
+            "plugin acquisition must return Result<ComPtr<RootAbi, <RootAbi as ComInterface>::Threading>, NcStatus>",
         ));
     };
     let owned = first_type_argument(output, "Result")?;

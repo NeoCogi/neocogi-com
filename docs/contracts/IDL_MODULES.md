@@ -1241,10 +1241,13 @@ fn acquire_root(_runtime: neocogi_com_sdk::RuntimeHandle) -> Result<neocogi_com_
 }
 ```
 
-The return must explicitly spell `Result<ComPtr<InterfaceAbi>, NcStatus>` (qualified
-paths are accepted). Rust checks its exact threading and error type. The macro
-reads the generated interface identity and threading rather than inferring ABI
-from method bodies. Version defaults to `CARGO_PKG_VERSION`. It generates a static
+The return must explicitly spell
+`Result<ComPtr<RootAbi, <RootAbi as ComInterface>::Threading>, NcStatus>`.
+Qualified paths are accepted, and a local root can omit the mode as shown above.
+Rust checks the exact mode and error type. Generated roots use shared storage
+and shared receivers for their own and inherited methods. A shared root can
+return boxed products with exclusive access. The macro reads the generated
+interface identity and threading. Version defaults to `CARGO_PKG_VERSION`. It generates a static
 `plugin_descriptor()` accessor and the discovery export under `dynamic-plugin`.
 Successful acquisition transfers one reference, without promising a singleton.
 Initialization errors are normalized and the raw output remains empty on failure.

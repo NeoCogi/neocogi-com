@@ -583,6 +583,16 @@ fn build_calculator_workspace(root: &Path, target: &Path, packages: &[&str]) -> 
     output
 }
 
+/// Finds the independently built host using Cargo's native executable path.
+fn calculator_host_artifact(output: &Output) -> PathBuf {
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+        .filter(|item| item["reason"] == "compiler-artifact" && item["target"]["name"] == "getting-started-host")
+        .find_map(|item| item["executable"].as_str().map(PathBuf::from))
+        .expect("Cargo reports the calculator host executable")
+}
+
 /// Inspect the actual native artifacts. A downstream plugin is blocked, and
 /// an independent provider is absent from the reported remainder.
 #[test]
@@ -692,12 +702,7 @@ fn generated_root_threading_change_is_context_for_a_breaking_digest() {
     )
     .unwrap();
     let result = build_calculator_workspace(root, target.path(), &["getting-started-host", "getting-started-plugin"]);
-    let host = String::from_utf8_lossy(&result.stdout)
-        .lines()
-        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
-        .find(|item| item["reason"] == "compiler-artifact" && item["target"]["name"] == "getting-started-host")
-        .and_then(|item| item["executable"].as_str().map(PathBuf::from))
-        .expect("old fixture host executable");
+    let host = calculator_host_artifact(&result);
     let local = root.join(format!("local{}", std::env::consts::DLL_SUFFIX));
     std::fs::copy(shared_artifact(&result, "getting_started_plugin"), &local).unwrap();
 
@@ -770,4 +775,98 @@ fn generated_root_threading_change_is_context_for_a_breaking_digest() {
         report.contains(r#"factory.root_factory_threading: "thread_local" -> "thread_safe""#),
         "{report}"
     );
+}
+
+/// With an exact IID and digest, the opposite partial capability must still
+/// reject before bootstrap. The first admitted instance records ordinal one.
+#[test]
+fn generated_partial_root_mode_is_checked_before_bootstrap() {
+    let inspector = build_inspector("dev");
+    for (mode, marker, opposite, reported) in [
+        ("send", "ThreadSend", "ThreadSync", "thread_send"),
+        ("sync", "ThreadSync", "ThreadSend", "thread_sync"),
+    ] {
+        let temporary = tempfile::tempdir().unwrap();
+        let root = temporary.path();
+        let target = prepare_calculator_workspace(root);
+        std::fs::write(
+            root.join("schemas/tutorial/calculator.ncidl"),
+            format!("#[threading({mode})] interface Calculator {{ fn ordinal(&self) -> u32; }}"),
+        )
+        .unwrap();
+        std::fs::write(
+            root.join("plugin/src/lib.rs"),
+            r#"
+                extern crate self as getting_started_plugin;
+                use neocogi_com_sdk::{com_object, plugin, ComPtr, NcStatus, RuntimeHandle, ROOT_MODE};
+                use std::sync::atomic::{AtomicU32, Ordering};
+
+                mod contracts { include!(env!("CALCULATOR_BINDINGS")); }
+                use contracts::{Calculator, CalculatorAbi};
+
+                static ACQUISITIONS: AtomicU32 = AtomicU32::new(0);
+
+                #[com_object(contracts::Calculator)]
+                struct Root(u32);
+
+                impl Calculator for Root {
+                    fn ordinal(&self) -> u32 { self.0 }
+                }
+
+                #[plugin(name = "nc.tests.partial_calculator")]
+                fn acquire(_runtime: RuntimeHandle) -> Result<ComPtr<CalculatorAbi, ROOT_MODE>, NcStatus> {
+                    let ordinal = ACQUISITIONS.fetch_add(1, Ordering::Relaxed) + 1;
+                    Root::from_value(Root(ordinal)).query()
+                }
+            "#
+            .replace("ROOT_MODE", marker),
+        )
+        .unwrap();
+        std::fs::write(
+            root.join("host/src/main.rs"),
+            r#"
+                extern crate self as getting_started_host;
+                use neocogi_com_sdk::{ComInterface, ComPtr, ComRaw, NC_E_INVALID_ARG, RuntimeHandle, ROOT_MODE, OPPOSITE_MODE, ThreadingModel};
+
+                mod contracts { include!(env!("CALCULATOR_BINDINGS")); }
+                use contracts::CalculatorAbi;
+
+                #[neocogi_com_sdk::com_main]
+                fn main(runtime: RuntimeHandle) {
+                    let path = std::env::args_os().nth(1).expect("staged provider path");
+                    // SAFETY: This test loads its own trusted calculator build.
+                    let id = unsafe { runtime.load_plugin_library(std::path::PathBuf::from(path)) };
+                    let mut out = ComRaw::null();
+                    let host = neocogi_com_host::initialize_process();
+                    // SAFETY: The process host retains this table. The exact
+                    // generated identity and writable out slot satisfy raw input.
+                    let status = unsafe {
+                        ((*host.runtime).acquire_factory_plugin)(
+                            id, CalculatorAbi::INTERFACE_ID, OPPOSITE_MODE::ABI_THREADING_MODE.as_raw(), &mut out,
+                        )
+                    };
+                    assert_eq!(status, NC_E_INVALID_ARG);
+                    assert!(out.object.is_null() && out.vtable.is_null());
+
+                    let factory: ComPtr<CalculatorAbi, ROOT_MODE> =
+                        runtime.acquire_plugin_root::<CalculatorAbi>(id).unwrap();
+                    assert_eq!(factory.ordinal(), 1);
+                }
+            "#
+            .replace("ROOT_MODE", marker)
+            .replace("OPPOSITE_MODE", opposite),
+        )
+        .unwrap();
+
+        let built = build_calculator_workspace(root, target.path(), &["getting-started-host", "getting-started-plugin"]);
+        let host = calculator_host_artifact(&built);
+        let library = root.join(format!("{mode}{}", std::env::consts::DLL_SUFFIX));
+        std::fs::copy(shared_artifact(&built, "getting_started_plugin"), &library).unwrap();
+        assert_success(mode, &Command::new(host).arg(&library).output().unwrap());
+
+        let output = Command::new(&inspector).arg("dump").arg(&library).args(["--format", "json"]).output().unwrap();
+        assert_success("partial root descriptor", &output);
+        let artifact: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(artifact["factory"]["root_factory_threading"], reported);
+    }
 }
