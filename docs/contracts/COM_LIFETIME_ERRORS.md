@@ -7,7 +7,7 @@ another object or service it used.
 
 | Status | Contract | Examples |
 | --- | --- | --- |
-| `NC_E_DROPPED` (`-14`) | No live owner is available; new access or promotion is rejected. | An exclusive object's `ComBox` was dropped; a shared weak reference has no strong owner; a required weak dependency cannot upgrade. |
+| `NC_E_DROPPED` (`-14`) | No live owner is available; new access or promotion is rejected. | A shared weak reference has no strong owner or a required weak dependency cannot upgrade. |
 | `NC_E_CLOSED` (`-13`) | A service, session or channel has closed; its COM capability can still exist. | A disconnected transport or explicitly closed application service whose COM handle remains owned. |
 
 Logical closure is application-defined state. A closed object can retain its
@@ -16,18 +16,17 @@ Empty optional slots are not evidence of dropped ownership.
 
 ## Ownership and concurrency
 
-Objects are allocated from fully initialized Rust values. Factories obtain weak
-identities afterward and finish any private wiring before exposing a capability.
-There is no cyclic-construction exception: a zero shared owner count or cleared
-exclusive owner bit is terminal, and promotion cannot resurrect the value. See
-[the construction contract](COM_OBJECT_CONSTRUCTION.md).
+Objects are allocated from fully initialized Rust values. Shared factories obtain
+weak identities afterward and finish any private wiring before exposing a
+capability. A zero shared owner count is terminal. Weak tokens keep the control
+allocation available for promotion and accounting. The [construction contract](COM_OBJECT_CONSTRUCTION.md)
+defines when factories may publish their interfaces.
 
-The common exclusive borrow-admission check returns `NC_E_DROPPED` as soon as
-owner Drop clears the owner bit. Already admitted cross-thread calls can finish
-while the dropping thread waits. The status rejects new calls; it does not claim
-that an in-progress destructor has completed. Returning from owner Drop still
-proves synchronous value/descendant destruction. Weak tokens retain bookkeeping,
-not object values, and do not postpone that destruction.
+`ComBox` is the sole boxed owner. Rust requires its loans and their scoped
+workers to end before owner destruction. Native callers must uphold the same
+rule. Dropping the owner synchronously destroys the value and its owned
+descendants. A raw pair saved past the end of its loan is outside the ABI
+contract.
 
 Shared weak promotion is an internal typed Rust operation returning `Ok(None)`
 when no strong owner remains, before interface negotiation. Binding-owned C
@@ -38,22 +37,23 @@ failures remain errors. Neither status changes handle or vtable layout.
 `WeakLocalCom<T>` preserves the concrete implementation established at local
 construction. Its `upgrade` follows the same `Result<Option<_>, NcStatus>`
 contract and acquires a `LocalCom<T>` strong owner before any value access.
-Promotion can succeed while another call holds the object gate; conflicting
-`try_borrow` or `try_borrow_mut` access then returns `NC_E_BUSY`. Interface owners
-also keep local promotion possible. Weak clones and formatting never retain the
-value, and neither a foreign strong nor weak interface proves a concrete Rust T.
+Interface owners keep local promotion possible. The local owner gives shared
+access to its concrete value through `get()`. Providers can use a field guard
+and report `NC_E_BUSY` when the operation needs conflicting access. Weak clones
+and formatting operate on the control allocation. Concrete Rust type evidence
+comes from local construction.
 
 ## Error propagation
 
 A live receiver may return `NC_E_DROPPED` from an expired dependency or
 `NC_E_CLOSED` from a service it calls. Neither result proves the receiver itself
-was destroyed. Use the relevant weak handle's promotion or checked call admission
-to establish liveness, and propagate method errors independently.
+was destroyed. A strong owner or an active loan supplies live access. Promote
+a weak handle before using the target, and propagate method errors independently.
 
 ## Verification boundaries
 
 Real generated exclusive calls exercise owner destruction, unchanged rejected
-owning inputs, local weak access, and concurrent admitted calls versus Drop.
+owning inputs, and joined workers using owner-dependent loans.
 Shared-object tests check successful promotion of a logically closed receiver and
 failed promotion after final destruction. The [native C fixture](../../tests/com/integration-tests/native_c_abi.rs) checks
 raw weak promotion and its status through the ABI. The

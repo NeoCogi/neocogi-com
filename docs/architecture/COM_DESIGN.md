@@ -61,13 +61,14 @@ its Rust state. `#[plugin]` wraps one typed Rust acquisition function in the fix
 root ABI; it needs no bootstrap role or implementation trait. Subsequent object
 construction uses ordinary typed methods and explicit returned owners.
 
-Mutation uses `&mut self`. ABI dispatch obtains a checked borrow before creating
-a Rust reference; conflicting or reentrant access returns `NC_E_BUSY`. Shared
-objects keep their method borrow state separate from strong counting. Exclusive
-objects combine owner presence and reader/writer admission in one atomic word.
-The ABI implementation contains the necessary `UnsafeCell`; semantic state stays
-in ordinary fields. See the [current ABI](../abi.md) for layouts,
-ownership transfer and the limits of concurrent Drop.
+An exclusive owner can lend `&mut self` to a generated interface method. Rust
+checks this borrow, and a native caller must supply the same exclusive access
+for the call and any receiver-bound result. Shared owners expose `&self`
+methods. A shared provider synchronizes whichever fields it needs to mutate and
+decides how to handle conflicting operations. A scoped visitor lets the provider
+keep a field guard alive during a short loan. Stack-backed protocol adapters
+also check admission before dispatch. The [current ABI](../abi.md) defines
+the layouts, ownership transfer and loan lifetimes.
 
 ## Independent-build compatibility
 

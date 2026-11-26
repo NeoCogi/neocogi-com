@@ -48,9 +48,9 @@ The format factory acquires borrowed input before returning an owning source.
 NCB owns its input bytes; JSON owns a parsed syntax tree, with no retained
 caller pointers. A syntax failure produces a failed source with queryable details,
 rather than discarding the explanation during factory creation.
-The NCB objects retain concrete codec state in ordinary fields. Their generated
-COM object gate admits each mutable call before borrowing that state. No provider
-lock or interior mutability replaces the exclusive document owner.
+The NCB objects retain concrete codec state in ordinary fields. The document
+owner lends exclusive access to those fields through generated mutable calls.
+Native callers supply that access under the boxed receiver contract.
 
 ## Session and container states
 
@@ -60,8 +60,8 @@ a source also rejects trailing input. Successful finish freezes output and
 rejects further format operations, including a second finish. A format or schema
 failure retains the first provider diagnostic and rejects all later operations. Discard the
 session on failure. ABI validation rejects malformed arguments before provider
-entry; such rejected calls do not consume the document. Reentrant calls return
-`NC_E_BUSY` before a second Rust mutable reference is formed.
+entry; such rejected calls do not consume the document. A call with exclusive
+access cannot be reentered on the same session while its borrow remains live.
 
 Serialization names the next record field before writing its value. Every
 sequence emits its declared element count. Maps alternate typed keys and values
@@ -280,7 +280,7 @@ regardless of that provider's default format. A missing provider fails with
 The format interfaces themselves add no global registry, filesystem access,
 loader policy or automatic object-memory capture.
 
-Published `0.3.0` uses ABI v2 discovery. This branch uses unreleased ABI v5, documented in the [development ABI
+Published `0.3.0` uses ABI v2 discovery. This branch uses unreleased ABI v4, documented in the [development ABI
 specification](../abi.md). The format interfaces and NCB format version 1
 are unchanged by the lifetime-policy split.
 

@@ -34,8 +34,8 @@ routes supplying IDL imports must expose the complete family.
 The interface supplies the public identity, threading capability, callable
 surface, and required interfaces. The implementation supplies private
 state and method bodies. Typed facade storage contains one Rust value and its
-policy-specific lifetime header;
-shared providers use one borrow gate and exclusive providers use header admission.
+policy-specific lifetime header. Shared storage counts strong and weak owners.
+Boxed storage has a single owner and uses Rust loans for access.
 `ComObject` supplies the single implementation proof; the macro emits no private
 storage companion or per-provider lifecycle bodies. Static tables implement signature-checked
 `QueryInterface`; handles carry the allocation and selected table, so interfaces
@@ -45,11 +45,10 @@ See the [storage decision](https://github.com/NeoCogi/neocogi-com/blob/v0.4.0/do
 history of the reverted metadata-heavy version and the deliberate handle-size
 tradeoff in the current representation.
 `into_local(initialized_value)` returns a `LocalCom<Implementation>` when the
-creating binary also needs typed access to the owned implementation. Its
-`try_borrow` and `try_borrow_mut` guards share the generated COM call gate;
-release them before calling an interface that enters the same object. Neither
-guard performs a query, allocation, or reference-count operation. A local handle
-cannot be recovered safely from an arbitrary foreign interface.
+creating binary also needs typed shared access to the owned implementation
+through `get()`. Exclusive implementations use `into_local_box(initialized_value)`
+and can access the implementation mutably through `get_mut()` while borrowing
+the local owner exclusively. The concrete-type proof comes from construction.
 The local owner's `downgrade()` returns `WeakLocalCom<Implementation>`; promoting
 it recovers a typed strong local owner while the allocation remains alive. This
 works for generated interface contracts and introduces
@@ -62,9 +61,8 @@ objects that are not implementations of a single interface contract. All externa
 constructible component objects should instead be returned by a generated
 interface method.
 
-Mutable interface methods receive `&mut self`. Generated access gating rejects
-conflicting and reentrant mutable calls with `NC_E_BUSY`; ordinary state should
-not add `Cell` or `RefCell` merely to emulate mutability behind `&self`.
+Mutable interface methods require an exclusive target loan. Shared providers use
+`&self` and choose field-level synchronization for the state they need to change.
 
 ## Factory implementations and plugin roots
 
