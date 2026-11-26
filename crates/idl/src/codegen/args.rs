@@ -10,6 +10,7 @@ use syn::parse::{Parse, ParseStream};
 use syn::spanned::Spanned;
 use syn::{Ident, LitStr, Path, Result, Token, parenthesized};
 
+use crate::Threading;
 use crate::codegen::util::{interface_companion_ident, path_with_last_ident};
 
 /// Parsed options for concrete `#[com_object]` storage generation.
@@ -19,7 +20,7 @@ pub struct ObjectArgs {
     /// Constructor and call-lifetime policy fixed for every instance of this class.
     pub ownership: ObjectOwnership,
     /// Threading evidence declared by an explicit-list provider.
-    pub threading: InterfaceThreading,
+    pub threading: Threading,
     /// Optional path overriding automatic `neocogi-com-sdk` crate discovery.
     pub runtime_crate: Option<Path>,
     /// Optional generated ABI path for a factory-created interface contract.
@@ -33,19 +34,6 @@ pub enum ObjectOwnership {
     Shared,
     /// One owner lends access and destroys the value after its borrows end.
     Exclusive,
-}
-
-/// Threading requirement already resolved by the IDL compiler.
-#[derive(Clone, Copy)]
-pub enum InterfaceThreading {
-    /// References and calls remain on one thread.
-    Local,
-    /// References and calls may cross threads.
-    Shared,
-    /// Move the target or its exclusive loan across threads.
-    Send,
-    /// Lend shared access across threads without moving the target.
-    Sync,
 }
 
 /// Generated contract and statically typed provider paths for one object interface.
@@ -134,9 +122,9 @@ impl Parse for ObjectArgs {
                     return Err(syn::Error::new(keyword.span(), message));
                 }
                 let mode = match keyword.to_string().as_str() {
-                    "thread_safe" => InterfaceThreading::Shared,
-                    "thread_send" => InterfaceThreading::Send,
-                    _ => InterfaceThreading::Sync,
+                    "thread_safe" => Threading::Shared,
+                    "thread_send" => Threading::Send,
+                    _ => Threading::Sync,
                 };
                 threading = Some((mode, keyword));
             } else if keyword == "ownership" {
@@ -193,7 +181,7 @@ impl Parse for ObjectArgs {
 
         Ok(Self {
             interfaces,
-            threading: threading.map_or(InterfaceThreading::Local, |(mode, _)| mode),
+            threading: threading.map_or(Threading::Local, |(mode, _)| mode),
             runtime_crate,
             primary_interface,
             ownership: ownership.unwrap_or(ObjectOwnership::Shared),

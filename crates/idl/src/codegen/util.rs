@@ -9,7 +9,18 @@ use std::collections::HashSet;
 use quote::{ToTokens, format_ident, quote};
 use syn::{Generics, Ident, LitStr, Path, Result};
 
+use crate::Threading;
 use crate::codegen::args::PluginGuid;
+
+/// Maps an IDL capability to its Rust marker through the selected SDK path.
+pub(crate) fn threading_marker(threading: Threading, nc: &Path) -> proc_macro2::TokenStream {
+    match threading {
+        Threading::Local => quote! { #nc::ThreadLocal },
+        Threading::Shared => quote! { #nc::ThreadSafe },
+        Threading::Send => quote! { #nc::ThreadSend },
+        Threading::Sync => quote! { #nc::ThreadSync },
+    }
+}
 
 /// Creates a private local binding with macro-definition hygiene.
 ///

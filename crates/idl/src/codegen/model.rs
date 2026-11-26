@@ -187,7 +187,7 @@ pub struct InterfacePlan {
     /// Canonical logical declaration name for explicit inspection.
     pub qualified_name: String,
     /// Minimum threading capability promised by this interface.
-    pub threading: crate::codegen::InterfaceThreading,
+    pub threading: crate::Threading,
     /// Ordered bound provider paths; first entry supplies the physical prefix.
     pub bases: Vec<syn::Path>,
     /// Inherited projections in first-supplier order. The owning interface is implicit.

@@ -51,7 +51,7 @@ fn typed_interface_and_value_names_keep_their_supplied_identifier_spans() {
         id: "fa4298eb-5301-4ccb-b132-67bcf98c9102".parse().unwrap(),
         qualified_name: "example.navigation.Counter".into(),
         signature: [3; 32],
-        threading: crate::codegen::InterfaceThreading::Local,
+        threading: crate::Threading::Local,
         bases: Vec::new(),
         inherited_projections: Vec::new(),
         scoped_prefixes: Vec::new(),

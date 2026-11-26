@@ -20,12 +20,12 @@ mod serialize;
 mod util;
 mod value;
 
-pub use args::{InterfaceThreading, ObjectArgs, ObjectInterface, ObjectOwnership};
+pub use args::{ObjectArgs, ObjectInterface, ObjectOwnership};
 pub use plugin::{PluginArgs, expand_plugin};
 pub use host_main::{MainArgs, expand_com_main};
 pub use object::expand_com_object;
 pub(crate) use interface::{expand_interface_parts_with_path, expand_scoped_interface_parts};
-pub(crate) use util::sdk_crate_path;
+pub(crate) use util::{sdk_crate_path, threading_marker};
 pub use interface::{InterfaceVTablePrefix, InterfaceExpansion, expand_interface_parts};
 pub use deserialize::{expand_derive as expand_com_deserialize_derive, expand_struct as emit_record_decoder, expand_enum as emit_enum_decoder};
 pub use serialize::expand_derive as expand_com_serialize_derive;

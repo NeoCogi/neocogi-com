@@ -298,19 +298,22 @@ fn transitive_specialization_keeps_optional_loan_slots() {
 #[test]
 fn threading_modes_form_a_two_guarantee_lattice() {
     let mut signatures = std::collections::BTreeSet::new();
-    for (name, permits_send, permits_sync) in [("local", false, false), ("send", true, false), ("sync", false, true), ("shared", true, true)] {
+    let modes = ["local", "send", "sync", "shared"];
+    for (name, admitted_bases) in modes.into_iter().zip([
+        [true, false, false, false],
+        [true, true, false, false],
+        [true, false, true, false],
+        [true, true, true, true],
+    ]) {
         let source = format!("#[threading({name})] interface ILoan {{}}");
         let graph = resolve(&source).unwrap();
         let identity = graph.module("proof.loans").unwrap().declaration("ILoan").unwrap();
         assert!(signatures.insert(identity.abi_signature));
-        for (base, allowed) in [
-            ("local", true),
-            ("send", permits_send),
-            ("sync", permits_sync),
-            ("shared", permits_send && permits_sync),
-        ] {
-            let source = format!("#[threading({base})] interface IBase {{}} #[threading({name})] interface ILoan: IBase {{}}");
-            assert_eq!(resolve(&source).is_ok(), allowed, "{source}");
+        for (base, allowed) in modes.into_iter().zip(admitted_bases) {
+            for bases in ["IBase", "IFirst + IBase"] {
+                let source = format!("interface IFirst {{}} #[threading({base})] interface IBase {{}} #[threading({name})] interface ILoan: {bases} {{}}");
+                assert_eq!(resolve(&source).is_ok(), allowed, "{source}");
+            }
         }
     }
 }

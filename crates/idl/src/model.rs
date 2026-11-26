@@ -1,6 +1,6 @@
 //! Owned syntax model shared by generation, build integration, and tools.
 
-use neocogi_com::NcGuid;
+use neocogi_com::{NcAbiThreadingMode, NcGuid};
 
 use crate::SourceSpan;
 
@@ -230,11 +230,16 @@ pub enum Threading {
 impl Threading {
     /// An interface must preserve each independent guarantee of a base.
     pub(crate) const fn supports(self, required: Self) -> bool {
-        match required {
-            Self::Local => true,
-            Self::Shared => matches!(self, Self::Shared),
-            Self::Send => matches!(self, Self::Send | Self::Shared),
-            Self::Sync => matches!(self, Self::Sync | Self::Shared),
+        self.native_mode().supports(required.native_mode())
+    }
+
+    /// Selects the corresponding native capability for admission comparisons.
+    const fn native_mode(self) -> NcAbiThreadingMode {
+        match self {
+            Self::Local => NcAbiThreadingMode::ThreadLocal,
+            Self::Shared => NcAbiThreadingMode::ThreadSafe,
+            Self::Send => NcAbiThreadingMode::ThreadSend,
+            Self::Sync => NcAbiThreadingMode::ThreadSync,
         }
     }
 }

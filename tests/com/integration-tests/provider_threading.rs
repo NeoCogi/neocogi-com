@@ -20,6 +20,11 @@ fn shared_provider_minimum_is_independent_of_class_mode() {
         #[threading(shared)] interface Shared { fn value(&self) -> Result<u32>; }
         #[threading(shared)] interface Derived: Shared {}
         #[threading(shared)] interface Combined: Local + Shared {}
+        #[threading(send)] interface Transfer {}
+        #[threading(sync)] interface Share {}
+        interface LoanSlots {
+            fn check(&self, local: &Local, shared: &Shared, transfer: &Transfer, share: &Share) -> u32;
+        }
     "#,
     )
     .unwrap();
@@ -45,7 +50,7 @@ fn shared_provider_minimum_is_independent_of_class_mode() {
             format!(
                 r#"
             #![allow(dead_code, unused_imports)]
-            use neocogi_com_sdk::{{com_object, ComInterface, ComObject, ComPtr, NcStatus, ThreadLocal, ThreadSafe, ThreadingModel}};
+            use neocogi_com_sdk::{{com_object, ComInterface, ComObject, ComPtr, ComRef, NcStatus, ThreadLocal, ThreadSafe, ThreadSend, ThreadSync, ThreadingModel}};
             use std::{{cell::Cell, marker::PhantomData, rc::Rc, sync::{{Arc, MutexGuard}}}};
             mod bindings {{ include!(concat!(env!("OUT_DIR"), "/bindings.rs")); }}
             use bindings::*;
@@ -139,6 +144,54 @@ fn shared_provider_minimum_is_independent_of_class_mode() {
     );
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
     assert!(String::from_utf8_lossy(&output.stdout).contains("generic exclusive projections and phantom called"));
+
+    // The interface, explicit class policy, and lowered argument must select
+    // the same marker for each of the four capabilities.
+    let output = invoke(
+        "run",
+        r#"
+        #[com_object(interfaces(Local))]
+        struct LocalProvider;
+        impl Local for LocalProvider { fn value(&self) -> Result<u32, NcStatus> { Ok(19) } }
+
+        #[com_object(interfaces(Shared), thread_safe)]
+        struct SharedProvider;
+        impl Shared for SharedProvider { fn value(&self) -> Result<u32, NcStatus> { Ok(23) } }
+
+        #[com_object(interfaces(Transfer), thread_send)]
+        struct TransferProvider;
+        impl Transfer for TransferProvider {}
+
+        #[com_object(interfaces(Share), thread_sync)]
+        struct ShareProvider;
+        impl Share for ShareProvider {}
+
+        #[com_object(LoanSlots)]
+        struct Slots;
+        impl LoanSlots for Slots {
+            fn check(
+                &self, local: ComRef<'_, LocalAbi, ThreadLocal>, shared: ComRef<'_, SharedAbi, ThreadSafe>,
+                _transfer: ComRef<'_, TransferAbi, ThreadSend>, _share: ComRef<'_, ShareAbi, ThreadSync>,
+            ) -> u32 {
+                local.value().unwrap() + shared.value().unwrap()
+            }
+        }
+
+        fn main() {
+            assert_eq!(<LocalAbi as ComInterface>::Threading::ABI_THREADING_MODE.as_raw(), 0);
+            assert_eq!(<SharedAbi as ComInterface>::Threading::ABI_THREADING_MODE.as_raw(), 1);
+            assert_eq!(<TransferAbi as ComInterface>::Threading::ABI_THREADING_MODE.as_raw(), 2);
+            assert_eq!(<ShareAbi as ComInterface>::Threading::ABI_THREADING_MODE.as_raw(), 3);
+            let local: ComPtr<LocalAbi, ThreadLocal> = LocalProvider::from_value(LocalProvider).query().unwrap();
+            let shared: ComPtr<SharedAbi, ThreadSafe> = SharedProvider::from_value(SharedProvider).query().unwrap();
+            let transfer: ComPtr<TransferAbi, ThreadSend> = TransferProvider::from_value(TransferProvider).query().unwrap();
+            let share: ComPtr<ShareAbi, ThreadSync> = ShareProvider::from_value(ShareProvider).query().unwrap();
+            let slots = Slots::from_value(Slots).query::<LoanSlotsAbi>().unwrap();
+            assert_eq!(slots.check(local.as_com_ref(), shared.as_com_ref(), transfer.as_com_ref(), share.as_com_ref()), 42);
+        }
+    "#,
+    );
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
 
     // Default-list negatives isolate the provider minimum from the stronger
     // class-mode proof. Rc alone could not expose one accidentally missing bound.

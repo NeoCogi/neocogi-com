@@ -11,7 +11,8 @@
 use quote::quote;
 use syn::ItemStruct;
 
-use crate::codegen::args::{InterfaceThreading, ObjectArgs, ObjectOwnership};
+use crate::codegen::args::{ObjectArgs, ObjectOwnership};
+use crate::codegen::threading_marker;
 use crate::codegen::util::{PrivateNames, sdk_crate_path};
 
 /// Generates compact interface bindings, typed borrow adapters and legal constructors.
@@ -42,12 +43,7 @@ pub fn expand_com_object(args: ObjectArgs, input: ItemStruct) -> proc_macro2::To
     let declared_threading_model = if let Some(interface) = &args.primary_interface {
         quote! { <#interface as #nc::ComInterface>::Threading }
     } else {
-        match args.threading {
-            InterfaceThreading::Local => quote! { #nc::ThreadLocal },
-            InterfaceThreading::Shared => quote! { #nc::ThreadSafe },
-            InterfaceThreading::Send => quote! { #nc::ThreadSend },
-            InterfaceThreading::Sync => quote! { #nc::ThreadSync },
-        }
+        threading_marker(args.threading, &nc)
     };
     // Prove the selected class/handle mode. Each generated provider trait
     // separately enforces its interface minimum, even for a local class mode.

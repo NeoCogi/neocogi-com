@@ -1389,8 +1389,16 @@ at preparation and return the owners. Non-consuming methods keep actual-output
 budgeting. See [prepared output completion](COM_OUTPUT_COMPLETION.md) for an IDL
 example, enum limits, and real generated-call regressions.
 
-The provider threading guarantee is preserved for all three owner/observer
-wrappers. See the [current native ABI](../abi.md) for lifetime and concurrency rules.
+The generated interface declares its minimum threading capability. Each Rust
+handle carries the capability that applies to its access.
+
+| Handle | Where its capability comes from |
+| --- | --- |
+| `ComBox` and `ComPtr` | The provider's class when constructed, or the declared target of a transferred owner. |
+| `WeakComPtr` | The shared owner it observes. |
+| `ComRef` and `ComMut` | The handle they borrow from, or the declared target of an interface argument or result. |
+
+See [threading capabilities](../abi.md#threading-capabilities) for each handle's transfer and sharing rules.
 
 ## Interpreting generated names
 

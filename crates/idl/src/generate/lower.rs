@@ -57,11 +57,10 @@ pub(super) fn object(graph: &mut Generation<'_>, module: &ResolvedModule, target
     let DeclarationKind::Interface(interface) = &resolved.declaration.kind else {
         return Err(GenerateError::new("resolved object target is a value"));
     };
-    let mode = match interface.threading {
-        Threading::Local => None,
-        Threading::Shared => Some(Box::new(syn::parse_quote!(#nc::ThreadSafe))),
-        Threading::Send => Some(Box::new(syn::parse_quote!(#nc::ThreadSend))),
-        Threading::Sync => Some(Box::new(syn::parse_quote!(#nc::ThreadSync))),
+    let mode = if interface.threading == Threading::Local {
+        None
+    } else {
+        Some(Box::new(rust_type(crate::codegen::threading_marker(interface.threading, nc))?))
     };
     Ok((rust_type(named_rust_type(graph, module, resolved, true)?)?, mode))
 }

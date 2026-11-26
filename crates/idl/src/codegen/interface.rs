@@ -10,7 +10,8 @@ use neocogi_com::NcComInterfaceCompanion as Companion;
 use syn::Result;
 
 use crate::codegen::method_docs::{literal_doc, raw_vtable_method_docs, safe_method_docs};
-use crate::codegen::args::InterfaceThreading;
+use crate::Threading;
+use crate::codegen::threading_marker;
 mod scoped_result;
 
 use crate::codegen::model::{AbiArgKind, AbiMethod, AbiReceiver, AbiReturnKind, InterfaceBorrow, InterfacePlan};
@@ -65,7 +66,7 @@ pub(crate) fn expand_interface_parts_with_path(plan: InterfacePlan, nc: &syn::Pa
 
 /// Built-in format adapters borrow their caller's state without granting ownership.
 pub(crate) fn expand_scoped_interface_parts(plan: InterfacePlan, nc: &syn::Path) -> Result<InterfaceExpansion> {
-    if !matches!(plan.threading, InterfaceThreading::Local)
+    if !matches!(plan.threading, Threading::Local)
         || !plan.bases.is_empty()
         || plan
             .methods
@@ -111,10 +112,10 @@ fn expand_parts(plan: InterfacePlan, dispatch: ProviderDispatch, nc: &syn::Path)
     // original interface_paths below select COM bases, identities and tables.
     let mut provider_bounds = interface_paths.iter().map(|path| quote! { #path }).collect::<Vec<_>>();
     match requirement {
-        InterfaceThreading::Local => {}
-        InterfaceThreading::Shared => provider_bounds.extend([quote! { ::core::marker::Send }, quote! { ::core::marker::Sync }]),
-        InterfaceThreading::Send => provider_bounds.push(quote! { ::core::marker::Send }),
-        InterfaceThreading::Sync => provider_bounds.push(quote! { ::core::marker::Sync }),
+        Threading::Local => {}
+        Threading::Shared => provider_bounds.extend([quote! { ::core::marker::Send }, quote! { ::core::marker::Sync }]),
+        Threading::Send => provider_bounds.push(quote! { ::core::marker::Send }),
+        Threading::Sync => provider_bounds.push(quote! { ::core::marker::Sync }),
     }
     let supertraits = if provider_bounds.is_empty() {
         quote! {}
@@ -166,12 +167,7 @@ fn expand_parts(plan: InterfacePlan, dispatch: ProviderDispatch, nc: &syn::Path)
     let vtable_ident = interface_companion_ident(trait_ident, Companion::VTable);
     let vtable_for_ident = interface_companion_ident(trait_ident, Companion::Provider);
     let wrapper_ident = interface_companion_ident(trait_ident, Companion::Wrapper);
-    let threading = match requirement {
-        InterfaceThreading::Local => quote! { #nc::ThreadLocal },
-        InterfaceThreading::Shared => quote! { #nc::ThreadSafe },
-        InterfaceThreading::Send => quote! { #nc::ThreadSend },
-        InterfaceThreading::Sync => quote! { #nc::ThreadSync },
-    };
+    let threading = threading_marker(requirement, nc);
     let qualified_name = syn::LitStr::new(&qualified_name, trait_ident.span());
     let guid = guid_tokens(id, nc)?;
     let assigned_signature = syn::LitByteStr::new(&signature, trait_ident.span());

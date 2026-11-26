@@ -590,7 +590,7 @@ fn interface_plan(
     declaration: &Declaration,
     ancestry: &[interface_metadata::Projection<'_>],
 ) -> Result<crate::codegen::model::InterfacePlan, GenerateError> {
-    use crate::codegen::{model::InterfacePlan, InterfaceThreading};
+    use crate::codegen::model::InterfacePlan;
     let DeclarationKind::Interface(interface) = &declaration.kind else {
         return Err(GenerateError::new("interface emission requires a callable declaration"));
     };
@@ -619,12 +619,7 @@ fn interface_plan(
         id: identity.id,
         signature: identity.abi_signature,
         qualified_name: identity.qualified_name.clone(),
-        threading: match interface.threading {
-            Threading::Local => InterfaceThreading::Local,
-            Threading::Shared => InterfaceThreading::Shared,
-            Threading::Send => InterfaceThreading::Send,
-            Threading::Sync => InterfaceThreading::Sync,
-        },
+        threading: interface.threading,
         requires_exclusive: ancestry.iter().any(|projection| projection.requires_exclusive),
         bases,
         inherited_projections: ancestry.iter().filter_map(|row| row.parent).collect(),

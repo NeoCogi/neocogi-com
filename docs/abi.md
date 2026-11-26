@@ -1311,7 +1311,7 @@ during Cargo's ancestor search, even when the interpreter cache is empty.
 `cargo xtask compatibility --suite safety` requires nightly with `miri` and
 `rust-src` installed. It discovers and interprets the COM core, runtime,
 and facade library tests, plus current `local_com`, `com_main`, `borrowed_values`, `interface_wrappers`,
-`checked_values`, `output_buffers`, `output_completion`, `exclusive_com` and
+`checked_values`, `array_construction`, `output_buffers`, `output_completion`, `exclusive_com` and
 `weak_com` targets.
 Four explicit large-buffer stress cases remain native-only: the two checked-value
 budget traversals and the output-completion maximum-variant/provider-publication
