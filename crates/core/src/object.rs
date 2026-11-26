@@ -179,15 +179,24 @@ pub unsafe trait ComInterface {
 /// Compile-time proof that an implementation satisfies the selected class mode.
 ///
 /// This hidden helper lets generated object storage derive threading from the
-/// primary IDL interface or explicit object policy. Local class modes need only
-/// own `'static` state, while shared class modes must also be safe to send and
-/// access across threads. Separately, every generated shared provider trait
-/// requires Send + Sync even when the selected class mode is local.
+/// primary IDL interface or explicit object policy. The selected mode requires
+/// the corresponding Rust transfer and sharing traits of the concrete value.
+/// Only the SDK can establish the proof, including when a provider uses an
+/// explicit negative implementation of an auto trait.
 #[doc(hidden)]
-pub trait __ComSupportsInterfaceThreading<M: ThreadingModel> {}
+pub trait __ComSupportsInterfaceThreading<M: ThreadingModel>: provider_threading::Supports<M> {}
 
-impl<T: 'static> __ComSupportsInterfaceThreading<ThreadLocal> for T {}
-impl<T: Send + Sync + 'static> __ComSupportsInterfaceThreading<ThreadSafe> for T {}
+impl<T: provider_threading::Supports<M>, M: ThreadingModel> __ComSupportsInterfaceThreading<M> for T {}
+
+mod provider_threading {
+    use super::{ThreadLocal, ThreadSafe, ThreadingModel};
+
+    /// Seals provider evidence to Rust's actual transfer and sharing bounds.
+    pub trait Supports<M: ThreadingModel> {}
+
+    impl<T: 'static> Supports<ThreadLocal> for T {}
+    impl<T: Send + Sync + 'static> Supports<ThreadSafe> for T {}
+}
 
 // SAFETY: IUnknown names the canonical common vtable contract. Its marker stores
 // no object data; the constants describe the exact built-in root interface.
