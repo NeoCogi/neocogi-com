@@ -341,6 +341,7 @@ mod tests {
             [NC_COM_ABI_MAGIC, 3],
             [0x4e43_4f4d, 4],
             [0x4e43_4f4d, 5],
+            [NC_COM_ABI_MAGIC, 4],
             [NC_COM_ABI_MAGIC, 5],
             [NC_COM_ABI_MAGIC, 24],
         ] {

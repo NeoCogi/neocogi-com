@@ -19,7 +19,7 @@
 //! explicit `neocogi-com-serialization` crate. Wire layouts and application
 //! storage remain separate.
 //!
-//! SDK 0.5.0-wip-alpha.1 uses ABI v4, which is WORK IN PROGRESS (WIP).
+//! SDK 0.5.0-wip-alpha.1 uses ABI v6, which is WORK IN PROGRESS (WIP).
 //! Advance the native ABI version for incompatible changes and rebuild all
 //! participants together.
 

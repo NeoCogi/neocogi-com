@@ -280,7 +280,7 @@ regardless of that provider's default format. A missing provider fails with
 The format interfaces themselves add no global registry, filesystem access,
 loader policy or automatic object-memory capture.
 
-Published `0.3.0` uses ABI v2 discovery. This branch uses unreleased ABI v4, documented in the [development ABI
+Published `0.3.0` uses ABI v2 discovery. This branch uses unreleased ABI v6, documented in the [development ABI
 specification](../abi.md). The format interfaces and NCB format version 1
 are unchanged by the lifetime-policy split.
 

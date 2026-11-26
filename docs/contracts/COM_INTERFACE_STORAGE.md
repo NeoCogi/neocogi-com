@@ -474,7 +474,7 @@ or per-type counting wrapper is emitted.
 The shared header adds one class pointer relative to the former Arc header.
 The shared weak handle saves one pointer. Concrete value alignment can
 introduce padding. The interface count still adds no per-object fields.
-ABI v4 derives access from ownership and borrows.
+ABI v6 derives access from ownership and borrows.
 Final strong release destroys the value and its resources, while weak owners keep
 only the allocation capacity and class metadata alive. Objects always start from
 initialized values; no cyclic constructor or rollback protocol exists. Exact

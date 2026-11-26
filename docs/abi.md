@@ -1,9 +1,9 @@
-# COM ABI v4 (WIP)
+# COM ABI v6 (WIP)
 
-**SDK 0.5.0-wip-alpha.1 uses ABI v4 while the ABI is WORK IN PROGRESS (WIP).**
+**SDK 0.5.0-wip-alpha.1 uses ABI v6 while the ABI is WORK IN PROGRESS (WIP).**
 
 One native ABI version covers the shared layouts, callback signatures and
-ownership contracts. While ABI v4 is in progress, rebuild hosts, providers and
+ownership contracts. While ABI v6 is in progress, rebuild hosts, providers and
 generated consumers from the same source revision. Hosts and plugins require a
 matching header and version.
 
@@ -11,8 +11,8 @@ Published SDK 0.4.0 uses [ABI v3/core 21](https://github.com/NeoCogi/neocogi-com
 Published SDK 0.3.0 uses [ABI v2/core 19](https://github.com/NeoCogi/neocogi-com/blob/v0.3.0/docs/abi-v2.md).
 The [ABI v1 specification](https://github.com/NeoCogi/neocogi-com/blob/v0.1.0/docs/abi-v1.md)
 is available at its release tag. Current admission rejects earlier
-ABI v4/core 23 and ABI 24 drafts, along with drafts that used the retired
-`NCOM` marker.
+ABI v4/core 23 and ABI 24 drafts, versions 4 and 5 under the current
+`NCAB` marker, and drafts that used the retired `NCOM` marker.
 
 The persistence service borrows shared-owned roots and factories. Construction
 and declared ownership establish the matching lifetime header. Serialization
@@ -27,7 +27,7 @@ Opening an image may still execute its initializers and descriptor getter.
 
 | Identity or version | Current authority and purpose |
 | --- | --- |
-| Native ABI | NC_COM_ABI_VERSION == 4; checked in the plugin descriptor and host bundle |
+| Native ABI | NC_COM_ABI_VERSION == 6; checked in the plugin descriptor and host bundle |
 | Native getter | `nc_get_plugin_descriptor`; fixed C signature and descriptor header |
 | Interface contract | IID plus exact 32-byte ABI signature; checked for a particular interface |
 | IDL fingerprint encoding | MODULE_ABI_ENCODING_DOMAIN; canonical encoding v16 with directional loans and threading |
@@ -249,7 +249,7 @@ The public static constructor makes digest width a compile-time obligation:
 
 ```rust
 use neocogi_com_sdk::{NcAbiDigest, NC_COM_ABI_VERSION};
-assert_eq!(NC_COM_ABI_VERSION, 4);
+assert_eq!(NC_COM_ABI_VERSION, 6);
 static FIRST: [u8; 32] = [7; 32];
 static SECOND: [u8; 32] = [7; 32];
 let a = NcAbiDigest::from_static(&FIRST);
@@ -509,15 +509,15 @@ Built-in data interfaces exercise shared ownership and checked native calls:
 
 ```rust
 use neocogi_com_sdk::{INcBytesAbi, ComBytesExt, ComStringExt, IUnknown, NcString};
-let text = NcString::from_utf8_str("ABI v4");
+let text = NcString::from_utf8_str("ABI v6");
 let another = text.clone();
 let bytes = text.query::<INcBytesAbi>().unwrap();
-assert_eq!(bytes.to_vec().unwrap(), b"ABI v4");
-assert_eq!(another.to_string().unwrap(), "ABI v4");
+assert_eq!(bytes.to_vec().unwrap(), b"ABI v6");
+assert_eq!(another.to_string().unwrap(), "ABI v6");
 let identity = text.query::<IUnknown>().unwrap();
 assert!(identity.as_com_ref().same_object(bytes.as_com_ref()));
 drop(text); // Other strong owners still retain the immutable value.
-assert_eq!(another.to_string().unwrap(), "ABI v4");
+assert_eq!(another.to_string().unwrap(), "ABI v6");
 ```
 
 
@@ -619,7 +619,7 @@ its encoded/decoded output guards have been removed.
 The raw record is the existing single common-header pointer, without a cached
 interface table. `NC_ABI_PASSING_WEAK_COM_PTR_OUT` (`0x0d`) identifies this passing
 mode; the return type descriptor supplies the exact interface identity and the
-passing descriptor preserves the threading capability. ABI v4 reserves
+passing descriptor preserves the threading capability. ABI v6 reserves
 the retired boxed observer code `0x0b`.
 
 A successful provider transfers one retained genuine shared weak token. The caller
@@ -1277,7 +1277,7 @@ execution. A cancelled run or detached JSON is insufficient evidence.
 The independent sample exercises typed factory construction, inherited interface
 calls, shared-provider state changes, domain notifications delivered into the host's concrete queue,
 canonical weak-origin identity, fresh copied output (nested enum/boolean and short
-prefix) through ABI v4, persistence through provider-owned byte buffers,
+prefix) through ABI v6, persistence through provider-owned byte buffers,
 restoration through a host-implemented factory adapter, promotion while live,
 and failed promotion after final object release. All assertions execute in
 release/abort builds. Normal completion crosses calls in both directions; panic
