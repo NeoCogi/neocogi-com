@@ -1729,6 +1729,16 @@ fn validate_parameter(
     }
 }
 
+/// Diagnoses an authored visitor whose result has an incompatible shape.
+pub(crate) fn scoped_result_shape_error(method: &Method, context: &str) -> ResolutionError {
+    source_error(
+        "EIDL062",
+        &method.span,
+        format!("{context}: #[scoped] requires Option<&I> or Option<&mut I>, optionally wrapped in Result"),
+        "a visitor needs an optional interface loan",
+    )
+}
+
 /// Validates result payload and distinguishes receiver-bound and visitor loans.
 fn validate_result(
     method: &Method,
@@ -1741,12 +1751,7 @@ fn validate_result(
     let passing = method.return_passing();
     let span = type_span(ty).unwrap_or(&method.span);
     if method.is_scoped() && !matches!(passing, Some(ReturnPassing::ScopedLoan { .. })) {
-        return Err(source_error(
-            "EIDL062",
-            &method.span,
-            format!("{context}: #[scoped] requires Option<&I> or Option<&mut I>, optionally wrapped in Result"),
-            "a visitor needs an optional interface loan",
-        ));
+        return Err(scoped_result_shape_error(method, context));
     }
     if matches!(passing, Some(ReturnPassing::BorrowedLoan { mutable: true, .. })) && method.receiver != crate::Receiver::Mutable {
         return Err(source_error(

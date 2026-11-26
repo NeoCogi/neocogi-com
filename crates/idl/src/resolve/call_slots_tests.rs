@@ -18,6 +18,75 @@ fn methods<'a>(graph: &'a ResolvedModules, name: &str) -> &'a [Method] {
     &interface.methods
 }
 
+/// A visitor's fixed outer result must be a bundled option of a possible loan.
+#[test]
+fn unused_scoped_templates_reject_impossible_result_shapes() {
+    for (prefix, result) in [
+        ("", "u32"),
+        ("", "Result<u32>"),
+        ("", "&IItem"),
+        ("", "Option<u32>"),
+        ("", "Option<&[T]>"),
+        ("enum Option<U> { Missing, Present(U) }", "Option<&T>"),
+    ] {
+        let source = format!("{prefix}\ninterface IItem {{}}\ninterface IUnused<T> {{\n    #[scoped] fn get(&self) -> {result};\n}}");
+        let ModuleGraphError::Resolution(error) = resolve(&source).unwrap_err() else {
+            panic!("expected a scoped result diagnostic: {source}");
+        };
+        let [diagnostic] = error.diagnostics.as_slice() else {
+            panic!("expected one scoped result diagnostic: {error}");
+        };
+        assert_eq!(diagnostic.code, "EIDL062", "{error}");
+        assert_eq!(diagnostic.labels[0].span.path(), "proof/loans.ncidl");
+        assert_eq!(diagnostic.labels[0].span.start().line, 4);
+        assert!(error.to_string().contains("IUnused::get result: #[scoped] requires Option<&I>"), "{error}");
+    }
+}
+
+/// Dependent shapes come through open admission and get checked after substitution.
+#[test]
+fn scoped_templates_defer_bound_parameters_and_interface_targets() {
+    for result in ["T", "Option<T>", "Option<&T>", "neocogi::lang::Option<&T>"] {
+        let source = format!("interface IVisitor<T> {{ #[scoped] fn get(&self) -> {result}; }}");
+        let graph = resolve(&source).unwrap();
+        let template = &graph.module("proof.loans").unwrap().source.templates()[0];
+        let DeclarationKind::Interface(template) = &template.kind else {
+            unreachable!()
+        };
+        assert!(template.methods[0].is_scoped());
+        assert_eq!(template.methods[0].return_passing(), None);
+    }
+    for (result, argument, mutable) in [
+        ("Option<T>", "&IItem", false),
+        ("Result<Option<T>>", "&mut IItem", true),
+        ("Option<&T>", "IItem", false),
+    ] {
+        let source = format!(
+            "interface IItem {{}} interface IVisitor<T> {{ #[scoped] fn get(&self) -> {result}; }}
+             struct Use {{ visitor: ComPtr<IVisitor<{argument}>> }}"
+        );
+        let graph = resolve(&source).unwrap();
+        let declaration = graph
+            .module("proof.loans")
+            .unwrap()
+            .source
+            .declarations()
+            .iter()
+            .find(|item| item.specialization.is_some())
+            .unwrap();
+        assert_eq!(
+            methods(&graph, &declaration.name)[0].return_passing(),
+            Some(ReturnPassing::ScopedLoan { mutable })
+        );
+    }
+    let scalar = "interface IVisitor<T> { #[scoped] fn get(&self) -> Option<T>; } struct Use { visitor: ComPtr<IVisitor<u32>> }";
+    assert!(resolve(scalar).unwrap_err().to_string().contains("EIDL062"));
+    let shape = "struct Value { data: u32 } interface IVisitor<T> { #[scoped] fn get(&self) -> Option<&Value>; }";
+    resolve(shape).unwrap();
+    let closed = format!("{shape} struct Use {{ visitor: ComPtr<IVisitor<u32>> }}");
+    assert!(resolve(&closed).unwrap_err().to_string().contains("EIDL060"));
+}
+
 /// A position closes to one passing rule. Storage continues to use ordinary enums.
 #[test]
 fn standard_optional_root_uses_directional_passing() {

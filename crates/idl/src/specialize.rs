@@ -36,6 +36,7 @@ pub(crate) fn expand(modules: Vec<Module>, limits: Limits) -> Result<Vec<Module>
                     // Lexical ownership is already bound. Open parameters stay
                     // positional; substitution never resolves a source spelling.
                     normalize_declaration(&mut declaration)?;
+                    expansion.validate_scoped_template_methods(&declaration)?;
                     expansion.modules[index].templates.push(declaration);
                 }
                 _ => {
@@ -88,6 +89,27 @@ struct Instance {
 }
 
 impl Expansion {
+    /// Rejects impossible visitor result shapes while leaving target checking
+    /// and parameter-dependent shapes to the closed method validator.
+    fn validate_scoped_template_methods(&self, declaration: &Declaration) -> Result<(), ResolutionError> {
+        let DeclarationKind::Interface(interface) = &declaration.kind else {
+            return Ok(());
+        };
+        let is_parameter = |ty: &IdlType| matches!(ty, IdlType::Named(name) if matches!(name.binding, Binding::Parameter { .. }));
+        for method in interface.methods.iter().filter(|method| method.is_scoped()) {
+            let possible = is_parameter(&method.output)
+                || matches!(&method.output, IdlType::Named(name)
+                if self.standard_option_payload(name).is_some_and(|payload| {
+                    is_parameter(payload) || matches!(payload, IdlType::Borrowed(_) | IdlType::BorrowedMut(_))
+                }));
+            if !possible {
+                let context = format!("{}::{} result", declaration.name, method.name);
+                return Err(crate::resolve::scoped_result_shape_error(method, &context));
+            }
+        }
+        Ok(())
+    }
+
     /// Selects a previously bound source declaration, without import/path lookup.
     fn declaration(&self, name: &NamedType) -> Result<(usize, &Declaration), ResolutionError> {
         let key = name.binding.declaration().ok_or_else(|| failure(&name.span, "expected a bound declaration"))?;

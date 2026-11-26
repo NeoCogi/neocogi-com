@@ -311,6 +311,10 @@ while its lender is active. The declaring marker's `with_...` helper
 requires the proper live receiver loan and passes the returned view to the
 visitor. First-base prefix witnesses preserve the original physical view.
 The visitor result cannot carry the loan beyond the callback.
+Open interface templates check the outer result shape even when unused.
+A bound template parameter can supply the result or the payload of the
+bundled `Option` after substitution. The closed method checks the resulting
+interface target and access rules.
 Receiver-bound and scoped loan results occupy methods with borrowed or copied
 inputs. Methods that consume boxed inputs or write to output buffers use a
 separate call so their transfer and publication rules stay explicit.
