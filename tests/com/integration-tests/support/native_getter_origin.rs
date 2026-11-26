@@ -61,7 +61,13 @@ fn getters_must_be_exported_by_the_selected_native_module() {
             .unwrap()
     };
     let valid = child(root);
-    assert!(valid.status.success(), "{}", String::from_utf8_lossy(&valid.stderr));
+    assert!(
+        valid.status.success(),
+        "native getter child exited {}\n{}\n{}",
+        valid.status,
+        String::from_utf8_lossy(&valid.stdout),
+        String::from_utf8_lossy(&valid.stderr)
+    );
     assert!(String::from_utf8_lossy(&valid.stdout).contains("native getter cases completed"));
 
     let failure = child(&native_path(root, "import_only"));
