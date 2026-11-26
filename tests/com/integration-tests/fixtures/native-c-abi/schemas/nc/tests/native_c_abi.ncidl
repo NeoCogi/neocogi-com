@@ -49,6 +49,10 @@ interface INativeChoice {
     fn echo(&self, value: NativeChoice) -> Result<NativeChoice>;
     /// Produces two values without reading old output bytes; returns required total.
     fn output(&self, output: &mut [NativeChoice]) -> Result<u32>;
+    /// Uses direct projection of the copied value slot.
+    fn copied(&self, mode: u32) -> NativeChoice;
+    /// Exposes failure of the same copied value slot.
+    fn checked_copied(&self, mode: u32) -> Result<NativeChoice>;
 }
 
 /// Independent C code exercises optional ownership and scoped borrowing of one value.
@@ -61,6 +65,7 @@ interface INativeCapability {
     fn invalidate(&self) -> Result<()>;
     fn invalidate_borrowed(&self, target: &mut INativeBoxedActions);
     fn stable(&self, mode: u32) -> Result<Option<&INativeValue>>;
+    fn direct_loan(&self, mode: u32) -> Option<&INativeValue>;
 }
 
 /// Required loans from a unique receiver, with optional scoped mutation.

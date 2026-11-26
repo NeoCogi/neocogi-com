@@ -82,6 +82,14 @@ impl INativeChoice for Choice {
         }
         Ok(2)
     }
+
+    fn copied(&self, _mode: u32) -> NativeChoice {
+        NativeChoice::Flag(true)
+    }
+
+    fn checked_copied(&self, mode: u32) -> Result<NativeChoice, NcStatus> {
+        Ok(self.copied(mode))
+    }
 }
 
 #[cfg(test)]
@@ -496,8 +504,11 @@ mod host_abi;
 mod callable_slots {
     use super::*;
     use core::ffi::c_void;
-    use std::cell::{Cell, RefCell};
-    use neocogi_com_sdk::{ComBox, ComMut, ComRaw, NcScopedResultCallback, NC_E_BUSY, NC_E_DROPPED, NC_E_INVALID_ARG, NC_E_POINTER};
+    use std::{
+        cell::{Cell, RefCell},
+        panic::{AssertUnwindSafe, catch_unwind},
+    };
+    use neocogi_com_sdk::{ComBox, ComMut, ComRaw, ComValue, NcScopedResultCallback, NC_E_BUSY, NC_E_DROPPED, NC_E_INVALID_ARG, NC_E_INVALID_TAG, NC_E_POINTER};
 
     /// Real generated provider with a replaceable field and a stable lender.
     #[com_object(INativeCapability)]
@@ -553,6 +564,10 @@ mod callable_slots {
                 _ => Ok(None),
             }
         }
+
+        fn direct_loan(&self, mode: u32) -> Option<ComRef<'_, INativeValueAbi>> {
+            (mode == 0).then(|| self.stable.as_com_ref())
+        }
     }
 
     /// A uniquely owned target with ordinary mutable receiver access.
@@ -601,6 +616,7 @@ mod callable_slots {
     }
 
     unsafe extern "C" {
+        fn nc_c_copied_choice(object: *mut c_void, mode: u32, out: *mut <NativeChoice as ComValue>::AbiRepr) -> NcStatus;
         fn nc_c_exercise_callable_slots(
             source: ComRaw<INativeCapabilityAbi>,
             pointer: NcStatus,
@@ -673,7 +689,15 @@ mod callable_slots {
         load: nc_c_adverse_optional_result,
         observed: nc_c_adverse_scoped_result,
         stable: adverse_borrowed_result,
+        direct_loan: nc_c_adverse_optional_result,
         ..INativeCapabilityVtblFor::<Capability>::VTABLE
+    };
+
+    /// Both generated projections decode wires from one C implementation.
+    static FOREIGN_CHOICE: INativeChoiceVTable = INativeChoiceVTable {
+        copied: nc_c_copied_choice,
+        checked_copied: nc_c_copied_choice,
+        ..INativeChoiceVtblFor::<Choice>::VTABLE
     };
 
     /// These two C slots deliberately report absence where the contract requires a loan.
@@ -707,9 +731,15 @@ mod callable_slots {
         let loan = root.as_com_mut();
         // SAFETY: the C fixture borrows the live shared and exclusive receivers,
         // calls the exact slots, and uses each child only within its lending borrow.
-        assert_eq!(unsafe { nc_c_exercise_boxed_loan_slots(receiver.as_raw(), loan.as_raw(), NC_E_POINTER, NC_E_DROPPED, native_thread) }, 0);
+        assert_eq!(
+            unsafe { nc_c_exercise_boxed_loan_slots(receiver.as_raw(), loan.as_raw(), NC_E_POINTER, NC_E_DROPPED, native_thread) },
+            0
+        );
         // SAFETY: The exact receiver and all its lenders outlive the C call.
-        assert_eq!(unsafe { nc_c_exercise_callable_slots(receiver.as_raw(), NC_E_POINTER, NC_E_DROPPED, native_thread) }, 0);
+        assert_eq!(
+            unsafe { nc_c_exercise_callable_slots(receiver.as_raw(), NC_E_POINTER, NC_E_DROPPED, native_thread) },
+            0
+        );
         assert!(receiver.find(0).is_none());
     }
 
@@ -732,11 +762,27 @@ mod callable_slots {
         assert!(receiver.find(0).is_none());
         assert!(receiver.load(0).unwrap().is_none());
         assert!(receiver.stable(0).unwrap().is_none());
+        assert!(receiver.direct_loan(0).is_none());
         for (mode, expected) in [(1, NC_E_POINTER), (2, NC_E_DROPPED)] {
             assert!(receiver.find(mode).is_none());
             assert_eq!(receiver.load(mode).unwrap_err(), expected);
             assert_eq!(receiver.stable(mode).unwrap_err(), expected);
+            // The C function returned normally. The generated Rust caller
+            // panics instead of exposing an invalid loan or hiding the status.
+            assert!(catch_unwind(AssertUnwindSafe(|| receiver.direct_loan(mode))).is_err());
         }
+        let mut choice = Choice::from_value(Choice).query::<INativeChoiceAbi>().unwrap().into_raw();
+        choice.vtable = &FOREIGN_CHOICE;
+        // SAFETY: The table uses the same shared receiver lifecycle and exact
+        // interface identity. Each C getter writes only to its wire output.
+        let choice = unsafe { ComPtr::<INativeChoiceAbi>::from_raw_owned(choice) }.unwrap();
+        assert!(matches!(choice.copied(0), NativeChoice::Flag(true)));
+        assert!(matches!(choice.checked_copied(0), Ok(NativeChoice::Flag(true))));
+        for (mode, expected) in [(1, NC_E_INVALID_TAG), (2, NC_E_DROPPED)] {
+            assert!(matches!(choice.checked_copied(mode), Err(status) if status == expected));
+            assert!(catch_unwind(AssertUnwindSafe(|| choice.copied(mode))).is_err());
+        }
+
         BORROWED_RELEASES.with(|count| count.set(0));
         assert!(matches!(receiver.stable(3), Err(neocogi_com_sdk::NC_E_NOINTERFACE)));
         assert!(matches!(receiver.stable(4), Err(NC_E_POINTER)));

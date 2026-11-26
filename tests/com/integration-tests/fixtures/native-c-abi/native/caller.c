@@ -558,6 +558,17 @@ typedef struct {
     } payload;
 } NativeChoiceWire;
 
+/* Both copied result projections use this out slot and decode only on success. */
+NcStatus nc_c_copied_choice(void *object, uint32_t mode, NativeChoiceWire *out) {
+    (void)object;
+    if (mode == 2) return -14; /* NC_E_DROPPED, without touching output. */
+    NativeChoiceWire value = {0};
+    value.tag = mode == 1 ? INT64_MAX : 0;
+    value.payload.flag.enabled = 1;
+    *out = value;
+    return 0;
+}
+
 /* Real generated Rust thunk, using the same C calling convention as plugin slots. */
 typedef int32_t (*NativeChoiceEcho)(void *, NativeChoiceWire, NativeChoiceWire *);
 
@@ -769,6 +780,7 @@ typedef struct NativeCapabilityTable {
     NcStatus (*invalidate)(void *);
     NcStatus (*invalidate_borrowed)(void *, NativeBoxedActions);
     NcStatus (*stable)(void *, uint32_t, INativeValueAbi *);
+    NcStatus (*direct_loan)(void *, uint32_t, INativeValueAbi *);
 } NativeCapabilityTable;
 struct NativeCapability {
     void *object;
