@@ -5,7 +5,7 @@ use std::{
     fs,
     io::Write as _,
     path::{Path, PathBuf},
-    process::Command,
+    process::{Command, Output},
 };
 
 use neocogi_com_host::{PluginLoadErrorKind, inspect_plugin_library};
@@ -238,6 +238,32 @@ fn build_native(root: &Path, name: &str, define: Option<&str>, forward: bool) {
     command.current_dir(root);
     let forward_export = format!("nc_get_plugin_descriptor={FORWARD_TARGET}.nc_get_plugin_descriptor");
     if compiler.is_like_msvc() {
+        if forward {
+            // MSVC checks both forwarder spellings for a local symbol. Compile
+            // the marker with the native C compiler and let Rust's bundled COFF
+            // linker emit the forwarder without a CRT entry point or imports.
+            let marker = root.join("forwarded.obj");
+            command
+                .args(["/c", "/Zl", "/DNC_ORIGIN_FORWARD_ONLY"])
+                .arg(source)
+                .arg(format!("/Fo{}", marker.display()));
+            run_native_build("compile PE forwarder marker", &mut command);
+            let rustc = std::env::var_os("RUSTC").unwrap_or_else(|| "rustc".into());
+            let sysroot = run_native_build("locate Rust sysroot", Command::new(rustc).args(["--print", "sysroot"]));
+            let sysroot = String::from_utf8(sysroot.stdout).unwrap();
+            let linker = Path::new(sysroot.trim())
+                .join("lib/rustlib")
+                .join(env!("NC_COM_TEST_HOST"))
+                .join("bin/rust-lld.exe");
+            let mut link = Command::new(linker);
+            link.current_dir(root)
+                .args(["-flavor", "link", "/dll", "/noentry", "/nodefaultlib"])
+                .arg(format!("/out:{}", library.display()))
+                .arg(format!("/EXPORT:{forward_export}"))
+                .arg(marker);
+            run_native_build("link PE forwarder", &mut link);
+            return;
+        }
         command.arg("/LD");
         if let Some(define) = define {
             command.arg(format!("/D{define}"));
@@ -246,13 +272,8 @@ fn build_native(root: &Path, name: &str, define: Option<&str>, forward: bool) {
         let import = root.join("nc_origin_dependency.lib");
         if is_dependency {
             command.arg(format!("/IMPLIB:{}", import.display()));
-        } else if !forward {
+        } else {
             command.arg(import);
-        }
-        if forward {
-            // MSVC's .def symbol check tries to resolve this forwarder
-            // locally. The explicit linker export emits the PE forwarder.
-            command.arg(format!("/EXPORT:{forward_export}"));
         }
     } else {
         command.args(if cfg!(target_os = "macos") {
@@ -282,11 +303,17 @@ fn build_native(root: &Path, name: &str, define: Option<&str>, forward: bool) {
             command.arg(dependency);
         }
     }
-    let output = command.output().unwrap();
+    run_native_build(name, &mut command);
+}
+
+/// Keeps native fixture build diagnostics visible on failure.
+fn run_native_build(name: &str, command: &mut Command) -> Output {
+    let output = command.output().unwrap_or_else(|error| panic!("{name}: {error}"));
     assert!(
         output.status.success(),
         "{name}: {}\n{}",
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
+    output
 }
