@@ -1285,7 +1285,9 @@ execution. A cancelled run or detached JSON is insufficient evidence.
 The independent sample exercises typed factory construction, inherited interface
 calls, shared-provider state changes, domain notifications delivered into the host's concrete queue,
 canonical weak-origin identity, fresh copied output (nested enum/boolean and short
-prefix) through ABI v4, persistence through provider-owned byte buffers,
+prefix) through ABI v4, transfer of a boxed mount with shared and mutable child
+loans, provider-side destruction of the child after host release, persistence
+through provider-owned byte buffers,
 restoration through a host-implemented factory adapter, promotion while live,
 and failed promotion after final object release. All assertions execute in
 release/abort builds. Normal completion crosses calls in both directions; panic

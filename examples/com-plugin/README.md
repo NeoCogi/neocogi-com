@@ -9,7 +9,9 @@ COM facade, runs IDL as a build dependency, and receives runtime access from its
 fn acquire_root(_runtime: neocogi_com_sdk::RuntimeHandle)
     -> Result<neocogi_com_sdk::ComPtr<crate::contracts::ExampleFactoryAbi>, neocogi_com_sdk::NcStatus>
 {
-    DynamicExampleFactory::from_value(DynamicExampleFactory).query()
+    DynamicExampleFactory::from_value(DynamicExampleFactory {
+        destroyed_widgets: std::rc::Rc::new(std::cell::Cell::new(0)),
+    }).query()
 }
 ```
 
@@ -55,7 +57,9 @@ cargo run -p neocogi-example-com-host --features monolith
 Cargo links the provider rlib and runtime into the host. Only the executable is
 deployed. Both compositions print `factory object: 44 x 31` after checking typed
 construction, inherited/mutable calls, copied output, domain notifications,
-weak-origin promotion/expiry, persistence and final release.
+weak-origin promotion/expiry, persistence and final release. The host also
+receives a boxed mount, reads and edits its child through receiver-bound
+loans, and checks that dropping the mount destroys the child in the provider.
 
 The host implements a concrete observer and queues owned `ExtentNotification`
 facts with weak producer identity; UI is not involved. Its persistence adapter

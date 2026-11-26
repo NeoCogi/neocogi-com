@@ -13,7 +13,7 @@ use neocogi_com_sdk::NcValueRef;
 #[path = "../support/extent_state.rs"]
 mod extent_state;
 use extent_state::{ExtentState, PERSISTENT_KIND};
-use neocogi_example_com_host::contracts::{ExampleFactoryAbi, ExampleObjectAbi, Extent, ExtentReport};
+use neocogi_example_com_host::contracts::{ExampleFactoryAbi, ExampleObjectAbi, Extent, ExtentReport, ICompositionFactoryAbi};
 
 /// Registers the selected plugin, acquires its checked factory, and mutates one object.
 #[neocogi_com_sdk::com_main]
@@ -28,6 +28,25 @@ fn main(runtime: RuntimeHandle) {
     let factory = runtime
         .acquire_plugin_root::<ExampleFactoryAbi>(guid_from_qualified_name("nc.examples.factory_plugin_component"))
         .expect("compatible example factory");
+    {
+        let compositions = factory.query::<ICompositionFactoryAbi>().unwrap();
+        let before = compositions.destroyed_widgets();
+        let mut mount = compositions.composition().unwrap();
+        {
+            let widget = mount.widget();
+            assert_eq!(widget.extent(), Extent { width: 8, height: 6 });
+        }
+        let changed = Extent { width: 13, height: 9 };
+        {
+            let mut widget = mount.widget_mut();
+            widget.as_com_mut().set_extent(changed);
+        }
+        assert_eq!(mount.widget().extent(), changed);
+        assert_eq!(compositions.destroyed_widgets(), before);
+        drop(mount);
+        assert_eq!(compositions.destroyed_widgets(), before + 1);
+    }
+
     let (queue, messages) = notification_channel::channel();
     let binding = neocogi_example_com_host::contracts::ExtentBinding::Observed(queue.clone());
     let object = factory

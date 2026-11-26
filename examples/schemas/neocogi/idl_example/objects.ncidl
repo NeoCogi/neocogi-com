@@ -23,16 +23,28 @@ interface ExampleFactory {
     fn create(&self, extent: Extent, events: &ExtentBinding) -> Result<ComPtr<ExampleObject>>;
 }
 
-/// Transfers the mountable composition to its new owner.
-interface ICompositionRoot {
-    /// Moves the sole owner of the mounted composition.
-    fn take_root(&mut self) -> Result<ComBox<IMountedComposition>>;
+/// Constructs a composition and observes its widget's provider-side lifetime.
+interface ICompositionFactory {
+    /// Transfers the sole owner of an initialized mount.
+    fn composition(&self) -> Result<ComBox<IMountedComposition>>;
+    /// Counts widgets destroyed by this factory's provider.
+    fn destroyed_widgets(&self) -> u32;
 }
 
-/// The mounted object lends selected views of its owned children.
+/// The mount owns the widget and lends views for the receiver's borrow.
 interface IMountedComposition {
-    /// Lends the measured view of an authored child for this receiver borrow.
-    fn widget(&self, name: &[u8]) -> Option<&IMeasured>;
+    /// Lends shared access to the mounted widget.
+    fn widget(&self) -> &IEditableWidget;
+    /// Lends exclusive access to the same widget.
+    fn widget_mut(&mut self) -> &mut IEditableWidget;
+}
+
+/// A widget whose dimensions are stored directly in a boxed value.
+interface IEditableWidget {
+    /// Copies the current dimensions.
+    fn extent(&self) -> Extent;
+    /// Replaces the dimensions while the caller holds exclusive access.
+    fn set_extent(&mut self, extent: Extent);
 }
 
 /// Domain-specific observer; COM gives this interface no event semantics.
