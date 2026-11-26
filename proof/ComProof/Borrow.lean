@@ -290,8 +290,9 @@ theorem writing_worker_checks_returned_permission
   cases step with
   | writeIdle _ allowed => exact allowed
 
-/-- A send-only target can transfer its mutable loan without authorizing a read
-loan on the same worker. This is the distinction exhibited by Rust Cell. -/
+/-- A send-only target can transfer an exclusive loan. Transferring a shared
+loan would require Sync. An exclusive borrower on the worker can still make a
+local shared reborrow, as with Rust Cell. -/
 theorem send_only_worker :
     permits ⟨true, false⟩ .exclusive .worker ∧
       ¬ permits ⟨true, false⟩ .shared .worker := by simp [permits, canSend]
