@@ -1,0 +1,7 @@
+name = "neocogi-com-proof"
+version = "0.1.0"
+defaultTargets = ["ComProof"]
+leanOptions = { warningAsError = true }
+
+[[lean_lib]]
+name = "ComProof"
