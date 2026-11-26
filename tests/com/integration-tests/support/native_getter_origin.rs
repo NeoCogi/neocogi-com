@@ -236,14 +236,7 @@ fn build_native(root: &Path, name: &str, define: Option<&str>, forward: bool) {
         .get_compiler();
     let mut command = compiler.to_command();
     command.current_dir(root);
-    let export = root.join("forwarded.def");
-    if forward && cfg!(windows) {
-        fs::write(
-            &export,
-            format!("EXPORTS\n    nc_get_plugin_descriptor={FORWARD_TARGET}.nc_get_plugin_descriptor\n"),
-        )
-        .unwrap();
-    }
+    let forward_export = format!("nc_get_plugin_descriptor={FORWARD_TARGET}.nc_get_plugin_descriptor");
     if compiler.is_like_msvc() {
         command.arg("/LD");
         if let Some(define) = define {
@@ -257,7 +250,9 @@ fn build_native(root: &Path, name: &str, define: Option<&str>, forward: bool) {
             command.arg(import);
         }
         if forward {
-            command.arg(format!("/DEF:{}", export.display()));
+            // MSVC's .def symbol check tries to resolve this forwarder
+            // locally. The explicit linker export emits the PE forwarder.
+            command.arg(format!("/EXPORT:{forward_export}"));
         }
     } else {
         command.args(if cfg!(target_os = "macos") {
@@ -277,6 +272,8 @@ fn build_native(root: &Path, name: &str, define: Option<&str>, forward: bool) {
                 command.arg(import);
             }
             if forward {
+                let export = root.join("forwarded.def");
+                fs::write(&export, format!("EXPORTS\n    {forward_export}\n")).unwrap();
                 command.arg(export);
             }
         } else if forward {
