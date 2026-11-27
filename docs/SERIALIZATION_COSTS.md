@@ -201,9 +201,9 @@ The selected cache left all measured allocation counts and requested bytes
 unchanged. The native source retains concrete syntax values rather than caller
 pointers; a regression mutates/drops input before generated typed construction.
 
-Reproduce artifact sizes and the mixed workload using the ordinary commands in
-[Reproduce](#reproduce), keeping the compiler/flags/inputs identical on both
-revisions and copying artifacts outside targets before `cargo clean`. The local
+Use the [benchmark commands](#run-the-current-benchmark) with identical
+compilers, flags and inputs when comparing revisions. Copy artifacts outside
+targets before `cargo clean`. The local
 comparison retains exact temporary driver source/manifest, prototype source,
 commands, Cargo artifact records, raw timings, allocator counts, compiler details
 and all saved binaries under `/tmp/neocogi-alpha-fix`. The numeric probe is a
@@ -218,16 +218,14 @@ own parser/writer and adds no runtime parser/framework dependency. YAML is remov
 These measurements describe the pre-alpha ABI v1 checkout; they are historical
 size/throughput evidence rather than qualification of the ABI v2 release or ABI v3 development sources.
 
-## Complete deployment configuration
+## Deployment configuration for the historical measurements
 
-`cargo build --profile min-size` uses the ordinary
-[workspace configuration](../.cargo/config.toml). It rebuilds target std,
-uses immediate abort, fat LTO, one codegen unit, symbol/path stripping,
+The measured checkout's `cargo build --profile min-size` rebuilt target std
+and used immediate abort, fat LTO, one codegen unit, symbol/path stripping,
 `force-unwind-tables=no`, `location-detail=none` and `fmt-debug=none`. Host build
-scripts and procedural macros keep their ordinary formatting and diagnostics.
-The checkout follows `nightly` and requests `rust-src`; no build alias, task
-runner or extra configuration file selects the deployment settings.
-The measurements below retain the exact compiler revision used for that run.
+scripts and procedural macros kept their ordinary formatting and diagnostics.
+The checkout used `nightly` with `rust-src` and selected the deployment settings
+through its ordinary Cargo configuration.
 
 The earlier 428,928-byte JSON file was built with precompiled std and retained
 panic/backtrace symbolization. Those measurements did not use this complete
@@ -275,9 +273,11 @@ records, checks copied error details, and compares byte-mutated JSON documents
 with an independent parser in the unpublished test executable. That reference
 parser is not a dependency of either deployed crate.
 
-## Reproduce
+## Run the current benchmark
 
 Install `nightly` with the `rust-src` component before these builds.
+The [workspace profile](../.cargo/config.toml) follows Rust's target defaults
+for unwind tables, including the tables required on Windows.
 
 ```sh
 cargo build --profile min-size -p nc-serialization

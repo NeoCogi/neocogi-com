@@ -178,7 +178,7 @@ pub(crate) fn stage_serialization(runner: &Runner, directory: &Path) -> Result<(
             "--locked",
             "-p",
             package,
-            "--message-format=json",
+            "--message-format=json-render-diagnostics",
         ],
     )?;
     let target = package.replace('-', "_");

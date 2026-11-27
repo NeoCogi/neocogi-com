@@ -18,8 +18,8 @@ trim-paths = true
 [profile.min-size]
 panic = "immediate-abort"
 trim-paths = "all"
+# Keep the target's unwind-table policy, including required Windows tables.
 rustflags = [
-    "-Cforce-unwind-tables=no",
     "-Zlocation-detail=none",
     "-Zfmt-debug=none",
 ]
