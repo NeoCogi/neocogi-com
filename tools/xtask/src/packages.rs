@@ -10,6 +10,9 @@ use crate::{
     process::{Result, Runner},
 };
 
+/// Name and manifest directory of the deployed codec shim.
+const SERIALIZATION_PLUGIN: (&str, &str) = ("nc-serialization", "crates/serialization-dylib");
+
 /// The complete distributable SDK; this tool and all fixture packages are unpublished.
 pub(crate) const PUBLISHED: &[(&str, &str)] = &[
     ("neocogi-com", "crates/core"),
@@ -17,7 +20,7 @@ pub(crate) const PUBLISHED: &[(&str, &str)] = &[
     ("neocogi-com-macros", "crates/macros"),
     ("neocogi-com-sdk", "crates/com"),
     ("neocogi-com-serialization", "crates/serialization"),
-    ("neocogi-com-serialization-dylib", "crates/serialization-dylib"),
+    SERIALIZATION_PLUGIN,
     ("neocogi-com-host", "crates/host"),
     ("neocogi-inspect", "tools/neocogi-inspect"),
 ];
@@ -152,6 +155,45 @@ enum NativeOutput {
     Library,
     /// One ordinary, non-test executable reported by Cargo.
     Executable,
+}
+
+/// Build the native codec shim and publish its hyphenated deployment filename.
+pub(crate) fn stage_serialization(runner: &Runner, directory: &Path) -> Result<()> {
+    let (package, manifest_dir) = SERIALIZATION_PLUGIN;
+    let manifest = runner.root.join(manifest_dir).join("Cargo.toml");
+    // Preserve a selected Cargo target directory for this ordinary build.
+    let mut build = runner.clone();
+    if let Some(target) = std::env::var_os("CARGO_TARGET_DIR") {
+        build.env.insert("CARGO_TARGET_DIR".into(), std::path::absolute(target)?.into_os_string());
+    }
+    let output = build.read(
+        "rustup",
+        [
+            "run",
+            "nightly",
+            "cargo",
+            "build",
+            "--profile",
+            "min-size",
+            "--locked",
+            "-p",
+            package,
+            "--message-format=json",
+        ],
+    )?;
+    let target = package.replace('-', "_");
+    let artifact = native_artifact(&output, &manifest, &target, NativeOutput::Library)?;
+    let filename = format!("{}{package}{}", std::env::consts::DLL_PREFIX, std::env::consts::DLL_SUFFIX);
+    fs::create_dir_all(directory)?;
+    let deployed = directory.join(filename);
+    // Publish the fully copied library only after a successful build and copy.
+    let mut source = fs::File::open(artifact)?;
+    let mut pending = tempfile::NamedTempFile::new_in(directory)?;
+    std::io::copy(&mut source, pending.as_file_mut())?;
+    pending.as_file().set_permissions(source.metadata()?.permissions())?;
+    pending.persist(&deployed)?;
+    println!("Staged {}", deployed.display());
+    Ok(())
 }
 
 /// Select one actual fresh/cached artifact by manifest, target and output kind.

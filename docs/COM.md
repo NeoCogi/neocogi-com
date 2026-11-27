@@ -395,7 +395,7 @@ retains explicit reconstruction recipes and an NCB envelope by default.
 - `neocogi-com-macros`: thin procedural entrypoints over IDL's shared backend.
 - `neocogi-com-sdk`: typed object/data helpers and optional supplied runtime API wrappers.
 - `neocogi-com-serialization`: reusable NCB/JSON codecs and static plugin descriptor.
-- `neocogi-com-serialization-dylib`: thin native entry point for that rlib.
+- `nc-serialization`: thin native entry point for that rlib.
 - `neocogi-com-host`: plugin catalog, loader, and persistence implementation;
   its Rust library target is `neocogi_com_host`.
 - `neocogi-idl` under `crates/idl`: IDL parser/resolver, the shared `codegen`

@@ -6,6 +6,19 @@ NCB and our custom JSON format are always built into this shared library,
 including with `--no-default-features`. NCB is selected by default. There are
 no format feature switches on the dylib crate.
 
-Use `cargo build --profile min-size -p neocogi-com-serialization-dylib`
-for the deployed artifact under `target/min-size`. The ordinary profile owns the
-complete nightly/std-rebuild configuration; no wrapper command is required.
+From the SDK checkout, build and stage the native plugin into your deployment
+directory with the configured min-size profile:
+
+```sh
+cargo xtask stage-serialization ./deploy
+```
+
+| Platform | Cargo library | Deployed filename |
+| --- | --- | --- |
+| Linux | `libnc_serialization.so` | `libnc-serialization.so` |
+| macOS | `libnc_serialization.dylib` | `libnc-serialization.dylib` |
+| Windows | `nc_serialization.dll` | `nc-serialization.dll` |
+
+If you only have the crate archive, build it with `cargo build --release --locked`
+and copy the Cargo library to the deployed filename for your platform. Pass the
+deployed path to the host's plugin loader.

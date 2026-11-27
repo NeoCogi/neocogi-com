@@ -1,7 +1,7 @@
 //! Static or dynamic COM serialization plugin with an unconditional NCB default.
 //!
 //! `json` adds the optional lightweight JSON format. `plugin` supplies the
-//! statically linked descriptor; the separate serialization-dylib crate exports
+//! statically linked descriptor; the separate `nc-serialization` crate exports
 //! the native entry point. Without default features, fixed-buffer NCB remains available.
 #![cfg_attr(not(feature = "std"), no_std)]
 

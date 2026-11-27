@@ -108,6 +108,9 @@ jobs:
       - name: Native inspector integration tests
         if: ${{ !cancelled() }}
         run: cargo test -p neocogi-tooling-tests --test factory_plugin --locked -- --test-threads=1
+      - name: Deployed native serialization plugin
+        if: ${{ !cancelled() }}
+        run: cargo test -p neocogi-com-tests --features runtime --test serialization_plugin --locked
       - name: Native descriptor getter provenance
         if: ${{ !cancelled() }}
         run: cargo test -p neocogi-com-tests --features runtime --test plugin_inspection --locked
@@ -154,7 +157,7 @@ jobs:
       - name: Native inspector integration tests
         if: ${{ !cancelled() }}
         run: cargo test -p neocogi-tooling-tests --test factory_plugin --locked -- --test-threads=1
-      - name: Native descriptor getter provenance
+      - name: Native getter and deployed serialization plugin
         if: ${{ !cancelled() }}
         shell: bash
         env:
@@ -163,12 +166,12 @@ jobs:
           set -o pipefail
           log=$(mktemp)
           trap 'rm -f "$log"' EXIT
-          if ! cargo test -p neocogi-com-tests --features runtime --test plugin_inspection --locked 2>&1 | tee "$log"; then
+          if ! cargo test -p neocogi-com-tests --features runtime --test plugin_inspection --test serialization_plugin --locked 2>&1 | tee "$log"; then
             diagnostic=$(tail -n 45 "$log")
             diagnostic=${diagnostic//%/%25}
             diagnostic=${diagnostic//$'\r'/%0D}
             diagnostic=${diagnostic//$'\n'/%0A}
-            printf '::error title=Windows getter fixture::%s\n' "$diagnostic"
+            printf '::error title=Windows native plugin tests::%s\n' "$diagnostic"
             exit 1
           fi
       - name: Extracted SDK and independent first-use tutorial

@@ -56,9 +56,15 @@ fn dispatch() -> Result<()> {
                 process::retire(owner, result)
             }
         },
+        Some("stage-serialization") => {
+            let [directory] = remaining.as_slice() else {
+                return Err("usage: cargo xtask stage-serialization DIRECTORY".into());
+            };
+            packages::stage_serialization(&runner, &std::path::absolute(directory)?)
+        }
         Some("help" | "--help" | "-h") if remaining.is_empty() => {
             println!(
-                "cargo xtask <quality|msrv|packages|markdown|workspace|abi-32>\ncargo xtask compatibility [--suite linked|cross-version|build-flags|safety|address|thread|sanitizers] [--report PATH]"
+                "cargo xtask <quality|msrv|packages|markdown|workspace|abi-32>\ncargo xtask compatibility [--suite linked|cross-version|build-flags|safety|address|thread|sanitizers] [--report PATH]\ncargo xtask stage-serialization DIRECTORY"
             );
             Ok(())
         }

@@ -212,6 +212,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "nc-serialization"
+version = "0.5.0-wip-alpha.1"
+dependencies = [
+ "neocogi-com-sdk",
+ "neocogi-com-serialization",
+]
+
+[[package]]
 name = "neocogi-com"
 version = "0.5.0-wip-alpha.1"
 dependencies = [
@@ -248,14 +256,6 @@ name = "neocogi-com-serialization"
 version = "0.5.0-wip-alpha.1"
 dependencies = [
  "neocogi-com-sdk",
-]
-
-[[package]]
-name = "neocogi-com-serialization-dylib"
-version = "0.5.0-wip-alpha.1"
-dependencies = [
- "neocogi-com-sdk",
- "neocogi-com-serialization",
 ]
 
 [[package]]

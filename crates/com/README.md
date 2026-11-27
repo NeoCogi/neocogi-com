@@ -315,7 +315,7 @@ With `runtime`, hosts can capture and reconstruct explicit initialization trees.
 The application must first supply `nc.serialization` in the same host's catalog.
 For a static application, enable the serialization crate's `plugin` feature and
 explicitly register `neocogi_com_serialization::plugin_descriptor()`; for a
-dynamic application, load `neocogi-com-serialization-dylib`. Persistence selects
+dynamic application, load `nc-serialization`. Persistence selects
 named `ncb`, even if the provider defaults to JSON. The host supplies no implicit
 registration or codec fallback. Missing providers return `NC_E_NOT_FOUND`;
 empty registry creation and recipe registration remain available without one.
@@ -391,7 +391,7 @@ either from a dependency, so neither status identifies receiver lifetime. See th
 factory. `Format::new(factory, limits)` selects another `ISerializationFormatAbi`
 provider, including a plugin-supplied factory.
 `neocogi-com-serialization` is the reusable implementation rlib; the separate
-`neocogi-com-serialization-dylib` crate is its thin native shim. NCB is always
+`nc-serialization` crate is its thin native shim. NCB is always
 included and selected by default; `json` is optional. `serialize` and `deserialize` use the same local
 `ComSerialize`/`ComDeserialize` implementations through mutable COM document
 sessions. Those sessions own their buffers; values remain caller-owned Rust types.

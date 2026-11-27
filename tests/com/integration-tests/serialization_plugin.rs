@@ -16,40 +16,52 @@ struct State {
     weight: f64,
 }
 
-/// Loads an ordinary independently built cdylib, acquires both built-in formats,
-/// performs real vtable calls and copies a detailed failure back to the caller.
+/// Tells the child harness to load the exact deployed library from the parent.
+const STAGED_PLUGIN: &str = "NC_TEST_STAGED_SERIALIZATION_PLUGIN";
+
+/// Stages the real deployment artifact and loads it from a fresh host process.
 #[test]
 fn native_shim_supplies_formats_and_failure_details() {
+    if let Some(path) = std::env::var_os(STAGED_PLUGIN) {
+        exercise_staged_plugin(Path::new(&path));
+        return;
+    }
+
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize().unwrap();
+    let stage = tempfile::tempdir().unwrap();
     let build = Command::new("rustup")
-        .args([
-            "run",
-            "nightly",
-            "cargo",
-            "build",
-            "--profile",
-            "min-size",
-            "-p",
-            "neocogi-com-serialization-dylib",
-            "--locked",
-            "--message-format=json",
-        ])
+        .args(["run", "nightly", "cargo", "xtask", "stage-serialization"])
+        .arg(stage.path())
         .current_dir(&root)
         .output()
         .unwrap();
     assert!(build.status.success(), "{}", String::from_utf8_lossy(&build.stderr));
-    let artifact = String::from_utf8(build.stdout)
-        .unwrap()
-        .lines()
-        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
-        .filter(|record| record["reason"] == "compiler-artifact" && record["target"]["name"] == "neocogi_com_serialization_dylib")
-        .flat_map(|record| record["filenames"].as_array().cloned().unwrap_or_default())
-        .filter_map(|path| path.as_str().map(std::path::PathBuf::from))
-        .find(|path| path.extension().is_some_and(|extension| extension == std::env::consts::DLL_EXTENSION))
+
+    let filename = format!("{}nc-serialization{}", std::env::consts::DLL_PREFIX, std::env::consts::DLL_SUFFIX);
+    let artifact = stage.path().join(filename);
+    assert!(artifact.is_file(), "expected deployed plugin at {}", artifact.display());
+    // The child owns the loaded library until it exits, so Windows can also
+    // delete the staging directory after the native host has finished.
+    let host = Command::new(std::env::current_exe().unwrap())
+        .args(["--exact", "native_shim_supplies_formats_and_failure_details", "--nocapture"])
+        .env(STAGED_PLUGIN, &artifact)
+        .output()
         .unwrap();
+    assert!(
+        host.status.success(),
+        "{}\n{}",
+        String::from_utf8_lossy(&host.stdout),
+        String::from_utf8_lossy(&host.stderr)
+    );
+    assert!(String::from_utf8_lossy(&host.stdout).contains("test result: ok. 1 passed"));
+    stage.close().unwrap();
+}
+
+/// Acquires both built-in formats, exercises calls, and copies back diagnostics.
+fn exercise_staged_plugin(artifact: &Path) {
     let runtime = neocogi_com_host::initialize_runtime();
-    // SAFETY: the fixture is the trusted production shim just compiled above.
-    let id = unsafe { runtime.load_plugin_library(&artifact) };
+    // SAFETY: The parent stages a trusted local build of the production plugin.
+    let id = unsafe { runtime.load_plugin_library(artifact) };
     let root = runtime.acquire_plugin_root::<ISerializationPluginAbi>(id).unwrap();
     let value = State {
         count: 42,

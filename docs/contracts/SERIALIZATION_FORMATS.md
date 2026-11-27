@@ -6,7 +6,7 @@ Core owns their checked-in ABI, wrappers and scoped adapters; the SDK facade own
 ordinary provider thunks and the runtime-selectable `Format` convenience API.
 The bootstrap freshness test derives these halves from the single NCIDL source.
 The reusable `neocogi-com-serialization` rlib owns every codec. The separate
-`neocogi-com-serialization-dylib` crate only exports its native descriptor entry
+`nc-serialization` crate only exports its native descriptor entry
 point, following the platform implementation/shim split. No host implementation
 is linked merely to use a codec. Host persistence acquires the named `ncb` format
 from `nc.serialization` in its own catalog. The application explicitly registers

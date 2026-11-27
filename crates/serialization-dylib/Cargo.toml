@@ -1,5 +1,5 @@
 [package]
-name = "neocogi-com-serialization-dylib"
+name = "nc-serialization"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

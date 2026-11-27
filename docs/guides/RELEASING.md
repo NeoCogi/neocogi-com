@@ -176,7 +176,7 @@ cargo publish --locked --registry crates-io -p neocogi-idl
 cargo publish --locked --registry crates-io -p neocogi-com-macros
 cargo publish --locked --registry crates-io -p neocogi-com-sdk
 cargo publish --locked --registry crates-io -p neocogi-com-serialization
-cargo publish --locked --registry crates-io -p neocogi-com-serialization-dylib
+cargo publish --locked --registry crates-io -p nc-serialization
 cargo publish --locked --registry crates-io -p neocogi-com-host
 cargo publish --locked --registry crates-io -p neocogi-inspect
 ```

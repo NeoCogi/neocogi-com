@@ -53,7 +53,7 @@ monolith. Its adapter reconstructs through the provider's existing typed factory
 The final application must supply `nc.serialization` in this host's catalog
 before saving or restoring. A static/monolithic application explicitly registers
 `neocogi_com_serialization::plugin_descriptor()`; a dynamic application loads
-`neocogi-com-serialization-dylib`. Host initialization and empty context creation
+`nc-serialization`. Host initialization and empty context creation
 remain provider-independent. The host has no runtime dependency on a codec
 implementation, implicit registration, loader policy, format registry or fallback.
 

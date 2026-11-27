@@ -13,6 +13,7 @@ Maintainers publish using the dedicated [release procedure](../../docs/guides/RE
 | `cargo xtask quality` | Formatting, strict Clippy, allocation modes, ABI snippets, Markdown links and strict rustdoc |
 | `cargo xtask markdown` | Local Markdown files and heading anchors; external links are not fetched |
 | `cargo xtask msrv` | Rust 1.85 checks, library tests, exact semantic integration cases and feature boundaries |
+| `cargo xtask stage-serialization DIRECTORY` | Build the min-size codec plugin and stage it under its deployed native filename |
 | `cargo xtask packages` | Eight archives, shipped tests/docs, linked host consumers, downstream COM, and the independent host/plugin tutorial on Rust 1.85 |
 | `cargo xtask abi-32` | Core and native-C tests for `NC_COM_32_BIT_TARGET`, defaulting to `i686-unknown-linux-gnu` |
 | `cargo xtask compatibility --suite linked` | Native C/ABI checks, relocated host-owned test executables and independent providers |

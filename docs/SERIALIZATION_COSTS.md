@@ -280,7 +280,7 @@ parser is not a dependency of either deployed crate.
 Install `nightly` with the `rust-src` component before these builds.
 
 ```sh
-cargo build --profile min-size -p neocogi-com-serialization-dylib
+cargo build --profile min-size -p nc-serialization
 cargo build --profile min-size -p neocogi-com-serialization --example format_costs
 cargo build --profile min-size -p neocogi-com-serialization --features json --example format_costs
 ```

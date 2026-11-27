@@ -143,7 +143,7 @@ registers a plugin or invokes its factory. All metadata/code remains process-pin
 
 Applications explicitly supply `nc.serialization` before saving or restoring an object tree.
 Register `neocogi_com_serialization::plugin_descriptor()` for static compositions,
-or load `neocogi-com-serialization-dylib` for dynamic compositions. The host uses
+or load `nc-serialization` for dynamic compositions. The host uses
 the registered provider's named `ncb` factory in both directions, regardless of
 its default format. It embeds no codec or fallback. Missing providers return
 `NC_E_NOT_FOUND`; selection errors propagate. See [PERSISTENCE.md](PERSISTENCE.md)
